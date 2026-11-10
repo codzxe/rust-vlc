@@ -46,7 +46,10 @@ crate-type = ["cdylib", "rlib"]
 # The ONE command layer (ARCH-5): envelopes, catalog, staleness.
 commands = { path = "../../crates/commands" }
 # The engine core — every crate below is proven wasm32-clean (this
-# card's worklog records the cargo check evidence).
+# card's worklog records the cargo check evidence). video-engine is
+# deliberately ABSENT: v1's video path is the headless counting
+# presenter (the capability snapshot's honest row); the scheduler +
+# canvas surface land with card 7.H2.
 media-types = { path = "../../crates/media-types" }
 plugin-api = { path = "../../crates/plugin-api" }
 codec-api = { path = "../../crates/codec-api" }
@@ -56,7 +59,6 @@ media-clock = { path = "../../crates/media-clock" }
 playback-engine = { path = "../../crates/playback-engine" }
 audio-engine = { path = "../../crates/audio-engine" }
 audio-output = { path = "../../crates/audio-output" }
-video-engine = { path = "../../crates/video-engine" }
 # The worker-protocol wire forms (the command layer's serde family).
 serde = "1"
 serde_json = "1"

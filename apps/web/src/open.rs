@@ -27,9 +27,9 @@ use demux::avi::AviDemuxer;
 use media_clock::NANO_BASE;
 use media_probe::{ProbeConfig, ProbeRegistry};
 use media_types::ids::SourceUri;
-use media_types::time::{Stamp, TimeSpan, Timestamp};
+use media_types::time::{TimeSpan, Timestamp};
 use media_types::{MediaKind, TimeBase, Track, TrackId};
-use plugin_api::{Demuxer, SourceStream};
+use plugin_api::Demuxer;
 
 use crate::capabilities::HostCapabilities;
 use crate::source::BlobRegistry;
@@ -216,11 +216,13 @@ pub fn open(
     options: WebOpenOptions,
 ) -> Result<OpenedMedia, CommandError> {
     let uri = resolve_source(source, registry, capabilities)?;
-    let name = uri
-        .as_str()
-        .strip_prefix("blob:")
-        .unwrap_or_default()
-        .to_string();
+    // The blob name: `resolve_source` only passes `blob:` URLs, so
+    // the spec's own string is the registry key (the parsed URI's
+    // raw form is private — the redacted log form is not the key).
+    let name = match source {
+        SourceSpec::Url { url } => url.strip_prefix("blob:").unwrap_or_default().to_string(),
+        SourceSpec::File { .. } => String::new(),
+    };
     let mut stream = registry.open(&name).map_err(|err| {
         CommandError::new(
             Stage::Input,
@@ -231,7 +233,7 @@ pub fn open(
     // 1. Probe (the bounded, non-consuming window).
     let registry_probes = ProbeRegistry::with_builtins();
     let config = ProbeConfig::default();
-    let report = media_probe::probe_stream(&registry_probes, &mut *stream, &config)
+    let report = media_probe::probe_stream(&registry_probes, &mut stream, &config)
         .map_err(|err| wire_error(&err))?;
     let container = report.format.as_str().to_string();
     // 2. The per-family wiring: `avi` is v1's wired family; every
@@ -529,6 +531,7 @@ mod tests {
         let registry = BlobRegistry::new();
         let caps = capabilities(crate::capabilities::build_profile());
         let file = SourceSpec::File {
+            // lumen-allow-literal: typed-refusal test vector — a fake POSIX path, never a shipped route
             path: std::path::PathBuf::from("/tmp/x.avi"),
         };
         let err = assert_err(resolve_source(&file, &registry, &caps), "file on web");
@@ -540,6 +543,7 @@ mod tests {
         for (url, capability) in [
             ("rtsp://camera/mpeg1", "rtsp-rtp-udp-access"),
             ("udp://239.0.0.1:1234", "rtsp-rtp-udp-access"),
+            // lumen-allow-literal: reserved example host — typed-refusal test vector, never a shipped endpoint
             ("https://example.com/a.avi", "http-streaming"),
         ] {
             let err = assert_err(

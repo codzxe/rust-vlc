@@ -126,6 +126,17 @@ pub enum WorkerToHost {
         /// The report.
         report: PumpReport,
     },
+    /// A control-lane failure (typed, never a crash): a `loadBlob`
+    /// registry refusal, an ABI decode failure, a message the
+    /// worker could not apply. Command-lane errors ride `Response`
+    /// — this is the control lane's twin (doc 05 §5.2's "typed,
+    /// not silent", applied to the transport itself).
+    ControlError {
+        /// The stable dotted code (branchable, like `CommandError`'s).
+        code: String,
+        /// The human sentence (V7 — render as text, never markup).
+        message: String,
+    },
     /// The graceful shutdown acknowledgment.
     ShutdownComplete,
 }
@@ -140,6 +151,7 @@ impl WorkerToHost {
             WorkerToHost::Response(_) => "response",
             WorkerToHost::Events { .. } => "events",
             WorkerToHost::Pumped { .. } => "pumped",
+            WorkerToHost::ControlError { .. } => "controlError",
             WorkerToHost::ShutdownComplete => "shutdownComplete",
         }
     }
@@ -246,6 +258,10 @@ mod tests {
                     busy: true,
                     events_flushed: 2,
                 },
+            },
+            WorkerToHost::ControlError {
+                code: "web.blob_registry".to_string(),
+                message: "blob registry full (16 entries)".to_string(),
             },
             WorkerToHost::ShutdownComplete,
         ];

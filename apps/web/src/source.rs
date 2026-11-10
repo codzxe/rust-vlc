@@ -242,9 +242,10 @@ mod tests {
     fn registry_is_bounded() {
         let mut registry = BlobRegistry::new();
         for index in 0..MAX_BLOBS {
-            match registry.load(format!("blob-{}", index), vec![0]) {
+            let name = format!("blob-{index}");
+            match registry.load(&name, vec![0]) {
                 Ok(_) => {}
-                Err(err) => unreachable!("load {} must fit the bound: {err}", index),
+                Err(err) => unreachable!("load {name} must fit the bound: {err}"),
             }
         }
         let err = testkit::assert_err(registry.load("one-too-many", vec![0]), "over the bound");
@@ -254,11 +255,20 @@ mod tests {
     }
 
     /// A `blob:` URI round-trips through the L0 grammar (the scheme
-    /// is data, not a closed enum — `blob` parses).
+    /// is data, not a closed enum — `blob` parses). The L0 grammar
+    /// rejects spaces in the remainder, so blob names are
+    /// space-free by construction — pinned here, typed.
     #[test]
     fn blob_uri_parses() {
-        let source = BlobSource::new("first vertical.avi", b"x".as_slice()).must();
+        let source = BlobSource::new("first-vertical.avi", b"x".as_slice()).must();
         let uri = source.uri();
         assert_eq!(uri.scheme().as_str(), "blob");
+        // A space-bearing name is the typed L0 refusal, never a
+        // silent accept (the grammar's own invariant).
+        let err = testkit::assert_err(
+            BlobSource::new("first vertical.avi", b"x".as_slice()),
+            "space in the name",
+        );
+        assert!(err.to_string().contains("uri.control_chars"), "{err}");
     }
 }
