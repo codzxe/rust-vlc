@@ -60,6 +60,12 @@ pub struct ScenarioResult {
     /// The mean net live-bytes delta per measured cycle (the drift
     /// triage number; count-driven scenarios).
     pub live_mean_delta_per_cycle: Option<f64>,
+    /// The count-driven measured span — baseline sample tag → final
+    /// sample tag, the cycle distance the growth budgets and the
+    /// drift mean actually cover (recorded so no synthesis has to
+    /// re-derive it from sample counts; `None` for the duration
+    /// scenarios, whose axis is the measured window in seconds).
+    pub measured_cycles_span: Option<u64>,
     /// Whether the wall cap ended the run before the configured cycle
     /// count (reported, never hidden).
     pub wall_capped: bool,
@@ -287,6 +293,14 @@ fn write_scenario(out: &mut String, result: &ScenarioResult, manifest: &Manifest
     }
 
     // The count-driven growth numbers.
+    if let Some(span) = result.measured_cycles_span {
+        let _ = writeln!(
+            out,
+            "- Measured cycles (post-warmup baseline sample → final sample): {span} of {} \
+             configured — the span the growth budgets and the drift mean cover.",
+            result.cycles_configured.unwrap_or(0)
+        );
+    }
     if result.fd_baseline.is_some() || result.fd_final.is_some() {
         let _ = writeln!(
             out,
@@ -467,6 +481,7 @@ mod tests {
             live_baseline_bytes: None,
             live_final_bytes: None,
             live_mean_delta_per_cycle: None,
+            measured_cycles_span: None,
             wall_capped: false,
             cycles_configured: None,
             ceiling_mb_per_h: 50.0,

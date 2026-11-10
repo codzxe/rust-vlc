@@ -59,13 +59,22 @@ Count scenarios (growth budgets, post-warmup baselines):
 
 | scenario | cycles measured | live bytes | VmRSS | open fds |
 |---|---|---|---|---|
-| open-close-churn | 849,815 post-warmup (of 2.0M) | 295,117 → 295,117 B (**+0.0 B/cycle**) | 1,720 → 1,972 kB (+252 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
-| reopen-stress | 127,500 post-warmup (of 150k) | 292,783 → 292,783 B (**+0.0 B/cycle**) | 2,296 → 2,500 kB (+204 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
+| open-close-churn | 1,699,754 post-warmup (of 2.0M) | 295,117 → 295,117 B (**+0.0 B/cycle**) | 1,720 → 1,972 kB (+252 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
+| reopen-stress | 127,467 post-warmup (of 150k) | 292,783 → 292,783 B (**+0.0 B/cycle**) | 2,296 → 2,500 kB (+204 kB; budget 8 MB) | 4 → 4 (max 4; budget 4) |
 
-The counting allocator sees **zero net live-byte drift per cycle** at
+The "cycles measured" cells are the MEASURED post-warmup spans —
+baseline sample tag → final sample tag (stride 489: tag 300,246 →
+2,000,000 = 1,699,754; stride 37: tag 22,533 → 150,000 = 127,467;
+recomputed from the raw reports' sample/warmup counts — the
+`count_sample_stride` cadence of §5). The counting allocator sees
+**zero net live-byte drift per cycle** at
 both scales — the strongest available no-leak signal for the
 session-lifecycle path. VmRSS moves ~¼ MB per scenario (kernel-level
 arena behavior, monotone-ish but bounded), 30× under its budget.
+(The suite report now records this span itself —
+`Measured cycles (post-warmup baseline sample → final sample)` per
+count scenario — so future syntheses read it instead of re-deriving
+it; added with the W24-M review-fix round.)
 
 ## 3. Memory slopes vs the 5 MB/h target — FREEZE
 

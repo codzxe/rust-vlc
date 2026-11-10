@@ -503,6 +503,7 @@ fn finish_duration_scenario(
         live_baseline_bytes: None,
         live_final_bytes: None,
         live_mean_delta_per_cycle: None,
+        measured_cycles_span: None,
         wall_capped: false,
         cycles_configured: None,
         ceiling_mb_per_h: ceiling,
@@ -961,10 +962,7 @@ fn run_count_scenario(
     // ---- baselines and growth (post-warmup) ----
     // The baseline sample is the first taken at/after the warmup
     // boundary (tag >= warmup_cycles); the final is the last sample.
-    let baseline_idx = live_series
-        .iter()
-        .position(|(at, _)| *at >= warmup_cycles)
-        .unwrap_or(0);
+    let (baseline_idx, measured_cycles_span) = count_baseline_and_span(&live_series, warmup_cycles);
     let live_baseline = live_series.get(baseline_idx).map(|(_, v)| *v);
     let live_final = live_series.last().map(|(_, v)| *v);
     let rss_baseline_kb = rss_series.get(baseline_idx).and_then(|(_, v)| *v);
@@ -972,13 +970,6 @@ fn run_count_scenario(
     let fd_baseline = fd_series.get(baseline_idx).and_then(|(_, v)| *v);
     let fd_final = fd_series.last().and_then(|(_, v)| *v);
     let fd_max = fd_series.iter().filter_map(|(_, v)| *v).max();
-    // The cycles the growth numbers span (tag distance, baseline →
-    // final; the denominators of the budget sentences and the drift
-    // mean — the honest span, not the configured count).
-    let measured_cycles_span = match (live_series.get(baseline_idx), live_series.last()) {
-        (Some((base_at, _)), Some((final_at, _))) => final_at.saturating_sub(*base_at),
-        _ => 0,
-    };
 
     if let (Some(base), Some(final_)) = (live_baseline, live_final)
         && (final_ - base) as f64 > defaults.live_growth_budget_bytes as f64
@@ -1070,6 +1061,7 @@ fn run_count_scenario(
         live_baseline_bytes: live_baseline,
         live_final_bytes: live_final,
         live_mean_delta_per_cycle,
+        measured_cycles_span: Some(measured_cycles_span),
         wall_capped,
         cycles_configured: Some(n),
         ceiling_mb_per_h: spec
@@ -1086,6 +1078,27 @@ fn run_count_scenario(
 fn count_warmup_cycles(n: u64, defaults: &Defaults) -> u64 {
     let raw = (n as f64 * defaults.warmup_fraction).floor() as u64;
     raw.min(n / 2).max(1).min(n.saturating_sub(1))
+}
+
+/// The post-warmup baseline index and measured span of a count-driven
+/// series: the first sample tag at/after the warmup boundary, and the
+/// baseline → final tag distance — the cycles the growth budgets and
+/// the drift mean actually cover (the honest span, not the configured
+/// count). Surfaced in the report (`Measured cycles (post-warmup
+/// baseline sample → final sample)`) since the W24-R4 P2-3 finding: a
+/// synthesis had copied the 1M forced-threshold run's span
+/// (849,815) into the 2M churn row because no report stated the
+/// number — now one always does.
+fn count_baseline_and_span(series: &[(u64, isize)], warmup_cycles: u64) -> (usize, u64) {
+    let baseline_idx = series
+        .iter()
+        .position(|(at, _)| *at >= warmup_cycles)
+        .unwrap_or(0);
+    let span = match (series.get(baseline_idx), series.last()) {
+        (Some((base_at, _)), Some((final_at, _))) => final_at.saturating_sub(*base_at),
+        _ => 0,
+    };
+    (baseline_idx, span)
 }
 
 /// The sample stride for a count-driven scenario: `ceil(n /
@@ -1295,6 +1308,59 @@ mod tests {
         let stride = count_sample_stride(huge);
         assert!(stride >= 1);
         assert!(huge / stride <= MAX_COUNT_SAMPLES);
+    }
+
+    /// The post-warmup baseline/span arithmetic (the W24-R4 P2-3
+    /// regression): recomputed from the committed raw evidence's own
+    /// shapes — the 2M churn run (stride 489, warmup boundary 300,000:
+    /// first tag at/after the boundary is 614×489 = 300,246 → span
+    /// 1,699,754, NOT the 849,815 the synthesis had copied from the
+    /// 1M forced-threshold run) and the 1M forced run (stride 245 →
+    /// span 849,815, the number its violation sentences carry).
+    #[test]
+    fn count_baseline_and_span_matches_the_measured_tags() {
+        let _serial = serial();
+        // The 2M churn series shape: tags at every 489th cycle plus
+        // the final at 2,000,000 (4,090 samples, 613 warmup-excluded
+        // — the raw report's own counts).
+        let series: Vec<(u64, isize)> = (1..=4089u64)
+            .map(|k| (489 * k, 0))
+            .chain([(2_000_000, 0)])
+            .collect();
+        assert_eq!(series.len(), 4090);
+        let (idx, span) = count_baseline_and_span(&series, 300_000);
+        assert_eq!(idx, 613, "the raw report's warmup-excluded count");
+        assert_eq!(
+            series[idx].0, 300_246,
+            "the first tag at/after the boundary"
+        );
+        assert_eq!(span, 1_699_754, "2,000,000 − 300,246 (the P2-3 fix)");
+
+        // The 150k reopen series shape (stride 37, boundary 22,500):
+        // baseline tag 609×37 = 22,533 → span 127,467.
+        let series: Vec<(u64, isize)> = (1..=4054u64)
+            .map(|k| (37 * k, 0))
+            .chain([(150_000, 0)])
+            .collect();
+        let (idx, span) = count_baseline_and_span(&series, 22_500);
+        assert_eq!(series.len(), 4055);
+        assert_eq!(idx, 608);
+        assert_eq!(span, 127_467);
+
+        // The 1M forced-threshold shape (stride 245, boundary 150,000):
+        // span 849,815 — the number the raw violation sentences carry.
+        let series: Vec<(u64, isize)> = (1..=4081u64)
+            .map(|k| (245 * k, 0))
+            .chain([(1_000_000, 0)])
+            .collect();
+        let (_, span) = count_baseline_and_span(&series, 150_000);
+        assert_eq!(span, 849_815);
+
+        // Degenerate shapes stay honest: no samples → (0, 0); a series
+        // that never crosses the boundary measures from its first tag.
+        assert_eq!(count_baseline_and_span(&[], 10), (0, 0));
+        let series: Vec<(u64, isize)> = vec![(5, 0), (9, 0)];
+        assert_eq!(count_baseline_and_span(&series, 100), (0, 4));
     }
 
     /// The expectation-path mapping (the recorded-truth layout).
