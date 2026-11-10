@@ -14,7 +14,10 @@
 #     aarch64 -> arm64), so an arm64 Windows lane is the same script
 #     with a different ARCH_ID;
 #   * runs `wix build` from a staging dir so File/@Source basenames
-#     resolve;
+#     resolve — the staging dir carries the exes AND the [shipped] docs
+#     list (PACKAGING_DOCS, staged below; the .wxs references every doc
+#     by basename — W24-R1 P2-1: the docs list reaches the MSI exactly
+#     as it reaches tar.gz/zip/deb/rpm/AppImage);
 #   * hands the finished MSI to sign-windows.sh (signtool, secrets-
 #     driven, explicit .UNSIGNED.txt fallback — card 8.E1's external
 #     certificate blocker is documented there).
@@ -24,6 +27,8 @@
 #   PRODUCT_NAME, PRODUCT_PUBLISHER, PRODUCT_DESCRIPTION, MSI_VERSION,
 #   PRODUCT_MSI_UPGRADE_CODE, BIN_CLI, BIN_DESKTOP, OS_ID, ARCH_ID,
 #   PACKAGING_WINDOWS_BINDIR (bin dir under ProgramFiles64Folder\<Name>),
+#   PACKAGING_DOCS (packaging.toml [shipped] docs — staged + referenced
+#                   by the generated .wxs),
 #   TARGET_DIR (cargo build dir, default "target"),
 #   DIST_DIR   (output dir, default "dist"),
 #   WIX_EXE    (path to wix.exe; REQUIRED — the workflow installs the
@@ -56,6 +61,7 @@ set -eu
 : "${OS_ID:?build-msi.sh: OS_ID not set}"
 : "${ARCH_ID:?build-msi.sh: ARCH_ID not set}"
 : "${PACKAGING_WINDOWS_BINDIR:?build-msi.sh: PACKAGING_WINDOWS_BINDIR not set (run packaging-env.py first)}"
+: "${PACKAGING_DOCS:?build-msi.sh: PACKAGING_DOCS not set (packaging.toml shipped.docs — staged for the .wxs File rows)}"
 : "${WIX_EXE:?build-msi.sh: WIX_EXE not set (the workflow installs the pinned WiX nupkg and exports WIX_EXE)}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
@@ -92,6 +98,14 @@ trap 'rm -rf "$stage"' EXIT INT TERM
 
 install -m 0755 "$release_dir/$cli_exe" "$stage/$cli_exe"
 install -m 0755 "$release_dir/$desktop_exe" "$stage/$desktop_exe"
+
+# Docs ride beside the exes in the staging dir: the generated .wxs
+# references every [shipped] doc by basename (File/@Source basenames
+# resolve from the wix build working directory — the same dir).
+for doc in $PACKAGING_DOCS; do
+    [ -f "$doc" ] || die "packaging.toml shipped.docs lists $doc — not found in the repo root"
+    install -m 0644 "$doc" "$stage/"
+done
 
 base="${PRODUCT_LOWER}-${PRODUCT_VERSION}-${ARCH_ID}-${OS_ID}"
 

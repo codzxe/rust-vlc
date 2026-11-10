@@ -123,13 +123,26 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # --- Resolve a signing identity ---------------------------------------------
+# Return-code contract (header lines above; W24-R1 P1-1):
+#   0 -> identity resolved (resolved_identity is set);
+#   2 -> NO credentials at all — the legitimate unsigned path (R-35),
+#        not an error;
+#   anything else -> die() already fired (hard exit).
+# This function MUST run in the MAIN shell, never inside a command-
+# substitution subshell: a subshell would (a) turn every die() into an
+# empty string that `|| true` then swallows — the exact silently-
+# unsigned-with-false-sidecar bug W24-R1 flagged — and (b) lose the
+# work/scratch_keychain assignments so the EXIT trap could never clean
+# the scratch keychain up. The caller below therefore inspects the
+# return code directly instead of capturing stdout.
+resolved_identity=""
 resolve_identity() {
     if [ -n "$identity" ]; then
-        printf '%s' "$identity"
+        resolved_identity=$identity
         return 0
     fi
     if [ -z "$p12_b64" ]; then
-        return 1
+        return 2
     fi
     command -v codesign >/dev/null 2>&1 ||
         die "codesign not found — sign-macos.sh needs macOS when a certificate is present"
@@ -166,13 +179,25 @@ PYEOF
         die "security list-keychain (search-list prepend) failed"
 
     # The imported identity's canonical name: "Developer ID Application: <team>"
-    resolved=$(security find-identity -v -p codesigning "$scratch_keychain" |
-        sed -n 's/^ *[0-9][0-9]*) \([^"]*\) ".*$/\1/p' | head -1)
-    [ -n "$resolved" ] || die "no codesigning identity found in the imported p12"
-    printf '%s' "$resolved"
+    resolved_identity=$(security find-identity -v -p codesigning "$scratch_keychain" |
+        sed -n 's/^ *[0-9][0-9]*) \([^"]*\) ".*$/\1/p' | head -1) ||
+        die "security find-identity failed for the scratch keychain"
+    [ -n "$resolved_identity" ] || die "no codesigning identity found in the imported p12"
+    return 0
 }
 
-signing_identity=$(resolve_identity || true)
+resolve_identity_rc=0
+resolve_identity || resolve_identity_rc=$?
+# rc 0: identity resolved. rc 2: no credentials (the honest unsigned
+# path below). Any other status is unreachable in practice (die() exits
+# the whole script — the P1-1 fix), but the contract stays explicit:
+# a credential was present and a step failed -> HARD exit, never a
+# silent fallback to the unsigned path.
+[ "$resolve_identity_rc" -eq 0 ] || [ "$resolve_identity_rc" -eq 2 ] || {
+    echo "sign-macos.sh: error: signing-identity resolution failed (rc=${resolve_identity_rc}) — refusing to fall back to the unsigned path" >&2
+    exit 1
+}
+signing_identity=$resolved_identity
 
 # --- Unsigned path (no identity at all — R-35) ------------------------------
 if [ -z "$signing_identity" ]; then
