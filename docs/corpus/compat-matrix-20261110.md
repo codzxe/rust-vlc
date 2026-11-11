@@ -6,7 +6,7 @@
 | Run | `2026-11-10T19:27:42Z` on linux / x86_64 (arch recorded; the native lane decodes on exactly one host) |
 | Commit | `3dfe1c0b19c593011a5d238074fc4f67eb390882` |
 | Corpus | 46 committed + 54 malformed (error-contract) + 66 regenerable (manifest-anchored, `tests/compat/regen-corpus-manifest.json`) |
-| Oracle | live run: the pinned VLC VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09) |
+| Oracle | live run: the pinned VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09) |
 | Method | real decode through the player's open path (`lumen_cli::demux_host::open_source` → container registry → `HostDecoderProvider` → `codec_api::Decoder`); MD5-prefix + ratified f32 tolerance vs the pinned VLC 3.0.23 (see notes) |
 
 > **Provenance:** §1–§5 and §7 are the runner's machine rendering of the
@@ -16,9 +16,12 @@
 > post-run edits by the W24-P review-fix lane (branch `w24/p`, per the W24-L
 > audit `docs/reviews/w24-d-compat-findings.md`): the native cells for
 > `avi`/`wav` and §6.2 now surface the four in-row codec-level refusals
-> (finding P2-1). The machine JSON alongside and the raw rows (`.jsonl`,
-> immutable evidence) are the canonical records; the raw rows were never
-> edited.
+> (finding P2-1); the header's Oracle line lost a doubled "VLC" (P3-4 —
+> the renderer's format string, fixed in step, named VLC in front of a
+> `version_line` that already begins "VLC version …"); §7's 0385 row and
+> the manifest entry's `purpose` record the regen fix path (P3-7). The
+> machine JSON alongside and the raw rows (`.jsonl`, immutable evidence)
+> are the canonical records; the raw rows were never edited.
 
 ## 1. Headline counts (the native lane)
 
@@ -310,7 +313,7 @@ None of the five was **fixed** in this round: each fix is card-sized work (a wir
 - `0028-audio-only.webm`: present (prior realization, sha256 b0e2dab12d183d3ac97b4838a1c7f93f318567ac5443070befc0ba086fa714fd)
 - `0065-webm-video.webm`: present (prior realization, sha256 9b700bd16591d1188a0b951d6d80035b19b52ada69d4307f6723e85334a85997)
 - `0089-ogv-video.ogv`: present (prior realization, sha256 96f58b808f8f4ef89263dff3d429fe9b2c155c04cfd52ea780982742103d68fe)
-- `0385-dynres-video.mkv`: **FAILED**: ffmpeg step failed for 0385-dynres-video.mkv (argvs: 1 recorded in the manifest; the run's raw-rows file carries the step record)
+- `0385-dynres-video.mkv`: **FAILED**: ffmpeg step failed for 0385-dynres-video.mkv (argvs: 1 recorded in the manifest; the run's raw-rows file carries the step record) — known permanent gap (W24-L audit P3-7): the argv chain's input is a machine-local concat intermediate that no longer exists, so this row fails the same way on every host. Next step: re-author the entry self-contained (single-pass ffmpeg argv, no concat intermediate) and pin its sha256 — recorded in the manifest entry's `purpose` too
 - `0257-avi-video.avi`: present, sha256 verified
 - `0146-avi-video.avi`: present, sha256 verified
 - `0190-audio-only.m4a`: present, sha256 verified
