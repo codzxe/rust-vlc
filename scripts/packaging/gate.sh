@@ -27,6 +27,17 @@
 #      run FOR REAL (credentials absent by construction here): they must
 #      write explicit sidecars + ::warning:: and exit 0 — the documented
 #      honest-unsigned contract, proven, not asserted.
+#   7. BOTH .wxs-generator self-tests run (audit R13 F-U3): gen-wxs.sh
+#      --self-test ALWAYS (needs only python3 — the same interpreter
+#      steps 1/3/4 already require; hostile identity values + hostile
+#      doc basenames -> the raw .wxs must parse, round-trip, and carry
+#      the escaped forms on the raw text). build-msi.ps1 -SelfTest runs
+#      when pwsh is on PATH — the same self-test contract on the
+#      PowerShell twin (pwsh runs on every OS and the -SelfTest needs
+#      no config env / no wix / no binaries); with no pwsh (this
+#      sandbox's standing assumption) it is SKIPPED with an honest
+#      label — step 4's structural check stays that twin's local floor
+#      [VERIFY at first live run].
 #
 # NOT proven here (labels, by design): wix build / signtool / codesign /
 # notarytool / rpmbuild / msiexec — each needs its native platform or
@@ -156,8 +167,32 @@ else
     step "   skipped (config validation already failed)"
 fi
 
+# --- 7. .wxs generator self-tests (audit R13 F-U3) ---------------------------
+# The hostile-fixture regression tests both generators carry since
+# W24-Q/W24-U. The bash twin runs unconditionally (python3 only, no
+# config env — independent of steps 1-6, so it runs even if they
+# failed: more evidence, never less); the .ps1 twin runs only where
+# pwsh exists — an honest skip otherwise, never a fake PASS.
+step "7. .wxs generator self-tests (gen-wxs.sh --self-test; build-msi.ps1 -SelfTest if pwsh)"
+if out=$(sh scripts/release/gen-wxs.sh --self-test 2>&1); then
+    step "   gen-wxs.sh --self-test PASS (hostile fixtures parse, round-trip, escape set pinned)"
+else
+    bad "gen-wxs.sh --self-test failed:
+$out"
+fi
+if command -v pwsh >/dev/null 2>&1; then
+    if out=$(pwsh scripts/packaging/build-msi.ps1 -SelfTest 2>&1); then
+        step "   build-msi.ps1 -SelfTest PASS under pwsh (same hostile-fixture contract on the .ps1 twin)"
+    else
+        bad "build-msi.ps1 -SelfTest failed under pwsh:
+$out"
+    fi
+else
+    step "   build-msi.ps1 -SelfTest skipped: no pwsh on PATH (step 4's structural check stays the local floor; real -SelfTest: Windows runner [VERIFY at first live run])"
+fi
+
 if [ $fail -eq 0 ]; then
-    echo "gate.sh: PASS (packaging config + scripts + local-provable halves)"
+    echo "gate.sh: PASS (packaging config + scripts + self-tests + local-provable halves)"
 else
     echo "gate.sh: FAIL" >&2
 fi

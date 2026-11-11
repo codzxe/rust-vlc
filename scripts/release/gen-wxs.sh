@@ -3,7 +3,8 @@
 # product config environment (card 7.w22g, issue #56 release half;
 # docs-list generation added in W24-C review fix, W24-R1 P2-1;
 # doc-basename XML escaping + hostile-fixture self-test added in W24-Q
-# for W24-R6 P4-2).
+# for W24-R6 P4-2; raw-text escape-set pins added in W24-Y, audit R13
+# F-U1).
 #
 # Every MSI identity field is injected from product.toml via the
 # environment set up by scripts/release/product-env.py:
@@ -53,10 +54,13 @@
 # Usage: gen-wxs.sh <output.wxs>
 #        gen-wxs.sh --self-test   (regression test: hostile filenames
 #                                  + identity values -> the generated
-#                                  XML must PARSE and round-trip;
-#                                  needs python3/python for the XML
+#                                  XML must PARSE and round-trip, and
+#                                  the raw text must carry the escaped
+#                                  forms (escape-set pin); needs
+#                                  python3/python for the XML
 #                                  proof — the same interpreter CI
-#                                  provides for packaging-env.py)
+#                                  provides for packaging-env.py;
+#                                  mirrors build-msi.ps1 -SelfTest)
 # POSIX sh; validated with `bash -n` + sh syntax parse (see worklog).
 
 set -eu
@@ -184,7 +188,11 @@ EOF
 # basenames, then proves with python's XML parser that the result
 # parses AND that the hostile values round-trip (the parser sees the
 # original basename back — escaping is lossless for content, while
-# File/@Id stays sanitized).
+# File/@Id stays sanitized). The raw-text assertions pin the escape
+# SET itself (W24-Y, audit R13 F-U1): parse + round-trip alone cannot
+# catch a reverted &apos; (a bare ' parses fine inside a double-quoted
+# attribute), the raw pin can — the same two pins build-msi.ps1's
+# -SelfTest has carried since W24-U; change both together.
 self_test() {
     PY="$(command -v python3 || command -v python)" || {
         echo "gen-wxs.sh: --self-test needs python3/python (XML well-formedness proof — the same interpreter CI provides for packaging-env.py)" >&2
@@ -213,6 +221,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 path = sys.argv[1]
+raw = open(path, encoding="utf-8").read()
 root = ET.parse(path).getroot()  # malformed XML -> parser death = test failure
 ns = "{http://wixtoolset.org/schemas/v4/wxs}"
 files = root.findall(f".//{ns}File")
@@ -223,6 +232,16 @@ for hostile in ("a&b<c>\"d\".md", "it's.md"):
     assert hostile in sources, (
         f"doc basename did not round-trip through the XML escaping: "
         f"{hostile!r} not in {sources!r}")
+
+# The escape SET pinned on the raw text (the one proof that catches a
+# reverted &apos; -- a bare ' parses fine in a double-quoted attribute,
+# so parse + round-trip alone cannot; mirrors build-msi.ps1 -SelfTest).
+assert 'Source="a&amp;b&lt;c&gt;&quot;d&quot;.md"' in raw, (
+    "raw .wxs does not carry the fully escaped doc basename "
+    "(expected a&amp;b&lt;c&gt;&quot;d&quot;.md)")
+assert 'Source="it&apos;s.md"' in raw, (
+    "raw .wxs does not escape ' as &apos; -- the escape set must "
+    "mirror build-msi.ps1's full set")
 
 ids = [f.get("Id") for f in files]
 assert len(ids) == len(set(ids)), f"File ids collide: {ids!r}"
@@ -235,7 +254,7 @@ assert root.find(f"{ns}Package").get("Name") == 'A&B "C" <D>', (
 
 print(f"gen-wxs.sh: --self-test PASS "
       f"({len(files)} File rows parsed; hostile basenames + identity "
-      f"round-trip, ids sanitized)")
+      f"round-trip; escape set pinned on raw text; ids sanitized)")
 PYEOF
 }
 

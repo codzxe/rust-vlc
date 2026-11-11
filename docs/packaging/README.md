@@ -61,7 +61,7 @@ The full matrix:
 | Linux x86_64 + aarch64 | `.AppImage` (pinned appimagetool 1.9.1 + type2 runtime 20251108) | `build-appimage.sh` | CI Linux jobs | **PROVEN** — same log |
 | Linux x86_64 + aarch64 | `.rpm` (rpmbuild) | `build-rpm.sh` | CI Linux jobs (`apt-get install rpm`) | spec generated + validated locally; binary build is CI-only |
 | Windows x86_64 | `.zip` flat archive | `build-zip.sh` (`python -m zipfile`) | CI Windows job | parse-checked (`bash -n` + `sh -n` + gate); execution is CI-only |
-| Windows x86_64 | `.msi` (WiX v5.0.2, pinned nupkg) | `build-msi.sh` → `build-msi.ps1` + `scripts/release/gen-wxs.sh` | CI Windows job | `.wxs` generation proven by its own self-test (`gen-wxs.sh --self-test`, hostile-fixture XML parse); `wix build` is CI-only |
+| Windows x86_64 | `.msi` (WiX v5.0.2, pinned nupkg) | `build-msi.sh` → `build-msi.ps1` + `scripts/release/gen-wxs.sh` | CI Windows job | `.wxs` generation proven by BOTH twins' self-tests (`gen-wxs.sh --self-test` + `build-msi.ps1 -SelfTest`: hostile-fixture XML parse, round-trip, raw-text escape-set pins); `wix build` is CI-only |
 | macOS aarch64 + x86_64 | `.dmg` (hdiutil UDZO) | `build-dmg.sh` (bundle → codesign → dmg → notarize → staple) | CI macOS jobs | staging steps are pure file ops; codesign/notarytool/hdiutil are CI-only |
 | macOS aarch64 + x86_64 | `.zip` of the `.app` (ditto) | inline in `.github/workflows/release.yml` | CI macOS jobs | CI-only |
 | every artifact | `.sbom.cdx.json` (CycloneDX 1.5) | `gen-sboms.sh` → `cargo run -p xtask --locked -- sbom` | CI every job; local | **PROVEN** — [r3 evidence](evidence/w24c-r3.log) |
@@ -134,16 +134,26 @@ preference for a single universal download is recorded. Full text:
 the `macos-arm64` job header comment in
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
-What runs WITHOUT the native platform: env assertions, staging, and
-the unsigned-fallback sidecars — exercised in
-`scripts/packaging/gate.sh` (below) — plus the `.wxs` generation,
-which carries its own executable regression test:
-`scripts/release/gen-wxs.sh --self-test` (W24-R6 P4-2) runs the real
-generator with hostile identity values and hostile doc basenames
-(`a&b<c>"d".md` …) and proves with python's XML parser that the
-output parses and the values round-trip. What cannot: `wix build`,
-`signtool`, `codesign`, `notarytool`, `hdiutil`, `msiexec` — each is
-marked `[VERIFY at first live run]` at its call site.
+What runs WITHOUT the native platform: env assertions, staging, the
+unsigned-fallback sidecars, and (since W24-Y, audit R13 F-U3) BOTH
+`.wxs`-generator self-tests — all exercised in
+`scripts/packaging/gate.sh` (below; each self-test also runs
+standalone): `scripts/release/gen-wxs.sh --self-test` (W24-R6 P4-2;
+needs only python3) and `pwsh scripts/packaging/build-msi.ps1
+-SelfTest` (added in W24-U; needs pwsh — the gate runs it wherever
+pwsh is on PATH and skips it with an honest label where not; this
+sandbox has no pwsh, so step 4's structural check stays that twin's
+local floor). Both run the REAL generator (`generate_wxs` /
+`New-MsiWxs` — the same code path the build invokes) with the same
+hostile identity values and hostile doc basenames
+(`a&b<c>"d".md` …) and prove with python's XML parser that the
+output parses and the values round-trip — plus, since W24-Y
+(audit R13 F-U1/F-U2), a raw-text pin asserting the escaped forms
+themselves (`Source="it&apos;s.md"` …): a reverted `&apos;` parses
+fine, so parse + round-trip alone cannot catch it. What cannot:
+`wix build`, `signtool`, `codesign`, `notarytool`, `hdiutil`,
+`msiexec` — each is marked `[VERIFY at first live run]` at its call
+site.
 
 ### The gate
 
@@ -153,8 +163,11 @@ half: packaging.toml↔schema + product bridge (51 vars), every
 `scripts/packaging/*.sh` parses under BOTH `bash -n` and `sh -n`,
 python tools parse (ast, no bytecode), `.ps1` structural sanity
 (`ps1-sanity.py`), payload stagers + desktop entry executed against a
-throwaway tree, and the `.UNSIGNED.txt` fallback contracts of both
-signing drivers executed for real.
+throwaway tree, the `.UNSIGNED.txt` fallback contracts of both
+signing drivers executed for real, and (W24-Y, audit R13 F-U3) step
+7: BOTH `.wxs`-generator self-tests — `gen-wxs.sh --self-test`
+always, `build-msi.ps1 -SelfTest` wherever pwsh is on PATH (honest
+skip label, never a fake PASS, where it is not).
 
 ## The release workflow (`.github/workflows/release.yml`)
 
