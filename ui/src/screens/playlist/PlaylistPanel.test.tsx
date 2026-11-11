@@ -131,7 +131,7 @@ describe("PlaylistPanel — render (doc 08 §4.5/§1.6)", () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(100);
     const spacer = document.querySelector<HTMLElement>(".lumen-vlist__spacer")!;
-    expect(spacer.style.height).toBe("480000px"); // 10_000 × 48
+    expect(spacer.style.height).toBe("400000px"); // 10_000 × ROW_HEIGHTS.compact (40, w26.a09)
   });
 
   it("shows the honest empty state when the queue has no items", async () => {

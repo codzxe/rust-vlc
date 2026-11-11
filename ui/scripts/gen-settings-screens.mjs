@@ -401,7 +401,13 @@ export function emitSchemaTs(model) {
   lines.push('  | "string"');
   lines.push('  | "enum"');
   lines.push('  | "list<string>"');
-  lines.push('  | "duration-ms";');
+  lines.push('  | "duration-ms"');
+  // w26.b02 fix: the validator (KNOWN_TYPES + the Rust model) accepts
+  // path/url/percent, but the emitted union omitted them — any such
+  // [[setting]] row broke the generated TS (type "path" not assignable).
+  lines.push('  | "path"');
+  lines.push('  | "url"');
+  lines.push('  | "percent";');
   lines.push("");
   lines.push("export interface SettingEnumOption {");
   lines.push("  readonly value: string;");
@@ -514,11 +520,29 @@ export function emitScreensTs(model) {
   lines.push('import type { ReactElement } from "react";');
   lines.push('import type { MessageKey } from "../../../i18n/messages";');
   lines.push('import { SettingsSections } from "../SettingsSections";');
+  // w26.b02 fix: section/area titles are msgid STRINGS until the Lead
+  // registers the new screens' keys post-wave (contract §4.5); the msgid()
+  // seam below narrows them so this file type-checks in the window.
+  lines.push('import type { GeneratedSection } from "../SettingsSections";');
+  lines.push('import type { SettingEntry } from "./schema";');
   for (const area of model.areas) {
     for (const e of area.sections.flatMap((s) => s.entries)) {
       lines.push(`import { ${constName(e.key)} } from "./schema";`);
     }
   }
+  lines.push("");
+  // w26.b02 seam: new screens' title msgids are carried by per-lane key
+  // files (ui/src/i18n/keys/*.ts) until post-wave registration narrows
+  // nothing — after registration the literals are MessageKeys and this cast
+  // is a no-op.
+  lines.push("const msgid = (id: string): MessageKey => id as MessageKey;");
+  lines.push("");
+  lines.push("/** Section props for <SettingsSections> (see msgid above). */");
+  lines.push("const section = (id: string, title: string, entries: readonly SettingEntry[]): GeneratedSection => ({");
+  lines.push("  id,");
+  lines.push("  title: msgid(title),");
+  lines.push("  entries,");
+  lines.push("});");
   lines.push("");
   for (const area of model.areas) {
     const fn = `${area.id[0].toUpperCase()}${area.id.slice(1)}Screen`;
@@ -529,9 +553,9 @@ export function emitScreensTs(model) {
     lines.push(`      area=${JSON.stringify(area.id)}`);
     lines.push("      sections={[");
     for (const s of area.sections) {
-      lines.push(`        { id: ${JSON.stringify(s.id)}, title: ${JSON.stringify(s.title)}, entries: [`);
+      lines.push(`        section(${JSON.stringify(s.id)}, ${JSON.stringify(s.title)}, [`);
       lines.push(`          ${s.entries.map((e) => constName(e.key)).join(", ")},`);
-      lines.push("        ] },");
+      lines.push("        ]),");
     }
     lines.push("      ]}");
     lines.push("    />");
@@ -543,8 +567,12 @@ export function emitScreensTs(model) {
   lines.push("");
   lines.push("export type SettingsAreaId = (typeof GENERATED_AREA_IDS)[number];");
   lines.push("");
+  // w26.b02 fix: the record keeps its MessageKey contract (consumers rely on
+  // it); the VALUES flow through the msgid() seam above because new screens'
+  // titles are registered into ui/src/i18n/messages.ts only POST-WAVE
+  // (contract §4.5, per-lane keys files).
   lines.push("export const GENERATED_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {");
-  for (const area of model.areas) lines.push(`  ${area.id}: ${JSON.stringify(area.title)},`);
+  for (const area of model.areas) lines.push(`  ${area.id}: msgid(${JSON.stringify(area.title)}),`);
   lines.push("};");
   lines.push("");
   lines.push("export const GENERATED_SCREENS: Record<SettingsAreaId, () => ReactElement> = {");

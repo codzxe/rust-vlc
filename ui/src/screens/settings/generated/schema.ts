@@ -13,7 +13,10 @@ export type SettingValueType =
   | "string"
   | "enum"
   | "list<string>"
-  | "duration-ms";
+  | "duration-ms"
+  | "path"
+  | "url"
+  | "percent";
 
 export interface SettingEnumOption {
   readonly value: string;
@@ -700,6 +703,246 @@ export const SETTING_EXTENSIONS_CRASH_DISABLED_REENABLE_MS: SettingEntry = {
   since: "0.1.0",
 };
 
+export const SETTING_CONTROLS_SKIP_VERY_SHORT: SettingEntry = {
+  key: "controls.skip-very-short",
+  type: "duration-ms",
+  description: "settings.controls.skip-very-short",
+  defaultValue: 3000,
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [],
+  min: 1000,
+  max: 60000,
+  screen: "controls",
+  section: "skip-amounts",
+  order: 10,
+  cliFlag: "--controls-skip-very-short",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_SKIP_SHORT: SettingEntry = {
+  key: "controls.skip-short",
+  type: "duration-ms",
+  description: "settings.controls.skip-short",
+  defaultValue: 10000,
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [],
+  min: 1000,
+  max: 120000,
+  screen: "controls",
+  section: "skip-amounts",
+  order: 20,
+  cliFlag: "--controls-skip-short",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_SKIP_MEDIUM: SettingEntry = {
+  key: "controls.skip-medium",
+  type: "duration-ms",
+  description: "settings.controls.skip-medium",
+  defaultValue: 60000,
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [],
+  min: 5000,
+  max: 600000,
+  screen: "controls",
+  section: "skip-amounts",
+  order: 30,
+  cliFlag: "--controls-skip-medium",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_SKIP_LONG: SettingEntry = {
+  key: "controls.skip-long",
+  type: "duration-ms",
+  description: "settings.controls.skip-long",
+  defaultValue: 300000,
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [],
+  min: 10000,
+  max: 1800000,
+  screen: "controls",
+  section: "skip-amounts",
+  order: 40,
+  cliFlag: "--controls-skip-long",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_MOUSE_SINGLE_CLICK: SettingEntry = {
+  key: "controls.mouse-single-click",
+  type: "enum",
+  description: "settings.controls.mouse-single-click",
+  defaultValue: "play-pause",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [{ value: "play-pause", msgid: "settings.value.controls-mouse-single-click.play-pause" }, { value: "toggle-fullscreen", msgid: "settings.value.controls-mouse-single-click.toggle-fullscreen" }, { value: "show-menu", msgid: "settings.value.controls-mouse-single-click.show-menu" }, { value: "none", msgid: "settings.value.controls-mouse-single-click.none" }],
+  min: undefined,
+  max: undefined,
+  screen: "controls",
+  section: "mouse",
+  order: 10,
+  cliFlag: "--controls-mouse-single-click",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_MOUSE_DOUBLE_CLICK: SettingEntry = {
+  key: "controls.mouse-double-click",
+  type: "enum",
+  description: "settings.controls.mouse-double-click",
+  defaultValue: "toggle-fullscreen",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [{ value: "toggle-fullscreen", msgid: "settings.value.controls-mouse-double-click.toggle-fullscreen" }, { value: "play-pause", msgid: "settings.value.controls-mouse-double-click.play-pause" }, { value: "show-menu", msgid: "settings.value.controls-mouse-double-click.show-menu" }, { value: "none", msgid: "settings.value.controls-mouse-double-click.none" }],
+  min: undefined,
+  max: undefined,
+  screen: "controls",
+  section: "mouse",
+  order: 20,
+  cliFlag: "--controls-mouse-double-click",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_MOUSE_SCROLL_WHEEL: SettingEntry = {
+  key: "controls.mouse-scroll-wheel",
+  type: "enum",
+  description: "settings.controls.mouse-scroll-wheel",
+  defaultValue: "volume",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [{ value: "volume", msgid: "settings.value.controls-mouse-scroll-wheel.volume" }, { value: "seek", msgid: "settings.value.controls-mouse-scroll-wheel.seek" }, { value: "none", msgid: "settings.value.controls-mouse-scroll-wheel.none" }],
+  min: undefined,
+  max: undefined,
+  screen: "controls",
+  section: "mouse",
+  order: 30,
+  cliFlag: "--controls-mouse-scroll-wheel",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_MOUSE_HORIZONTAL_SCROLL: SettingEntry = {
+  key: "controls.mouse-horizontal-scroll",
+  type: "enum",
+  description: "settings.controls.mouse-horizontal-scroll",
+  defaultValue: "seek",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [{ value: "seek", msgid: "settings.value.controls-mouse-horizontal-scroll.seek" }, { value: "volume", msgid: "settings.value.controls-mouse-horizontal-scroll.volume" }, { value: "none", msgid: "settings.value.controls-mouse-horizontal-scroll.none" }],
+  min: undefined,
+  max: undefined,
+  screen: "controls",
+  section: "mouse",
+  order: 40,
+  cliFlag: "--controls-mouse-horizontal-scroll",
+  since: "0.1.0",
+};
+
+export const SETTING_CONTROLS_MOUSE_REVERSE_SCROLL_DIRECTION: SettingEntry = {
+  key: "controls.mouse-reverse-scroll-direction",
+  type: "bool",
+  description: "settings.controls.mouse-reverse-scroll-direction",
+  defaultValue: false,
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "",
+  featureExposed: true,
+  enumeration: [],
+  min: undefined,
+  max: undefined,
+  screen: "controls",
+  section: "mouse",
+  order: 50,
+  cliFlag: "--controls-mouse-reverse-scroll-direction",
+  since: "0.1.0",
+};
+
+export const SETTING_RECORDING_DIRECTORY: SettingEntry = {
+  key: "recording.directory",
+  type: "path",
+  description: "settings.recording.directory",
+  defaultValue: "~/Videos",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "recording",
+  featureExposed: false,
+  enumeration: [],
+  min: undefined,
+  max: undefined,
+  screen: "recording",
+  section: "recording",
+  order: 10,
+  cliFlag: "--recording-directory",
+  since: "0.1.0",
+};
+
+export const SETTING_RECORDING_FORMAT: SettingEntry = {
+  key: "recording.format",
+  type: "enum",
+  description: "settings.recording.format",
+  defaultValue: "mp4-remux",
+  defaultRef: "",
+  restartRequired: false,
+  advanced: false,
+  featureGate: "recording",
+  featureExposed: false,
+  enumeration: [{ value: "mp4-remux", msgid: "settings.value.recording-format.mp4-remux" }, { value: "wav", msgid: "settings.value.recording-format.wav" }],
+  min: undefined,
+  max: undefined,
+  screen: "recording",
+  section: "recording",
+  order: 20,
+  cliFlag: "--recording-format",
+  since: "0.1.0",
+};
+
+export const SETTING_EXTENSIONS_LOAD_ON_STARTUP: SettingEntry = {
+  key: "extensions.load-on-startup",
+  type: "bool",
+  description: "settings.extensions.load-on-startup",
+  defaultValue: true,
+  defaultRef: "",
+  restartRequired: true,
+  advanced: false,
+  featureGate: "wasm-extensions",
+  featureExposed: false,
+  enumeration: [],
+  min: undefined,
+  max: undefined,
+  screen: "extensions",
+  section: "add-ons",
+  order: 10,
+  cliFlag: "--extensions-load-on-startup",
+  since: "0.1.0",
+};
+
 /** Every ui=true entry, in (screen, order) order. */
 export const SETTINGS_ENTRIES: readonly SettingEntry[] = [
   SETTING_GLOBAL_LANGUAGE,
@@ -723,6 +966,18 @@ export const SETTINGS_ENTRIES: readonly SettingEntry[] = [
   SETTING_PERFORMANCE_CACHE_DEMUX_MIB,
   SETTING_PERFORMANCE_CACHE_NETWORK_MIB,
   SETTING_PERFORMANCE_MAX_OPEN_SESSIONS,
+  SETTING_CONTROLS_SKIP_VERY_SHORT,
+  SETTING_CONTROLS_SKIP_SHORT,
+  SETTING_CONTROLS_SKIP_MEDIUM,
+  SETTING_CONTROLS_SKIP_LONG,
+  SETTING_CONTROLS_MOUSE_SINGLE_CLICK,
+  SETTING_CONTROLS_MOUSE_DOUBLE_CLICK,
+  SETTING_CONTROLS_MOUSE_SCROLL_WHEEL,
+  SETTING_CONTROLS_MOUSE_HORIZONTAL_SCROLL,
+  SETTING_CONTROLS_MOUSE_REVERSE_SCROLL_DIRECTION,
+  SETTING_RECORDING_DIRECTORY,
+  SETTING_RECORDING_FORMAT,
+  SETTING_EXTENSIONS_LOAD_ON_STARTUP,
 ];
 
 export const SETTINGS_AREAS: readonly SettingsArea[] = [
@@ -765,6 +1020,22 @@ export const SETTINGS_AREAS: readonly SettingsArea[] = [
     ],
   },
   {
+    id: "controls",
+    title: "settings.area.controls",
+    sections: [
+      {
+        id: "skip-amounts",
+        title: "settings.section.controls.skip-amounts",
+        entries: [SETTING_CONTROLS_SKIP_VERY_SHORT, SETTING_CONTROLS_SKIP_SHORT, SETTING_CONTROLS_SKIP_MEDIUM, SETTING_CONTROLS_SKIP_LONG],
+      },
+      {
+        id: "mouse",
+        title: "settings.section.controls.mouse",
+        entries: [SETTING_CONTROLS_MOUSE_SINGLE_CLICK, SETTING_CONTROLS_MOUSE_DOUBLE_CLICK, SETTING_CONTROLS_MOUSE_SCROLL_WHEEL, SETTING_CONTROLS_MOUSE_HORIZONTAL_SCROLL, SETTING_CONTROLS_MOUSE_REVERSE_SCROLL_DIRECTION],
+      },
+    ],
+  },
+  {
     id: "playback",
     title: "settings.area.playback",
     sections: [
@@ -788,6 +1059,28 @@ export const SETTINGS_AREAS: readonly SettingsArea[] = [
         id: "resources",
         title: "settings.section.performance.resources",
         entries: [SETTING_PERFORMANCE_CACHE_DEMUX_MIB, SETTING_PERFORMANCE_CACHE_NETWORK_MIB, SETTING_PERFORMANCE_MAX_OPEN_SESSIONS],
+      },
+    ],
+  },
+  {
+    id: "recording",
+    title: "settings.area.recording",
+    sections: [
+      {
+        id: "recording",
+        title: "settings.section.recording.recording",
+        entries: [SETTING_RECORDING_DIRECTORY, SETTING_RECORDING_FORMAT],
+      },
+    ],
+  },
+  {
+    id: "extensions",
+    title: "settings.area.extensions",
+    sections: [
+      {
+        id: "add-ons",
+        title: "settings.section.extensions.add-ons",
+        entries: [SETTING_EXTENSIONS_LOAD_ON_STARTUP],
       },
     ],
   },
@@ -827,4 +1120,16 @@ export const SETTINGS_MSGIDS: readonly string[] = [
   "settings.extensions.crash-backoff-max-ms",
   "settings.extensions.crash-restart-limit",
   "settings.extensions.crash-disabled-reenable-ms",
+  "settings.controls.skip-very-short",
+  "settings.controls.skip-short",
+  "settings.controls.skip-medium",
+  "settings.controls.skip-long",
+  "settings.controls.mouse-single-click",
+  "settings.controls.mouse-double-click",
+  "settings.controls.mouse-scroll-wheel",
+  "settings.controls.mouse-horizontal-scroll",
+  "settings.controls.mouse-reverse-scroll-direction",
+  "settings.recording.directory",
+  "settings.recording.format",
+  "settings.extensions.load-on-startup",
 ];

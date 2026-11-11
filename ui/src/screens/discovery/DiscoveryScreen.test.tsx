@@ -1,11 +1,15 @@
 // /discovery tests (card 7.D1, issue #42) — pins the honest-capability
 // contract of the discovery panel:
-//   * the calm-backdrop veil contract (mount/unmount, like siblings);
+//   * the Solstice data-backdrop veil is GONE (W25 §0 retirement): the
+//     root stays clean of backdrop tiers for the screen's whole life
+//     cycle, mount and unmount alike;
+//   * the W26 structure: page heading + 15px-class section headers
+//     (SectionHeader grammar) + the r14 panel cards;
 //   * the HONEST initial state: no fabricated volumes, no commands sent,
-//     the empty state and the recorded network verdict visible;
+//     the quiet empty state and the recorded network verdict visible;
 //   * the live event plumbing through the REAL subscribe seam: the
 //     catalog's devices.volume-added/-removed events fold into rows
-//     (label + kind chip + id, count chip tracks the table);
+//     (label + kind meta + id, count chip tracks the table);
 //   * the pure fold (applyVolumeEvent): re-add replaces, remove drops,
 //     unknown-id removal is a no-op;
 //   * untrusted labels (V7) render as text, never markup.
@@ -97,11 +101,23 @@ describe("applyVolumeEvent (pure fold)", () => {
 });
 
 describe("DiscoveryScreen (/discovery)", () => {
-  it("veils the backdrop to calm while mounted and cleans up on unmount", () => {
+  it("never sets a backdrop tier (Solstice veil retired) across its life cycle", () => {
     const { view } = renderScreen();
-    expect(document.documentElement.dataset.backdrop).toBe("calm");
+    expect(document.documentElement.dataset.backdrop).toBeUndefined();
     view.unmount();
     expect(document.documentElement.dataset.backdrop).toBeUndefined();
+  });
+
+  it("renders the W26 structure: page heading + section headers + panel cards", () => {
+    renderScreen();
+    expect(screen.getByRole("heading", { level: 1, name: "Discovery" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Local volumes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Network services (UPnP)" }),
+    ).toBeInTheDocument();
+    // Both lanes render the r14 panel card (thumbnail.svg grammar).
+    expect(screen.getByTestId("discovery-card")).toBeInTheDocument();
+    expect(screen.getByTestId("discovery-network")).toBeInTheDocument();
   });
 
   it("renders the honest initial state: empty volumes + the network verdict, sends nothing", () => {
@@ -110,6 +126,11 @@ describe("DiscoveryScreen (/discovery)", () => {
     expect(screen.getByTestId("discovery-network")).toBeInTheDocument();
     // The honest network verdict is visible (status names the follow-up).
     expect(screen.getByText(/SSDP\/UPnP search is implemented but not reachable/)).toBeInTheDocument();
+    // The quiet empty state carries its title + explanatory body.
+    expect(screen.getByText("No volumes reported yet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Volume watching arrives with the platform integrations/),
+    ).toBeInTheDocument();
     // Count chip reads zero.
     expect(screen.getByText("0")).toBeInTheDocument();
     // No device rows exist and no command was sent — the screen is

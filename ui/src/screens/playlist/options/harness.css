@@ -1,0 +1,52 @@
+/* w26.b10 — DEV-ONLY harness layout (harness.tsx; never imported by app
+ * routes). Mimics the app surface (#090909) so screenshots compare against
+ * the figma renders' neutral backdrop. Not part of the product CSS. */
+
+.w26b10-stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 32px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--color-surface);
+  font-family: var(--font-family-sans);
+}
+
+.w26b10-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.w26b10-caption {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.w26b10-frame {
+  padding: 16px;
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-panel);
+}
+
+.w26b10-frame--menu {
+  width: 420px;
+}
+
+.w26b10-frame--media {
+  width: 377px; /* frame: media.svg canvas */
+}
+
+.w26b10-anchor {
+  display: inline-flex;
+  padding: 8px;
+}
+
+/* Keep the media list tall enough to show all four frame rows. */
+.w26b10-frame--media .lumen-plo-media {
+  height: 228px; /* frame: media.svg canvas height */
+}

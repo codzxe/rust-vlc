@@ -36,11 +36,15 @@
 # `engine` for ui = false entries). [MIGRATION NOTE] this seeds the screen
 # registry that doc 07 §5.4/§7.2 assigns to layouts/settings-areas.toml;
 # when that file lands, schema-gen reads screen ids from it instead.
+# Order = the W26 Figma Settings sidebar (App 4 · Media 5 · System 4,
+# Settings - *.svg frames; analysis tools-settings.md D2/D3) so the
+# generated area order needs no registry re-sort (w26.b02).
 [areas]
 known = [
-    "global", "interface", "privacy", "playback", "video", "audio",
-    "subtitles", "controls", "library", "network", "performance",
-    "recording", "extensions", "engine",
+    "global", "interface", "privacy", "controls",
+    "playback", "video", "audio", "subtitles", "library",
+    "network", "performance", "recording", "extensions",
+    "engine",
 ]
 
 # --- global -----------------------------------------------------------------
@@ -454,3 +458,159 @@ cli = { flag = "--extensions-crash-disabled-reenable-ms", short = "" }
 feature_gate = ""
 since = "0.1.0"
 advanced = true
+
+# --- controls (w26.b02 seed — Figma "Settings - controls": "Mouse, Keyboard
+#     & Remote Controls"; the hotkeys AREA folds in here as its edit surface,
+#     hotkey bindings themselves stay dynamic keymaps data, NOT [[setting]]
+#     rows — see ui/src/screens/settings/areas/hotkeys) ------------------------
+
+[[setting]]
+key = "controls.skip-very-short"
+type = "duration-ms"
+range = { min = 1000, max = 60000 }
+default = 3000            # frame: "Very short skip" = 3 s
+description = "settings.controls.skip-very-short"
+restart_required = false
+placement = { screen = "controls", section = "skip-amounts", order = 10, ui = true }
+cli = { flag = "--controls-skip-very-short", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.skip-short"
+type = "duration-ms"
+range = { min = 1000, max = 120000 }
+default = 10000           # frame: "Short skip" = 10 s
+description = "settings.controls.skip-short"
+restart_required = false
+placement = { screen = "controls", section = "skip-amounts", order = 20, ui = true }
+cli = { flag = "--controls-skip-short", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.skip-medium"
+type = "duration-ms"
+range = { min = 5000, max = 600000 }
+default = 60000           # frame: "Medium skip" = 60 s
+description = "settings.controls.skip-medium"
+restart_required = false
+placement = { screen = "controls", section = "skip-amounts", order = 30, ui = true }
+cli = { flag = "--controls-skip-medium", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.skip-long"
+type = "duration-ms"
+range = { min = 10000, max = 1800000 }
+default = 300000          # frame: "Long skip" = 300 s
+description = "settings.controls.skip-long"
+restart_required = false
+placement = { screen = "controls", section = "skip-amounts", order = 40, ui = true }
+cli = { flag = "--controls-skip-long", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.mouse-single-click"
+type = "enum"
+enumeration = ["play-pause", "toggle-fullscreen", "show-menu", "none"]
+default = "play-pause"    # frame: "Single click on the video" → Play / Pause
+description = "settings.controls.mouse-single-click"
+restart_required = false
+placement = { screen = "controls", section = "mouse", order = 10, ui = true }
+cli = { flag = "--controls-mouse-single-click", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.mouse-double-click"
+type = "enum"
+enumeration = ["toggle-fullscreen", "play-pause", "show-menu", "none"]
+default = "toggle-fullscreen"   # frame: "Double click on the video"
+description = "settings.controls.mouse-double-click"
+restart_required = false
+placement = { screen = "controls", section = "mouse", order = 20, ui = true }
+cli = { flag = "--controls-mouse-double-click", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.mouse-scroll-wheel"
+type = "enum"
+enumeration = ["volume", "seek", "none"]
+default = "volume"        # frame: "Scroll wheel" → Volume
+description = "settings.controls.mouse-scroll-wheel"
+restart_required = false
+placement = { screen = "controls", section = "mouse", order = 30, ui = true }
+cli = { flag = "--controls-mouse-scroll-wheel", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.mouse-horizontal-scroll"
+type = "enum"
+enumeration = ["seek", "volume", "none"]
+default = "seek"          # frame: "Horizontal scroll" → Seek
+description = "settings.controls.mouse-horizontal-scroll"
+restart_required = false
+placement = { screen = "controls", section = "mouse", order = 40, ui = true }
+cli = { flag = "--controls-mouse-horizontal-scroll", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "controls.mouse-reverse-scroll-direction"
+type = "bool"
+default = false           # frame: "Reverse scroll direction" → OFF
+description = "settings.controls.mouse-reverse-scroll-direction"
+restart_required = false
+placement = { screen = "controls", section = "mouse", order = 50, ui = true }
+cli = { flag = "--controls-mouse-reverse-scroll-direction", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- recording (w26.b02 seed — Figma "Settings - recording": "Recording,
+#     Casting & Streaming Out", dir + format rows; engine capability is
+#     WAV record / MP4-remux, so the format enum mirrors the real surface.
+#     Gated on [features] recording = false (Phase 7): rows stay hidden +
+#     inert until the feature exists — rule F2) ------------------------------
+
+[[setting]]
+key = "recording.directory"
+type = "path"
+default = "~/Videos"      # frame: "Save recordings to"; no product.toml slot yet → literal default (D1)
+description = "settings.recording.directory"
+restart_required = false
+placement = { screen = "recording", section = "recording", order = 10, ui = true }
+cli = { flag = "--recording-directory", short = "" }
+feature_gate = "recording"
+since = "0.1.0"
+
+[[setting]]
+key = "recording.format"
+type = "enum"
+enumeration = ["mp4-remux", "wav"]
+default = "mp4-remux"     # frame: "Record without re-encoding when possible" → remux first
+description = "settings.recording.format"
+restart_required = false
+placement = { screen = "recording", section = "recording", order = 20, ui = true }
+cli = { flag = "--recording-format", short = "" }
+feature_gate = "recording"
+since = "0.1.0"
+
+# --- extensions UI row (w26.b02 — Figma "Settings - extensions": "Add-ons &
+#     Scripts", enable row; the add-on LIST is dynamic data like hotkeys,
+#     rendered by the sibling area component, not [[setting]] rows) ----------
+
+[[setting]]
+key = "extensions.load-on-startup"
+type = "bool"
+default = true            # frame: "Load add-ons on startup" → ON
+description = "settings.extensions.load-on-startup"
+restart_required = true
+placement = { screen = "extensions", section = "add-ons", order = 10, ui = true }
+cli = { flag = "--extensions-load-on-startup", short = "" }
+feature_gate = "wasm-extensions"   # [features] wasm-extensions = false (Phase 7, rule F2)
+since = "0.1.0"

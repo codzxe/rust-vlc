@@ -70,7 +70,7 @@ describe("AdvancedArea — fold/expand (E1 advanced-badge mechanism)", () => {
     expect(document.querySelector('[data-setting="playback.hw-decode-policy"]')).toBeNull();
   });
 
-  it("is routed at /settings/advanced via the areas registry", () => {
+  it("is redirected from /settings/advanced to its nearest home (performance) via the registry (w26.b02 fold)", async () => {
     render(
       <ClientProvider transport={new MockTransport()}>
         <MemoryRouter initialEntries={["/settings/advanced"]}>
@@ -80,6 +80,9 @@ describe("AdvancedArea — fold/expand (E1 advanced-badge mechanism)", () => {
         </MemoryRouter>
       </ClientProvider>,
     );
-    expect(document.querySelector('[data-settings-area="advanced"]')).not.toBeNull();
+    // The Advanced AREA dissolved into the per-area in-flow disclosure
+    // (w26.b02); the slug redirects to performance — its nearest home —
+    // and the redirected screen's top-bar title announces it.
+    expect(await screen.findByText("Performance")).toBeInTheDocument();
   });
 });

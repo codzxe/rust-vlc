@@ -6,13 +6,23 @@ import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { ThemeProvider } from "../../../theme/ThemeProvider";
-import { SETTINGS_AREA_IDS, SETTINGS_AREA_TITLES, SETTINGS_SCREENS, SPECIAL_FIELD_WIDGETS } from "./index";
+import {
+  SETTINGS_AREA_IDS,
+  SETTINGS_AREA_REDIRECTS,
+  SETTINGS_AREA_TITLES,
+  SETTINGS_SCREENS,
+  SPECIAL_FIELD_WIDGETS,
+} from "./index";
 import { SETTINGS_ENTRIES } from "../generated/schema";
 import { SETTING_INTERFACE_THEME, SETTING_GLOBAL_LANGUAGE } from "../generated/schema";
 import { AVAILABLE_LOCALES } from "./language/locales";
-import { useMsg } from "../../../i18n/messages";
+import { isMessageKey } from "../../../i18n/messages";
+import { keys as laneKeys } from "../../../i18n/keys/w26.b02";
 
-// Card 4.E2 AC: +SB and EVERY option bound to a REAL setting key.
+// Card 4.E2 AC: +SB and every option bound to a REAL setting key.
+// w26.b02: the registry is EXACTLY the 13 Figma areas (analysis D3) with the
+// Lead's merges; the retired hotkeys/codecs/about/advanced/effects slugs are
+// redirect data, not areas.
 
 // Issue #3 wiring: SettingsScreen consumes the client context (the desktop
 // config seam) — every routed mount supplies the honest MockTransport.
@@ -29,17 +39,17 @@ const routes = (
   </Routes>
 );
 
-describe("areas layer — extension registry", () => {
-  it("appends the hotkeys area after the generated schema areas", () => {
-    // Card 4.E4: group-3 areas (codecs/library/network/about/advanced) append
-    // after hotkeys — the same areas/index.tsx mechanism, no generator change.
+describe("areas layer — the 13-area registry (w26.b02)", () => {
+  it("is exactly the 13 Figma areas in sidebar order (App 4 · Media 5 · System 4)", () => {
     expect(SETTINGS_AREA_IDS).toEqual([
-      "global", "interface", "privacy", "playback", "performance",
-      "hotkeys", "codecs", "library", "network", "about", "advanced", "effects",
+      "global", "interface", "privacy", "controls",
+      "playback", "video", "audio", "subtitles", "library",
+      "network", "performance", "recording", "extensions",
     ]);
-    expect(SETTINGS_SCREENS.hotkeys).toBeTruthy();
-    expect(useMsg()(SETTINGS_AREA_TITLES.hotkeys)).toBe("Hotkeys");
-    expect(useMsg()(SETTINGS_AREA_TITLES.advanced)).toBe("Advanced");
+    for (const id of SETTINGS_AREA_IDS) {
+      expect(SETTINGS_SCREENS[id], `area ${id} must have a screen`).toBeTruthy();
+      expect(SETTINGS_AREA_TITLES[id], `area ${id} must have a title key`).toBeTruthy();
+    }
   });
 
   it("every special widget key IS a real schemas/settings.toml key (AC)", () => {
@@ -49,11 +59,50 @@ describe("areas layer — extension registry", () => {
     }
   });
 
+  it("area titles resolve via the catalog or the lane keys (§4.5 pre-registration seam)", () => {
+    for (const id of SETTINGS_AREA_IDS) {
+      const key = SETTINGS_AREA_TITLES[id];
+      expect(
+        isMessageKey(key) || key in laneKeys,
+        `area title "${key}" must be registered or carried by ui/src/i18n/keys/w26.b02.ts`,
+      ).toBe(true);
+    }
+  });
+
+  it("maps every retired slug to its merged home and off the 13-area registry", () => {
+    expect(SETTINGS_AREA_REDIRECTS).toEqual({
+      hotkeys: "controls",
+      codecs: "video",
+      about: "global",
+      advanced: "performance",
+      effects: "audio",
+    });
+    for (const [retired, home] of Object.entries(SETTINGS_AREA_REDIRECTS)) {
+      expect(SETTINGS_AREA_IDS).not.toContain(retired);
+      expect(SETTINGS_AREA_IDS).toContain(home);
+    }
+  });
+
   it("renders the Interface screen with every schema entry bound to its key", () => {
     routed("/settings/interface", routes);
-    for (const entry of SETTINGS_ENTRIES.filter((e) => e.screen === "interface")) {
+    for (const entry of SETTINGS_ENTRIES.filter((e) => e.screen === "interface" && !e.advanced)) {
       const field = document.querySelector(`[data-setting="${entry.key}"]`);
       expect(field, `interface entry ${entry.key} must render bound to its schema key`).toBeTruthy();
+    }
+    // Advanced-flagged rows sit behind the in-flow "Advanced Options"
+    // disclosure (shell lane b01, Figma D2 grammar): expand it, then every
+    // advanced entry must be bound too — nothing may silently vanish.
+    const advanced = SETTINGS_ENTRIES.filter((e) => e.screen === "interface" && e.advanced);
+    if (advanced.length > 0) {
+      const bar = document.querySelector<HTMLButtonElement>(".settings-advanced__bar");
+      expect(bar, "the Advanced Options disclosure must exist for advanced rows").toBeTruthy();
+      fireEvent.click(bar as HTMLButtonElement);
+      for (const entry of advanced) {
+        expect(
+          document.querySelector(`[data-setting="${entry.key}"]`),
+          `advanced interface entry ${entry.key} must render behind the disclosure`,
+        ).toBeTruthy();
+      }
     }
   });
 
@@ -64,16 +113,29 @@ describe("areas layer — extension registry", () => {
     expect(screen.getByRole("radio", { name: /English \(United States\)/i })).toBeTruthy();
   });
 
-  it("renders the Hotkeys area with rows from the generated keymap data", () => {
-    routed("/settings/hotkeys", routes);
-    expect(screen.getByTestId("hotkeys-table")).toBeTruthy();
-    expect(document.querySelectorAll(".hotkeys-row").length).toBeGreaterThan(100);
+  it("renders the global area with the about fold (w26 merge: about→global)", () => {
+    routed("/settings/global", routes);
+    expect(document.querySelector('[data-testid="about-area"]')).toBeTruthy();
   });
 
-  it("navigates to the hotkeys area from the settings nav", async () => {
+  it("renders the video area with the codecs fold (w26 merge: codecs→video)", () => {
+    routed("/settings/video", routes);
+    expect(document.querySelector('[data-settings-area="video"]')).toBeTruthy();
+    expect(document.querySelector('[data-settings-area="codecs"]')).toBeTruthy();
+  });
+
+  it("renders the audio area with the effects fold (w26 merge: effects→audio)", () => {
+    routed("/settings/audio", routes);
+    expect(document.querySelector('[data-settings-area="audio"]')).toBeTruthy();
+    expect(document.querySelector('[data-settings-area="effects"]')).toBeTruthy();
+  });
+
+  it("navigates between merged areas from the settings nav", async () => {
     routed("/settings/interface", routes);
-    fireEvent.click(screen.getByRole("button", { name: "Hotkeys" }));
-    await waitFor(() => expect(screen.getByTestId("hotkeys-table")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Privacy" })).toHaveAttribute("aria-current", "page"),
+    );
   });
 
   it("the special theme picker replaces the interface.theme control inside the shell (live wiring)", async () => {
@@ -101,3 +163,9 @@ describe("language area — real locales only", () => {
     }
   });
 });
+
+// NOTE (w26.b02): this file imports ./index, which imports the sibling area
+// components ./controls, ./recording, ./extensions, ./library under the
+// wave-B fixed names. Until lanes b07/b08 land those files, module
+// resolution fails HERE (and in SettingsScreen.test.tsx) — expected
+// parallel-lane gap, documented in docs/waves/w26/logs/w26.b02.md.

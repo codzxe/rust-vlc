@@ -1,0 +1,307 @@
+/* w26.b10 — playlist options layer (design/figma: `Sorting Options.svg`,
+ * `View Options.svg`, `thumbnail.svg`, `media.svg`).
+ *
+ * Menu grammar: the shared menu.css classes (`lumen-menu*`) carry the
+ * panel/row grammar (r10–12 panel, r6 rows, hairline border, overlay
+ * shadow); this sheet pins the option frames' compact scale — 265px panels,
+ * 48px rows, #8F8F8F labels (menu lane states.md "Known gaps" sanctions
+ * app-layer 48px overrides), the right-aligned orange check (19px from the
+ * row's right edge) and rows that pair a leading icon WITH the check
+ * (View Options.svg row 2 — MenuItem can't, hence PlaylistOptionsMenu).
+ *
+ * Colors: semantic tokens ONLY (doc 08 §3.2). Raw px appears solely for
+ * frame-measured structural dimensions with no token (panel width, row
+ * pitch, tile/bar geometry) — each marked with its frame provenance.
+ * Frame-vs-token deltas flagged for the token lane in the lane log:
+ *   media.svg tile #303030 → --color-surface-raised (#222222)
+ *   media.svg unwatched title #969696 → --color-content-secondary (#8F8F8F)
+ */
+
+/* ------------------------------------------------ options toolbar ------ */
+
+.lumen-plo-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-grid);
+}
+
+/* The anchored trigger wrapper (positioning context for the popup). */
+.lumen-plo {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ------------------------------------------------ option menus --------- */
+
+/* 265px panels (Sorting/View Options.svg) — frame width; the shared sheet
+ * pins the 400px player-menu width, overridden here. */
+.lumen-plo .lumen-plo__menu {
+  min-width: 265px; /* frame: Sorting Options.svg / View Options.svg 265 */
+  margin-top: var(--space-grid);
+}
+
+.lumen-plo .lumen-plo__menu--end {
+  right: 0;
+  left: auto;
+}
+
+.lumen-plo .lumen-plo__menu--above {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: var(--space-grid);
+}
+
+/* 48px rows (option.svg grammar at the option frames' scale) — the shared
+ * comfortable height is 58px. Right padding 19px puts the check's right
+ * edge 19px from the row edge (frame: check x228–242 in a 4–261 row). */
+.lumen-plo .lumen-plo__item {
+  height: var(--space-item-pitch); /* 48px (Sorting/View Options.svg rows) */
+  padding-right: 19px; /* frame: option check inset */
+  color: var(--color-content-secondary); /* frame labels #8F8F8F */
+}
+
+/* Hover/selected fill #1F1F1F on BOTH states (frames: selected ≡ hover bg;
+ * selection is signaled by the orange check only). */
+.lumen-plo .lumen-plo__item:hover,
+.lumen-plo .lumen-plo__item:focus {
+  background: var(--color-surface-selected);
+}
+
+.lumen-plo .lumen-plo__item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-plo .lumen-plo__item[aria-disabled="true"] {
+  opacity: var(--opacity-disabled);
+  pointer-events: none; /* roving focus still reaches it — inert, not hidden */
+}
+
+/* Leading line icons (View Options.svg): 20px slot, #8F8F8F strokes.
+ * Compound selector beats the shared comfortable 22px rule at equal
+ * specificity regardless of CSS load order. */
+.lumen-plo .lumen-menu__icon.lumen-plo__icon svg {
+  width: 20px; /* frame icon slot x21–40 (≈20px) */
+  height: 20px;
+}
+
+/* The right-aligned check (frames Vector 44: 14×11, stroke 2, round joins,
+ * #D37918) — the shared ✓ glyph at accent color. */
+.lumen-plo .lumen-plo__check {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  width: 14px;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-icon);
+}
+
+.lumen-plo .lumen-plo__check::before {
+  content: "\2713"; /* check glyph — graphical, not an i18n string */
+}
+
+/* ------------------------------------------------ thumbnail grid ------- */
+
+/* Grid of 272×189 cards (thumbnail.svg); auto-fill keeps cards frame-exact
+ * and flows more columns as width allows. */
+.lumen-plo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 272px); /* frame card width */
+  justify-content: start;
+  gap: var(--space-inset);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lumen-plo-grid__cell {
+  display: flex;
+}
+
+/* Card: 272×189 r14, #191919-class panel, no border/shadow (frame carries
+ * neither — only the backdrop blur, which has no token). */
+.lumen-plo-card {
+  display: flex;
+  flex-direction: column;
+  width: 272px; /* frame: thumbnail.svg 272×189 */
+  height: 189px;
+  padding: 10px; /* frame artwork inset */
+  box-sizing: border-box;
+  font-family: var(--font-family-sans);
+  text-align: center;
+  background: var(--color-surface-panel);
+  border: none;
+  border-radius: var(--radius-card); /* r14 */
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.lumen-plo-card:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-plo-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Artwork well: 252×142 r4 — the frame's artwork is a pattern placeholder;
+ * the engine has no artwork seam yet, so the well is honestly empty with a
+ * quiet glyph (aria-hidden). */
+.lumen-plo-card__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 142px; /* frame: 252×142 artwork */
+  border-radius: var(--radius-inset); /* r4 */
+  background: var(--color-surface-deep);
+  color: var(--color-content-tertiary);
+  opacity: var(--opacity-muted);
+}
+
+/* Quiet meta footer (37px): the centered h:mm:ss duration, #8F8F8F. */
+.lumen-plo-card__duration {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-label); /* frame cap 11.2 → ≈15px */
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-secondary); /* frame #8F8F8F */
+}
+
+/* ------------------------------------------------ media list ---------- */
+
+/* VirtualList rows paint their own fills — the media frame shows NO row
+ * background on hover (only the title brightens + ••• appears). */
+.lumen-plo-media .lumen-vrow:hover {
+  background: transparent;
+}
+
+.lumen-plo-media {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 51px row (media.svg tile pitch): tile | title | ••• */
+.lumen-plo-mrow {
+  position: absolute;
+  inset: 0 auto auto 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10.5px; /* frame: title x62.7 − tile edge 52 */
+  padding-left: 20px; /* frame: tile x20 */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body); /* frame cap 10.2 → ≈14px */
+  color: var(--color-content-secondary); /* frame unwatched #969696 */
+  cursor: pointer;
+}
+
+.lumen-plo-mrow:hover,
+.lumen-plo-mrow:focus-within {
+  color: var(--color-content-primary); /* frame hover #C6C6C6 */
+}
+
+/* Watched rows dim (frame watched #6B6B6B); hover still brightens. */
+.lumen-plo-mrow--watched {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-plo-mrow--watched:hover,
+.lumen-plo-mrow--watched:focus-within {
+  color: var(--color-content-primary);
+}
+
+/* Current row: no current state exists in media.svg — this extends the
+ * frame with the panel's current treatment (playlist panel grammar: accent
+ * left edge + bright title) so switching views never loses "now playing". */
+.lumen-plo-mrow--current {
+  color: var(--color-content-primary);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+/* Media tile: 32×32 r2 (frame fill #303030 → nearest token #222222). */
+.lumen-plo-mrow__tile {
+  position: relative;
+  flex: none;
+  width: 32px; /* frame: media.svg Frame 28 32×32 rx2 */
+  height: 32px;
+  border-radius: 2px; /* frame rx2 — micro radius, no token */
+  background: var(--color-surface-raised);
+}
+
+/* Watched progress: the frame's completed bar is 28×3 at the tile bottom
+ * (Rectangle 12); the seam may report partial progress (0..1 width). */
+.lumen-plo-mrow__progress {
+  position: absolute;
+  bottom: 0;
+  left: 2px; /* frame: bar inset 2px each side */
+  height: 3px; /* frame bar height */
+  border-radius: 1px;
+  background: var(--color-accent);
+}
+
+.lumen-plo-mrow__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "•••" actions (media.svg hover states: Vector 36–38, Ø3 dots, 6px pitch,
+ * #8F8F8F) — hover/focus surface only (PlaylistPanel __actions precedent). */
+.lumen-plo-mrow__menu {
+  display: none;
+  flex: none;
+  align-self: center;
+  margin-right: 24px; /* frame: dots end ≈24px from the row's right edge */
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  color: var(--color-content-secondary); /* frame dots #8F8F8F */
+  cursor: pointer;
+}
+
+.lumen-plo-mrow__menu:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-plo-mrow__menu:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Shown on row hover/focus — the display flip lives AFTER the button's own
+ * state rules (stylelint selector order). */
+.lumen-plo-mrow:hover .lumen-plo-mrow__menu,
+.lumen-plo-mrow:focus-within .lumen-plo-mrow__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumen-plo-mrow__dots {
+  display: inline-flex;
+  gap: 3px; /* frame: Ø3 dots on a 6px pitch */
+}
+
+.lumen-plo-mrow__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-plo-card {
+    transition: none;
+  }
+}

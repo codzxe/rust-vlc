@@ -43,8 +43,10 @@ describe("CodecsArea — routing + schema-bound options", () => {
     );
     expect(document.querySelector(`[data-setting="${SETTING_PERFORMANCE_CACHE_DEMUX_MIB.key}"]`)).not.toBeNull();
     expect(document.querySelector(`[data-setting="${SETTING_PERFORMANCE_CACHE_NETWORK_MIB.key}"]`)).not.toBeNull();
-    // Both are advanced-flagged in the schema → E1's advanced badge shows.
-    expect(screen.getAllByText("Advanced").length).toBeGreaterThanOrEqual(2);
+    // Both are advanced-flagged in the schema. Since w26.b02 the E1 advanced
+    // presentation is the area-level in-flow disclosure (one grouped badge /
+    // fold, not one badge per row) — at least one Advanced affordance shows.
+    expect(screen.getAllByText("Advanced").length).toBeGreaterThanOrEqual(1);
   });
 
   it("binds the hw-decode control to playback.hw-decode-policy with the full schema enumeration", () => {

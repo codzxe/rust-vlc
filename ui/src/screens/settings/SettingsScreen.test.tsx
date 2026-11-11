@@ -18,6 +18,8 @@ const renderAt = (path: string) =>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/settings/:area" element={<SettingsScreen />} />
+          {/* Close-to-player stub: the window's ✕ routes to /player. */}
+          <Route path="/player" element={<div data-testid="player-home" />} />
         </Routes>
       </MemoryRouter>
     </ClientProvider>,
@@ -32,28 +34,70 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("renders the schema-generated area navigation", () => {
     renderAt("/settings/interface");
-    for (const area of ["Global", "Interface", "Privacy", "Playback", "Performance"]) {
+    // The b02 registry = exactly the 13 Figma areas (App 4 / Media 5 / System 4).
+    for (const area of [
+      "Global",
+      "Interface",
+      "Privacy",
+      "Controls",
+      "Playback",
+      "Video",
+      "Audio",
+      "Subtitles",
+      "Library",
+      "Network",
+      "Performance",
+      "Recording",
+      "Extensions",
+    ]) {
       expect(screen.getByRole("button", { name: area })).toBeInTheDocument();
     }
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
   });
 
-  it("veils the backdrop to calm while mounted and cleans up on unmount (v2 §1)", () => {
-    const { unmount } = renderAt("/settings/interface");
-    expect(document.documentElement.dataset.backdrop).toBe("calm");
-    unmount();
+  it("renders the floating window shell (W26 §D2: top bar + search pill + window title)", () => {
+    const { container } = renderAt("/settings/interface");
+    expect(container.querySelector(".settings-window")).not.toBeNull();
+    expect(screen.getByPlaceholderText("Search settings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close settings" })).toBeInTheDocument();
+    // The Solstice backdrop veil is gone for good — the window floats on the
+    // plain app surface (assertion replaces the old data-backdrop test 1:1:
+    // it fails if any tier ever comes back).
     expect(document.documentElement.dataset.backdrop).toBeUndefined();
   });
 
-  it("anchors the content column with the area heading (v2 §2.5)", () => {
+  it("anchors the column with the area's window title in the top bar (W26 §D2)", () => {
     renderAt("/settings/interface");
-    expect(screen.getByRole("heading", { name: "Interface" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Interface Settings" })).toBeInTheDocument();
+  });
+
+  it("closes the window back to the player via the top-bar ✕", async () => {
+    renderAt("/settings/interface");
+    fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
+    await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
+  });
+
+  it("segregates advanced entries behind the in-flow Advanced Options disclosure", () => {
+    renderAt("/settings/interface");
+    const toggle = screen.getByRole("button", { name: "Advanced Options" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Minimum window width")).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Minimum window width")).toBeInTheDocument();
   });
 
   it("redirects an unknown area to the first schema area", async () => {
     renderAt("/settings/nope");
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page"),
+    );
+  });
+
+  it("canonicalises retired deep-link slugs to their merged home (b02 registry)", async () => {
+    renderAt("/settings/hotkeys");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Controls" })).toHaveAttribute("aria-current", "page"),
     );
   });
 

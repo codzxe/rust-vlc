@@ -1,14 +1,12 @@
-// Card 4.D1 — playlist panel content (doc 08 §4.5: playlist → listbox/
-// option; §1.6: playlist panel 377px translucent; §5.3 queue controls).
-// Rendered both inside the player shell's `playlist` region (PlayerScreen
-// wiring) and as the /playlist route body (PlaylistScreen).
+// Card 4.D1 → w26.b09 — playlist QUEUE panel content, rebuilt on the list
+// primitives (ListRow/ListEmpty/ROW_HEIGHTS — logs/w26.a09).
 //
-// Solstice v2 craft pass (2026-11-09): the queue toolbar's icon buttons use
-// the 32px hit size with 20px glyphs (visible affordance, not 14px specks —
-// audit floor: ≥20px), every control keeps its aria-label from i18n, and the
-// empty state teaches: a primary "Open media" CTA dispatches the shell-wide
-// `lumen:open-media` CustomEvent (the AppShell opens the dialog — the same
-// contract the player's empty state uses).
+// Rendered inside the player shell's `playlist` dock (PlayerScreen wiring —
+// a13's 216px deep-surface sidebar). W26 grammar (Miniplayer.svg queue +
+// media.svg rows): drag-handle rows · title + source location · tabular
+// duration · hover-revealed actions overlaying the row's trailing edge
+// (never squeezing the title in the narrow dock). The 2026-11-09 v2 row
+// markup (grip dots, index column, sun disc, chip) is retired.
 //
 // HONESTY: current marker, shuffle and repeat reflect ENGINE-reported state
 // only (playlist.changed / snapshot). `null` (not yet reported) renders as
@@ -18,17 +16,14 @@ import { useState, type DragEvent } from "react";
 import { useMsg } from "../../i18n/messages";
 import { IconButton, Button } from "../../components/button";
 import { Icon } from "../../components/icon";
-import { VirtualList } from "../../components/list";
+import { ListEmpty, ListRow, ROW_HEIGHTS, VirtualList } from "../../components/list";
 import { OPEN_MEDIA_EVENT } from "../open-media";
 import { usePlaylist, type PlaylistEntry } from "./PlaylistProvider";
 import { cycleRepeat, dragToMoveIndex, formatDuration, sourceLocation } from "./queue";
 import "./playlist.css";
 
-/** doc 08 §1.5 (option.svg): 48px rows. */
-const ROW_HEIGHT = 48;
-
-/** Queue toolbar glyphs (v2 audit floor: ≥20px to read as controls; 32px hit). */
-const TOOLBAR_ICON_SIZE = 20;
+/** Queue toolbar glyphs — 16px line glyphs, 28px `sm` hit (W26 frames). */
+const TOOLBAR_ICON_SIZE = 16;
 
 /** Open the app-shell media dialog (cross-screen contract, never renamed). */
 const openMediaDialog = (): void => {
@@ -37,9 +32,8 @@ const openMediaDialog = (): void => {
 
 export function PlaylistPanel({
   className = "",
-  /** Page mode: the /playlist route renders its own h1, so the panel's h2
-   * would stack a duplicate heading — hide it there, keep it in the player's
-   * side region. The count chip + toolbar always render. */
+  /** Hide the panel's own h2 (a host page that renders its own heading).
+   * Kept in the public API (wave-1 freeze); the player dock shows it. */
   headingless = false,
 }: {
   className?: string;
@@ -75,21 +69,21 @@ export function PlaylistPanel({
     >
       <header className="lumen-playlist__header">
         {headingless ? null : <h2 className="lumen-playlist__title">{m("playlist.panel.title")}</h2>}
-        <span className="lumen-playlist__count solstice-chip">
-          <span className="lumen-playlist__count-num">{String(playlist.entries.length)}</span>
-          {m("playlist.panel.count-suffix")}
+        <span className="lumen-playlist__count">
+          {String(playlist.entries.length)} {m("playlist.panel.count-suffix")}
         </span>
         <div className="lumen-playlist__controls">
-          <IconButton label={m("playlist.controls.prev")} onClick={() => playlist.prev()}>
+          <IconButton label={m("playlist.controls.prev")} size="sm" onClick={() => playlist.prev()}>
             <Icon name="skip-back-15" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
-          <IconButton label={m("playlist.controls.next")} onClick={() => playlist.next()}>
+          <IconButton label={m("playlist.controls.next")} size="sm" onClick={() => playlist.next()}>
             <Icon name="skip-forward-15" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
           {/* aria-pressed only claims "on" when the engine reported it;
               unknown (null) renders unpressed — never a faked known-off. */}
           <IconButton
             label={m("playlist.controls.shuffle")}
+            size="sm"
             aria-pressed={playlist.shuffle === true}
             onClick={() => playlist.setShuffle(!(playlist.shuffle === true))}
           >
@@ -97,40 +91,43 @@ export function PlaylistPanel({
           </IconButton>
           <IconButton
             label={repeatLabel}
+            size="sm"
             data-mode={repeatMode}
             onClick={() => playlist.setRepeat(cycleRepeat(repeatMode))}
           >
             <Icon name="repeat" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
-          <IconButton label={m("playlist.controls.clear")} onClick={() => playlist.clear()}>
+          <IconButton label={m("playlist.controls.clear")} size="sm" onClick={() => playlist.clear()}>
             <Icon name="stop" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
         </div>
       </header>
 
-      {/* Honesty line as a compact chip (Solstice) — never a fake-known state. */}
-      {playlist.notExposed ? <p className="lumen-playlist__note solstice-chip">{m("playlist.panel.not-exposed")}</p> : null}
+      {/* Honesty line — plain quiet caption (no decorative chip);
+          never a fake-known state. */}
+      {playlist.notExposed ? <p className="lumen-playlist__note">{m("playlist.panel.not-exposed")}</p> : null}
 
       {playlist.entries.length === 0 ? (
-        <div className="lumen-playlist__empty">
-          <span className="lumen-playlist__sun solstice-sun" aria-hidden="true" />
-          <p className="lumen-playlist__empty-title">{m("playlist.panel.empty-title")}</p>
-          <p className="lumen-playlist__empty-body">{m("playlist.panel.empty-body")}</p>
-          {/* The empty state teaches: same dialog the player's empty state
-              opens (AppShell owns the single listener for this event). */}
-          <Button
-            variant="primary"
-            className="lumen-playlist__empty-cta"
-            onClick={openMediaDialog}
-            data-testid="playlist-empty-open-media"
-          >
-            {m("player.empty.open")}
-          </Button>
-        </div>
+        <ListEmpty
+          className="lumen-playlist__empty"
+          title={m("playlist.panel.empty-title")}
+          body={m("playlist.panel.empty-body")}
+          action={
+            /* The empty state teaches: same dialog the player's empty state
+             * opens (AppShell owns the single listener for this event). */
+            <Button
+              variant="primary"
+              onClick={openMediaDialog}
+              data-testid="playlist-empty-open-media"
+            >
+              {m("player.empty.open")}
+            </Button>
+          }
+        />
       ) : (
         <VirtualList
           data={playlist.entries}
-          itemHeight={ROW_HEIGHT}
+          itemHeight={ROW_HEIGHTS.compact} /* Miniplayer.svg queue pitch — the dock's density */
           label={m("playlist.panel.title")}
           scrollToIndex={currentIndex >= 0 ? { index: currentIndex, align: "start" } : null}
           className="lumen-playlist__list"
@@ -181,44 +178,40 @@ function PlaylistRow({
     playlist.entries.length,
   );
   return (
-    <div
+    <ListRow
       className={`lumen-plrow${isCurrent ? " lumen-plrow--current" : ""}`}
-      data-current={isCurrent || undefined}
+      density="compact"
       draggable
+      selected={isCurrent}
+      data-current={isCurrent || undefined}
       onDragStart={onDragStart}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
+      icon={isCurrent ? <Icon name="play" size={14} /> : undefined}
+      title={entry.title ?? m("playlist.entry.unknown-title")}
+      meta={location ?? undefined}
+      duration={duration ?? m("playlist.entry.unknown-duration")}
+      actions={
+        <>
+          <IconButton label={m("playlist.entry.play-now")} size="sm" onClick={() => playlist.playItem(entry.id)}>
+            <Icon name="play" size={14} />
+          </IconButton>
+          <Button size="sm" onClick={() => playlist.move(entry.id, playNextIndex)}>
+            {m("playlist.entry.play-next")}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => playlist.move(entry.id, dragToMoveIndex(playlist.entries.length, index, playlist.entries.length))}
+          >
+            {m("playlist.entry.play-later")}
+          </Button>
+          <IconButton label={m("playlist.entry.remove")} size="sm" onClick={() => playlist.remove(entry.id)}>
+            <Icon name="quit" size={14} />
+          </IconButton>
+        </>
+      }
     >
-      <span className="lumen-plrow__grip" aria-hidden="true" />
-      <span className="lumen-plrow__index" aria-hidden="true">
-        {String(index + 1).padStart(2, "0")}
-      </span>
       {isCurrent ? <span className="lumen-playlist__sr">{m("playlist.entry.current")}</span> : null}
-      <span className="lumen-plrow__marker" aria-hidden="true">
-        {isCurrent ? <span className="lumen-plrow__sundot" /> : null}
-      </span>
-      <span className="lumen-plrow__main">
-        <span className="lumen-plrow__title">{entry.title ?? m("playlist.entry.unknown-title")}</span>
-        {location !== null ? <span className="lumen-plrow__location">{location}</span> : null}
-      </span>
-      <span className="lumen-plrow__duration">{duration ?? m("playlist.entry.unknown-duration")}</span>
-      <span className="lumen-plrow__actions">
-        <IconButton label={m("playlist.entry.play-now")} size="sm" onClick={() => playlist.playItem(entry.id)}>
-          <Icon name="play" size={14} />
-        </IconButton>
-        <Button size="sm" onClick={() => playlist.move(entry.id, playNextIndex)}>
-          {m("playlist.entry.play-next")}
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => playlist.move(entry.id, dragToMoveIndex(playlist.entries.length, index, playlist.entries.length))}
-        >
-          {m("playlist.entry.play-later")}
-        </Button>
-        <IconButton label={m("playlist.entry.remove")} size="sm" onClick={() => playlist.remove(entry.id)}>
-          <Icon name="quit" size={14} />
-        </IconButton>
-      </span>
-    </div>
+    </ListRow>
   );
 }

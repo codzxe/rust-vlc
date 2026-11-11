@@ -4,7 +4,10 @@ import type { SettingsArea, SettingEntry } from "./generated/schema";
 
 // Settings search (card 4.E1, doc 07 §5): filters fields by their label
 // key's resolved text, ACROSS areas — the result is the honest subset of
-// schema entries whose labels match; nothing is invented.
+// schema entries whose labels match; nothing is invented. Labels that the
+// catalog has not resolved yet (mid-wave lane keys await Lead registration)
+// read as empty and can never match — a catalog gap degrades to "no hit",
+// never a crash.
 
 export interface SearchHit {
   readonly area: SettingsArea;
@@ -29,7 +32,8 @@ export function useSettingsSearch(): SettingsSearchContextValue {
   return useContext(SettingsSearchContext);
 }
 
-const normalize = (text: string): string => text.trim().toLowerCase();
+const normalize = (text: string | undefined): string =>
+  (typeof text === "string" ? text : "").trim().toLowerCase();
 
 /** All matching sections across all areas, in schema order. Empty = no match. */
 export function searchSettings(

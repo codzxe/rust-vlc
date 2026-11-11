@@ -11,8 +11,9 @@
 // node, so the builtins exist at runtime.
 
 import { describe, expect, it } from "vitest";
-import { useMsg } from "../../i18n/messages";
+import { isMessageKey, useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
+import { keys as laneKeys } from "../../i18n/keys/w26.b02";
 import { SETTINGS_AREAS, SETTINGS_ENTRIES, SETTINGS_MSGIDS } from "./generated/schema";
 
 interface NodeFs {
@@ -99,15 +100,22 @@ describe("generated settings screens detect schema drift (4.E1 AC)", () => {
 });
 
 describe("generated schema data (committed snapshot sanity)", () => {
-  it("covers the 5 ui areas with the 21 ui entries of schemas/settings.toml", () => {
+  it("covers the 8 ui areas with the 33 ui entries of schemas/settings.toml", () => {
+    // w26.b02 seed: the three NEW Figma areas (controls, recording,
+    // extensions) gained [[setting]] rows; video/audio/subtitles/library/
+    // network stay hand-registered (areas/index.tsx) — content areas, not
+    // schema screens.
     expect(SETTINGS_AREAS.map((a) => a.id)).toEqual([
       "global",
       "interface",
       "privacy",
+      "controls",
       "playback",
       "performance",
+      "recording",
+      "extensions",
     ]);
-    expect(SETTINGS_ENTRIES).toHaveLength(21);
+    expect(SETTINGS_ENTRIES).toHaveLength(33);
   });
 
   it("has globally unique keys with in-range defaults (D2 + range rules)", () => {
@@ -145,18 +153,28 @@ describe("generated schema data (committed snapshot sanity)", () => {
     expect(restartKeys).not.toContain("interface.theme");
   });
 
-  it("resolves every ui schema label msgid in the message catalog (i18n coverage)", () => {
+  it("resolves every ui schema label msgid in the catalog or the lane keys (i18n coverage)", () => {
     const m = useMsg();
-    // SETTINGS_MSGIDS carries all 27 entries incl. ui=false engine fields
-    // (CLI --help territory, dev-facing English); the UI catalog must cover
-    // every RENDERED label: the 21 ui entries + their enum options.
+    // w26.b02: the seed introduces msgids (controls/recording/extensions rows
+    // + their sections/areas) that are registered into messages.ts only
+    // POST-WAVE (contract §4.5; ui/src/i18n/keys/w26.b02.ts carries them
+    // until then). Coverage = registered catalog entry OR lane-key entry.
+    const covered = (msgid: string): boolean =>
+      isMessageKey(msgid) ? m(msgid as MessageKey).length > 0 : msgid in laneKeys;
+    // SETTINGS_MSGIDS carries all 44 entries incl. ui=false engine fields
+    // (CLI --help territory, dev-facing English); coverage must hold for
+    // every RENDERED label: the 33 ui entries + their enum options + the
+    // section titles.
     expect(SETTINGS_MSGIDS.length).toBeGreaterThanOrEqual(SETTINGS_ENTRIES.length);
     for (const entry of SETTINGS_ENTRIES) {
-      const text = m(entry.description as MessageKey);
-      expect(text, `missing catalog entry for ${entry.description}`).toBeTruthy();
+      expect(covered(entry.description), `missing catalog/lane entry for ${entry.description}`).toBe(true);
       for (const option of entry.enumeration) {
-        const optionText = m(option.msgid as MessageKey);
-        expect(optionText, `missing catalog entry for ${option.msgid}`).toBeTruthy();
+        expect(covered(option.msgid), `missing catalog/lane entry for ${option.msgid}`).toBe(true);
+      }
+    }
+    for (const area of SETTINGS_AREAS) {
+      for (const section of area.sections) {
+        expect(covered(section.title), `missing catalog/lane entry for ${section.title}`).toBe(true);
       }
     }
   });

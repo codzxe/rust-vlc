@@ -1,29 +1,35 @@
-/* Playlist panel + /playlist page — Solstice v2 (2026-11-09).
+/* Playlist screen + queue panel — W26 Figma grammar (w26.b09 rebuild).
  *
- * Two contexts share this sheet: the player shell's `playlist` side region
- * (surface-panel backdrop, 377px) and the /playlist route. The route is an
- * APP-tier work surface (brief §1): the page anchors to the shared column
- * (min(1200px, 92vw)) on the calm backdrop, the heading and the queue card
- * share ONE left edge, and the card fills the remaining viewport height so
- * the VirtualList owns the vertical space — the page never clips at the
- * viewport bottom. The queue is DENSE DATA: a structured opaque-ish panel,
- * not a sticky note; the empty state keeps the sun-disc personality moment.
- * No washi tape on the card (tape is for notes; v2 audit defect).
+ * Three surfaces share this sheet:
+ *  1. the QUEUE panel (`.lumen-playlist`) — the player shell's docked
+ *     sidebar (PlayerScreen, a13's 216px deep dock). Rows are the list
+ *     primitives' compact drag-handle grammar (Miniplayer.svg queue); the
+ *     hover actions overlay the trailing edge instead of squeezing the
+ *     title in the narrow dock.
+ *  2. the /playlist LIBRARY page (`.lumen-plpage`) — playlist.svg: the
+ *     near-black #000-class panel (r14) holds ~66px r10 rows (icon + title
+ *     + hover kebab), naturally sorted.
+ *  3. the create-playlist dialog (`.lumen-plnew`) — new playlist.svg.
  *
- * Contracts kept (PlaylistPanel.test.tsx / e2e): the VirtualList 48px row
- * pitch, `.lumen-plrow--current` + data-current, the sr-only "Now playing"
- * text, drag-reorder handlers on `.lumen-plrow`, the exact empty-state copy,
- * the queue control aria-labels. Semantic tokens only (doc 08 §3.2); raw px
- * solely for structural dimensions with no token (grip dots, sun-dot). */
+ * The 2026-11-09 v2 aesthetic (sunset veil, sun disc, chips, tape) is retired;
+ * every value is a semantic token. Raw px is structural only (frame-measured
+ * where marked: dialog column, tile sizes, drop-zone pitch).
+ *
+ * Contracts kept (PlaylistPanel/PlayerScreen/variants tests): the VirtualList
+ * row pitch via ROW_HEIGHTS, `.lumen-plrow--current` + data-current, the
+ * sr-only "Now playing" text, drag-reorder handlers on `.lumen-plrow`, the
+ * empty-state copy + `playlist-empty-open-media` CTA, the queue control
+ * aria-labels, `.lumen-playlist__empty` (music-mode variants.css hooks it). */
 
-/* ------------------------------------------------------------- panel -- */
+/* ------------------------------------------------------- queue panel -- */
 
 .lumen-playlist {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 2);
+  gap: var(--space-inset);
   min-height: 0;
   flex: 1;
+  font-family: var(--font-family-sans);
 }
 
 .lumen-playlist__header {
@@ -34,23 +40,19 @@
   padding: 0 var(--space-inset);
 }
 
+/* Player.svg sidebar title grammar: 13px medium label. */
 .lumen-playlist__title {
   margin: 0;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-time); /* 15px — the sidebar/menu medium class */
+  font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
 }
 
-/* Count badge — a quiet pill; the numeral sits in the time face. The
- * page's single gold emphasis stays reserved for the current row. */
+/* Count — quiet tabular numeral + suffix (no chip). */
 .lumen-playlist__count {
-  flex: none;
-}
-
-.lumen-playlist__count-num {
-  font-family: var(--font-family-time);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-tertiary);
 }
 
 .lumen-playlist__controls {
@@ -59,79 +61,33 @@
   margin-left: auto;
 }
 
-/* Engine-reported "on" toggles lean gold — active states may use accent. */
+/* Engine-reported "on" toggles lean accent — active states may use accent. */
 .lumen-playlist__controls [aria-pressed="true"] {
   color: var(--color-accent-icon);
 }
 
-/* The honest "not exposed" line — a compact chip, not a paragraph. The
- * utility pill fixes its height at 26px; long honesty copy must wrap. */
-.lumen-playlist .lumen-playlist__note {
-  height: auto;
-  min-height: 26px;
+/* The honest "not exposed" line — a quiet caption, never a chip. */
+.lumen-playlist__note {
   margin: 0 var(--space-inset);
   align-self: flex-start;
-  white-space: normal;
+  font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
 }
 
 .lumen-playlist__footer {
   margin: 0;
   padding: var(--space-grid) var(--space-inset) 0;
-  border-top: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
+  border-top: 1px solid var(--color-stroke-border);
   font-size: var(--font-size-caption);
-
-  /* secondary (not tertiary): micro/caption text on the panel stays AA
-   * (4.F4 a11y precedent — the old tertiary-on-panel was 3.6:1). */
   color: var(--color-content-secondary);
 }
 
-/* Empty state — a small recessed note tray with the sun-disc ornament.
- * --color-surface-deep reads as an inset both on the page's anchored card
- * and on the player's surface-panel side region, in both theme modes.
- * v2 §2.5 (dead space): on the full-height page card the tray CLAIMS the
- * remaining queue space (flex: 1 + centered) — an empty queue reads as a
- * centered teaching moment, not a card that ends abruptly. */
+/* Empty queue — the shared ListEmpty fills the remaining dock space
+ * (variants.css re-anchors it for the music-mode rail via
+ * `.lumen-playlist__empty`). */
 .lumen-playlist__empty {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   flex: 1;
-  gap: var(--space-grid);
-  margin: var(--space-grid) var(--space-inset) var(--space-inset);
-  padding: calc(var(--space-inset) * 4) var(--space-inset) calc(var(--space-inset) * 3);
-  text-align: center;
-  background: var(--color-surface-deep);
-  border: 1px solid var(--color-note-edge);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-}
-
-.lumen-playlist__sun {
-  width: 28px;
-  height: 28px;
-  margin-bottom: var(--space-grid);
-}
-
-.lumen-playlist__empty-title {
-  margin: 0;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-content-primary);
-}
-
-.lumen-playlist__empty-body {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-}
-
-/* The teaching CTA — the one gold primary on the empty surface (the same
- * open-media dialog contract the player's empty state uses). */
-.lumen-playlist__empty-cta {
-  margin-top: calc(var(--space-grid) * 2);
+  justify-content: center;
 }
 
 .lumen-playlist__list {
@@ -139,9 +95,10 @@
   min-height: 0;
 }
 
-/* The vrow's square-cornered hover is retired here — the row paints its
- * own rounded warm fill, so edges stay tidy inside the panel. */
-.lumen-playlist__list .lumen-vrow:hover {
+/* The vrow's square-cornered hover is retired here — the ListRow paints its
+ * own rounded fill, so edges stay tidy inside the panel. */
+.lumen-playlist__list .lumen-vrow:hover,
+.lumen-plpage__list .lumen-vrow:hover {
   background: transparent;
 }
 
@@ -154,187 +111,305 @@
   white-space: nowrap;
 }
 
-/* -------------------------------------------------------------- rows -- */
+/* Queue rows — the ListRow compact grammar plus the dock's overlay actions.
+ * The row itself (hover fill, rounded corners, handle, focus ring, selected
+ * surface) lives in list.css; `.lumen-plrow` is the stable test/drag hook. */
 
-/* 48h pitch (option.svg): grip | index | marker | title+location | duration
- * | actions. The VirtualList sets the vrow height; `.lumen-plrow` fills it. */
-
-.lumen-plrow {
+.lumen-playlist .lumen-lrow__actions {
+  /* Overlay the trailing edge (revealed on hover/focus-within by list.css)
+   * instead of squeezing the title — the dock is 216px wide. The fill
+   * matches the row's revealed surface so the overlay reads as the row. */
   position: absolute;
-  inset: 0 auto auto 0;
-  right: 0;
-  display: flex;
-  align-items: center;
+  right: calc(var(--space-grid) * 3);
   gap: var(--space-grid);
-  padding: 0 var(--space-inset);
-  font-family: var(--font-family-sans);
-  color: var(--color-content-primary);
-  background: transparent;
-  border-radius: var(--radius-panel);
-  cursor: grab;
-  transition: background-color var(--motion-duration-fast) ease-out;
-}
-
-.lumen-plrow:active {
-  cursor: grabbing;
-}
-
-.lumen-plrow:hover,
-.lumen-plrow:focus-within {
+  padding-left: var(--space-inset);
   background: var(--color-surface-hover);
+  border-radius: var(--radius-control);
+  pointer-events: none; /* invisible actions never steal the duration click */
 }
 
-/* Current row — the view's one gold emphasis: warm selected fill, a gold
- * left edge and a small sun-dot in the marker column. */
-.lumen-plrow--current {
-  color: var(--color-content-bright);
+.lumen-playlist .lumen-lrow--selected .lumen-lrow__actions,
+.lumen-playlist .lumen-lrow--current .lumen-lrow__actions {
   background: var(--color-surface-selected);
-  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
-/* Drag-reorder handle — a low-contrast dot matrix that sharpens on
- * hover/focus. Decorative (aria-hidden); the whole row stays draggable. */
-.lumen-plrow__grip {
-  flex: none;
-  width: 8px;
-  height: 20px;
-  background-image: radial-gradient(circle, var(--color-content-secondary) 1.2px, transparent 1.7px);
-  background-size: 4px 5px;
-  background-position: center;
-  opacity: var(--opacity-muted);
+/* Reveal the overlay on hover/focus — and keep it live while selected
+ * (lower-specificity selectors stay above the pseudo-class ones). */
+.lumen-playlist .lumen-lrow--selected .lumen-lrow__actions {
+  pointer-events: auto;
 }
 
-.lumen-plrow:hover .lumen-plrow__grip,
-.lumen-plrow:focus-within .lumen-plrow__grip {
-  opacity: var(--opacity-emphasis);
+.lumen-playlist .lumen-lrow:hover .lumen-lrow__actions,
+.lumen-playlist .lumen-lrow:focus-within .lumen-lrow__actions {
+  pointer-events: auto;
 }
 
-/* Index — muted, right-aligned, in the time face. */
-.lumen-plrow__index {
-  flex: none;
-  min-width: 2ch;
-  font-family: var(--font-family-time);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  text-align: end;
-  color: var(--color-content-secondary);
+/* The current row's marker glyph rides the icon slot (orange via the
+ * selected-state icon tint in list.css). */
+.lumen-playlist .lumen-plrow--current .lumen-lrow__title {
+  font-weight: var(--font-weight-medium);
 }
 
-.lumen-plrow__marker {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  color: var(--color-content-bright);
-}
+/* --------------------------------------------------- /playlist page -- */
 
-/* The small sun-dot — a miniature of the .solstice-sun disc in accent gold. */
-.lumen-plrow__sundot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 35% 30%,
-    var(--color-accent-bright) 0%,
-    var(--color-accent) 60%,
-    var(--color-accent-strong) 100%
-  );
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent) 55%, transparent);
-}
-
-.lumen-plrow__main {
+/* The library page — one anchored column (the app's main-surface list
+ * standard), the panel owns the remaining height so the VirtualList owns
+ * the vertical space (the page itself never clips). */
+.lumen-plpage {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.lumen-plrow__title {
-  font-size: var(--font-size-body);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lumen-plrow--current .lumen-plrow__title {
-  font-weight: var(--font-weight-semibold);
-}
-
-.lumen-plrow__location {
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Timecodes ride in the time face. */
-.lumen-plrow__duration {
-  flex: none;
-  font-family: var(--font-family-time);
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lumen-plrow__actions {
-  display: none; /* hover/focus surface; keyboard users tab into the row */
-  gap: var(--space-grid);
-}
-
-.lumen-plrow:hover .lumen-plrow__actions,
-.lumen-plrow:focus-within .lumen-plrow__actions {
-  display: inline-flex;
-}
-
-/* ------------------------------------------------------ /playlist page */
-
-/* APP-tier anchored column (brief §1/§2.5): the shared max-width column,
- * heading and card on ONE left edge, the card fills the remaining height
- * (the shell's main region is the scroll parent only if the viewport is
- * very short — the queue itself scrolls inside the card). */
-.lumen-playlist-page {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--space-grid) * 4);
-  width: min(1200px, 92vw);
+  gap: calc(var(--space-inset) * 2);
+  width: min(640px, 100%);
   margin: 0 auto;
-  padding: calc(var(--space-grid) * 5) 0 calc(var(--space-grid) * 6);
+  padding: calc(var(--space-inset) * 3) var(--space-inset) calc(var(--space-inset) * 3);
   box-sizing: border-box;
   flex: 1;
   min-height: 0;
+  font-family: var(--font-family-sans);
   color: var(--color-content-primary);
-  background: transparent;
 }
 
-.lumen-playlist-page__title {
+.lumen-plpage__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-grid) var(--space-inset);
+}
+
+.lumen-plpage__title {
   margin: 0;
-  font-family: var(--font-family-sans);
   font-size: var(--font-size-display);
-  font-weight: var(--font-weight-extrabold);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
   color: var(--color-content-bright);
 }
 
-/* The queue card — a structured opaque-ish work surface (dense data, so no
- * note tilt and no tape). It stretches to the column's remaining height;
- * the VirtualList owns the vertical space and scrolls inside. */
-.lumen-playlist-page__panel {
+.lumen-plpage__count {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-secondary);
+}
+
+.lumen-plpage__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  margin-left: auto;
+}
+
+/* The library panel — playlist.svg's #000-class surface on the Card
+ * primitive's r14 + hairline chrome (frame: black #000 panel r14). The
+ * compound selector out-ranks the primitive's own fill regardless of
+ * stylesheet order. */
+.lumen-plpage__panel.lumen-card {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  padding: var(--space-grid);
+  background: var(--color-surface);
+}
+
+.lumen-plpage__list {
+  flex: 1;
+  min-height: 0;
+}
+
+.lumen-plpage__empty {
+  flex: 1;
+  justify-content: center;
+}
+
+/* The ContextMenu wrapper fills its windowed row so the ListRow hover
+ * surface spans the full 66px pitch. */
+.lumen-plpage__row-wrap {
+  height: 100%;
+}
+
+/* -------------------------------------------------- create dialog -- */
+
+/* new playlist.svg (713×589 rx14) at the app's dialog column scale. The
+ * compound selector out-ranks the shared dialog chrome (max-width 480)
+ * regardless of stylesheet order. */
+.lumen-dialog.lumen-plnew {
+  gap: calc(var(--space-inset) * 2);
+  width: min(92vw, 560px); /* structural: the dialog column (Open network stream class) */
+  max-width: min(92vw, 560px);
   padding: calc(var(--space-inset) * 2);
-  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+}
+
+.lumen-plnew__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+}
+
+/* Frame: the dialog title is the quiet #8F8F8F class. */
+.lumen-plnew__title {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plnew__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.lumen-plnew__label {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+}
+
+.lumen-plnew__helper {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-plnew__row {
+  display: flex;
+  gap: var(--space-inset);
+  align-items: stretch;
+  margin-top: var(--space-grid);
+}
+
+.lumen-plnew__input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Frame: the new-playlist title input is a dark INSET well (#090909 on the
+ * #191919 panel, rx5) — not the Onboarding raised-input fill. The shared
+ * field control keeps geometry + focus grammar; this skin corrects fill and
+ * border to the frame's recessed look (same well fill as the thumb/drop). */
+.lumen-plnew .lumen-field__control,
+.lumen-plnew .lumen-field__control:hover,
+.lumen-plnew .lumen-field__control:active {
+  background-color: var(--color-surface);
+  border-color: var(--color-stroke-border);
+}
+
+.lumen-plnew .lumen-field__control:hover {
+  border-color: var(--color-content-tertiary);
+}
+
+/* Thumbnail picker — 110×110 frame tile at dialog scale, disabled-honest. */
+.lumen-plnew__thumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 86px; /* frame: 110 at 0.785 scale */
+  height: 86px;
+  padding: 0;
+  background: var(--color-surface);
   border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-card-lg);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-control);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+}
+
+.lumen-plnew__thumb:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-plnew__thumb-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; /* frame: the inner 30×30 #161616 tile */
+  height: 30px;
+  color: var(--color-content-secondary);
+  background: var(--color-surface-chrome);
+  border-radius: var(--radius-control);
+}
+
+.lumen-plnew__rule {
+  margin-block: var(--space-grid);
+}
+
+/* Drop zone — 671×184 frame well at scale: surface fill, hairline border,
+ * drag feedback accent. A <label> for the visually-hidden (focusable)
+ * file input, so clicks anywhere open the picker. */
+.lumen-plnew__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-inset);
+  min-height: 144px; /* frame: 184 at 0.785 scale */
+  margin-top: var(--space-grid);
+  padding: var(--space-inset);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.lumen-plnew__drop:hover,
+.lumen-plnew__drop:focus-within {
+  border-color: var(--color-content-tertiary);
+}
+
+.lumen-plnew__drop:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-plnew__drop--over {
+  border-color: var(--color-accent);
+}
+
+.lumen-plnew__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lumen-plnew__drop-text {
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-plnew__drop-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 66px; /* frame: the 84×30 tile at scale */
+  height: 26px;
+  color: var(--color-content-secondary);
+  background: var(--color-surface-chrome);
+  border-radius: var(--radius-control);
+}
+
+.lumen-plnew__files-count {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-tertiary);
+}
+
+/* Footer — Cancel left, Save right (frame Frame 225). */
+.lumen-plnew__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-grid);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lumen-plrow {
+  .lumen-playlist .lumen-lrow__actions {
     transition: none;
   }
 }

@@ -42,7 +42,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
   });
 
   it("renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area", async () => {
-    renderAt("/settings/audio"); // "audio" has no schema entries yet (4.E2–4.E4)
+    renderAt("/settings/not-a-real-area"); // genuinely unknown slug (audio is real since w26.b02)
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Settings");
     expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page");
   });

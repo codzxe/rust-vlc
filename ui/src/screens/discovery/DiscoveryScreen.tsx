@@ -1,10 +1,21 @@
 // /discovery (card 7.D1, issue #42) — the device-discovery panel: the
 // UI surface of crates/device-discovery's honest capability posture.
 //
-// Composition mirrors the sibling screens (network-stream's centered
-// APP-tier column on the calm backdrop):
-//   * a main card with the screen heading + the local-volumes lane;
-//   * a quiet glass panel for the network-services lane.
+// W26 Figma language (w26.b12 rebuild; no direct frame — composed from the
+// design language, CONTRACT §2, with playlist.svg rows / thumbnail.svg cards /
+// sidebar.svg quiet meta as the nearest grammars):
+//   * a compact top-anchored column (~680px) on the near-black surface —
+//     working-screen density, not a centered hero;
+//   * page heading + section headers = the 15px-class semibold sentence-case
+//     grammar (Settings - *.svg section titles), composed through the
+//     SectionHeader primitive;
+//   * the two lanes ride the r14 #191919 bordered Card primitive
+//     (thumbnail.svg / playlist.svg panel grammar; hairline #404040);
+//   * volume rows = the ListRow primitive (playlist.svg row anatomy:
+//     icon · title · meta · right-aligned trailing, r10 hover fill);
+//   * the empty state = the quiet ListEmpty (no artwork — lists stay calm);
+//   * NO orange at rest: nothing here is selected/active, so the ONE accent
+//     stays on focus rings and the shell's active rail stop only.
 //
 // Honesty contract (the whole screen is engine-truth, never theater):
 //   * Local volumes come ONLY from the catalog's live
@@ -17,18 +28,46 @@
 //     SSDP/UPnP searcher exists (crates/device-discovery, src/ssdp.rs)
 //     but no command exposes it to the UI yet — an honest status line,
 //     never a dead search button that pretends.
-//   * Volume labels are untrusted OS text (V7): they render as text
-//     nodes only — React escapes them; they are never interpolated into
-//     markup, ids or aria-labels.
+//   * Volume rows are read-only (no browse command exists) and volume
+//     labels are untrusted OS text (V7): they render as text nodes only —
+//     React escapes them; they are never interpolated into markup, ids
+//     or aria-labels.
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { VolumeKind } from "../../generated/commands";
 import { useClient } from "../../client/ClientProvider";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
+import { keys as laneKeys } from "../../i18n/keys/w26.b12";
+import { Icon } from "../../components/icon";
+import type { IconName } from "../../components/icon";
+import { ListEmpty, ListRow } from "../../components/list";
+import { Card, SectionHeader } from "../../components/surface";
 import "./discovery.css";
+
+// ---------------------------------------------------------------------------
+// Lane i18n seam (contract §4.5) — copy with no catalog entry yet
+// ---------------------------------------------------------------------------
+
+/** Keys owned by this lane (registered into messages.ts by the Lead). */
+type LaneKey = keyof typeof laneKeys;
+const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+
+/**
+ * useDiscoveryMsg — `useMsg` extended with this lane's pre-registration keys.
+ * Lane keys win while they are unregistered; once the Lead merges them into
+ * the catalog both paths return the same string. Every user-visible string
+ * flows through here — no literals (doc 07 §6.5).
+ */
+function useDiscoveryMsg() {
+  const m = useMsg();
+  return useCallback(
+    (key: MessageKey | LaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    [m],
+  );
+}
 
 /** One live volume row — the exact `devices.volume-added` payload. */
 interface VolumeRow {
@@ -37,7 +76,7 @@ interface VolumeRow {
   readonly volumeKind: VolumeKind;
 }
 
-/** The l10n key for a volume-kind chip (catalog wire names → keys). */
+/** The l10n key for a volume-kind meta line (catalog wire names → keys). */
 function kindKey(kind: VolumeKind): MessageKey {
   switch (kind) {
     case "fixed":
@@ -48,6 +87,24 @@ function kindKey(kind: VolumeKind): MessageKey {
       return "discovery.kind.optical";
     case "network":
       return "discovery.kind.network";
+  }
+}
+
+/**
+ * The registry glyph for a volume kind (pinned Icon.svg vocabulary only —
+ * never invented geometry): fixed/removable = the folder pair, optical =
+ * the disc accelerator, network = the stream glyph.
+ */
+function kindIcon(kind: VolumeKind): IconName {
+  switch (kind) {
+    case "fixed":
+      return "folder";
+    case "removable":
+      return "open-folder";
+    case "optical":
+      return "open-disc";
+    case "network":
+      return "network-stream";
   }
 }
 
@@ -72,23 +129,15 @@ export function applyVolumeEvent(
 }
 
 export function DiscoveryScreen() {
-  const m = useMsg();
+  const t = useDiscoveryMsg();
   const client = useClient();
   const [volumes, setVolumes] = useState<ReadonlyMap<string, VolumeRow>>(() => new Map());
 
-  // APP-tier screen: calm backdrop while mounted, cleaned up on unmount
-  // (same veil contract as the sibling screens).
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.backdrop = "calm";
-    return () => {
-      delete root.dataset.backdrop;
-    };
-  }, []);
-
   // The live volume lane: subscribe to the catalog's devices events and
   // fold them into the table. Nothing else seeds the list — the empty
-  // state before the first event is the honest truth.
+  // state before the first event is the honest truth. (The Solstice
+  // data-backdrop veil is retired with the v2 aesthetic, W25 §0: this
+  // screen no longer touches documentElement while mounting.)
   useEffect(
     () =>
       client.subscribe((event) => {
@@ -103,65 +152,74 @@ export function DiscoveryScreen() {
   const rows = [...volumes.values()];
 
   return (
-    <div className="discovery">
-      <div className="discovery__group">
-        <section
-          className="discovery__card solstice-rise"
-          aria-labelledby="discovery-title"
-          data-testid="discovery-card"
+    <div className="discovery" data-screen="discovery">
+      {/* Page head — the compact working-screen scale (Settings top-bar
+       * grammar: 15px-class semibold heading + one quiet subtitle line). */}
+      <header className="discovery__head">
+        <h1 id="discovery-title" className="discovery__title">
+          {t("discovery.title")}
+        </h1>
+        <p className="discovery__subtitle">{t("discovery.subtitle")}</p>
+      </header>
+
+      {/* Local volumes lane: section header at the column edge (Settings
+       * grammar) + the r14 panel holding the rows / the quiet empty state. */}
+      <section className="discovery__section" aria-labelledby="discovery-volumes-title">
+        <SectionHeader
+          as="h2"
+          id="discovery-volumes-title"
+          trailing={
+            <span className="discovery__count">
+              <span className="discovery__count-num">{String(rows.length)}</span>{" "}
+              {t("discovery.volumes.count-suffix")}
+            </span>
+          }
         >
-          <h1 id="discovery-title" className="discovery__title">
-            {m("discovery.title")}
-          </h1>
-          <p className="discovery__subtitle">{m("discovery.subtitle")}</p>
+          {t("discovery.volumes.title")}
+        </SectionHeader>
 
-          <section className="discovery__volumes" aria-labelledby="discovery-volumes-title">
-            <div className="discovery__volumes-head">
-              <h2 id="discovery-volumes-title" className="discovery__volumes-title">
-                {m("discovery.volumes.title")}
-              </h2>
-              <span className="discovery__count solstice-chip">
-                <span className="discovery__count-num">{String(rows.length)}</span>
-                {m("discovery.volumes.count-suffix")}
-              </span>
-            </div>
-
-            {/* Live region: mount/unmount announcements for volume
-                changes (the list itself is the changing content; the
-                label names the region for AT without re-announcing
-                rows on every render). */}
+        <Card className="discovery__panel" data-testid="discovery-card">
+          {rows.length === 0 ? (
+            <ListEmpty
+              data-testid="discovery-volumes-empty"
+              title={t("discovery.volumes.empty-title")}
+              body={t("discovery.volumes.empty-body")}
+            />
+          ) : (
+            /* Live region: mount/unmount announcements for volume changes
+             * (the list itself is the changing content; the label names the
+             * region for AT without re-announcing rows on every render). */
             <ul
               className="discovery__volume-list"
-              aria-label={m("discovery.volumes.live")}
+              aria-label={t("discovery.volumes.live")}
               aria-live="polite"
             >
               {rows.map((row) => (
-                <li key={row.id} className="discovery__volume" data-testid="discovery-volume">
-                  <span className="discovery__volume-label">{row.label}</span>
-                  <span className="discovery__volume-kind">{m(kindKey(row.volumeKind))}</span>
-                  <span className="discovery__volume-id">{row.id}</span>
+                <li key={row.id} data-testid="discovery-volume">
+                  <ListRow
+                    icon={<Icon name={kindIcon(row.volumeKind)} size={18} />}
+                    title={row.label}
+                    meta={t(kindKey(row.volumeKind))}
+                    trailing={<span className="discovery__volume-id">{row.id}</span>}
+                  />
                 </li>
               ))}
             </ul>
-            {rows.length === 0 ? (
-              <p className="discovery__volumes-empty" data-testid="discovery-volumes-empty">
-                {m("discovery.volumes.empty")}
-              </p>
-            ) : null}
-          </section>
-        </section>
+          )}
+        </Card>
+      </section>
 
-        <section
-          className="discovery__network"
-          aria-labelledby="discovery-network-title"
-          data-testid="discovery-network"
-        >
-          <h2 id="discovery-network-title" className="discovery__network-title">
-            {m("discovery.network.title")}
-          </h2>
-          <p className="discovery__network-status">{m("discovery.network.status")}</p>
-        </section>
-      </div>
+      {/* Network services lane: the same header + panel grammar, carrying
+       * the recorded SSDP/UPnP verdict — a status line, never a fake
+       * search control. */}
+      <section className="discovery__section" aria-labelledby="discovery-network-title">
+        <SectionHeader as="h2" id="discovery-network-title">
+          {t("discovery.network.title")}
+        </SectionHeader>
+        <Card className="discovery__panel discovery__panel--prose" data-testid="discovery-network">
+          <p className="discovery__network-status">{t("discovery.network.status")}</p>
+        </Card>
+      </section>
     </div>
   );
 }
