@@ -11,16 +11,72 @@
 // HONESTY: current marker, shuffle and repeat reflect ENGINE-reported state
 // only (playlist.changed / snapshot). `null` (not yet reported) renders as
 // the unpressed control — commented at each site; never a faked "known off".
+//
+// w26.c6 — QUEUE-ROW CONTEXT MENU (playlist context menu.svg, 8 icon rows:
+// play · heart · shuffle arrows · save · add-to-queue · subtitle card ·
+// waveform · info, every row two-tone #8F8F8F + #AB6314 → `iconAccent`).
+// The frame's labels are "Option" placeholders, so row semantics come from
+// the pinned icons. Honest wiring per contract §5: real seams only —
+// Play (playlist.play-item), Shuffle (playlist.set-shuffle, engine state),
+// Add media… (the shell-wide open-media event) and Media info (the
+// /media-info route). Favorite / Save playlist / Add subtitle tracks /
+// Add audio tracks have NO seam in this build (no favorites store, no
+// queue-export command, no subtitle-dialog event, no per-item track-add)
+// and render disabled — never theater (PlaylistScreen's honest-Play
+// precedent). Right-click coverage spans the row's content box — the
+// .lumen-vrow > wrapper fill needs a list.css rule (menu lane; lane log).
 
-import { useState, type DragEvent } from "react";
-import { useMsg } from "../../i18n/messages";
+import { useCallback, useState, type DragEvent, type ReactNode } from "react";
+import { useInRouterContext, useNavigate } from "react-router-dom";
+import { useMsg, type MessageKey } from "../../i18n/messages";
+import { keys as c6Keys } from "../../i18n/keys/w26.c6";
 import { IconButton, Button } from "../../components/button";
 import { Icon } from "../../components/icon";
+import { ContextMenu } from "../../components/menu";
+import type { MenuEntry } from "../../components/menu";
 import { ListEmpty, ListRow, ROW_HEIGHTS, VirtualList } from "../../components/list";
 import { OPEN_MEDIA_EVENT } from "../open-media";
-import { usePlaylist, type PlaylistEntry } from "./PlaylistProvider";
+import { usePlaylist, type PlaylistContextValue, type PlaylistEntry } from "./PlaylistProvider";
 import { cycleRepeat, dragToMoveIndex, formatDuration, sourceLocation } from "./queue";
 import "./playlist.css";
+
+// ---------------------------------------------------------------------------
+// w26.c6 lane i18n seam (contract §4.5) — same shape as usePlaylistMsg
+// ---------------------------------------------------------------------------
+
+/** Label keys the queue-row menu can carry (c6 lane keys + reused catalog). */
+type QueueMenuKey = keyof typeof c6Keys | "playlist.controls.shuffle" | "menu.view.media-info";
+
+const c6Catalog: Readonly<Record<string, string>> = c6Keys;
+
+/** useMsg extended with the c6 lane's pre-registration keys (catalog first,
+ * lane copy as the fallback — identical before/after registration). */
+function useQueueMenuMsg() {
+  const m = useMsg();
+  return useCallback(
+    (key: QueueMenuKey): string => m(key as MessageKey) ?? c6Catalog[key],
+    [m],
+  );
+}
+
+/**
+ * Router-presence seam for the menu's Media info entry (ControlBar's
+ * NavigationSeam pattern): in-app navigation inside the Router, document
+ * navigation in bare mounts (embedded hosts / jsdom trees without a Router
+ * would crash useNavigate). Split keeps hook calls unconditional.
+ */
+function NavigationSeam({ children }: { children: (navigate: (to: string) => void) => ReactNode }) {
+  return useInRouterContext() ? (
+    <RoutedNavigation>{children}</RoutedNavigation>
+  ) : (
+    <>{children((to) => window.location.assign(to))}</>
+  );
+}
+
+function RoutedNavigation({ children }: { children: (navigate: (to: string) => void) => ReactNode }) {
+  const navigate = useNavigate();
+  return <>{children((to) => navigate(to))}</>;
+}
 
 /** Queue toolbar glyphs — 16px line glyphs, 28px `sm` hit (W26 frames). */
 const TOOLBAR_ICON_SIZE = 16;
@@ -166,6 +222,7 @@ function PlaylistRow({
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }) {
   const m = useMsg();
+  const t = useQueueMenuMsg();
   const playlist = usePlaylist();
   const duration = formatDuration(entry.durationSeconds);
   const location = sourceLocation(entry.source);
@@ -178,40 +235,120 @@ function PlaylistRow({
     playlist.entries.length,
   );
   return (
-    <ListRow
-      className={`lumen-plrow${isCurrent ? " lumen-plrow--current" : ""}`}
-      density="compact"
-      draggable
-      selected={isCurrent}
-      data-current={isCurrent || undefined}
-      onDragStart={onDragStart}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={onDrop}
-      icon={isCurrent ? <Icon name="play" size={14} /> : undefined}
-      title={entry.title ?? m("playlist.entry.unknown-title")}
-      meta={location ?? undefined}
-      duration={duration ?? m("playlist.entry.unknown-duration")}
-      actions={
-        <>
-          <IconButton label={m("playlist.entry.play-now")} size="sm" onClick={() => playlist.playItem(entry.id)}>
-            <Icon name="play" size={14} />
-          </IconButton>
-          <Button size="sm" onClick={() => playlist.move(entry.id, playNextIndex)}>
-            {m("playlist.entry.play-next")}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => playlist.move(entry.id, dragToMoveIndex(playlist.entries.length, index, playlist.entries.length))}
+    <NavigationSeam>
+      {(navigate) => (
+        <ContextMenu
+          entries={queueRowMenu({ playlist, entry, navigate })}
+          resolveLabel={t}
+          ariaLabel={t("playlist.queue.menu.title")}
+        >
+          <ListRow
+            className={`lumen-plrow${isCurrent ? " lumen-plrow--current" : ""}`}
+            density="compact"
+            draggable
+            selected={isCurrent}
+            data-current={isCurrent || undefined}
+            onDragStart={onDragStart}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={onDrop}
+            icon={isCurrent ? <Icon name="play" size={14} /> : undefined}
+            title={entry.title ?? m("playlist.entry.unknown-title")}
+            meta={location ?? undefined}
+            duration={duration ?? m("playlist.entry.unknown-duration")}
+            actions={
+              <>
+                <IconButton label={m("playlist.entry.play-now")} size="sm" onClick={() => playlist.playItem(entry.id)}>
+                  <Icon name="play" size={14} />
+                </IconButton>
+                <Button size="sm" onClick={() => playlist.move(entry.id, playNextIndex)}>
+                  {m("playlist.entry.play-next")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => playlist.move(entry.id, dragToMoveIndex(playlist.entries.length, index, playlist.entries.length))}
+                >
+                  {m("playlist.entry.play-later")}
+                </Button>
+                <IconButton label={m("playlist.entry.remove")} size="sm" onClick={() => playlist.remove(entry.id)}>
+                  <Icon name="quit" size={14} />
+                </IconButton>
+              </>
+            }
           >
-            {m("playlist.entry.play-later")}
-          </Button>
-          <IconButton label={m("playlist.entry.remove")} size="sm" onClick={() => playlist.remove(entry.id)}>
-            <Icon name="quit" size={14} />
-          </IconButton>
-        </>
-      }
-    >
-      {isCurrent ? <span className="lumen-playlist__sr">{m("playlist.entry.current")}</span> : null}
-    </ListRow>
+            {isCurrent ? <span className="lumen-playlist__sr">{m("playlist.entry.current")}</span> : null}
+          </ListRow>
+        </ContextMenu>
+      )}
+    </NavigationSeam>
   );
+}
+
+/**
+ * The queue-row context menu (playlist context menu.svg — 8 rows, pinned
+ * icon order; labels are frame placeholders, semantics from the icons).
+ * Seams only: real commands are enabled, no-seam rows are disabled — never
+ * theater (PlaylistScreen's honest-Play precedent).
+ */
+function queueRowMenu({
+  playlist,
+  entry,
+  navigate,
+}: {
+  playlist: PlaylistContextValue;
+  entry: PlaylistEntry;
+  navigate: (to: string) => void;
+}): MenuEntry<QueueMenuKey>[] {
+  return [
+    // 1 — Play (frame: orange play triangle) → the real play-item command.
+    {
+      id: "play",
+      labelKey: "playlist.queue.menu.play",
+      icon: "play",
+      iconAccent: true,
+      onSelect: () => playlist.playItem(entry.id),
+    },
+    // 2 — Favorite (frame: orange heart). No favorites store exists in this
+    // build — disabled, never a fake toggle.
+    { id: "favorite", labelKey: "playlist.queue.menu.favorite", icon: "favorite", iconAccent: true, disabled: true },
+    // 3 — Shuffle (frame: two-tone crossing arrows) → the real set-shuffle
+    // command. Checkbox face is engine truth only: null (not reported)
+    // reads unchecked — the panel header's honesty rule.
+    {
+      id: "shuffle",
+      labelKey: "playlist.controls.shuffle",
+      icon: "shuffle",
+      iconAccent: true,
+      kind: "checkbox",
+      checked: playlist.shuffle === true,
+      onSelect: () => playlist.setShuffle(!(playlist.shuffle === true)),
+    },
+    // 4 — Save playlist (frame: floppy + orange label). No queue-export
+    // command exists (saved playlists are the /playlist dialog's local
+    // seam and need a user title) — disabled.
+    { id: "save", labelKey: "playlist.queue.menu.save", icon: "save", iconAccent: true, disabled: true },
+    // 5 — Add media… (frame: orange pill + lines = add-to-queue) → the
+    // shell-wide open-media event (AppShell owns the dialog listener).
+    {
+      id: "add-media",
+      labelKey: "playlist.queue.menu.add-media",
+      icon: "queue",
+      iconAccent: true,
+      onSelect: () => window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT)),
+    },
+    // 6 — Add subtitle tracks (frame: subtitle card + orange dashes). The
+    // AddSubtitlesDialog is the playlist-options lane's and exposes no
+    // event seam — disabled.
+    { id: "add-subtitles", labelKey: "playlist.queue.menu.add-subtitles", icon: "subtitles", iconAccent: true, disabled: true },
+    // 7 — Add audio tracks (frame: two-tone waveform). No per-item
+    // track-add seam in the catalog — disabled.
+    { id: "add-audio", labelKey: "playlist.queue.menu.add-audio", icon: "audio", iconAccent: true, disabled: true },
+    // 8 — Media info (frame: info circle + orange dot) → the real route.
+    {
+      id: "info",
+      labelKey: "menu.view.media-info",
+      icon: "info",
+      iconAccent: true,
+      onSelect: () => navigate("/media-info"),
+    },
+  ];
 }

@@ -32,6 +32,16 @@
 //     labels are untrusted OS text (V7): they render as text nodes only —
 //     React escapes them; they are never interpolated into markup, ids
 //     or aria-labels.
+//   * w26.c6 — VOLUME-ROW CONTEXT MENU (folder context menu.svg, 6 icon
+//     rows: plus · folder+plus · subtitle card · waveform · refresh ·
+//     info). The frame's labels are "Option" placeholders, so semantics
+//     derive from the pinned icons. Honest wiring: "Add file…" fires the
+//     shell-wide open-media event (the app's one real add-file seam — not
+//     volume-scoped, the catalog has no browse command); every other row
+//     has NO seam in this build (no folder-picker, no subtitle/audio-track
+//     add, no rescan command — the table is event-driven — and no
+//     volume-info command) and renders disabled — the screen's honest-
+//     capability posture, never theater.
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
@@ -41,10 +51,14 @@ import { useClient } from "../../client/ClientProvider";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b12";
+import { keys as c6Keys } from "../../i18n/keys/w26.c6";
 import { Icon } from "../../components/icon";
 import type { IconName } from "../../components/icon";
+import { ContextMenu } from "../../components/menu";
+import type { MenuEntry } from "../../components/menu";
 import { ListEmpty, ListRow } from "../../components/list";
 import { Card, SectionHeader } from "../../components/surface";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import "./discovery.css";
 
 // ---------------------------------------------------------------------------
@@ -52,8 +66,8 @@ import "./discovery.css";
 // ---------------------------------------------------------------------------
 
 /** Keys owned by this lane (registered into messages.ts by the Lead). */
-type LaneKey = keyof typeof laneKeys;
-const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+type LaneKey = keyof typeof laneKeys | keyof typeof c6Keys;
+const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...c6Keys };
 
 /**
  * useDiscoveryMsg — `useMsg` extended with this lane's pre-registration keys.
@@ -88,6 +102,39 @@ function kindKey(kind: VolumeKind): MessageKey {
     case "network":
       return "discovery.kind.network";
   }
+}
+
+/**
+ * The volume-row context menu (folder context menu.svg — 6 rows, pinned
+ * icon order; row 1's plus is the frame's only all-gray icon). Seams only:
+ * the open-media event is real, the rest have no seam and stay disabled.
+ */
+function volumeRowMenu(): MenuEntry<LaneKey>[] {
+  return [
+    // 1 — Add file… (frame: gray plus) → the shell's open-media event
+    // (AppShell owns the single dialog listener).
+    {
+      id: "add-file",
+      labelKey: "discovery.menu.add-file",
+      icon: "add",
+      onSelect: () => window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT)),
+    },
+    // 2 — Add folder… (frame: gray folder + orange plus). No folder-picker
+    // seam exists — disabled, never a fake picker.
+    { id: "add-folder", labelKey: "discovery.menu.add-folder", icon: "open-folder", iconAccent: true, disabled: true },
+    // 3 — Add subtitle tracks (frame: subtitle card + orange dashes). No
+    // event seam from a volume row — disabled.
+    { id: "add-subtitles", labelKey: "discovery.menu.add-subtitles", icon: "subtitles", iconAccent: true, disabled: true },
+    // 4 — Add audio tracks (frame: two-tone waveform) — no seam, disabled.
+    { id: "add-audio", labelKey: "discovery.menu.add-audio", icon: "audio", iconAccent: true, disabled: true },
+    // 5 — Refresh (frame: two-tone resync arrows). The volume table is
+    // `devices.volume-*` event-driven — the catalog has no rescan command
+    // (a no-op "refresh" would be theater) — disabled.
+    { id: "refresh", labelKey: "discovery.menu.refresh", icon: "refresh", iconAccent: true, disabled: true },
+    // 6 — Info (frame: gray circle + orange dot). No volume-info command —
+    // disabled.
+    { id: "info", labelKey: "discovery.menu.info", icon: "info", iconAccent: true, disabled: true },
+  ];
 }
 
 /**
@@ -196,12 +243,18 @@ export function DiscoveryScreen() {
             >
               {rows.map((row) => (
                 <li key={row.id} data-testid="discovery-volume">
-                  <ListRow
-                    icon={<Icon name={kindIcon(row.volumeKind)} size={18} />}
-                    title={row.label}
-                    meta={t(kindKey(row.volumeKind))}
-                    trailing={<span className="discovery__volume-id">{row.id}</span>}
-                  />
+                  <ContextMenu
+                    entries={volumeRowMenu()}
+                    resolveLabel={t}
+                    ariaLabel={t("discovery.menu.title")}
+                  >
+                    <ListRow
+                      icon={<Icon name={kindIcon(row.volumeKind)} size={18} />}
+                      title={row.label}
+                      meta={t(kindKey(row.volumeKind))}
+                      trailing={<span className="discovery__volume-id">{row.id}</span>}
+                    />
+                  </ContextMenu>
                 </li>
               ))}
             </ul>

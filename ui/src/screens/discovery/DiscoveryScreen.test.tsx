@@ -12,14 +12,22 @@
 //     (label + kind meta + id, count chip tracks the table);
 //   * the pure fold (applyVolumeEvent): re-add replaces, remove drops,
 //     unknown-id removal is a no-op;
-//   * untrusted labels (V7) render as text, never markup.
+//   * untrusted labels (V7) render as text, never markup;
+//   * w26.c6 — the volume-row context menu (folder context menu.svg): the
+//     frame's 6 pinned rows open on right-click; "Add file…" fires the
+//     shell open-media event (the one real seam) and the five no-seam rows
+//     render honestly disabled.
 
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import type { CommandRequest, CommandResponse, CommandTransport, Event } from "../../client/transport";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import { applyVolumeEvent, DiscoveryScreen } from "./DiscoveryScreen";
+
+/** The DOM Event (the catalog `Event` type is imported as a spy shape). */
+type DomEvent = globalThis.Event;
 
 /** Transport double with a test-controlled event emitter (the sanctioned
  * seam: production code only ever sees subscribe/send). */
@@ -209,5 +217,68 @@ describe("DiscoveryScreen (/discovery)", () => {
     // The label text is present (escaped), and no img element exists.
     expect(screen.getByText("<img src=x onerror=alert(1)> USB")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
+  });
+});
+
+describe("DiscoveryScreen — volume-row context menu (w26.c6, folder context menu.svg)", () => {
+  /** Emit one removable volume and right-click its row; returns the menu. */
+  const openVolumeMenu = async () => {
+    const { transport } = renderScreen();
+    act(() => {
+      transport.emit({
+        kind: "devices.volume-added",
+        id: "usb-1",
+        label: "Field Kit",
+        volumeKind: "removable",
+        seq: 1,
+      });
+    });
+    const row = screen.getByTestId("discovery-volume");
+    // The ContextMenu wrapper sits inside the <li>; target it so the
+    // contextmenu event reaches its handler (an ancestor dispatch would
+    // bubble past it, not through it).
+    fireEvent.contextMenu(row.querySelector<HTMLElement>(".lumen-context-menu")!, { clientX: 60, clientY: 40 });
+    return await screen.findByRole("menu", { name: "Volume actions" });
+  };
+
+  it("opens the frame's 6 rows in pinned order (plus · folder · subtitles · audio · refresh · info)", async () => {
+    const menu = await openVolumeMenu();
+    const labels = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((item) => item.textContent);
+    expect(labels).toEqual(["Add file…", "Add folder…", "Add subtitle tracks", "Add audio tracks", "Refresh", "Info"]);
+    // WAI-ARIA: opening a menu moves focus onto the first item.
+    expect(menu.querySelector<HTMLElement>('[role="menuitem"]')).toHaveFocus();
+  });
+
+  it("Add file… fires the shell-wide open-media event (the one real seam)", async () => {
+    const menu = await openVolumeMenu();
+    const seen: string[] = [];
+    const onEvent = (event: DomEvent): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(OPEN_MEDIA_EVENT, onEvent);
+    try {
+      fireEvent.click(within(menu).getByText("Add file…"));
+    } finally {
+      window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
+    }
+    expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+    // Activation dismisses the menu (the menu API's onDismissAll).
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("no-seam rows render honestly disabled (folder/subtitles/audio/refresh/info)", async () => {
+    const menu = await openVolumeMenu();
+    for (const label of ["Add folder…", "Add subtitle tracks", "Add audio tracks", "Refresh", "Info"]) {
+      const item = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+        (row) => row.textContent === label,
+      )!;
+      expect(item, label).toHaveAttribute("aria-disabled", "true");
+    }
+  });
+
+  it("Escape closes the menu (menu API)", async () => {
+    const menu = await openVolumeMenu();
+    fireEvent.keyDown(within(menu).getByText("Add file…"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });

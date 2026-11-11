@@ -45,6 +45,7 @@ import {
   usePlayerControls,
 } from "../context";
 import { usePlaylist } from "../../playlist";
+import { openToolsDialog } from "../dialogs";
 import { mapTransportControls, seekDisableReason } from "./state-mapping";
 import "./controls.css";
 
@@ -353,10 +354,12 @@ function OutputCluster() {
         {(navigate) => (
           <>
             <AppMenuButton navigate={navigate} />
+            {/* w26.c5: gear opens the audio/video tools dialog (frame: Player.svg
+                right cluster); Settings stays reachable via the app menu. */}
             <IconButton
               data-control="settings"
               label={m("menu.view.settings")}
-              onClick={() => navigate("/settings")}
+              onClick={() => openToolsDialog("audio")}
             >
               <Icon name="settings" size={OUTPUT_ICON_SIZE} />
             </IconButton>

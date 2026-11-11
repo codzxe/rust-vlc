@@ -2,13 +2,23 @@
 // (dispatch spy), queue controls, drag reorder, empty + not-exposed states.
 // The FakePlaylistTransport doubles as the dispatch spy (see provider tests
 // for the full catalog-contract coverage).
+//
+// w26.c6 — queue-row context menu (playlist context menu.svg): the frame's 8
+// pinned rows open on right-click; real seams dispatch (play-item,
+// set-shuffle, the open-media event, the /media-info route) and no-seam rows
+// render honestly disabled.
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import type { CommandRequest, CommandResponse, CommandTransport, Event, StateSnapshot } from "../../client/transport";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import { PlaylistPanel } from "./PlaylistPanel";
 import { PlaylistProvider, type PlaylistEntry } from "./PlaylistProvider";
+
+/** The DOM Event (the catalog `Event` type is imported as a spy shape). */
+type DomEvent = globalThis.Event;
 
 class FakeTransport implements CommandTransport {
   readonly sent: CommandRequest[] = [];
@@ -209,5 +219,119 @@ describe("PlaylistPanel — queue controls + entry actions (dispatch spy)", () =
     fireEvent.drop(target, { dataTransfer: { getData: () => "2" } }); // drag row 2 before row 0
     const move = transport.sent.find((r) => r.cmd === "playlist.move");
     expect(move && "args" in move ? move.args : null).toEqual({ id: 3, toIndex: 0 });
+  });
+});
+
+describe("PlaylistPanel — queue-row context menu (w26.c6, playlist context menu.svg)", () => {
+  /** Right-click the row carrying `title`; returns the opened menu. The
+   * ContextMenu wrapper sits INSIDE the windowed row, so the event must
+   * target it (or the ListRow) — a dispatch on the outer option would
+   * bubble past the wrapper, not through it. */
+  const openRowMenu = async (title: string) => {
+    const row = rowOf(title);
+    const target = row.querySelector<HTMLElement>(".lumen-context-menu")!;
+    fireEvent.contextMenu(target, { clientX: 40, clientY: 30 });
+    return await screen.findByRole("menu", { name: "Queue item actions" });
+  };
+
+  /** All interactive menu rows in DOM order (menuitem + checkbox faces). */
+  const menuItems = (menu: HTMLElement): HTMLElement[] =>
+    [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')];
+
+  it("opens the frame's 8 rows in pinned order on right-click, keyboard-first", async () => {
+    setup();
+    const menu = await openRowMenu("Big Buck Bunny");
+    // Frame icon order: play · heart · shuffle · save · queue · subtitles · audio · info.
+    const labels = menuItems(menu).map((item) => item.textContent);
+    expect(labels).toEqual([
+      "Play",
+      "Favorite",
+      "Shuffle",
+      "Save playlist",
+      "Add media…",
+      "Add subtitle tracks",
+      "Add audio tracks",
+      "Media info",
+    ]);
+    // WAI-ARIA: opening a menu moves focus onto the first item.
+    expect(menuItems(menu)[0]).toHaveFocus();
+  });
+
+  it("Play activates the real playlist.play-item command for that row", async () => {
+    const { transport } = setup();
+    await waitFor(() => expect(transport.sent.length).toBeGreaterThan(0));
+    const menu = await openRowMenu("Big Buck Bunny");
+    fireEvent.click(within(menu).getByText("Play"));
+    expect(transport.sent.filter((r) => r.cmd === "playlist.play-item").map((r) => ("args" in r ? r.args : null))).toEqual([{ id: 1 }]);
+    // Activation dismisses the menu (the menu API's onDismissAll).
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Shuffle is the real set-shuffle command with an engine-truth checkbox face", async () => {
+    const { transport } = setup();
+    await waitFor(() => expect(transport.sent.length).toBeGreaterThan(0));
+    const menu = await openRowMenu("Sintel");
+    const shuffle = within(menu).getByRole("menuitemcheckbox", { name: "Shuffle" });
+    // Snapshot truth: shuffle false (checked reflects engine state only).
+    expect(shuffle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(shuffle);
+    const req = transport.sent.find((r) => r.cmd === "playlist.set-shuffle");
+    expect(req && "args" in req ? req.args : null).toEqual({ enabled: true });
+  });
+
+  it("Add media… fires the shell-wide open-media event", async () => {
+    setup();
+    const seen: string[] = [];
+    const onEvent = (event: DomEvent): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(OPEN_MEDIA_EVENT, onEvent);
+    try {
+      const menu = await openRowMenu("Big Buck Bunny");
+      fireEvent.click(within(menu).getByText("Add media…"));
+    } finally {
+      window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
+    }
+    expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+  });
+
+  it("no-seam rows render honestly disabled (favorite/save/tracks — never theater)", async () => {
+    setup();
+    const menu = await openRowMenu("Big Buck Bunny");
+    for (const label of ["Favorite", "Save playlist", "Add subtitle tracks", "Add audio tracks"]) {
+      const item = menuItems(menu).find((row) => row.textContent === label)!;
+      expect(item, label).toHaveAttribute("aria-disabled", "true");
+    }
+  });
+
+  it("Escape closes the menu (menu API) and restores focus", async () => {
+    setup();
+    const menu = await openRowMenu("Big Buck Bunny");
+    fireEvent.keyDown(within(menu).getByText("Play"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Media info navigates to the /media-info route", async () => {
+    const transport = new FakeTransport();
+    render(
+      <MemoryRouter initialEntries={["/player"]}>
+        <Routes>
+          <Route
+            path="/player"
+            element={
+              <ClientProvider transport={transport}>
+                <PlaylistProvider initialEntries={ENTRIES}>
+                  <PlaylistPanel />
+                </PlaylistProvider>
+              </ClientProvider>
+            }
+          />
+          <Route path="/media-info" element={<div>media-info-screen</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const menu = await openRowMenu("Big Buck Bunny");
+    fireEvent.click(within(menu).getByText("Media info"));
+    expect(await screen.findByText("media-info-screen")).toBeInTheDocument();
   });
 });

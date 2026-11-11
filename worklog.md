@@ -1457,3 +1457,16 @@ Work Log:
 
 Stage Summary:
 - Wave A merged at 0d81605: tsc clean, 894/894 vitest green, stylelint/eslint clean per lane, zero console errors on core routes, all Solstice remnants removed from component + player layers. Residuals owned downstream: settings/playlist/working screens (wave B), audio/video tools + menus-in-screens (wave C), i18n keys registration (b19), 13px/15px font tokens (b20), scrim visibility (wave C fixer).
+
+---
+Task ID: w26.b+w26.c
+Agent: Lead (wave-26 orchestration, waves B and C)
+Task: Settings 13-area reshape, playlists/options/subtitle flows, working screens, i18n registration, token completion; audio/video tools (8) + integration
+
+Work Log:
+- Wave B (20 lanes, salvage-heavy due to infra instability — the Lead polled disks, verified, and Lead-closed five interrupted lanes): settings shell to the measured floating-window grammar (b01); the 13-area registry + seed with folds hotkeys→controls, codecs→video, playlist-services→library, about→global, advanced→in-flow disclosure, effects→audio (b02 — settings:check OK); controls/recording/extensions/library areas (b07/b08); playlist core + create-playlist dialog (b09); sorting/view/thumbnail/media options (b10); subtitle flows ×7 frames (b11); discovery (b12); convert/media-info/404/open-media (b13 combined lane, 54/54); network-stream (b15); shortcuts (b16); i18n registration — 216 lane keys merged into messages.ts with a repeatable script, lane-seam precedence flipped catalog-first so pseudo/l10n flow, library retitled per b02 handoff (b19); font tokens sidebar 13px + section 15px through the real cargo pipeline — 80 semantic tokens, pins updated deliberately, stylelint+eslint clean (b20).
+- Wave C: EQ suite (frame-exact bands/presets, 46 tests), dynamics tools ×3 (29), visualizer (5-mode selector, honest levels-driven display, 18), video tools ×4 (colors/crop/essential/HDR); all mounted via ToolsDialog (Audio/Video tabs) + Effects-area embed (c5), ToolsDialogHost + gear trigger + lumen:open-tools seam (Lead wiring); context menus wired into playlist/discovery/player (c6).
+- Cross-lane Lead fixes: sr-only h1 contract; area-fold test retargets (advanced→performance redirect, codecs badge grouping, audio real area); App 404 copy; tokens sha/length pins; ControlBar gear→tools; icon guards.
+
+Stage Summary:
+- Merged green: tsc 0 errors, 1199/1199 vitest, l10n 948/948 keys, stylelint clean, eslint 0 errors. All screens now Figma-composed; 8 tools live; flows wired (onboarding gate → player home → playlists/settings/tools/dialogs). Residuals filed for wave-e: vision proofs owed on ~10 lanes, scrim strength, EQ vertical-fader anatomy (frame A1 vs mounted card), network-stream proportions, r5/#1B1B1B chip tokens.

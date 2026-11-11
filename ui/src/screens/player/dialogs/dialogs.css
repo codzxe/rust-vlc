@@ -273,6 +273,57 @@
   gap: calc(var(--space-inset) * 1.5);
 }
 
+/* ToolsDialog (w26.c5) — the Audio/Video tab pair over the card column.
+ * The Tabs primitive (components/list) owns the tablist anatomy; this scope
+ * only stacks it with the panels and lays each panel out as the card column
+ * (the same rhythm .tools-dialog__cards gives a bare card list). */
+.tools-dialog__tabs {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+}
+
+/* The primitive's panel padding is list-flow; the dialog column spacing is
+ * the card gap alone (tablist above, cards below). */
+.tools-dialog__tabs .lumen-tabs__panel {
+  padding: 0;
+}
+
+.tools-dialog__panel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+}
+
+/* Flex + hidden must not fight (display:none wins — the ToolsCard rule). */
+.tools-dialog__panel[hidden] {
+  display: none;
+}
+
+/* The EqualizerTool's staged wrapper (w26.c1 ships no marker of its own):
+ * the honest-unbound note renders with the EXPANDED card only, matching the
+ * sibling cards' in-body notes (dynamics/visualizer/video hide theirs with
+ * the collapsed body). */
+.tools-dialog__staged-tool {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 0.75);
+}
+
+.tools-dialog__staged {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.tools-dialog__staged-tool .tools-dialog__staged {
+  display: none;
+}
+
+.tools-dialog__staged-tool:has(.eq-tool--open) .tools-dialog__staged {
+  display: block;
+}
+
 /* ToolsCard — the tool frames' collapsible card skeleton (Audio - Equalizer /
  * Compressor / Spatializer / Widener and Video - Colors / Crop / Essential /
  * HDR Options all share it): toggle bar 360×48 rx6 #090909 (surface),

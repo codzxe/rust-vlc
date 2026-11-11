@@ -33,18 +33,44 @@
 // (doc 05 §8.1 semantics from keymap DATA, never hardcoded), layout-config
 // consumption, ARIA landmarks. Playback UX overlays live in ./states and
 // render over this canvas region via the `engineState` prop / honest fallback.
+//
+// w26.c6 — CANVAS CONTEXT MENU (right-click menu.svg — 14 rows + 3
+// separators, REAL frame labels: Play/Stop/Previous Item/Next Item/Record ·
+// Hide UI · Playback/Video/Audio/Subtitle submenus · More Settings/Playlist/
+// Open Media submenus · Quit VLC). Right-click on the canvas region opens a
+// MenuPopup at the pointer (ControlBar's AppMenuButton mount pattern — the
+// ContextMenu wrapper component would add an extra flex child between
+// __main and the flex:1 canvas and collapse it, so the popup mounts INSIDE
+// the region, position:fixed, zero layout change). Accelerators are display
+// strings produced from keymap DATA (HOTKEY_BINDINGS — doc 05 §8.1): the
+// frame's "Ctrl + \" spelling. Honest wiring: real commands/routes only;
+// Record (no catalog command — keymap D-1 note), Hide UI (no hide surface —
+// Player - hide UI.svg state unimplemented) and Quit VLC (window close is
+// host-owned) render disabled — never theater.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useMsg } from "../../i18n/messages";
+import type { MessageKey } from "../../i18n/messages";
+import { keys as c6Keys } from "../../i18n/keys/w26.c6";
 import { useClient } from "../../client/ClientProvider";
 import { Icon } from "../../components";
+import { MenuPopup } from "../../components/menu/MenuPopup";
+import { identityResolveLabel } from "../../components/menu/types";
+import type { MenuEntry } from "../../components/menu";
+import { HOTKEY_BINDINGS } from "../settings/areas/hotkeys/generated/bindings";
 import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider, usePlaylist } from "../playlist";
+import type { PlaylistContextValue } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
-import { ControlBar, controlCommandOf } from "./controls";
+import type { PlayerControls } from "./context";
+import { ControlBar, controlCommandOf, mapTransportControls } from "./controls";
+import { selectedTrackId, trackDisplayName, tracksOfKind } from "./context";
 import { CustomizePanels } from "./customize";
 import { GotoTimeDialog } from "./dialogs/GotoTimeDialog";
 import { BookmarksDialog } from "./dialogs/BookmarksDialog";
+import { ToolsDialogHost } from "./dialogs";
 import { usePlayerEngineView } from "./states/context-bridge";
 import {
   DIALOG_KEYMAP,
@@ -80,6 +106,293 @@ import { useFullscreen } from "./useFullscreen";
  * Same CustomEvent contract shape as `lumen:open-media`.
  */
 export const PLAYER_TOGGLE_SIDEBAR_EVENT = "lumen:toggle-sidebar";
+
+// ---------------------------------------------------------------------------
+// w26.c6 — canvas context menu (right-click menu.svg)
+// ---------------------------------------------------------------------------
+
+/** c6 lane keys for the canvas menu (contract §4.5 — catalog first, lane
+ * copy while unregistered; identical before/after the Lead's merge). */
+const c6Catalog: Readonly<Record<string, string>> = c6Keys;
+
+/** Binding-id → accelerator display string from keymap DATA (HOTKEY_BINDINGS
+ * is the generated keymaps/default.toml excerpt — doc 05 §8.1: menus render
+ * the binding's key, never a hardcoded string). Frame spelling "Ctrl + Q"
+ * (right-click menu.svg): modifiers re-joined with spaces, plain keys as-is. */
+const acceleratorOf = (bindingId: string): string | undefined => {
+  const binding = HOTKEY_BINDINGS.find((entry) => entry.id === bindingId);
+  if (binding === undefined) return undefined;
+  return binding.key
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" + ");
+};
+
+/** The three engine-truth track submenus (Video/Audio/Subtitle) — ControlBar's
+ * AppMenuButton pattern verbatim: no honest track data → the submenu opens
+ * onto its single disabled no-media reason row (discoverable, labelled,
+ * inert — never a fabricated list). */
+function canvasTrackSubmenu(
+  kind: "video" | "audio" | "subtitle",
+  controls: PlayerControls,
+  m: (key: MessageKey) => string,
+): MenuEntry<string>[] {
+  const { state, actions } = controls;
+  const tracks = tracksOfKind(state.tracks, kind);
+  const selected = selectedTrackId(state.tracks, state.selections, kind);
+  const unreported = !state.engineReported && tracks.length === 0;
+  const noMedia = state.playbackState === "idle" || state.playbackState === "opening" || unreported;
+  if (noMedia) {
+    return [{ id: `track-${kind}-no-media`, labelKey: m("player.controls.reason.no-media"), disabled: true }];
+  }
+  return [
+    {
+      id: `track-${kind}-auto`,
+      labelKey: m("player.track.auto"),
+      kind: "radio",
+      /* "Automatic" is an action, never the reported selection. */
+      checked: false,
+      onSelect: () => actions.selectTrack(kind, { kind: "auto" }),
+    },
+    {
+      id: `track-${kind}-none`,
+      labelKey: m("player.track.disable"),
+      kind: "radio",
+      checked: selected === null,
+      onSelect: () => actions.selectTrack(kind, { kind: "none" }),
+    },
+    ...tracks.map((track, index): MenuEntry<string> => ({
+      id: `track-${kind}-id-${track.id}`,
+      labelKey: trackDisplayName(track, m("player.track.unknown"), index),
+      kind: "radio",
+      checked: selected === track.id,
+      onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
+    })),
+  ];
+}
+
+/**
+ * The canvas context-menu tree (right-click menu.svg — 14 rows, 3
+ * separators, pinned order). Labels are pre-resolved through useMsg (the
+ * ControlBar identity pattern — dynamic track names arrive as strings), so
+ * the popup resolves with the identity seam. Frame icon accents: every row
+ * of this frame carries an orange detail (#AB6314/#D37918) → iconAccent.
+ */
+function canvasMenuEntries({
+  m,
+  tm,
+  controls,
+  playlist,
+  navigate,
+  sidebarOpen,
+  toggleSidebar,
+}: {
+  m: (key: MessageKey) => string;
+  tm: (key: keyof typeof c6Keys) => string;
+  controls: PlayerControls;
+  playlist: PlaylistContextValue;
+  navigate: (to: string) => void;
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+}): MenuEntry<string>[] {
+  const { state, actions } = controls;
+  const mapped = mapTransportControls(state);
+  // Prev/next honesty (ControlBar's Next rule): the engine exposes no
+  // playlist surface / the queue is empty → disabled, never a dead click.
+  const queueEmpty = playlist.notExposed || playlist.entries.length === 0;
+  // Repeat radio face is engine truth only — null (not reported) checks
+  // nothing (the panel header's honesty rule).
+  const repeat = playlist.repeat;
+  return [
+    {
+      id: "play",
+      labelKey: m("player.controls.play"),
+      icon: "play",
+      iconAccent: true,
+      accelerator: acceleratorOf("navigation.toggle-play-pause"),
+      disabled: mapped.play.disabled,
+      onSelect: actions.togglePlayPause,
+    },
+    {
+      id: "stop",
+      labelKey: m("player.controls.stop"),
+      icon: "stop",
+      iconAccent: true,
+      accelerator: acceleratorOf("navigation.stop"),
+      disabled: mapped.stop.disabled,
+      onSelect: actions.stop,
+    },
+    {
+      id: "previous",
+      labelKey: tm("player.canvas.menu.previous"),
+      icon: "previous",
+      iconAccent: true,
+      accelerator: acceleratorOf("navigation.prev-track"),
+      disabled: queueEmpty,
+      onSelect: () => playlist.prev(),
+    },
+    {
+      id: "next",
+      labelKey: tm("player.canvas.menu.next"),
+      icon: "next",
+      iconAccent: true,
+      accelerator: acceleratorOf("navigation.next-track"),
+      disabled: queueEmpty,
+      onSelect: () => playlist.next(),
+    },
+    {
+      // No record command in the v1 catalog (keymaps/default.toml record
+      // note: feature-gated) — disabled. Accelerator from DATA (Shift+R —
+      // the keymap's D-1 resolution of the frame's "R").
+      id: "record",
+      labelKey: m("hotkeys.record"),
+      icon: "record",
+      iconAccent: true,
+      accelerator: acceleratorOf("video.record"),
+      disabled: true,
+    },
+    { id: "sep-transport", kind: "separator" },
+    {
+      // No hide-UI surface exists yet (Player - hide UI.svg is the target
+      // state; chrome auto-hide is idle-driven only) — disabled.
+      id: "hide-ui",
+      labelKey: tm("player.canvas.menu.hide-ui"),
+      icon: "hide-ui",
+      iconAccent: true,
+      accelerator: acceleratorOf("window.hide-ui"),
+      disabled: true,
+    },
+    { id: "sep-hide-ui", kind: "separator" },
+    {
+      // Frame: sliders glyph (orange) — the registry's equalizer icon.
+      id: "playback",
+      labelKey: m("menu.playback"),
+      icon: "equalizer",
+      iconAccent: true,
+      submenu: [
+        {
+          id: "playback-shuffle",
+          labelKey: m("menu.playback.shuffle"),
+          kind: "checkbox",
+          checked: playlist.shuffle === true,
+          onSelect: () => playlist.setShuffle(!(playlist.shuffle === true)),
+        },
+        ...(["off", "all", "one"] as const).map(
+          (mode): MenuEntry<string> => ({
+            id: `playback-repeat-${mode}`,
+            labelKey: m(`playlist.controls.repeat.${mode}`),
+            kind: "radio",
+            checked: repeat === mode,
+            onSelect: () => playlist.setRepeat(mode),
+          }),
+        ),
+      ],
+    },
+    {
+      id: "video",
+      labelKey: tm("player.canvas.menu.video"),
+      icon: "pip",
+      iconAccent: true,
+      submenu: canvasTrackSubmenu("video", controls, m),
+    },
+    {
+      id: "audio",
+      labelKey: tm("player.canvas.menu.audio"),
+      icon: "audio",
+      iconAccent: true,
+      submenu: canvasTrackSubmenu("audio", controls, m),
+    },
+    {
+      id: "subtitle",
+      labelKey: tm("player.canvas.menu.subtitle"),
+      icon: "subtitles",
+      iconAccent: true,
+      submenu: canvasTrackSubmenu("subtitle", controls, m),
+    },
+    { id: "sep-tools", kind: "separator" },
+    {
+      id: "more-settings",
+      labelKey: tm("player.canvas.menu.more-settings"),
+      icon: "settings",
+      iconAccent: true,
+      submenu: [
+        {
+          id: "more-settings-open",
+          labelKey: m("menu.view.settings"),
+          onSelect: () => navigate("/settings"),
+        },
+      ],
+    },
+    {
+      id: "playlist",
+      labelKey: m("menu.view.playlist"),
+      icon: "playlist",
+      iconAccent: true,
+      submenu: [
+        // The docked queue panel's real toggle seam (this screen's own
+        // PLAYER_TOGGLE_SIDEBAR_EVENT state) + the library route.
+        {
+          id: "playlist-toggle-dock",
+          labelKey: sidebarOpen ? tm("player.canvas.menu.hide-queue") : tm("player.canvas.menu.show-queue"),
+          onSelect: toggleSidebar,
+        },
+        {
+          id: "playlist-open",
+          labelKey: tm("player.canvas.menu.open-playlist"),
+          onSelect: () => navigate("/playlist"),
+        },
+      ],
+    },
+    {
+      id: "open-media",
+      labelKey: tm("player.canvas.menu.open-media"),
+      icon: "open-folder",
+      iconAccent: true,
+      submenu: [
+        {
+          id: "open-media-file",
+          labelKey: m("menu.file.open-media"),
+          onSelect: () => window.dispatchEvent(new CustomEvent("lumen:open-media")),
+        },
+        {
+          id: "open-media-network",
+          labelKey: m("menu.file.open-network-stream"),
+          onSelect: () => navigate("/open-network-stream"),
+        },
+      ],
+    },
+    {
+      // Window-level close is host-owned (the MiniPlayer close note) — no
+      // quit seam exists in the web app — disabled.
+      id: "quit",
+      labelKey: tm("player.canvas.menu.quit"),
+      icon: "quit",
+      iconAccent: true,
+      accelerator: acceleratorOf("media.quit"),
+      disabled: true,
+    },
+  ];
+}
+
+/**
+ * Router-presence seam for the canvas menu's route entries (ControlBar's
+ * NavigationSeam pattern): in-app navigation inside the Router; bare mounts
+ * (jsdom trees without a Router, where useNavigate throws) fall back to
+ * document navigation. Split keeps hook calls unconditional.
+ */
+function NavigationSeam({ children }: { children: (navigate: (to: string) => void) => ReactNode }) {
+  return useInRouterContext() ? (
+    <RoutedNavigation>{children}</RoutedNavigation>
+  ) : (
+    <>{children((to) => window.location.assign(to))}</>
+  );
+}
+
+function RoutedNavigation({ children }: { children: (navigate: (to: string) => void) => ReactNode }) {
+  const navigate = useNavigate();
+  return <>{children((to) => navigate(to))}</>;
+}
 
 /** Playback context for layout condition tokens; null = first-run empty state. */
 export interface PlayerMediaContext {
@@ -193,6 +506,32 @@ function PlayerScreenInner({
   const fullscreen = useFullscreen(rootRef);
   const { isFullscreen, toggle: toggleFullscreen, exit: exitFullscreen } = fullscreen;
 
+  // w26.c6 — canvas context menu state (right-click menu.svg). Open state
+  // + pointer coordinates + the previously-focused element (Escape restores
+  // focus — the ContextMenu component's contract, reproduced for the direct
+  // MenuPopup mount; see the header note for why the wrapper component is
+  // not used on the flex:1 canvas).
+  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
+  const canvasMenuFocus = useRef<HTMLElement | null>(null);
+  const closeCanvasMenu = useCallback((): void => {
+    setCanvasMenu(null);
+    canvasMenuFocus.current?.focus();
+  }, []);
+  // Outside pointer dismiss (scrim): any pointerdown outside an open menu
+  // panel closes it. Focus is not stolen (the click target keeps it).
+  useEffect(() => {
+    if (canvasMenu === null) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Element | null;
+      if (target !== null && typeof target.closest === "function" && target.closest('[role="menu"]') !== null) {
+        return;
+      }
+      setCanvasMenu(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [canvasMenu]);
+
   // Issue #32 — player dialogs (Go-to-Time, Bookmarks). Each dialog is
   // mounted per-open so its form state starts fresh (the goto input prefills
   // with the position at open time; the bookmarks list re-fetches).
@@ -208,6 +547,10 @@ function PlayerScreenInner({
   const client = useClient();
   const bridgeView = usePlayerEngineView(client);
   const controls = usePlayerControls();
+  // w26.c6 — the canvas context menu's queue rows (Previous/Next Item +
+  // Playback shuffle/repeat) ride the same playlist context the docked
+  // panel consumes (the provider is mounted around this whole composition).
+  const playlist = usePlaylist();
   const effectiveEngineState: PlayerEngineView = engineState ?? bridgeView;
   const derivedMedia: PlayerMediaContext | null =
     media !== null
@@ -413,42 +756,77 @@ function PlayerScreenInner({
            * (honest — no fabricated artwork; doc 08 §1.4 album art 737²). */
           <MusicMode artRegion={canvasRegion} />
         ) : (
-          <div
-            data-region-id={canvasRegion.id}
-            role="region"
-            aria-label={m(canvasRegion.labelKey)}
-            className="lumen-player__canvas"
-            data-placeholder="engine-wiring-4.H1"
-          >
-            {/* Honest placeholder: no <video>/<canvas> element until the
-                render engine is wired (card 4.H1 handoff — recorded in
-                ui/NEXT-STEPS.md). Screen-reader note says so. */}
-            <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
+          <NavigationSeam>
+            {(navigate) => (
+              <div
+                data-region-id={canvasRegion.id}
+                role="region"
+                aria-label={m(canvasRegion.labelKey)}
+                className="lumen-player__canvas"
+                data-placeholder="engine-wiring-4.H1"
+                onContextMenu={(event) => {
+                  // w26.c6 — the canvas context menu (right-click menu.svg)
+                  // opens at the pointer; suppress the native browser menu.
+                  event.preventDefault();
+                  canvasMenuFocus.current = document.activeElement as HTMLElement | null;
+                  setCanvasMenu({ x: event.clientX, y: event.clientY });
+                }}
+              >
+                {/* Honest placeholder: no <video>/<canvas> element until the
+                    render engine is wired (card 4.H1 handoff — recorded in
+                    ui/NEXT-STEPS.md). Screen-reader note says so. */}
+                <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
-            {/* Player.png "artwork centered": until the engine paints frames
-                (4.H1), the honest stand-in is the playing media's IDENTITY —
-                engine-reported title first (media.info-ready), the playlist
-                entry's title as fallback, a quiet kind mark when neither
-                reported. Real data only; renders only while an overlay-free
-                session state is up (loading/buffering/error take over). */}
-            {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
-              <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
-            ) : null}
+                {/* Player.png "artwork centered": until the engine paints frames
+                    (4.H1), the honest stand-in is the playing media's IDENTITY —
+                    engine-reported title first (media.info-ready), the playlist
+                    entry's title as fallback, a quiet kind mark when neither
+                    reported. Real data only; renders only while an overlay-free
+                    session state is up (loading/buffering/error take over). */}
+                {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
+                  <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
+                ) : null}
 
-            {/* Card 4.C3 playback UX states: exactly zero or one overlay on
-                the canvas region, driven by the engine view. The first-run
-                Empty surface only ever appears when NO media is present —
-                a host-injected `media` context (or a live session) suppresses
-                it, while engine-truth overlays (loading/buffering/error)
-                always render. Never a fabricated state. */}
-            {effectiveEngineState.state === "idle" && hasMedia ? null : (
-              <StateRouter
-                view={effectiveEngineState}
-                onRetry={onRetry}
-                onOpenMedia={onOpenMedia}
-              />
+                {/* Card 4.C3 playback UX states: exactly zero or one overlay on
+                    the canvas region, driven by the engine view. The first-run
+                    Empty surface only ever appears when NO media is present —
+                    a host-injected `media` context (or a live session) suppresses
+                    it, while engine-truth overlays (loading/buffering/error)
+                    always render. Never a fabricated state. */}
+                {effectiveEngineState.state === "idle" && hasMedia ? null : (
+                  <StateRouter
+                    view={effectiveEngineState}
+                    onRetry={onRetry}
+                    onOpenMedia={onOpenMedia}
+                  />
+                )}
+
+                {/* w26.c6 — the canvas context menu (right-click menu.svg),
+                    fixed at the pointer; the menu API owns the keyboard model
+                    (roving focus, arrows, Escape → closeAndRestore). */}
+                {canvasMenu !== null && (
+                  <MenuPopup
+                    entries={canvasMenuEntries({
+                      m,
+                      tm: (key) => m(key as MessageKey) ?? c6Catalog[key],
+                      controls,
+                      playlist,
+                      navigate,
+                      sidebarOpen,
+                      toggleSidebar: () => setSidebarOpen((open) => !open),
+                    })}
+                    resolveLabel={identityResolveLabel}
+                    idPrefix="lumen-player-canvas-menu"
+                    className="lumen-context-menu__popup"
+                    style={{ left: canvasMenu.x, top: canvasMenu.y }}
+                    ariaLabel={m("player.canvas.menu.title" as MessageKey) ?? c6Catalog["player.canvas.menu.title"]}
+                    onRequestClose={closeCanvasMenu}
+                    onDismissAll={closeCanvasMenu}
+                  />
+                )}
+              </div>
             )}
-          </div>
+          </NavigationSeam>
         )}
 
         {regionsOf("bottom").map((region) => (
@@ -479,6 +857,9 @@ function PlayerScreenInner({
       {bookmarksOpen ? (
         <BookmarksDialog open onClose={() => setBookmarksOpen(false)} />
       ) : null}
+      {/* w26.c5: audio/video tools dialog — opens via openToolsDialog() /
+          the `lumen:open-tools` event seam (gear menu, keymap). */}
+      <ToolsDialogHost />
     </div>
   );
 }

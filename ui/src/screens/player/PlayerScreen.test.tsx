@@ -4,12 +4,17 @@
 // sidebar-toggle seam, now-playing identity. DOM-shape + behavior
 // assertions per the card ACs (visual fidelity: dev-shots + VLM loop).
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
 import type { CommandTransport, CommandResponse, CommandRequest, Event } from "../../client/transport";
 import { fullMediaInfo } from "../media-info/fixtures";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import { PlayerScreen, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
+
+/** The DOM Event (the catalog `Event` type is imported as a spy shape). */
+type DomEvent = globalThis.Event;
 
 /** Card 4.C2: PlayerScreen hosts the player state seam → needs a client. */
 const renderWithClient = (ui: React.ReactElement) =>
@@ -441,5 +446,174 @@ describe("PlayerScreen — Go-to-Time dialog wiring (issue #32, keymaps/default.
       fireEvent.keyDown(dialog, { key: "Escape" });
     });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", () => {
+  /** Right-click the canvas region; returns the opened menu. */
+  const openCanvasMenu = async (): Promise<HTMLElement> => {
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    fireEvent.contextMenu(canvas, { clientX: 300, clientY: 200 });
+    return await screen.findByRole("menu", { name: "Player actions" });
+  };
+
+  /** Interactive menu rows in DOM order (item + checkbox/radio faces). */
+  const menuItems = (menu: HTMLElement): HTMLElement[] =>
+    [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')];
+
+  it("opens the frame's 14 rows in pinned order with 3 separators", async () => {
+    renderWithClient(<PlayerScreen />);
+    const menu = await openCanvasMenu();
+    // REAL frame labels (right-click menu.svg), pinned order.
+    expect([...menu.querySelectorAll<HTMLElement>(".lumen-menu__label")].map((label) => label.textContent)).toEqual([
+      "Play",
+      "Stop",
+      "Previous Item",
+      "Next Item",
+      "Record",
+      "Hide UI",
+      "Playback",
+      "Video",
+      "Audio",
+      "Subtitle",
+      "More Settings",
+      "Playlist",
+      "Open Media",
+      "Quit VLC",
+    ]);
+    expect(within(menu).getAllByRole("separator")).toHaveLength(3);
+    // WAI-ARIA: opening a menu moves focus onto the first item.
+    expect(menuItems(menu)[0]).toHaveFocus();
+  });
+
+  it("accelerators are display strings from keymap DATA (frame spelling)", async () => {
+    renderWithClient(<PlayerScreen />);
+    const menu = await openCanvasMenu();
+    // HOTKEY_BINDINGS rows: navigation.toggle-play-pause=Space, navigation.stop=S,
+    // navigation.prev-track=P, navigation.next-track=N, video.record=Shift+R
+    // (the keymap's D-1 resolution of the frame's "R"), window.n=Ctrl+\,
+    // media.quit=Ctrl+Q — re-joined in the frame's "Ctrl + …" spelling.
+    expect([...menu.querySelectorAll<HTMLElement>(".lumen-menu__accelerator")].map((acc) => acc.textContent)).toEqual([
+      "Space",
+      "S",
+      "P",
+      "N",
+      "Shift + R",
+      "Ctrl + \\",
+      "Ctrl + Q",
+    ]);
+  });
+
+  it("honest disabled rows: transport needs media, queue rows need a queue, no-seam rows stay inert", async () => {
+    renderWithClient(<PlayerScreen />);
+    const menu = await openCanvasMenu();
+    const disabled = ["Play", "Stop", "Previous Item", "Next Item", "Record", "Hide UI", "Quit VLC"];
+    for (const label of disabled) {
+      const item = menuItems(menu).find((row) => row.textContent?.startsWith(label))!;
+      expect(item, label).toHaveAttribute("aria-disabled", "true");
+    }
+    // The seven submenu parents stay active (they open honest content).
+    for (const label of ["Playback", "Video", "Audio", "Subtitle", "More Settings", "Playlist", "Open Media"]) {
+      const item = menuItems(menu).find((row) => row.textContent?.startsWith(label))!;
+      expect(item, label).not.toHaveAttribute("aria-disabled");
+    }
+  });
+
+  it("Playback submenu: real shuffle + repeat commands through the playlist seam", async () => {
+    const transport = new MockTransport();
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen />
+      </ClientProvider>,
+    );
+    const menu = await openCanvasMenu();
+    fireEvent.click(within(menu).getByText("Playback"));
+    const submenu = await screen.findByRole("menu", { name: "Playback" });
+    expect([...submenu.querySelectorAll<HTMLElement>(".lumen-menu__label")].map((label) => label.textContent)).toEqual([
+      "Shuffle",
+      "Repeat: off",
+      "Repeat: all",
+      "Repeat: one",
+    ]);
+    fireEvent.click(within(submenu).getByText("Shuffle"));
+    const req = transport.sent.find((r) => r.cmd === "playlist.set-shuffle");
+    expect(req && "args" in req ? req.args : null).toEqual({ enabled: true });
+  });
+
+  it("Video/Audio/Subtitle submenus open onto the honest no-media row (never a fabricated list)", async () => {
+    renderWithClient(<PlayerScreen />);
+    const menu = await openCanvasMenu();
+    for (const label of ["Video", "Audio", "Subtitle"]) {
+      fireEvent.click(within(menu).getByText(label));
+      const submenu = await screen.findByRole("menu", { name: label });
+      const rows = [...submenu.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.textContent).toBe("no media open");
+      expect(rows[0]).toHaveAttribute("aria-disabled", "true");
+      // Escape walks back out of the submenu before the next kind.
+      fireEvent.keyDown(rows[0]!, { key: "Escape" });
+    }
+  });
+
+  it("Playlist submenu toggles the docked queue panel (this screen's real seam)", async () => {
+    renderWithClient(<PlayerScreen />);
+    const player = document.querySelector<HTMLElement>("[data-screen='player']")!;
+    expect(player).toHaveAttribute("data-sidebar", "open");
+    const menu = await openCanvasMenu();
+    fireEvent.click(within(menu).getByText("Playlist"));
+    const submenu = await screen.findByRole("menu", { name: "Playlist" });
+    fireEvent.click(within(submenu).getByText("Hide queue panel"));
+    expect(document.querySelector("[data-screen='player']")!).toHaveAttribute("data-sidebar", "closed");
+  });
+
+  it("Open Media submenu: the shell event + the network-stream route", async () => {
+    const seen: string[] = [];
+    const onEvent = (event: DomEvent): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(OPEN_MEDIA_EVENT, onEvent);
+    const transport = new MockTransport();
+    try {
+      render(
+        <MemoryRouter initialEntries={["/player"]}>
+          <Routes>
+            <Route
+              path="/player"
+              element={
+                <ClientProvider transport={transport}>
+                  <PlayerScreen />
+                </ClientProvider>
+              }
+            />
+            <Route path="/open-network-stream" element={<div>network-stream-screen</div>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      const menu = await openCanvasMenu();
+      fireEvent.click(within(menu).getByText("Open Media"));
+      const submenu = await screen.findByRole("menu", { name: "Open Media" });
+      fireEvent.click(within(submenu).getByText("Open media…"));
+      expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+    } finally {
+      window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
+    }
+    // Re-open and take the route entry (the dismiss closed the chain).
+    const menu = await openCanvasMenu();
+    fireEvent.click(within(menu).getByText("Open Media"));
+    const submenu = await screen.findByRole("menu", { name: "Open Media" });
+    fireEvent.click(within(submenu).getByText("Open network stream…"));
+    expect(await screen.findByText("network-stream-screen")).toBeInTheDocument();
+  });
+
+  it("Escape closes the menu chain; outside pointer dismisses", async () => {
+    renderWithClient(<PlayerScreen />);
+    const menu = await openCanvasMenu();
+    fireEvent.keyDown(within(menu).getByText("Play"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    await openCanvasMenu();
+    act(() => {
+      fireEvent.pointerDown(document.body);
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });

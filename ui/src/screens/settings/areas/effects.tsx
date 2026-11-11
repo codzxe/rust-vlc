@@ -1,228 +1,209 @@
-// Settings area: Effects & Tools — issue #33 / D-012 (the ui-screen-av-tools
-// row's settings-side v0: audio DSP + video adjust controls).
+// Settings area: Effects — the w26.c5 tools integration of the Settings →
+// Audio screen, composed to `Settings - audio-1.svg` (the Effects section's
+// expanded state; `Settings - audio.svg` is the same section collapsed).
 //
-// HONEST SURFACE RULES (same discipline as audio.tsx):
-//   • LIVE controls are the ones with a REAL catalog command AND engine
-//     support today: master volume (`audio.set-volume`, engine `Volume`),
-//     mute (`audio.set-mute`, engine `Volume::MUTE`). They hydrate from
-//     `audio.get-volume` and send on change.
-//   • PENDING controls are the engine stages that exist WITHOUT a catalog
-//     command yet: stereo balance (audio-engine `Balance`, constant-power),
-//     the 3-band equalizer (audio-engine `Eq3Band` — RBJ low shelf 250 Hz /
-//     mid peak 1 kHz / high shelf 4 kHz + preamp), and the video adjust
-//     family (video-engine `AdjustParams`). They render DISABLED with the
-//     honest reason and a data-pending-command marker naming the command
-//     they await — visible, inert, never a dead control that looks alive.
-//     They light up when the D-012 command-layer follow-up lands
-//     (`audio.set-balance`, `audio.set-eq`, `video.set-adjust`).
+// COMPOSITION (frame truth, top → bottom of the section):
+//   * "Equalizer" — toggle row, staged OFF (the EQ enable awaits the
+//     `audio.set-eq` catalog command; engine `Eq3Band` exists, doc 05 §2)
+//   * the EQ PANEL — the wave-c EqualizerTool (w26.c1) embedded full-width
+//     in the content column: 10 frame bands + Preamp + the presets panel
+//     (`EQ presets.svg` grammar, covering the frame's "Equalizer preset"
+//     row — one preset control, not two; documented deviation: the frame
+//     carries that row OUTSIDE the panel, the frozen tool API carries it
+//     inside). The frame ships the panel EXPANDED ("Close Equalizer"
+//     header) → `defaultOpen`.
+//   * "Two-pass" / "Spatial audio" / "Spatial audio mode" / "Stereo
+//     widening" — the frame's remaining rows, staged per the honest pattern.
+//
+// HONEST SURFACE RULES (the area's staged-command pattern, unchanged):
+//   • STAGED rows are the effects the engine cannot take commands for yet —
+//     equalizer enable + two-pass (`audio.set-eq`), spatial audio + its
+//     mode (`audio.set-spatializer`, the w26.c2 forward declaration) and
+//     stereo widening (`audio.set-stereo-widener`). They render DISABLED
+//     with the honest reason and a data-pending-command marker naming the
+//     command they await — visible, inert, never a dead control that looks
+//     alive. The embedded EqualizerTool keeps its own interactive local
+//     state (the w26.c1 contract) wrapped in the same staged markers.
+//   • RETIRED this integration (Settings - audio-1 carries none of them in
+//     the Effects section): the v0 "Master volume"/"Mute" live controls and
+//     the balance pending slider (live playback control stays in the player
+//     ControlBar; the schema-owned Volume/Loudness sections of `Settings -
+//     audio.svg` own settings volume when seeded — handoff noted in the
+//     w26.c5 lane log), and the video-adjust pending sliders (the wave-c
+//     ColorsTool carries that staging in the player Tools dialog; the
+//     `Settings - video-1.svg` "Picture" section is the video area owner's
+//     mount). The engine stages behind them (Balance, Eq3Band,
+//     AdjustParams) are documented in doc 05 §2 and ui/NEXT-STEPS.md.
 //   • No schemas/settings.toml entries exist for effects yet — when the
 //     schema owner seeds them, this area's schema-backed fields move to the
 //     generator (same migration note as audio.tsx).
 
-import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { useClient } from "../../../client/ClientProvider";
-import type { CommandResponse } from "../../../client/transport";
 import { Switch } from "../../../components/form";
+import { Dropdown } from "../../../components/menu";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
+import { keys as eqLaneKeys } from "../../../i18n/keys/w26.c1";
+import { keys as laneKeys } from "../../../i18n/keys/w26.c5";
+import { EqualizerTool } from "../../player/tools/equalizer";
 
-/** Volume wire ceiling (doc 05 §2.2 `audio.max-volume` default 1.25). */
-const MAX_VOLUME = 1.25;
+type LaneKey = keyof typeof laneKeys;
+type EqLaneKey = keyof typeof eqLaneKeys;
 
-type VolumeQuery =
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly volume: number };
+/** The lane catalog: this lane's keys over the reused w26.c1 equalizer keys
+ * (screen.eq.title = the frame's "Equalizer" row — reuse, not re-declare). */
+const laneCatalog: Readonly<Record<string, string>> = {
+  ...eqLaneKeys,
+  ...laneKeys,
+};
 
-/** Master volume slider — `audio.get-volume` hydrate, `audio.set-volume` apply. */
-export function VolumeControl(): ReactElement {
+/** Keys resolvable by `useEffectsMsg`. */
+export type EffectsLabelKey = MessageKey | LaneKey | EqLaneKey;
+
+/** useEffectsMsg — useMsg widened with the w26.c5 + w26.c1 lane keys (the
+ * w26.c1 useEqMsg seam-first pattern: central catalog wins once the Lead
+ * registers the keys, the lane copy is the fallback reference). */
+export function useEffectsMsg() {
   const m = useMsg();
-  const client = useClient();
-  const [query, setQuery] = useState<VolumeQuery>({ status: "loading" });
-  const nextRequestId = useRef(1);
+  return (key: EffectsLabelKey): string => m(key as MessageKey) ?? laneCatalog[key];
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .send({ requestId: nextRequestId.current++, cmd: "audio.get-volume" })
-      .then((response: CommandResponse) => {
-        if (cancelled) return;
-        const result = response.result;
-        if ("completed" in result && result.completed.kind === "audio-volume") {
-          setQuery({ status: "ready", volume: result.completed.volume });
-        } else {
-          // No engine truth yet — start from unity rather than invent one.
-          setQuery({ status: "ready", volume: 1.0 });
-        }
-      });
-    return () => {
-      cancelled = false;
-    };
-  }, [client]);
-
-  const change = (volume: number): void => {
-    setQuery({ status: "ready", volume });
-    client.send({
-      requestId: nextRequestId.current++,
-      cmd: "audio.set-volume",
-      args: { volume },
-    });
-  };
-
+/** The staged note badge (the honest-unbound line — one per staged field). */
+function StagedNote({ msg }: { msg: (key: EffectsLabelKey) => string }): ReactElement {
   return (
-    <div className="settings-field" data-setting-key="effects.audio.volume">
-      <div className="settings-field__head">
-        <span className="settings-field__label">{m("settings.effects.volume")}</span>
-        {query.status === "ready" ? (
-          <span className="settings-badge">{Math.round(query.volume * 100)}%</span>
-        ) : null}
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={MAX_VOLUME}
-        step={0.05}
-        value={query.status === "ready" ? query.volume : 1}
-        onChange={(event) => change(Number(event.target.value))}
-        disabled={query.status !== "ready"}
-        aria-label={m("settings.effects.volume")}
-      />
-    </div>
+    <p className="settings-field__badges" role="note">
+      <span className="settings-badge">{msg("settings.effects.pending-command")}</span>
+    </p>
   );
 }
 
-/** Mute switch — `audio.set-mute`, independent of volume (doc 05 §2.6). */
-export function MuteControl(): ReactElement {
-  const m = useMsg();
-  const client = useClient();
-  const [muted, setMuted] = useState(false);
-  const nextRequestId = useRef(1);
-
-  const change = (next: boolean): void => {
-    setMuted(next);
-    client.send({
-      requestId: nextRequestId.current++,
-      cmd: "audio.set-mute",
-      args: { muted: next },
-    });
-  };
-
+/**
+ * A staged toggle row: label left, OFF switch right, awaiting its catalog
+ * command (the effects-area staged pattern — disabled WITH reason, never a
+ * dead control that looks alive).
+ */
+function StagedToggleRow({
+  labelKey,
+  pendingCommand,
+}: {
+  labelKey: EffectsLabelKey;
+  pendingCommand: string;
+}): ReactElement {
+  const m = useEffectsMsg();
+  const label = m(labelKey);
   return (
-    <div className="settings-field" data-setting-key="effects.audio.mute">
-      <div className="settings-field__head">
-        <span className="settings-field__label">{m("settings.effects.mute")}</span>
+    <div
+      className="settings-field"
+      data-setting-key={`pending.${pendingCommand}`}
+      data-pending-command={pendingCommand}
+    >
+      <div className="settings-field__row">
+        <div className="settings-field__lead">
+          <span className="settings-field__label">{label}</span>
+        </div>
+        <div className="settings-field__control">
+          <Switch
+            checked={false}
+            onChange={() => {
+              /* staged — disabled means never fired */
+            }}
+            disabled
+            aria-label={label}
+          />
+        </div>
       </div>
-      <Switch checked={muted} onChange={change} aria-label={m("settings.effects.mute")} />
+      <StagedNote msg={m} />
     </div>
   );
 }
 
 /**
- * A pending control: engine stage exists, catalog command does not yet.
- * Rendered inert with the honest reason (never a dead-but-alive control).
+ * A staged dropdown row: label left, the frame's selected value in a compact
+ * dropdown right. One honest frame-verbatim option — no invented engine
+ * modes (the frame exports no open list for this control).
  */
-function PendingSlider(props: {
-  label: MessageKey;
-  min: number;
-  max: number;
-  step: number;
+function StagedDropdownRow({
+  labelKey,
+  optionKey,
+  pendingCommand,
+}: {
+  labelKey: EffectsLabelKey;
+  optionKey: EffectsLabelKey;
   pendingCommand: string;
 }): ReactElement {
-  const m = useMsg();
+  const m = useEffectsMsg();
+  const label = m(labelKey);
   return (
     <div
       className="settings-field"
-      data-setting-key={`pending.${props.pendingCommand}`}
-      data-pending-command={props.pendingCommand}
+      data-setting-key={`pending.${pendingCommand}`}
+      data-pending-command={pendingCommand}
     >
-      <div className="settings-field__head">
-        <span className="settings-field__label">{m(props.label)}</span>
+      <div className="settings-field__row">
+        <div className="settings-field__lead">
+          <span className="settings-field__label">{label}</span>
+        </div>
+        <div className="settings-field__control">
+          <Dropdown
+            options={[{ value: optionKey, labelKey: optionKey }]}
+            value={optionKey}
+            onChange={() => {
+              /* staged — disabled means never fired */
+            }}
+            label={label}
+            resolveLabel={m}
+            density="compact"
+            disabled
+          />
+        </div>
       </div>
-      <input
-        type="range"
-        min={props.min}
-        max={props.max}
-        step={props.step}
-        value={(props.min + props.max) / 2}
-        disabled
-        aria-label={m(props.label)}
-      />
-      <p className="settings-field__badges" role="note">
-        <span className="settings-badge">{m("settings.effects.pending-command")}</span>
-      </p>
+      <StagedNote msg={m} />
     </div>
   );
 }
 
-/** Effects & Tools settings area (hand-authored; see module header). */
+/**
+ * Effects settings area (hand-authored; see module header) — the frame's
+ * Effects section with the wave-c EqualizerTool embedded.
+ */
 export function EffectsArea(): ReactElement {
-  const m = useMsg();
+  const m = useEffectsMsg();
   return (
     <div className="settings-sections" data-settings-area="effects">
-      <section className="settings-section" data-section="audio">
-        <h2 className="settings-section__title">{m("settings.section.effects.audio")}</h2>
-        <VolumeControl />
-        <MuteControl />
-        <PendingSlider
-          label="settings.effects.balance"
-          min={-1}
-          max={1}
-          step={0.05}
-          pendingCommand="audio.set-balance"
+      <section className="settings-section" data-section="effects">
+        <h2 className="settings-section__title">{m("settings.section.effects")}</h2>
+        {/* Frame row 1 — the EQ enable, staged OFF (audio.set-eq). */}
+        <StagedToggleRow labelKey="screen.eq.title" pendingCommand="audio.set-eq" />
+        {/* The EQ PANEL (Settings - audio-1 "EQ" block): the w26.c1 tool
+         * embedded full-width, expanded per the frame ("Close Equalizer"),
+         * presets included (EQ presets.svg). Staged wrapper: the tool keeps
+         * interactive LOCAL state (its frozen contract) while no
+         * `audio.set-eq` command exists — the marker names the command the
+         * whole panel awaits. */}
+        <div
+          className="settings-field settings-field--tool"
+          data-setting-key="pending.audio.set-eq"
+          data-staged-tool="equalizer"
+          data-pending-command="audio.set-eq"
+        >
+          <EqualizerTool defaultOpen />
+          <StagedNote msg={m} />
+        </div>
+        {/* Frame rows below the EQ panel, in frame order. Two-pass is EQ
+         * configuration (VLC parity) — same awaited command. */}
+        <StagedToggleRow labelKey="settings.effects.two-pass" pendingCommand="audio.set-eq" />
+        <StagedToggleRow
+          labelKey="settings.effects.spatial-audio"
+          pendingCommand="audio.set-spatializer"
         />
-        {/* 3-band EQ (engine `Eq3Band`): ±20 dB band gains, VLC's slider
-            span; corners fixed by the engine stage's design. */}
-        <PendingSlider
-          label="settings.effects.eq.low"
-          min={-20}
-          max={20}
-          step={1}
-          pendingCommand="audio.set-eq"
+        <StagedDropdownRow
+          labelKey="settings.effects.spatial-audio-mode"
+          optionKey="settings.effects.spatial-mode.headphone-virtualization"
+          pendingCommand="audio.set-spatializer"
         />
-        <PendingSlider
-          label="settings.effects.eq.mid"
-          min={-20}
-          max={20}
-          step={1}
-          pendingCommand="audio.set-eq"
-        />
-        <PendingSlider
-          label="settings.effects.eq.high"
-          min={-20}
-          max={20}
-          step={1}
-          pendingCommand="audio.set-eq"
-        />
-      </section>
-      <section className="settings-section" data-section="video">
-        <h2 className="settings-section__title">{m("settings.section.effects.video")}</h2>
-        <PendingSlider
-          label="settings.effects.brightness"
-          min={0}
-          max={2}
-          step={0.05}
-          pendingCommand="video.set-adjust"
-        />
-        <PendingSlider
-          label="settings.effects.contrast"
-          min={0}
-          max={2}
-          step={0.05}
-          pendingCommand="video.set-adjust"
-        />
-        <PendingSlider
-          label="settings.effects.saturation"
-          min={0}
-          max={3}
-          step={0.05}
-          pendingCommand="video.set-adjust"
-        />
-        <PendingSlider
-          label="settings.effects.hue"
-          min={-180}
-          max={180}
-          step={1}
-          pendingCommand="video.set-adjust"
+        <StagedToggleRow
+          labelKey="settings.effects.stereo-widening"
+          pendingCommand="audio.set-stereo-widener"
         />
       </section>
     </div>

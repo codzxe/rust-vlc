@@ -1,125 +1,131 @@
-// Issue #33 / D-012 — Effects & Tools area tests. Honest-surface rules:
-// live controls (volume, mute) hydrate from the engine and send their
-// catalog command on change; pending controls (balance, video adjust —
-// engine stages exist, catalog commands do not yet) render DISABLED
-// with the reason, never hidden, never alive.
+// Effects & Tools area tests (w26.c5 integration) — the Settings → Audio
+// Effects section composed to `Settings - audio-1.svg`: the embedded
+// wave-c EqualizerTool (frame "EQ" block), the staged rows around it, and
+// the honest-surface rules:
+//   • the embedded EQ + every row control is STAGED (no audio-effects
+//     catalog command exists yet) — markers name the awaited command, the
+//     note badge gives the honest reason, nothing ever sends;
+//   • the retired v0 widgets (master volume, mute, balance, video adjust)
+//     are gone per the frame — live playback control stays in the player
+//     ControlBar (see the effects.tsx module header + the w26.c5 lane log).
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
-import type { CommandRequest } from "../../../client/transport";
-import type { CommandResponse } from "../../../client/transport";
+import { keys as toolsKeys } from "../../../i18n/keys/w26.a18";
 import { EffectsArea } from "./effects";
 import { makeFixtureTransport } from "./audio-fixtures";
 
-const volumeResult = (volume: number): CommandResponse["result"] => ({
-  completed: { kind: "audio-volume", volume },
-});
+const COLLAPSE = toolsKeys["player.tools.collapse-settings"];
 
-const renderWith = (transport: ReturnType<typeof makeFixtureTransport>) =>
-  render(
+const renderArea = () => {
+  const transport = makeFixtureTransport(() => ({ completed: { kind: "unit" } }));
+  const view = render(
     <ClientProvider transport={transport}>
       <EffectsArea />
     </ClientProvider>,
   );
+  return { transport, ...view };
+};
 
-describe("EffectsArea — live controls wire to the catalog", () => {
-  it("hydrates the volume slider from audio.get-volume", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume" ? volumeResult(0.8) : { completed: { kind: "unit" } },
-    );
-    renderWith(transport);
-    const slider = await screen.findByRole("slider", { name: "Master volume" });
-    await waitFor(() => expect(slider).toBeEnabled());
-    expect((slider as HTMLInputElement).value).toBe("0.8");
+describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () => {
+  it("renders the Effects section header", () => {
+    renderArea();
+    expect(screen.getByRole("heading", { name: "Effects" })).toBeInTheDocument();
   });
 
-  it("changing volume dispatches audio.set-volume with the slider value", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume"
-        ? volumeResult(1.0)
-        : request.cmd === "audio.set-volume"
-          ? volumeResult(0.6)
-          : { completed: { kind: "unit" } },
+  it("embeds the EqualizerTool EXPANDED (frame EQ block, 'Close Equalizer')", () => {
+    renderArea();
+    // The tool's expanded toggle + all 11 frame rows (Preamp + 10 bands).
+    expect(screen.getByRole("button", { name: COLLAPSE })).toHaveAttribute(
+      "aria-expanded",
+      "true",
     );
-    renderWith(transport);
-    const slider = await screen.findByRole("slider", { name: "Master volume" });
-    fireEvent.change(slider, { target: { value: "0.6" } });
-    const applied = transport.sent.find(
-      (r): r is Extract<CommandRequest, { cmd: "audio.set-volume" }> =>
-        r.cmd === "audio.set-volume",
-    );
-    expect(applied?.args.volume).toBe(0.6);
+    expect(screen.getAllByRole("slider")).toHaveLength(11);
+    expect(screen.getByRole("slider", { name: "Preamp" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "60 Hz" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "16 KHz" })).toBeInTheDocument();
   });
 
-  it("toggling mute dispatches audio.set-mute", async () => {
-    const transport = makeFixtureTransport(() => ({
-      completed: { kind: "applied-bool", value: true },
-    }));
-    renderWith(transport);
-    fireEvent.click(await screen.findByRole("switch", { name: "Mute" }));
-    const applied = transport.sent.find(
-      (r): r is Extract<CommandRequest, { cmd: "audio.set-mute" }> =>
-        r.cmd === "audio.set-mute",
-    );
-    expect(applied?.args.muted).toBe(true);
+  it("the EQ presets panel is embedded with the tool (frame 'Equalizer preset' row)", () => {
+    renderArea();
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    // The frame's 8 presets (EQ presets.svg) open from the embedded tool.
+    for (const name of [
+      "None",
+      "Flat",
+      "Classical",
+      "Club",
+      "Dance",
+      "Full bass",
+      "Full bass & treble",
+      "Full treble",
+    ]) {
+      expect(screen.getByRole("option", { name })).toBeInTheDocument();
+    }
   });
 });
 
-describe("EffectsArea — pending controls are inert WITH REASON", () => {
-  it("renders the balance slider disabled, naming the awaited command", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },
+describe("EffectsArea — staged rows are inert WITH REASON (the old pattern stays)", () => {
+  it("the Equalizer enable toggle is staged OFF for audio.set-eq", () => {
+    renderArea();
+    const eq = screen.getByRole("switch", { name: "Equalizer" });
+    expect(eq).toBeDisabled();
+    expect(eq).toHaveAttribute("aria-checked", "false");
+    expect(eq.closest("[data-pending-command]")?.getAttribute("data-pending-command")).toBe(
+      "audio.set-eq",
     );
-    renderWith(transport);
-    const balance = await screen.findByRole("slider", { name: "Balance" });
-    expect(balance).toBeDisabled();
-    expect(balance.closest("[data-pending-command]")?.getAttribute("data-pending-command")).toBe(
-      "audio.set-balance",
-    );
+  });
+
+  it("the embedded EQ panel carries the staged markers (audio.set-eq)", () => {
+    renderArea();
+    const tool = screen.getByRole("region", { name: "Equalizer" });
+    const staged = tool.closest("[data-staged-tool]");
+    expect(staged).not.toBeNull();
+    expect(staged).toHaveAttribute("data-staged-tool", "equalizer");
+    expect(staged).toHaveAttribute("data-pending-command", "audio.set-eq");
+    // The honest reason renders (old pattern: visible, never silent).
     expect(screen.getAllByRole("note").length).toBeGreaterThan(0);
   });
 
-  it("renders the four video adjust sliders disabled (video.set-adjust)", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },
-    );
-    renderWith(transport);
-    for (const name of ["Brightness", "Contrast", "Saturation", "Hue"]) {
-      const slider = await screen.findByRole("slider", { name });
-      expect(slider).toBeDisabled();
-      expect(
-        slider.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
-      ).toBe("video.set-adjust");
-    }
+  it("Two-pass / Spatial audio / Stereo widening toggles are staged, naming their commands", () => {
+    renderArea();
+    const twoPass = screen.getByRole("switch", { name: "Two-pass" });
+    expect(twoPass).toBeDisabled();
+    expect(
+      twoPass.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
+    ).toBe("audio.set-eq");
+
+    const spatial = screen.getByRole("switch", { name: "Spatial audio" });
+    expect(spatial).toBeDisabled();
+    expect(
+      spatial.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
+    ).toBe("audio.set-spatializer");
+
+    const widening = screen.getByRole("switch", { name: "Stereo widening" });
+    expect(widening).toBeDisabled();
+    expect(
+      widening.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
+    ).toBe("audio.set-stereo-widener");
   });
 
-  it("renders the 3-band EQ sliders disabled (audio.set-eq, engine Eq3Band)", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },
+  it("the Spatial audio mode dropdown is staged on the frame's option", () => {
+    renderArea();
+    const mode = screen.getByRole("button", { name: "Spatial audio mode" });
+    expect(mode).toBeDisabled();
+    expect(mode.textContent).toContain("Headphone virtualization");
+    expect(mode.closest("[data-pending-command]")?.getAttribute("data-pending-command")).toBe(
+      "audio.set-spatializer",
     );
-    renderWith(transport);
-    for (const name of [
-      "Equalizer: bass (250 Hz)",
-      "Equalizer: mid (1 kHz)",
-      "Equalizer: treble (4 kHz)",
-    ]) {
-      const slider = await screen.findByRole("slider", { name });
-      expect(slider).toBeDisabled();
-      expect(
-        slider.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
-      ).toBe("audio.set-eq");
-    }
   });
 
-  it("pending controls never send anything", async () => {
-    const transport = makeFixtureTransport((request) =>
-      request.cmd === "audio.get-volume" ? volumeResult(1.0) : { completed: { kind: "unit" } },
-    );
-    renderWith(transport);
-    await screen.findByRole("slider", { name: "Hue" });
-    // Only the volume hydration happened — no config.set-setting, no
-    // invented writes for keys the engine does not own.
-    expect(transport.sent.map((r) => r.cmd)).toEqual(["audio.get-volume"]);
+  it("staged controls never send anything (no live commands left in the area)", () => {
+    const { transport } = renderArea();
+    // Interact with what renders: expand/collapse the EQ, open the presets.
+    fireEvent.click(screen.getByRole("button", { name: COLLAPSE }));
+    fireEvent.click(screen.getByRole("button", { name: toolsKeys["player.tools.expand-settings"] }));
+    // Only the area's own hydration-free surface — no config.set-setting, no
+    // invented writes for commands the engine does not own.
+    expect(transport.sent).toEqual([]);
   });
 });

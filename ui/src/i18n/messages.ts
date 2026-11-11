@@ -868,7 +868,128 @@ export type MessageKey =
   | "stream.playlist.optional"
   | "stream.playlist.placeholder"
   | "stream.url.example"
-  | "stream.url.hint";
+  | "stream.url.hint"
+  | "discovery.menu.add-audio"
+  | "discovery.menu.add-file"
+  | "discovery.menu.add-folder"
+  | "discovery.menu.add-subtitles"
+  | "discovery.menu.info"
+  | "discovery.menu.refresh"
+  | "discovery.menu.title"
+  | "player.canvas.menu.audio"
+  | "player.canvas.menu.hide-queue"
+  | "player.canvas.menu.hide-ui"
+  | "player.canvas.menu.more-settings"
+  | "player.canvas.menu.next"
+  | "player.canvas.menu.open-media"
+  | "player.canvas.menu.open-playlist"
+  | "player.canvas.menu.previous"
+  | "player.canvas.menu.quit"
+  | "player.canvas.menu.show-queue"
+  | "player.canvas.menu.subtitle"
+  | "player.canvas.menu.title"
+  | "player.canvas.menu.video"
+  | "player.tools.colors.cartoon"
+  | "player.tools.colors.color"
+  | "player.tools.colors.extraction"
+  | "player.tools.colors.gradient"
+  | "player.tools.colors.negate"
+  | "player.tools.colors.posterize"
+  | "player.tools.colors.sepia"
+  | "player.tools.colors.similarity"
+  | "player.tools.colors.threshold"
+  | "player.tools.compressor.attack"
+  | "player.tools.compressor.knee"
+  | "player.tools.compressor.makeup"
+  | "player.tools.compressor.ratio"
+  | "player.tools.compressor.release"
+  | "player.tools.compressor.rms-peak"
+  | "player.tools.compressor.threshold"
+  | "player.tools.crop.bottom"
+  | "player.tools.crop.left"
+  | "player.tools.crop.link-horizontal"
+  | "player.tools.crop.link-vertical"
+  | "player.tools.crop.right"
+  | "player.tools.crop.top"
+  | "player.tools.crop.unit"
+  | "player.tools.dialog.title"
+  | "player.tools.dynamics.compressor"
+  | "player.tools.dynamics.spatializer"
+  | "player.tools.dynamics.staged"
+  | "player.tools.dynamics.stereo-widener"
+  | "player.tools.equalizer.staged"
+  | "player.tools.essential.banding-radius"
+  | "player.tools.essential.grain-variance"
+  | "player.tools.essential.sharpen-sigma"
+  | "player.tools.gradient.edge"
+  | "player.tools.gradient.gradient"
+  | "player.tools.gradient.hemboss"
+  | "player.tools.gradient.mode"
+  | "player.tools.hdr.auto"
+  | "player.tools.hdr.dolby-vision"
+  | "player.tools.hdr.hdr10"
+  | "player.tools.hdr.hdr10-plus"
+  | "player.tools.hdr.hlg"
+  | "player.tools.hdr.mode"
+  | "player.tools.hdr.off"
+  | "player.tools.open"
+  | "player.tools.spatializer.damp"
+  | "player.tools.spatializer.dry"
+  | "player.tools.spatializer.size"
+  | "player.tools.spatializer.wet"
+  | "player.tools.spatializer.width"
+  | "player.tools.tab.audio"
+  | "player.tools.tab.video"
+  | "player.tools.video.staged"
+  | "player.tools.visualizer.display.live"
+  | "player.tools.visualizer.display.resting"
+  | "player.tools.visualizer.mode"
+  | "player.tools.visualizer.mode.disabled"
+  | "player.tools.visualizer.mode.scope"
+  | "player.tools.visualizer.mode.spectrometer"
+  | "player.tools.visualizer.mode.spectrum"
+  | "player.tools.visualizer.mode.waveform"
+  | "player.tools.visualizer.staged"
+  | "player.tools.visualizer.title"
+  | "player.tools.widener.crossfeed"
+  | "player.tools.widener.delay"
+  | "player.tools.widener.dry-mix"
+  | "player.tools.widener.feedback"
+  | "playlist.queue.menu.add-audio"
+  | "playlist.queue.menu.add-media"
+  | "playlist.queue.menu.add-subtitles"
+  | "playlist.queue.menu.favorite"
+  | "playlist.queue.menu.play"
+  | "playlist.queue.menu.save"
+  | "playlist.queue.menu.title"
+  | "screen.eq.band.12k"
+  | "screen.eq.band.14k"
+  | "screen.eq.band.16k"
+  | "screen.eq.band.170"
+  | "screen.eq.band.1k"
+  | "screen.eq.band.310"
+  | "screen.eq.band.3k"
+  | "screen.eq.band.60"
+  | "screen.eq.band.600"
+  | "screen.eq.band.6k"
+  | "screen.eq.preamp"
+  | "screen.eq.preset"
+  | "screen.eq.preset.classical"
+  | "screen.eq.preset.club"
+  | "screen.eq.preset.dance"
+  | "screen.eq.preset.flat"
+  | "screen.eq.preset.full-bass"
+  | "screen.eq.preset.full-bass-treble"
+  | "screen.eq.preset.full-treble"
+  | "screen.eq.preset.none"
+  | "screen.eq.title"
+  | "screen.eq.unit-db"
+  | "settings.effects.spatial-audio"
+  | "settings.effects.spatial-audio-mode"
+  | "settings.effects.spatial-mode.headphone-virtualization"
+  | "settings.effects.stereo-widening"
+  | "settings.effects.two-pass"
+  | "settings.section.effects";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
 // generator, tests, and l10n tooling.
@@ -1724,6 +1845,127 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "stream.playlist.placeholder": "e.g., Favorite TV Channels",
   "stream.url.example": "e.g., https://www.example.com/stream.avi",
   "stream.url.hint": "You can enter multiple links to load.",
+  "discovery.menu.add-audio": "Add audio tracks",
+  "discovery.menu.add-file": "Add file…",
+  "discovery.menu.add-folder": "Add folder…",
+  "discovery.menu.add-subtitles": "Add subtitle tracks",
+  "discovery.menu.info": "Info",
+  "discovery.menu.refresh": "Refresh",
+  "discovery.menu.title": "Volume actions",
+  "player.canvas.menu.audio": "Audio",
+  "player.canvas.menu.hide-queue": "Hide queue panel",
+  "player.canvas.menu.hide-ui": "Hide UI",
+  "player.canvas.menu.more-settings": "More Settings",
+  "player.canvas.menu.next": "Next Item",
+  "player.canvas.menu.open-media": "Open Media",
+  "player.canvas.menu.open-playlist": "Open playlist",
+  "player.canvas.menu.previous": "Previous Item",
+  "player.canvas.menu.quit": "Quit VLC",
+  "player.canvas.menu.show-queue": "Show queue panel",
+  "player.canvas.menu.subtitle": "Subtitle",
+  "player.canvas.menu.title": "Player actions",
+  "player.canvas.menu.video": "Video",
+  "player.tools.colors.cartoon": "Cartoon",
+  "player.tools.colors.color": "Color",
+  "player.tools.colors.extraction": "Color Extraction",
+  "player.tools.colors.gradient": "Gradient",
+  "player.tools.colors.negate": "Negate Colors",
+  "player.tools.colors.posterize": "Posterize",
+  "player.tools.colors.sepia": "Sepia Intensity",
+  "player.tools.colors.similarity": "Similarity",
+  "player.tools.colors.threshold": "Color Threshold",
+  "player.tools.compressor.attack": "Attack",
+  "player.tools.compressor.knee": "Knee Radius",
+  "player.tools.compressor.makeup": "Makeup Gain",
+  "player.tools.compressor.ratio": "Ratio",
+  "player.tools.compressor.release": "Release",
+  "player.tools.compressor.rms-peak": "RMS / Peak",
+  "player.tools.compressor.threshold": "Threshold",
+  "player.tools.crop.bottom": "Bottom",
+  "player.tools.crop.left": "Left",
+  "player.tools.crop.link-horizontal": "Link left and right",
+  "player.tools.crop.link-vertical": "Link top and bottom",
+  "player.tools.crop.right": "Right",
+  "player.tools.crop.top": "Top",
+  "player.tools.crop.unit": "px",
+  "player.tools.dialog.title": "Tools",
+  "player.tools.dynamics.compressor": "Compressor",
+  "player.tools.dynamics.spatializer": "Spatializer",
+  "player.tools.dynamics.staged": "Staged — controls activate with the audio effects command card",
+  "player.tools.dynamics.stereo-widener": "Stereo Widener",
+  "player.tools.equalizer.staged": "Staged — controls activate with the audio effects command card",
+  "player.tools.essential.banding-radius": "Banding Removal Radius",
+  "player.tools.essential.grain-variance": "Film Grain Variance",
+  "player.tools.essential.sharpen-sigma": "Sharpen Sigma",
+  "player.tools.gradient.edge": "Edge",
+  "player.tools.gradient.gradient": "Gradient",
+  "player.tools.gradient.hemboss": "Hemboss",
+  "player.tools.gradient.mode": "Gradient mode",
+  "player.tools.hdr.auto": "Auto",
+  "player.tools.hdr.dolby-vision": "Dolby Vision",
+  "player.tools.hdr.hdr10": "HDR10",
+  "player.tools.hdr.hdr10-plus": "HDR10+",
+  "player.tools.hdr.hlg": "HLG",
+  "player.tools.hdr.mode": "HDR mode",
+  "player.tools.hdr.off": "Off",
+  "player.tools.open": "Audio and video tools",
+  "player.tools.spatializer.damp": "Damp",
+  "player.tools.spatializer.dry": "Dry",
+  "player.tools.spatializer.size": "Size",
+  "player.tools.spatializer.wet": "Wet",
+  "player.tools.spatializer.width": "Width",
+  "player.tools.tab.audio": "Audio",
+  "player.tools.tab.video": "Video",
+  "player.tools.video.staged": "Staged — controls activate with the video effects command card",
+  "player.tools.visualizer.display.live": "Live",
+  "player.tools.visualizer.display.resting": "Waiting for audio data",
+  "player.tools.visualizer.mode": "Visualizer",
+  "player.tools.visualizer.mode.disabled": "Disabled",
+  "player.tools.visualizer.mode.scope": "Scope",
+  "player.tools.visualizer.mode.spectrometer": "Spectrometer",
+  "player.tools.visualizer.mode.spectrum": "Spectrum",
+  "player.tools.visualizer.mode.waveform": "Waveform",
+  "player.tools.visualizer.staged": "Staged — the visualizer activates with the audio effects command card",
+  "player.tools.visualizer.title": "Audio Visualizer",
+  "player.tools.widener.crossfeed": "Crossfeed",
+  "player.tools.widener.delay": "Delay Time",
+  "player.tools.widener.dry-mix": "Dry Mix",
+  "player.tools.widener.feedback": "Feedback Gain",
+  "playlist.queue.menu.add-audio": "Add audio tracks",
+  "playlist.queue.menu.add-media": "Add media…",
+  "playlist.queue.menu.add-subtitles": "Add subtitle tracks",
+  "playlist.queue.menu.favorite": "Favorite",
+  "playlist.queue.menu.play": "Play",
+  "playlist.queue.menu.save": "Save playlist",
+  "playlist.queue.menu.title": "Queue item actions",
+  "screen.eq.band.12k": "12 KHz",
+  "screen.eq.band.14k": "14 KHz",
+  "screen.eq.band.16k": "16 KHz",
+  "screen.eq.band.170": "170 Hz",
+  "screen.eq.band.1k": "1 KHz",
+  "screen.eq.band.310": "310 Hz",
+  "screen.eq.band.3k": "3 KHz",
+  "screen.eq.band.60": "60 Hz",
+  "screen.eq.band.600": "600 Hz",
+  "screen.eq.band.6k": "6 KHz",
+  "screen.eq.preamp": "Preamp",
+  "screen.eq.preset": "Equalizer preset",
+  "screen.eq.preset.classical": "Classical",
+  "screen.eq.preset.club": "Club",
+  "screen.eq.preset.dance": "Dance",
+  "screen.eq.preset.flat": "Flat",
+  "screen.eq.preset.full-bass": "Full bass",
+  "screen.eq.preset.full-bass-treble": "Full bass & treble",
+  "screen.eq.preset.full-treble": "Full treble",
+  "screen.eq.preset.none": "None",
+  "screen.eq.title": "Equalizer",
+  "screen.eq.unit-db": "dB",
+  "settings.effects.spatial-audio": "Spatial audio",
+  "settings.effects.spatial-audio-mode": "Spatial audio mode",
+  "settings.effects.spatial-mode.headphone-virtualization": "Headphone virtualization",
+  "settings.effects.stereo-widening": "Stereo widening",
+  "settings.effects.two-pass": "Two-pass",
+  "settings.section.effects": "Effects",
 };
 
 export type Msg = (key: MessageKey) => string;
