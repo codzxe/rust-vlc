@@ -44,6 +44,11 @@
 //!   provenance) — satisfying R6 (partial needs notes) by construction;
 //! * an append to the row's `evidence` (the proposal's evidence field,
 //!   path-checked) — so the flip is R4-resolvable in the matrix itself;
+//!   a citation is appended ONCE: coalesced proposals that cite the SAME
+//!   artifact append it once (IN-8, integration audit R9), and a
+//!   citation already present on the evidence line is never re-appended
+//!   (a later outbox re-citing it — e.g. across a status flip-back —
+//!   leaves the cell byte-identical);
 //! * one JSONL line per original proposal in the ledger (default
 //!   `docs/corpus/compat-matrix-transitions-applied.jsonl`).
 //!
@@ -678,13 +683,33 @@ fn edit_row(
     }
 
     // 3. the evidence append: the proposals' evidence fields (R4-checked).
-    let citations: Vec<String> = group
-        .members
-        .iter()
-        .map(|member| member.evidence.clone())
-        .collect();
-    let citation = format!("; {}", citations.join("; "));
-    append_into_string(&mut lines[block.evidence_line], &citation)?;
+    //    Two idempotence limbs (IN-8, integration audit R9: the aac-lc
+    //    pair double-appended an identical string):
+    //    (a) coalesced proposals of one run cite the SAME artifact (every
+    //    transition a run emits cites that run's report) — each DISTINCT
+    //    citation is appended once, in order, never once per proposal;
+    //    (b) a citation that is already a "; "-separated segment of the
+    //    row's CURRENT evidence value is not re-appended, so a later
+    //    outbox re-citing the same artifact leaves the cell unchanged.
+    let existing_evidence =
+        string_value_of(&lines[block.evidence_line], "evidence").ok_or_else(|| {
+            format!(
+                "{row}: the evidence line is not a quoted TOML string: {}",
+                lines[block.evidence_line]
+            )
+        })?;
+    let present: Vec<&str> = existing_evidence.split("; ").collect();
+    let mut citations: Vec<String> = Vec::new();
+    for member in &group.members {
+        if citations.contains(&member.evidence) || present.contains(&member.evidence.as_str()) {
+            continue;
+        }
+        citations.push(member.evidence.clone());
+    }
+    if !citations.is_empty() {
+        let citation = format!("; {}", citations.join("; "));
+        append_into_string(&mut lines[block.evidence_line], &citation)?;
+    }
 
     let mut out = lines.join("\n");
     if text.ends_with('\n') {
@@ -701,6 +726,18 @@ fn append_into_string(line: &mut String, addition: &str) -> Result<(), String> {
     };
     line.insert_str(quote, &escape_toml(addition));
     Ok(())
+}
+
+/// The parsed string value of a `key = "..."` line (the scan_blocks `id`
+/// parse, generalized). `None` = not a single-line quoted string.
+fn string_value_of(line: &str, key: &str) -> Option<String> {
+    let rest = line.trim_start().strip_prefix(key)?.trim_start();
+    let rest = rest.strip_prefix('=')?.trim();
+    let parsed = toml_lite::parse(&format!("v = {rest}")).ok()?;
+    match parsed.get("v")? {
+        Value::Str(value) => Some(value.clone()),
+        _ => None,
+    }
 }
 
 /// Escape raw text for a TOML basic string (the escapes toml_lite reads).
@@ -1353,6 +1390,22 @@ notes = "existing note two"
         )
     }
 
+    /// A proposal with an explicit evidence field (the IN-8 tests:
+    /// coalesced citations may differ).
+    fn proposal_evidence(
+        row: &str,
+        platform: &str,
+        from: &str,
+        to: &str,
+        evidence: &str,
+    ) -> String {
+        format!(
+            "{{\"row\":\"{row}\",\"platform\":\"{platform}\",\"from\":\"{from}\",\"to\":\"{to}\",\
+             \"reason\":\"the reason \\u2014 with an em dash\",\"next_step\":\"the next step\",\
+             \"evidence\":\"{evidence}\"}}"
+        )
+    }
+
     fn nano() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1601,6 +1654,125 @@ notes = "existing note two"
         assert_eq!(
             std::fs::read_to_string(root.join(&ledger_rel)).must(),
             ledger
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// IN-8 (integration audit R9): coalesced proposals of one group
+    /// cite the same run report — an identical evidence citation is
+    /// appended ONCE, while distinct citations are all kept.
+    #[test]
+    fn coalesced_evidence_is_deduped() {
+        let (root, outbox_rel, ledger_rel, matrix_rel) = fixture();
+        std::fs::write(root.join("docs/corpus/compat-matrix-20261110.md"), "# run").must();
+        std::fs::write(root.join("docs/corpus/other-run.md"), "# other").must();
+
+        // Same evidence twice (the aac-lc shape: two findings, one run
+        // report) — one citation.
+        let same = format!(
+            "{},{}",
+            proposal("codec-y", "linux", "implemented", "partial"),
+            proposal("codec-y", "linux", "implemented", "partial")
+        );
+        std::fs::write(root.join(&outbox_rel), outbox(&same)).must();
+        let outcome = apply(&root, &outbox_rel, &matrix_rel, &ledger_rel, false).must();
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        let written = std::fs::read_to_string(root.join(&matrix_rel)).must();
+        assert_eq!(
+            written
+                .matches("docs/corpus/compat-matrix-20261110.md (this run)")
+                .count(),
+            1,
+            "an identical evidence citation is appended once, not per proposal"
+        );
+
+        // Distinct evidence within one group — both citations kept.
+        let distinct = format!(
+            "{},{}",
+            proposal_evidence(
+                "container-x",
+                "linux",
+                "implemented",
+                "partial",
+                "docs/corpus/other-run.md"
+            ),
+            proposal("container-x", "linux", "implemented", "partial")
+        );
+        std::fs::write(root.join(&outbox_rel), outbox(&distinct)).must();
+        let outcome = apply(&root, &outbox_rel, &matrix_rel, &ledger_rel, false).must();
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        let written = std::fs::read_to_string(root.join(&matrix_rel)).must();
+        let line = written
+            .lines()
+            .find(|l| l.starts_with("evidence") && l.contains("demux/src/x"))
+            .must();
+        assert!(
+            line.contains("docs/corpus/other-run.md"),
+            "a distinct citation is kept: {line}"
+        );
+        assert!(
+            line.contains("docs/corpus/compat-matrix-20261110.md (this run)"),
+            "a distinct citation is kept: {line}"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// IN-8 (integration audit R9), the re-cite limb: a LATER outbox (a
+    /// different file, so the ledger's already-applied key cannot catch
+    /// it) that cites an artifact already on the evidence line leaves
+    /// the evidence cell byte-identical — double-apply is a no-op on
+    /// the evidence, even across a further status flip.
+    #[test]
+    fn recited_evidence_is_not_reappended() {
+        let (root, outbox_rel, ledger_rel, matrix_rel) = fixture();
+        std::fs::write(root.join("docs/corpus/compat-matrix-20261110.md"), "# run").must();
+        let second_outbox = "docs/corpus/outbox-2.json".to_string();
+
+        // First apply: implemented -> partial, citing the run report.
+        std::fs::write(
+            root.join(&outbox_rel),
+            outbox(&proposal("codec-y", "linux", "implemented", "partial")),
+        )
+        .must();
+        let outcome = apply(&root, &outbox_rel, &matrix_rel, &ledger_rel, false).must();
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        let after_first = std::fs::read_to_string(root.join(&matrix_rel)).must();
+        let evidence_after_first = after_first
+            .lines()
+            .find(|l| l.starts_with("evidence") && l.contains("codecs/src/audio/y"))
+            .must()
+            .to_string();
+
+        // Second apply: partial -> blocked from a NEW outbox file, same
+        // citation (a triage round re-citing the same run report).
+        std::fs::write(
+            root.join(&second_outbox),
+            outbox(&proposal("codec-y", "linux", "partial", "blocked")),
+        )
+        .must();
+        let outcome = apply(&root, &second_outbox, &matrix_rel, &ledger_rel, false).must();
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+
+        let after_second = std::fs::read_to_string(root.join(&matrix_rel)).must();
+        let evidence_after_second = after_second
+            .lines()
+            .find(|l| l.starts_with("evidence") && l.contains("codecs/src/audio/y"))
+            .must()
+            .to_string();
+        assert_eq!(
+            evidence_after_first, evidence_after_second,
+            "a citation already present is not re-appended"
+        );
+        assert_eq!(
+            evidence_after_second
+                .matches("docs/corpus/compat-matrix-20261110.md (this run)")
+                .count(),
+            1
+        );
+        // The flip itself did land (the no-op is evidence-only).
+        assert!(
+            after_second.contains("linux = \"blocked\""),
+            "the second flip applied: status is blocked"
         );
         std::fs::remove_dir_all(&root).ok();
     }
