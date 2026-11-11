@@ -105,6 +105,71 @@ pub fn assert_err<T, E>(result: Result<T, E>, context: &str) -> E {
 }
 
 // ---------------------------------------------------------------------------
+// External-oracle presence (W25 CI repair)
+// ---------------------------------------------------------------------------
+
+/// True when BOTH `ffmpeg` and `ffprobe` are on `PATH`.
+///
+/// The differential suites (doc 04 corpus plan; D-5 "escape the echo
+/// chamber" + D-11 "ffprobe/ffmpeg as the external oracle") compare
+/// Lumen against the system ffmpeg. The standing posture —
+/// `scripts/oracle_check.sh` header — is that neither the local gate
+/// nor CI may HARD-require ffmpeg: tests that need the oracle skip
+/// loudly when it is absent instead of panicking on a failed spawn
+/// (`testkit must(): No such file or directory`, the W25 CI failure).
+///
+/// `LUMEN_REQUIRE_ORACLE=1` inverts the posture for local strictness:
+/// presence checks then FAIL the test instead of skipping, so a
+/// developer who believes the oracle is installed finds out loudly.
+pub fn oracle_available() -> bool {
+    if std::env::var_os("LUMEN_REQUIRE_ORACLE").is_some_and(|v| v == "1") {
+        assert!(
+            on_path("ffmpeg") && on_path("ffprobe"),
+            "LUMEN_REQUIRE_ORACLE=1 but ffmpeg/ffprobe are not on PATH"
+        );
+    }
+    on_path("ffmpeg") && on_path("ffprobe")
+}
+
+/// Emit the standard skip notice and return from the calling test.
+///
+/// Usage — first lines of an oracle-dependent test:
+/// ```text
+/// if !testkit::oracle_available() {
+///     testkit::skip_no_oracle("mkv fixture differential");
+///     return;
+/// }
+/// ```
+pub fn skip_no_oracle(what: &str) {
+    eprintln!(
+        "oracle: ffmpeg/ffprobe not on PATH — skipping {what} \
+         (install ffmpeg, or set LUMEN_REQUIRE_ORACLE=1 to make absence a failure)"
+    );
+}
+
+fn on_path(program: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| path_has(&dir, program))
+}
+
+/// Does `dir` contain an executable-looking `program`? Pure and
+/// unit-testable (no env mutation — edition 2024 makes that unsafe
+/// and the workspace forbids unsafe code).
+#[cfg(target_family = "windows")]
+fn path_has(dir: &Path, program: &str) -> bool {
+    [dir.join(format!("{program}.exe")), dir.join(program)]
+        .into_iter()
+        .any(|p| p.is_file())
+}
+
+#[cfg(not(target_family = "windows"))]
+fn path_has(dir: &Path, program: &str) -> bool {
+    dir.join(program).is_file()
+}
+
+// ---------------------------------------------------------------------------
 // Fixture-path helpers
 // ---------------------------------------------------------------------------
 
@@ -412,6 +477,25 @@ mod tests {
         let divergent = EvidenceRecord::new("1.C0-wiring", HardwareClass::Mock)
             .claim("testkit.evidence.changed", "unit test");
         assert!(divergent.write_to(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The oracle-presence probe must be a plain PATH scan: a directory
+    /// containing an `ffmpeg` file reports present, an empty one does
+    /// not (the W25 CI-runner condition the helper exists for). No env
+    /// mutation — edition 2024 makes that unsafe and the workspace
+    /// forbids unsafe code.
+    #[test]
+    fn oracle_path_scan_finds_programs_only_where_they_exist() {
+        let dir = std::env::temp_dir().join(format!("lumen-testkit-path-{}", std::process::id())); // lumen-allow-literal: cfg(test) scratch dir — test-only
+        std::fs::create_dir_all(&dir).must();
+        let ffmpeg = dir.join("ffmpeg");
+        std::fs::write(&ffmpeg, b"#!/bin/sh\n").must();
+        assert!(path_has(&dir, "ffmpeg"), "file present -> found");
+        assert!(!path_has(&dir, "ffprobe"), "no file -> not found");
+        let empty = dir.join("empty");
+        std::fs::create_dir_all(&empty).must();
+        assert!(!path_has(&empty, "ffmpeg"), "empty dir -> not found");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

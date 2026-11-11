@@ -25,6 +25,7 @@ use demux::mkv::MkvDemuxer;
 use media_types::time::Stamp;
 use plugin_api::{DemuxEvent, Demuxer};
 use testkit::Must;
+use testkit::{oracle_available, skip_no_oracle};
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -113,6 +114,13 @@ fn walk_all(demuxer: &mut MkvDemuxer) -> (u64, Vec<(u64, u64)>) {
 
 #[test]
 fn valid_fixtures_match_ffprobe_packet_counts() {
+    // The live-ffprobe oracle: skip loudly when absent (the W25 CI
+    // failure — a fresh runner has no ffmpeg; LUMEN_REQUIRE_ORACLE=1
+    // makes absence a hard failure for local strictness).
+    if !oracle_available() {
+        skip_no_oracle("mkv fixture packet-count differential");
+        return;
+    }
     for (name, kinds) in [
         ("mkv_h264_aac.mkv", 2usize),
         ("mkv_h264_flac.mkv", 2),
@@ -138,6 +146,10 @@ fn valid_fixtures_match_ffprobe_packet_counts() {
 
 #[test]
 fn audio_payload_is_bit_exact_vs_ffmpeg() {
+    if !oracle_available() {
+        skip_no_oracle("mkv audio payload bit-exact differential");
+        return;
+    }
     for name in [
         "mkv_h264_aac.mkv",
         "mkv_h264_flac.mkv",

@@ -1957,7 +1957,12 @@ mod tests {
     use super::*;
     use commands::catalog::types::SourceSpec;
     use commands::envelope::RequestId;
-    use testkit::{Must, assert_err, fixture_bytes};
+    use testkit::{Must, fixture_bytes};
+    // Gated like its only consumer (the decoder-less wasm refusal
+    // test): under --all-features the import would be unused and
+    // -D unused-imports fails the gate.
+    #[cfg(not(feature = "builtin-codecs"))]
+    use testkit::assert_err;
 
     fn request(command: Command) -> WireRequest {
         WireRequest {

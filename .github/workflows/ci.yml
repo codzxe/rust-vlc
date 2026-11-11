@@ -210,6 +210,14 @@ jobs:
       # --- scripts/full_gate.sh steps 2-6, verbatim -------------------------
       # `if: always()` = the gate script's keep-going aggregation: every step
       # runs and reports, the job fails if any of them failed.
+      - name: Install the ffmpeg external oracle (D-5/D-11 differential suites)
+        # The mkv/asf/dnx/av1/... differential tests skip loudly when
+        # ffmpeg is absent (testkit::oracle_available, W25) — installing
+        # it on the runner makes them actually RUN here (the whole point
+        # of the external oracle: production code Lumen shares nothing
+        # with). The gate still never HARD-requires it.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: "2. clippy (full_gate.sh #2)"
         if: always()
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -638,10 +646,10 @@ jobs:
           # Budget ceilings come from product.toml [web.size_budgets] (validated
           # by product.schema.json); the gate re-measures via real cargo build
           # and fails on breach or >5% growth. No budget literal lives here.
-          # (`--locked` belongs to cargo, before the subcommand — after
-          # `--check` it would be forwarded to the xtask binary, which
-          # rejects it; W25 CI fix.)
-          cargo xtask --locked web-budget --check
+          # `cargo xtask` is an alias expanding to `run -p xtask --`, so any
+          # flag after it reaches the BINARY; --locked must go through plain
+          # cargo run before the `--` separator (W25 CI fix, second attempt).
+          cargo run -p xtask --locked -- web-budget --check
       - name: Upload wasm size-report evidence (doc 10 §4.5 - evidence-<job>-<os>-<run_id>)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
