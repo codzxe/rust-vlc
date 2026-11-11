@@ -16,6 +16,12 @@
 # environment section; the gate checks their budgets but does not
 # rebuild them).
 #
+# THE REBUILD CONTRACT: every `rebuild = true` row carries its build
+# spec machine-readably — `package` (the cargo package) +
+# `cargo_features` (the --features list; [] = the decoder-less floor) —
+# so the gate never hardcodes a build shape. A rebuild row without
+# both keys is a parse error, loudly.
+#
 # BUDGETS live in config, not here and not in the gate's code:
 # product.toml [web.size_budgets] (doc 09 §2.4; validated by
 # product.schema.json). Each row names its budget class; the gate maps
@@ -41,6 +47,8 @@ name = "floor"
 features = "none (the shipped decoder-less module)"
 budget_class = "phase2-vertical"
 rebuild = true
+package = "lumen-web"
+cargo_features = []
 measured_by = "cargo xtask web-budget"
 raw_bytes = 1294311
 gzip_bytes = 300250
