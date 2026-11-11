@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Toggle (doc 08 §4.5: role=switch) > DOM snapshot (on and off) > toggle-off 1`] = `
+<button
+  aria-checked="false"
+  class="lumen-toggle"
+  role="switch"
+  type="button"
+>
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__fill"
+  >
+    <span
+      class="lumen-toggle__label lumen-toggle__label--on"
+    >
+      ON
+    </span>
+  </span>
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__knob"
+  />
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__label lumen-toggle__label--off"
+  >
+    OFF
+  </span>
+</button>
+`;
+
+exports[`Toggle (doc 08 §4.5: role=switch) > DOM snapshot (on and off) > toggle-on 1`] = `
+<button
+  aria-checked="true"
+  class="lumen-toggle"
+  role="switch"
+  type="button"
+>
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__fill"
+  >
+    <span
+      class="lumen-toggle__label lumen-toggle__label--on"
+    >
+      ON
+    </span>
+  </span>
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__knob"
+  />
+  <span
+    aria-hidden="true"
+    class="lumen-toggle__label lumen-toggle__label--off"
+  >
+    OFF
+  </span>
+</button>
+`;

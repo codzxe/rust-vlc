@@ -70,8 +70,9 @@
 //!   crates): no L5 crate exists yet; the lint-inheritance check plus the
 //!   root `deny(unsafe_code)` is the v1 posture. Add when `platform-*`
 //!   lands.
-//! * The TOML subset rejects multi-line arrays/inline tables and dotted
-//!   keys — loudly, with file:line, never silently.
+//! * The TOML subset rejects multi-line inline tables and dotted keys —
+//!   loudly, with file:line, never silently. Multi-line ARRAYS parse
+//!   (W25 CI-repair: member manifests ship them).
 //! * Dependency renames (`foo = { package = "bar" }`) are keyed by the local
 //!   name `foo`, matching what the manifest advertises.
 //!
@@ -275,10 +276,13 @@ impl TomlError {
 /// Parse `text` (the contents of a TOML file) into the subset.
 ///
 /// Supported: `[a.b.c]` headers (bare and quoted segments), `[[array]]`
-/// headers, `key = value` with string / integer / boolean / single-line
-/// string-array / opaque values, `#` comments, trailing comments. Rejected
-/// loudly: duplicate plain tables, duplicate keys, dotted keys, multi-line
-/// arrays/inline tables, unterminated strings, unsupported escapes.
+/// headers, `key = value` with string / integer / boolean / single- or
+/// multi-line string-array / opaque values, `#` comments, trailing
+/// comments. Rejected loudly: duplicate plain tables, duplicate keys,
+/// dotted keys, multi-line inline tables, unterminated strings or
+/// arrays, unsupported escapes. (Multi-line arrays became supported in
+/// the W25 CI-repair pass — the codecs/web tree-shake lane landed them
+/// in member manifests and the reader had to follow reality.)
 fn parse_toml(text: &str) -> Result<TomlDoc, TomlError> {
     let chars: Vec<char> = {
         let mut c = text.chars().collect::<Vec<char>>();
@@ -615,17 +619,18 @@ impl Parser {
         }
     }
 
-    /// Parse a single-line array. String arrays are interpreted; any other
-    /// element shape degrades the whole array to an opaque value.
+    /// Parse a string array. Single- or multi-line: newlines and whole-line
+    /// comments between elements are skipped (TOML 1.0 allows them). Any
+    /// non-string element shape degrades the whole array to an opaque value.
     fn parse_array(&mut self) -> Result<TValue, TomlError> {
         let start = self.pos;
         self.bump(); // '['
         let mut items: Vec<String> = Vec::new();
         loop {
-            self.skip_inline_ws();
+            self.skip_blank()?; // spans newlines + comments inside the array
             match self.peek() {
-                None | Some('\n') => {
-                    return Err(self.error("multi-line arrays are not supported by this reader"));
+                None => {
+                    return Err(self.error("unterminated array"));
                 }
                 Some(']') => {
                     self.bump();
@@ -648,14 +653,20 @@ impl Parser {
     }
 
     /// Consume an array of unknown element shapes as an opaque value.
+    /// Newlines inside the brackets are preserved in the opaque text
+    /// (multi-line arrays, W25); EOF before the closing bracket errors.
     fn parse_opaque_array(&mut self) -> Result<TValue, TomlError> {
         self.bump(); // '['
         let mut depth = 1usize;
         let mut out = String::from("[");
         while depth > 0 {
             match self.peek() {
-                None | Some('\n') => {
-                    return Err(self.error("multi-line arrays are not supported by this reader"));
+                None => {
+                    return Err(self.error("unterminated array"));
+                }
+                Some('\n') => {
+                    out.push('\n');
+                    self.bump();
                 }
                 Some('[') => {
                     depth += 1;
@@ -2250,10 +2261,25 @@ unsafe_code = \"deny\"
     }
 
     #[test]
-    fn toml_rejects_multiline_arrays_dotted_keys_and_bad_escapes() {
-        match parse_toml("[a]\nx = [\"one\",\n \"two\"]\n") {
-            Ok(_) => unreachable!("multi-line array must fail"),
-            Err(e) => assert!(e.message.contains("multi-line arrays"), "{}", e.message),
+    fn toml_accepts_multiline_arrays_and_rejects_dotted_keys_and_bad_escapes() {
+        // Multi-line string arrays PARSE since the W25 CI-repair pass
+        // (the codecs/web tree-shake lane ships them in member
+        // manifests): elements may span lines, with comments between.
+        let doc = match parse_toml("[a]\nx = [\"one\",\n # a comment\n \"two\",\n]\n") {
+            Ok(doc) => doc,
+            Err(e) => unreachable!("multi-line array must parse: {}", e.message),
+        };
+        assert_eq!(
+            doc.get(&["a"], "x"),
+            Some(&TValue::StrArray(vec![
+                "one".to_string(),
+                "two".to_string()
+            ]))
+        );
+        // An unterminated array still fails loudly.
+        match parse_toml("[a]\nx = [\"one\",\n \"two\"\n") {
+            Ok(_) => unreachable!("unterminated array must fail"),
+            Err(e) => assert!(e.message.contains("unterminated array"), "{}", e.message),
         }
         match parse_toml("[a]\nx.y = 1\n") {
             Ok(_) => unreachable!("dotted key must fail"),

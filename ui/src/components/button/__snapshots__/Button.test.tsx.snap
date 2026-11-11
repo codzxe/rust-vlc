@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Button > DOM snapshot 1`] = `
+<button
+  class="lumen-button lumen-button--primary lumen-button--sm"
+  type="button"
+>
+  Snapshot me
+</button>
+`;

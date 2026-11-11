@@ -1,0 +1,19 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`IconButton > DOM snapshot 1`] = `
+<button
+  aria-label="Snapshot"
+  class="lumen-icon-button"
+  type="button"
+>
+  <svg
+    aria-hidden="true"
+    data-testid="glyph"
+    viewBox="0 0 24 24"
+  >
+    <path
+      d="M8 5v14l11-7z"
+    />
+  </svg>
+</button>
+`;

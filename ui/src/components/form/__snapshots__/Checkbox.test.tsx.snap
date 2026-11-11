@@ -1,0 +1,19 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Checkbox > forwards the ref + DOM snapshot 1`] = `
+<span
+  class="lumen-choice lumen-choice--checkbox"
+>
+  <input
+    checked=""
+    class="lumen-choice__input"
+    id="_r_4_"
+    type="checkbox"
+  />
+  <label
+    for="_r_4_"
+  >
+    Snapshot
+  </label>
+</span>
+`;

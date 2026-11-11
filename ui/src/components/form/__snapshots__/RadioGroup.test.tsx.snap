@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
+<fieldset
+  aria-label="Theme"
+  class="lumen-radiogroup"
+  role="radiogroup"
+>
+  <div
+    class="lumen-radiogroup__options"
+  >
+    <span
+      class="lumen-choice"
+    >
+      <input
+        class="lumen-choice__input"
+        id="_r_7_-light"
+        name="_r_7_-radio"
+        tabindex="-1"
+        type="radio"
+        value="light"
+      />
+      <label
+        for="_r_7_-light"
+      >
+        Light
+      </label>
+    </span>
+    <span
+      class="lumen-choice"
+    >
+      <input
+        checked=""
+        class="lumen-choice__input"
+        id="_r_7_-dark"
+        name="_r_7_-radio"
+        tabindex="0"
+        type="radio"
+        value="dark"
+      />
+      <label
+        for="_r_7_-dark"
+      >
+        Dark
+      </label>
+    </span>
+    <span
+      class="lumen-choice"
+    >
+      <input
+        class="lumen-choice__input"
+        id="_r_7_-system"
+        name="_r_7_-radio"
+        tabindex="-1"
+        type="radio"
+        value="system"
+      />
+      <label
+        for="_r_7_-system"
+      >
+        System
+      </label>
+    </span>
+  </div>
+</fieldset>
+`;

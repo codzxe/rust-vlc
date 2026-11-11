@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TextField > forwards the ref + DOM snapshot 1`] = `
+<div
+  class="lumen-field"
+>
+  <label
+    class="lumen-field__label"
+    for="_r_5_"
+  >
+    Snapshot
+  </label>
+  <input
+    aria-describedby="_r_5_-error"
+    aria-invalid="true"
+    class="lumen-field__control"
+    id="_r_5_"
+    type="text"
+  />
+  <p
+    class="lumen-field__error"
+    id="_r_5_-error"
+  >
+    boom
+  </p>
+</div>
+`;

@@ -1957,7 +1957,7 @@ mod tests {
     use super::*;
     use commands::catalog::types::SourceSpec;
     use commands::envelope::RequestId;
-    use testkit::{Must, fixture_bytes};
+    use testkit::{Must, assert_err, fixture_bytes};
 
     fn request(command: Command) -> WireRequest {
         WireRequest {

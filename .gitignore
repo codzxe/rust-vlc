@@ -81,6 +81,11 @@ agent-ctx/
 *.rpm
 *.snap
 *.flatpak
+# UI vitest DOM snapshots ARE committed — they are the CI compare
+# baselines (W25 fix: the `*.snap` rule above targets Linux snap
+# *packages* and was silently excluding every test snapshot, so a
+# fresh checkout had none and CI vitest failed on all 8 files).
+!ui/src/**/__snapshots__/*.snap
 tool-results/
 
 # Rust workspace (task 1.A1): Cargo.lock is COMMITTED — application

@@ -800,9 +800,12 @@ jobs:
       - name: Dry-run summary (workflow_dispatch — no release was cut)
         if: github.ref_type != 'tag'
         run: |
-          echo "### Release dry-run (workflow_dispatch)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Built and checksummed the full artifact set; NO GitHub release was" >> "$GITHUB_STEP_SUMMARY"
-          echo "created (that step is tag-ref-gated). Notes preview:" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+          # Single grouped redirect (shellcheck SC2129; W25 actionlint fix).
+          {
+            echo "### Release dry-run (workflow_dispatch)"
+            echo ""
+            echo "Built and checksummed the full artifact set; NO GitHub release was"
+            echo "created (that step is tag-ref-gated). Notes preview:"
+            echo ""
+            cat notes.md
+          } >> "$GITHUB_STEP_SUMMARY"

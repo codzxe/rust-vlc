@@ -115,16 +115,10 @@ codec-dnx = ["builtin-codecs", "codecs/codec-dnx"]
 # wasm32-unknown-unknown (39 errors, measured 2026-11-10 — the honest
 # record lives in docs/web/size-report.md and the codecs crate's
 # feature table).
-builtin-codecs-external = [
-    "codec-aac",
-    "codec-alac",
-    "codec-dnx",
-    "codec-flac",
-    "codec-mp3",
-    "codec-opus",
-    "codec-vorbis",
-    "codec-vp9",
-]
+# Single-line array (the xtask TOML reader parses member manifests and
+# rejects multi-line arrays — same convention as the root Cargo.toml
+# members list; W25 fix for the CI check-architecture failure).
+builtin-codecs-external = ["codec-aac", "codec-alac", "codec-dnx", "codec-flac", "codec-mp3", "codec-opus", "codec-vorbis", "codec-vp9"]
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7 / ARCH-7): the `Must`

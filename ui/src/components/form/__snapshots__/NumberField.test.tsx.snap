@@ -1,0 +1,69 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`NumberField > DOM snapshot 1`] = `
+<div
+  class="lumen-field"
+>
+  <label
+    class="lumen-field__label"
+    for="_r_5_"
+  >
+    Snapshot
+  </label>
+  <div
+    class="lumen-number"
+  >
+    <input
+      class="lumen-field__control lumen-number__control"
+      id="_r_5_"
+      inputmode="numeric"
+      type="number"
+      value="3"
+    />
+    <span
+      class="lumen-number__steppers"
+    >
+      <button
+        aria-hidden="true"
+        class="lumen-number__stepper"
+        data-testid="stepper-up"
+        tabindex="-1"
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          height="10"
+          viewBox="0 0 10 10"
+          width="10"
+        >
+          <path
+            d="M5 1v8M1 5h8"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+        </svg>
+      </button>
+      <button
+        aria-hidden="true"
+        class="lumen-number__stepper"
+        data-testid="stepper-down"
+        tabindex="-1"
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          height="10"
+          viewBox="0 0 10 10"
+          width="10"
+        >
+          <path
+            d="M1 5h8"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+        </svg>
+      </button>
+    </span>
+  </div>
+</div>
+`;

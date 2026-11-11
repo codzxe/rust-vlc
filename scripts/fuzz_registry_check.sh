@@ -38,7 +38,11 @@ while IFS= read -r target; do
     fi
     crate="${call%%::*}"
     fn="${call##*::}"
-    if ! rg -q "fn $fn" "crates/$crate/src" 2>/dev/null; then
+    # grep, not rg: the CI runner image (ubuntu-26.04) does not ship
+    # ripgrep, and the old `rg ... 2>/dev/null` hid the "command not
+    # found" behind the redirect, failing every probe (W25 CI fix).
+    # Plain grep -r is POSIX-portable and present everywhere we run.
+    if ! grep -rq "fn $fn" "crates/$crate/src"; then
         say "REGISTRY-GATE: $target: harness fn $fn not found in crates/$crate/src"
         harness_missing=1
     fi
