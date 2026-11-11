@@ -672,7 +672,14 @@ phase_target = 5
 vlc_modules = ["faad"]
 inventory_ref = "inventory/formats.json#aac-lc"
 status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
-evidence = "crates/codecs/src/audio/aac/** (cards 5.C2a+5.C2b; record docs/formats/audio-aac.md, 5.REC-2: 6-row 1-LSB table, 0094 6ch typed partial, dirty-lane 350-vs-351 divergence); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
+# Post-apply edit 2026-11-10 (W24-P r3, IN-8 / R10-1): the 20:07:51Z apply
+# appended this run's citation TWICE — the outbox coalesced two aac-lc
+# findings (concealed packets + a refused track) and each cited the same
+# report, and the applier appended per proposal, not per artifact. The
+# duplicate segment was removed by hand (the tool only appends); the
+# applier now dedupes identical citations (W24-P commit b5aff90), so a
+# re-apply of the same outbox is byte-stable. Statuses and notes untouched.
+evidence = "crates/codecs/src/audio/aac/** (cards 5.C2a+5.C2b; record docs/formats/audio-aac.md, 5.REC-2: 6-row 1-LSB table, 0094 6ch typed partial, dirty-lane 350-vs-351 divergence); docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
 notes = "symphonia-codec-aac 0.6.1 + AdtsReader ships in-crate; ASC-in-esds demux glue = S (5.C2); HE-AAC is a separate blocked row. 5.Q2-V backfill: implemented for AAC-LC (5.REC-2); HE-AAC is the separate blocked row. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): 142 concealed (damaged) packets on VALID corpus files of codec `aac` — the decode is not clean | compat-matrix run (linux-native lane): 1 corpus tracks of codec `aac-lc` REFUSED (no decoder in this build) vs 4 decoded Next step: triage the concealment (bounded fix, no correctness trade); add the corpus file as a regression fixture; re-run | land the missing decoder lane (bounded fix) or split the row's claimed descriptor set; re-run the matrix"
 
 [[feature]]
