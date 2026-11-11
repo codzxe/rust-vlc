@@ -761,7 +761,7 @@ truthful reporting around them. Parallelism 2–4.
 
 | ID | Type | Scope & acceptance criteria | Owns | Consumes | Deps | Sz |
 |---|---|---|---|---|---|---|
-| 7.I1 | ver | Browser matrix + web conformance: run the doc 05 §7 command-layer suite in Chrome/Firefox/Safari incl. iOS constraints; per-browser results recorded against BCD-cited expectations (doc 09 §8); web feature-matrix column honesty pass (blocked/unsupported with reasons). AC: matrix report committed; no claim beyond evidence | `docs/web/browser-matrix.md`, matrix updates | 7.H2–7.H4 | 7.H2–7.H4 | M |
+| 7.I1 | ver | Browser matrix + web conformance: run the doc 05 §7 command-layer suite in Chrome/Firefox/Safari incl. iOS constraints; per-browser results recorded against BCD-cited expectations (doc 09 §8); web feature-matrix column honesty pass (blocked/unsupported with reasons). AC: matrix report committed; no claim beyond evidence | `docs/web/browser-matrix-20261110.{md,json}` (delivered 2026-11-10 on w24/a; plan name drift corrected per W24-R9 IN-6/S), matrix updates | 7.H2–7.H4 | 7.H2–7.H4 | M |
 
 ### Wave 7.J — Control server
 
