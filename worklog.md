@@ -1442,3 +1442,18 @@ Lane A close-out (rounds r1–r16, Lead-finished). Deliverables on `w24/a`:
 - Web-column honesty pass: docs/web/web-column-pass-20261110.md (252 rows, zero unexplained cells).
 - Review findings fixed en route: R8 P2-1/P2-2 + all five P3s; R11 P1 (false not-re-runnable claim — matrix re-executed on the final tree) + P3s (stale comment, dirty-tree flag, derived line count).
 Known-open on this lane: none. Cross-lane: the 4 known-failing workspace tests (rebrand ×2, gate_dry_run target-path, settings seed pins) are fixed on lane g / merge — verified at wave close on the integrated tree.
+
+---
+Task ID: w26.a
+Agent: Lead (wave-26 orchestration)
+Task: Wave A — foundation, components, player, onboarding (20 lanes, relaunch-heavy)
+
+Work Log:
+- State at start: W25 spec committed but redesign unimplemented; Solstice skin live; UI builds clean; 849 tests green.
+- Wrote the wave-26 contract (docs/waves/w26/CONTRACT.md): mission flow, design language, per-surface frame map, parallel-work hard rules (file ownership, frozen APIs, i18n keys pattern, no-git/no-install), comparison loop, quality bar. Program: docs/waves/w26/PROGRAM.md (13 waves x 20 agents = 260).
+- Wave A ran with three sandbox recycles/server-saturation rounds; the Lead salvaged interrupted lanes' on-disk work each time (salvage commits 5e5f5b0, 4ae6d8e) and fixed cross-lane type/test breaks directly (SwatchGroup readonly+disabled, AppShell callback void, tokens test chaining, onboarding NumberField value coercion, CustomizePanels Icon guard, player sr-only h1 contract resolving the a11/a13 heading conflict).
+- Lanes delivered: tokens re-pinned to W25 spec (orange default, Inter, eq band accents, Solstice groups removed); lumen.css replaces solstice.css (backdrop tiers dead); button/slider/menu/form/icon/surface/list families restyled to Figma grammar (frozen APIs kept); appshell (title bar + rail + sidebar); app flow gate (?onboarding=1 bypass); onboarding 11-frame rebuild; player core (single-sidebar composition, hero empty state, picture-frame canvas), control bar single-row anatomy (30 tests re-anchored), states (hide-UI fade), variants (music + miniplayer), customize 9-state, dialogs + ToolsDialogShell for wave-c; two analysis docs (menus-control-parts 641 lines, tools-settings 725 lines with the 13-area mapping: 0 EXISTS / 10 NEEDS-MERGE / 4 NEW).
+- Vision loop executed per lane (MATCH verdicts for canvas-hero, loading, bookmarks, button, list rows; documented residues: scrim alpha, 15px font token, #969696/#1B1B1B primitives).
+
+Stage Summary:
+- Wave A merged at 0d81605: tsc clean, 894/894 vitest green, stylelint/eslint clean per lane, zero console errors on core routes, all Solstice remnants removed from component + player layers. Residuals owned downstream: settings/playlist/working screens (wave B), audio/video tools + menus-in-screens (wave C), i18n keys registration (b19), 13px/15px font tokens (b20), scrim visibility (wave C fixer).
