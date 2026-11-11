@@ -1,116 +1,190 @@
-/* /open-network-stream — Solstice v2 (2026-11-09): an APP-tier screen on the
- * calm backdrop (brief §1/§2.5/§2.6):
- *   * a centered anchored column (~560px — a form, not a poster), optically
- *     centered vertically via one auto-margin group (symmetric breathing
- *     room; the group stays fully reachable when it outgrows the viewport);
- *   * the form card is a structured opaque-ish panel (no note tilt, no tape
- *     straddling the top edge — v2 audit defect);
- *   * the Open action is a STANDARD primary button in a right-aligned
- *     action row (never a full-width slab out of proportion);
- *   * the recent list rides a quiet glass panel; its heading and empty
- *     state use SECONDARY ink (AA ≥ 4.5:1 on the dark surface — the old
- *     tertiary-on-gradient pair measured ≈3:1, a v2 audit defect).
- * Semantic tokens only. */
+/* /open-network-stream — W26 Figma redesign (w26.b15).
+ *
+ * Frame: design/figma/Open network stream.svg (1048×631 rx14 #191919 window
+ * at 95% on the shared scrim), ported 1:1 at the frame's own scale. The
+ * window chrome lives in the surface primitive (.lumen-dialog: panel fill +
+ * 1px stroke-border + --radius-window r14 + --shadow-overlay); this sheet
+ * owns ONLY the dialog's inner anatomy (header strip, sections, wells,
+ * divider, footer), mirroring the grammar the player-dialogs lane (w26.a18)
+ * extracted from this same frame family.
+ *
+ * Semantic tokens only (contract §4); raw px appears solely for
+ * frame-measured structural dimensions with no token — each carries a
+ * `frame:` comment (same convention as the a03/a06/a08/a18 lanes).
+ *
+ * Solstice v2 is GONE: no calm-backdrop tier, no glass panels, no display
+ * type, no uppercase recents heading, no tape-edge scrollbar. */
+
+/* ---- Surface — the 1048px dialog column, gutters on the inner strips ---- */
+
+.lumen-dialog.network-stream-dialog {
+  width: min(92vw, 1048px); /* frame: the 1048px dialog window */
+  max-width: min(92vw, 1048px);
+  padding: 0; /* gutters live on header/body/footer so the divider bleeds */
+  overflow: hidden; /* header + footer pin while the body scrolls */
+}
 
 .network-stream {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-tape-edge) transparent;
+  min-width: 0;
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
 }
 
-/* The centered composition group (v2 §2.5): auto block margins center it
- * vertically on tall viewports AND keep the top reachable when it grows
- * past the viewport (auto margins collapse to 0 before overflow clips —
- * safer than justify-content: center in a scroll container). */
-.network-stream__group {
+/* ---- Header — frame strip: 50px #090909, no hairline (fill step only) ---- */
+
+.network-stream__head {
   display: flex;
-  flex-direction: column;
-  gap: calc(var(--space-inset) * 3);
-  width: min(560px, 100%);
-  box-sizing: border-box;
-  margin-block: auto;
-}
-
-.network-stream__card {
-  width: 100%;
-  box-sizing: border-box;
-  padding: calc(var(--space-inset) * 3);
-  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
-  border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-card-lg);
-  box-shadow: var(--shadow-card);
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  height: 50px; /* frame: 0–50px strip */
+  padding: 0 20px; /* frame: title 21px left, ✕ 20px off the right edge */
+  background: var(--color-surface);
 }
 
 .network-stream__title {
-  margin: 0 0 var(--space-grid);
-  font-size: var(--font-size-display);
-  line-height: 1.1;
-  font-weight: var(--font-weight-extrabold);
-  color: var(--color-content-bright);
-}
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-.network-stream__subtitle {
-  margin: 0 0 calc(var(--space-inset) * 2);
-  font-size: var(--font-size-body);
+  /* frame: dialog titles measure 15px semibold; no 15px size token yet
+   * ([PROPOSAL] --font-size-heading, same seam the a18 lane logged) */
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+
+  /* frame: the title is the quiet #8F8F8F class */
   color: var(--color-content-secondary);
 }
+
+.network-stream__close {
+  flex: none;
+}
+
+/* ---- Form body — the scrollable middle ---- */
 
 .network-stream__form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-inset);
-  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.network-stream__form .lumen-field__control {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Standard-size action row: the primary Open + the secondary Back sit
- * end-aligned (baseline rhythm, one button language — v2 §2.6). */
-.network-stream__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-grid);
-  flex-wrap: wrap;
-}
-
-.network-stream__recents {
-  width: 100%;
-  box-sizing: border-box;
+.network-stream__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
-  padding: calc(var(--space-inset) * 1.5);
-  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
-  border-radius: var(--radius-card);
-  backdrop-filter: blur(var(--blur-backdrop-small));
-  box-shadow: var(--shadow-card);
+  gap: 20px; /* frame: section rhythm ≈ 20px (divider offsets) */
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px; /* frame: inputs sit 20–21px off the panel edges */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stroke-border) transparent;
+}
+
+/* ---- Sections — label + helper ride above the control (frame 324/325) ---- */
+
+.network-stream__section {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) + var(--space-grid)); /* frame: ≈12px */
+}
+
+.network-stream__label {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary); /* frame: #C6C6C6 */
+}
+
+.network-stream__optional {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-content-tertiary); /* frame: "(optional)" #6B6B6B */
+}
+
+.network-stream__hint {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary); /* frame: helper copy #6B6B6B */
+}
+
+.network-stream__error {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-record);
+}
+
+/* ---- Inputs — the frame's recessed wells (#090909 on #191919, hairline).
+ * The shared control keeps geometry + focus-orange grammar; this skin
+ * corrects fill and border to the frame (same correction as the
+ * create-playlist dialog, new playlist.svg class). ---- */
+
+.network-stream .lumen-field__control,
+.network-stream .lumen-field__control:hover,
+.network-stream .lumen-field__control:active {
+  background-color: var(--color-surface);
+}
+
+.network-stream .lumen-field__control:hover {
+  border-color: var(--color-content-tertiary);
+}
+
+.network-stream .lumen-field__control:focus {
+  border-color: var(--color-accent); /* focus orange (shared grammar) */
+}
+
+.network-stream .lumen-field__control[aria-invalid="true"] {
+  border-color: var(--color-record);
+}
+
+/* URL textarea — frame: 1006×192 rx5 well, placeholder 17px left / 20px top. */
+.network-stream__urls {
+  height: auto;
+  min-height: 192px; /* frame: the multi-link textarea pitch */
+  padding: calc(var(--space-inset) * 2.5) calc(var(--space-inset) * 2);
+  line-height: 1.5;
+  resize: none;
+}
+
+/* Playlist name — frame: 1006×35 single-line well (shared 34px control). */
+.network-stream__name {
+  width: 100%;
+}
+
+/* ---- Divider — frame: the full-bleed 1px rule at y=364 (x20→x1028) ---- */
+
+.network-stream__rule {
+  flex: none;
+  margin-inline: -20px; /* bleed past the body gutters to the panel edges */
+}
+
+/* ---- Recent streams — persisted live history (no frame counterpart);
+ * quiet rows on the panel, r6 hover band (menu-row grammar). ---- */
+
+.network-stream__recents {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 1.5);
+  margin-top: calc(var(--space-grid) * 2);
 }
 
 .network-stream__recents-title {
   margin: 0;
   font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-
-  /* secondary ink — AA on the panel (the old tertiary pair was ≈3:1) */
+  font-weight: var(--font-weight-medium);
   color: var(--color-content-secondary);
 }
 
 .network-stream__recents-empty {
   margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
 }
 
 .network-stream__recents-list {
@@ -123,13 +197,16 @@
 }
 
 .network-stream__recent {
-  padding: var(--space-grid) var(--space-inset);
-  font-family: var(--font-family-time);
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px var(--space-inset);
+  font-family: var(--font-family-sans);
   font-size: var(--font-size-caption);
   text-align: start;
   color: var(--color-content-secondary);
-  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
-  border: 1px solid var(--color-stroke-border);
+  background: none;
+  border: none;
   border-radius: var(--radius-control);
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -145,14 +222,19 @@
   outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .network-stream__recent {
-    transition: none;
-  }
+/* ---- Footer — frame Frame 225: Cancel left, Open right, 100×32 r6, on the
+ * panel fill (no strip, no hairline; the button primitives carry the exact
+ * fills — default #1B1B1B-class, tinted #371F06-class + accent ink). ---- */
+
+.network-stream__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  padding: var(--space-inset) 20px 20px; /* frame: 20px side/bottom inset */
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .network-stream__recent {
-    transition: background-color var(--motion-duration-fast) ease-out;
-  }
+.network-stream__actions .lumen-button {
+  min-width: 100px; /* frame: both footer actions measure 100×32 r6 */
 }

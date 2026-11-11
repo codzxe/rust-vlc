@@ -1,17 +1,21 @@
-// /open-network-stream tests (Solstice v2 craft pass) — pins the audit fixes:
-//   * calm backdrop while mounted, cleaned up on unmount (brief §1);
-//   * the URL form validates (http/https only) and submits on Enter through
-//     `session.open`, then routes to /player (the demo-transport flow);
-//   * a secondary "Back to player" affordance always exits to /player;
+// /open-network-stream tests (W26 Figma rebuild, w26.b15) — pins:
+//   * dialog semantics: role=dialog named by the header title, focus trap,
+//     Escape + scrim + ✕ + Cancel all exit to /player without opening;
+//   * the frame anatomy: Network URL textarea (label + helper + placeholder),
+//     Playlist Name (optional) input, footer Cancel + Open actions;
+//   * the URL contract (http/https only, honest error, nothing sent) and the
+//     open wiring (`session.open` with the url source, then /player);
 //   * recent streams persist to localStorage and refill the field;
-//   * the Open action is a standard-size primary button in an action row
-//     (class hook, not a full-width slab).
+//   * a named open records a LOCAL saved playlist (the frame helper copy
+//     "The playlist will be saved and displayed with this title" made real
+//     through the b09 playlistsStore seam).
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import type { CommandRequest, CommandResponse, CommandTransport } from "../../client/transport";
+import { resetPlaylistsForTests } from "../playlist/playlistsStore";
 import { NetworkStreamScreen, isValidNetworkUrl } from "./NetworkStreamScreen";
 
 class SpyTransport implements CommandTransport {
@@ -52,28 +56,39 @@ describe("isValidNetworkUrl (pure)", () => {
 describe("NetworkStreamScreen (/open-network-stream)", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    resetPlaylistsForTests();
   });
 
   afterEach(() => {
     window.localStorage.clear();
-    delete document.documentElement.dataset.backdrop;
+    resetPlaylistsForTests();
   });
 
-  it("veils the backdrop to calm while mounted and cleans up on unmount (v2 §1)", () => {
-    const { view } = renderScreen();
-    expect(document.documentElement.dataset.backdrop).toBe("calm");
-    view.unmount();
-    expect(document.documentElement.dataset.backdrop).toBeUndefined();
-  });
-
-  it("renders the anchored form: label, field, standard primary Open, secondary Back", () => {
+  it("renders the frame anatomy: titled dialog, ✕ close, URL + playlist fields, footer actions", () => {
     renderScreen();
+    expect(screen.getByRole("dialog", { name: "Open network stream" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.getByLabelText("Network URL")).toBeInTheDocument();
+    expect(screen.getByLabelText("Playlist Name (optional)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open stream" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to player" })).toBeInTheDocument();
-    // standard-size action row (not a stretched slab)
+    // standard footer action row (Cancel left, Open right)
     expect(document.querySelector(".network-stream__actions")).not.toBeNull();
     expect(screen.getByTestId("network-stream-card")).not.toBeNull();
+  });
+
+  it("Escape closes the dialog and exits to /player without opening anything", () => {
+    const { transport } = renderScreen();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByTestId("player-route")).toBeInTheDocument();
+    expect(transport.sent.length).toBe(0);
+  });
+
+  it("a scrim click closes the dialog and exits to /player without opening anything", () => {
+    const { transport } = renderScreen();
+    fireEvent.click(screen.getByRole("dialog").parentElement!);
+    expect(screen.getByTestId("player-route")).toBeInTheDocument();
+    expect(transport.sent.length).toBe(0);
   });
 
   it("rejects an invalid URL with the honest error and sends nothing", () => {
@@ -84,7 +99,7 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
     expect(transport.sent.some((r) => r.cmd === "session.open")).toBe(false);
   });
 
-  it("submits on Enter: session.open with the url source, then routes to /player", async () => {
+  it("submits: session.open with the url source, then routes to /player", async () => {
     const { transport } = renderScreen();
     const field = screen.getByLabelText("Network URL");
     fireEvent.change(field, { target: { value: "https://example.com/live.m3u8" } });
@@ -100,9 +115,30 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
     ]);
   });
 
-  it("Back to player exits to /player without opening anything", () => {
+  it("records a named open into the local playlist library (the helper copy made real)", async () => {
     const { transport } = renderScreen();
-    fireEvent.click(screen.getByRole("button", { name: "Back to player" }));
+    fireEvent.change(screen.getByLabelText("Network URL"), {
+      target: { value: "https://example.com/live.m3u8" },
+    });
+    fireEvent.change(screen.getByLabelText("Playlist Name (optional)"), {
+      target: { value: "Favorite TV Channels" },
+    });
+    fireEvent.submit(screen.getByLabelText("Network URL").closest("form")!);
+    await waitFor(() => expect(screen.getByTestId("player-route")).toBeInTheDocument());
+    const saved = JSON.parse(
+      window.localStorage.getItem("lumen.playlists.v1")!,
+    ) as { playlists: { title: string; itemNames: string[] }[] };
+    expect(
+      saved.playlists.some(
+        (p) => p.title === "Favorite TV Channels" && p.itemNames.includes("https://example.com/live.m3u8"),
+      ),
+    ).toBe(true);
+    expect(transport.sent.some((r) => r.cmd === "session.open")).toBe(true);
+  });
+
+  it("Cancel exits to /player without opening anything", () => {
+    const { transport } = renderScreen();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByTestId("player-route")).toBeInTheDocument();
     expect(transport.sent.length).toBe(0);
   });
@@ -116,7 +152,7 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
     expect(screen.getByText("https://a.example/1")).toBeInTheDocument();
     expect(screen.getByText("https://b.example/2")).toBeInTheDocument();
     fireEvent.click(screen.getByText("https://b.example/2"));
-    expect((screen.getByLabelText("Network URL") as HTMLInputElement).value).toBe("https://b.example/2");
+    expect((screen.getByLabelText("Network URL") as HTMLTextAreaElement).value).toBe("https://b.example/2");
   });
 
   it("shows the honest empty recents state", () => {

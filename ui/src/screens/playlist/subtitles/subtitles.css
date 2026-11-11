@@ -1,0 +1,395 @@
+/* w26.b11 — playlist subtitle flows (design/figma: "Add Subtitles to
+ * Playlist/Folder*.svg" 1048×800 full-window overlays, "subtitle one.svg" /
+ * "subtitle multiple.svg" 36px row fragments, "sub filename.svg" dropdown).
+ *
+ * Grammar: the full-window rx14 overlay (#0E0E0E @95% — surface-deep over
+ * --opacity-panel) carries a #090909 header band (96px, the window's r14
+ * top corners), 34px r6 #151515 control pills (surface-muted) with #969696
+ * labels, 36px r6 #090909 selected candidate rows, 40px transparent pair
+ * rows with Ø1 dotted leaders, and the 100×32 r6 footer pair (Cancel
+ * #1B1B1B = Button default, Save #371F06 = Button tinted).
+ *
+ * Semantic tokens ONLY; raw px appears solely for frame-measured structural
+ * dimensions (band height, pill height, row pitch, dot pitch) and each
+ * carries its frame citation. Frame-vs-token deltas logged in the lane log:
+ *   Folder.svg pill/row label #969696 → --color-content-secondary (#8F8F8F)
+ *   Folder.svg leader dots #373737 → --color-stroke-border (#404040)
+ */
+
+/* ---------------------------------------------------- window overlay ---- */
+
+/* The Folder overlays ARE the window: 1048×800 rx14 #0E0E0E@0.95 with the
+ * frame's drop shadow (defs filter dy8/blur7.5/46% → --shadow-overlay),
+ * floating on the scrim — capped at the frame size so every internal
+ * proportion (pill widths, leader spans, the 479px subtitle column) stays
+ * frame-exact on larger viewports, and shrinking gracefully (internal
+ * scroll) on smaller ones. */
+.lumen-dialog.lumen-plsubs {
+  width: min(1048px, 100%); /* frame: Folder.svg window width */
+  height: min(800px, 100%); /* frame: Folder.svg window height */
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  box-shadow: var(--shadow-overlay); /* frame: overlay drop shadow */
+  border-radius: var(--radius-window); /* frame: rx14 window */
+
+  /* frame: Folder.svg — #0E0E0E at 95% over the app (alpha via the panel
+   * opacity token; color-mix keeps the ink semantic). */
+  background: color-mix(in srgb, var(--color-surface-deep) 95%, transparent);
+}
+
+.lumen-plsubs__window {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-family-sans);
+  color: var(--color-content-primary);
+}
+
+/* ------------------------------------------------------- header band ---- */
+
+/* Frame: the #090909 path spanning y0–96 with the panel's r14 top corners. */
+.lumen-plsubs__head {
+  flex: none;
+  padding: 16px 20px 9px; /* frame: title baseline y30.5, pills y53–87 */
+  background: var(--color-surface);
+  border-radius: var(--radius-window) var(--radius-window) 0 0;
+}
+
+.lumen-plsubs__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  margin-bottom: 13px; /* frame: pills start 13px under the title row */
+}
+
+/* Frame: "Add Subtitles" — cap 10.2px (≈14px) #8F8F8F, quiet header ink. */
+.lumen-plsubs__title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plsubs__close {
+  flex: none;
+}
+
+/* Control pills row — frame: h34 r6 #151515 pills, 10px gaps (x209–219). */
+.lumen-plsubs__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px; /* frame: pill gap x209–219 */
+}
+
+/* ------------------------------------------------------ control pills --- */
+
+/* Frame pill (Frame 206/123): 200×34 rx6 #151515, label #969696, ∨ chevron
+ * #8F8F8F 15px off the right edge — overrides the shared dropdown trigger
+ * (deep fill + border) at equal specificity via the compound selector. */
+.lumen-plsubs .lumen-dropdown.lumen-plsubs__pill {
+  width: 200px; /* frame: pill width */
+}
+
+.lumen-plsubs .lumen-plsubs__pill .lumen-dropdown__trigger {
+  height: 34px; /* frame: pill height */
+  background: var(--color-surface-muted); /* frame #151515 */
+  border: none;
+  color: var(--color-content-secondary);
+  padding-right: 15px; /* frame: chevron x184–194 in a 9–209 pill */
+}
+
+.lumen-plsubs .lumen-plsubs__pill .lumen-dropdown__value {
+  color: var(--color-content-secondary); /* frame labels #969696 */
+}
+
+/* The pill popups ride the shared list grammar at the frame's 44px rows. */
+.lumen-plsubs .lumen-plsubs__pill .lumen-dropdown__option {
+  min-height: 44px; /* frame: sub filename.svg option rows y230 h44 */
+}
+
+/* The breadcrumb pill (frame Frame 122: 610×34, folder glyph 18×16 at
+ * x440, path text #969696 at x470, slashes lighter). */
+.lumen-plsubs__crumb {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px; /* frame: glyph x440–458, text starts ≈x470 */
+  height: 34px; /* frame: pill height */
+  min-width: 0;
+  padding: 0 10px;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame #969696 */
+  background: var(--color-surface-muted); /* frame #151515 */
+  border-radius: var(--radius-control);
+}
+
+.lumen-plsubs__crumb svg {
+  flex: none;
+  color: var(--color-content-secondary); /* frame glyph stroke #8F8F8F */
+}
+
+.lumen-plsubs__crumb-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The search field (Folder-3: 400×34 magnifier pill, same grammar). */
+.lumen-plsubs__search {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 10px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-control);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plsubs__search svg {
+  flex: none;
+}
+
+.lumen-plsubs__search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.lumen-plsubs__search-input::placeholder {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-plsubs__search:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* The filename-matching dropdown (sub filename.svg): 48px two-layer
+ * trigger — #090909 ring over a #191919 field — and a 362px list. */
+.lumen-plsubs .lumen-dropdown.lumen-plsubs-match {
+  width: 362px; /* frame: sub filename.svg dropdown width */
+}
+
+.lumen-plsubs .lumen-plsubs-match .lumen-dropdown__trigger {
+  background: var(--color-surface-panel); /* frame inner field #191919 */
+  border: 2px solid var(--color-surface); /* frame outer ring #090909 */
+}
+
+.lumen-plsubs .lumen-plsubs-match .lumen-dropdown__option {
+  min-height: 44px; /* frame: option rows 44px */
+}
+
+/* ------------------------------------------------------------- body ----- */
+
+.lumen-plsubs__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-inset);
+  min-height: 0;
+  padding: 22px 20px 0; /* frame: rows start y118 (22px under the band) */
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------- candidate rows ------- */
+
+/* Frame: 40px row pitch (Folder-2 rects y118/158), 36px r6 bands. */
+.lumen-plsubs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* frame: 36px band + 4px gap = 40px pitch */
+  outline: none;
+}
+
+.lumen-plsubs-list:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-plsubs-row {
+  display: flex;
+  align-items: center;
+  gap: 17px; /* frame: glyph x31–49, text starts x66.7 */
+  height: 36px; /* frame: selected band h36 */
+  padding-left: 11px; /* frame: glyph 11px off the row's left edge */
+  padding-right: 13px; /* frame: check x1001–1015, row ends x1028 */
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame #969696 */
+  border-radius: var(--radius-control); /* frame rx6 */
+  cursor: pointer;
+}
+
+/* Selected band — frame: #090909 fill on the deep overlay (fill contrast,
+ * no border). Selection's second signal is the orange check. */
+.lumen-plsubs-row--selected {
+  background: var(--color-surface);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plsubs-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-plsubs-row__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-content-tertiary); /* frame glyph stroke #6B6B6B */
+}
+
+.lumen-plsubs-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The selected row's orange check (frame Vector 44: 14×11, stroke 2). */
+.lumen-plsubs-row__check {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-accent-icon);
+}
+
+/* The icon primitive's base ink rule (icon.css) would gray it out — the
+ * frame's check is the ONE accent on the row (Vector 44 #D37918). */
+.lumen-plsubs-row__check .lumen-icon {
+  color: var(--color-accent-icon);
+}
+
+/* The multi-candidate hover affordance (subtitle multiple.svg Vectors
+ * 42/43: stacked ←/→, #8F8F8F) — hover/focus only, never on selected. */
+.lumen-plsubs-row__cycle {
+  display: none;
+  flex: none;
+  color: var(--color-content-secondary);
+}
+
+.lumen-plsubs-row--multiple:hover .lumen-plsubs-row__cycle,
+.lumen-plsubs-row--multiple:focus-visible .lumen-plsubs-row__cycle {
+  display: inline-flex;
+}
+
+/* ---------------------------------------------------- matched pairs ----- */
+
+/* Frame: 40px pitch, transparent bands, dotted leaders between the names. */
+.lumen-plsubs-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lumen-plsubs-pair {
+  display: flex;
+  align-items: center;
+  gap: 17px; /* frame: media glyph x33–52, name x68.7 */
+  height: 40px; /* frame: pair row pitch */
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame names #969696 */
+}
+
+.lumen-plsubs-pair__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-content-tertiary); /* frame glyph strokes #6B6B6B */
+}
+
+.lumen-plsubs-pair__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The subtitle side — a fixed 479px column (frame: icon x549 in the
+ * 1008-wide body; the column width matches subtitle one.svg's row). */
+.lumen-plsubs-pair__side {
+  display: flex;
+  flex: 0 0 479px; /* frame: Folder.svg subtitle column */
+  align-items: center;
+  gap: 17px;
+  min-width: 0;
+}
+
+/* Dotted leader — frame Vector 77: Ø1 dots on an 8.15px pitch (#373737 →
+ * hairline token); repeating radial-gradient keeps the pitch frame-exact at
+ * any width. */
+.lumen-plsubs-pair__leader {
+  flex: 1 1 24px;
+  min-width: 24px;
+  height: 2px;
+  background-image: radial-gradient(circle, var(--color-stroke-border) 1px, transparent 1.2px);
+  background-size: 8.15px 2px; /* frame: dot pitch */
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+/* ------------------------------------------------------ empty state ----- */
+
+.lumen-plsubs-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: 24px 11px; /* aligns with the row text column */
+}
+
+.lumen-plsubs-empty__title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plsubs-empty__body {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* ---------------------------------------------------------- footer ------ */
+
+/* Frame Frame 140/141: buttons float on the overlay (no band, no hairline)
+ * at 20px insets — Cancel #1B1B1B left, Save #371F06 right. */
+.lumen-plsubs__foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  padding: 20px; /* frame: y748–780 in the 800-tall window */
+}
+
+.lumen-plsubs__foot .lumen-button {
+  min-width: 100px; /* frame: 100×32 r6 actions */
+}
+
+/* --------------------------------------------------- motion guards ------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-plsubs-row,
+  .lumen-plsubs-pair {
+    transition: none;
+  }
+}

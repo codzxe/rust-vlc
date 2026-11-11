@@ -1,0 +1,55 @@
+/* w26.b11 — DEV-ONLY vision harness styling (never imported by app routes).
+ * A quiet near-black stage holding the fragment closeups at their frame
+ * dimensions (sub filename.svg 406×422; subtitle one/multiple.svg 519-wide
+ * rows). Dialog states render full-viewport (the Folder overlays). */
+
+.w26b11-stage {
+  display: flex;
+  gap: 32px;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
+  /* The Folder overlays' #0E0E0E tone — the fragment rows' #090909 selected
+   * bands read against it (frame: overlay fill #0E0E0E @95%). */
+  background: var(--color-surface-deep);
+}
+
+.w26b11-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Reference-scale zoom (the figma renders upscale the SVGs; Chromium zoom
+ * brings the 1:1 UI fragments to the same pixel scale for comparison):
+ * subtitle one/multiple.png = 519px × 1.73 · sub filename.png = 406px × 2.22. */
+.w26b11-stage--rows {
+  zoom: 1.73; /* frame: subtitle_one.png 900/519 */
+}
+
+.w26b11-stage--filename {
+  zoom: 2.22; /* frame: sub_filename.png 900/406 */
+}
+
+.w26b11-caption {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* sub filename.svg fragment: 406×422. */
+.w26b11-frame--filename {
+  position: relative;
+  width: 406px; /* frame: sub filename.svg */
+  padding: 22px; /* frame: dropdown at x22 */
+}
+
+/* subtitle one/multiple.svg fragment: 519-wide rows. */
+.w26b11-frame--rows {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 519px; /* frame: subtitle one.svg */
+  padding: 28px 20px;
+}
