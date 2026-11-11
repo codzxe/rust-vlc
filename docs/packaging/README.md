@@ -134,18 +134,20 @@ preference for a single universal download is recorded. Full text:
 the `macos-arm64` job header comment in
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
-What runs WITHOUT the native platform: env assertions, staging, and
-the unsigned-fallback sidecars — exercised in
-`scripts/packaging/gate.sh` (below) — plus the `.wxs` generation,
-which carries its own executable regression test on EACH twin:
-`scripts/release/gen-wxs.sh --self-test` (W24-R6 P4-2; needs only
-python3) and `pwsh scripts/packaging/build-msi.ps1 -SelfTest` (added
-in W24-U; needs pwsh, which this sandbox lacks — step 4's structural
-check is the local floor for that twin). Both run the REAL generator
-(`generate_wxs` / `New-MsiWxs` — the same code path the build
-invokes) with the same hostile identity values and hostile doc
-basenames (`a&b<c>"d".md` …) and prove with python's XML parser that
-the output parses and the values round-trip — plus, since W24-Y
+What runs WITHOUT the native platform: env assertions, staging, the
+unsigned-fallback sidecars, and (since W24-Y, audit R13 F-U3) BOTH
+`.wxs`-generator self-tests — all exercised in
+`scripts/packaging/gate.sh` (below; each self-test also runs
+standalone): `scripts/release/gen-wxs.sh --self-test` (W24-R6 P4-2;
+needs only python3) and `pwsh scripts/packaging/build-msi.ps1
+-SelfTest` (added in W24-U; needs pwsh — the gate runs it wherever
+pwsh is on PATH and skips it with an honest label where not; this
+sandbox has no pwsh, so step 4's structural check stays that twin's
+local floor). Both run the REAL generator (`generate_wxs` /
+`New-MsiWxs` — the same code path the build invokes) with the same
+hostile identity values and hostile doc basenames
+(`a&b<c>"d".md` …) and prove with python's XML parser that the
+output parses and the values round-trip — plus, since W24-Y
 (audit R13 F-U1/F-U2), a raw-text pin asserting the escaped forms
 themselves (`Source="it&apos;s.md"` …): a reverted `&apos;` parses
 fine, so parse + round-trip alone cannot catch it. What cannot:
@@ -161,8 +163,11 @@ half: packaging.toml↔schema + product bridge (51 vars), every
 `scripts/packaging/*.sh` parses under BOTH `bash -n` and `sh -n`,
 python tools parse (ast, no bytecode), `.ps1` structural sanity
 (`ps1-sanity.py`), payload stagers + desktop entry executed against a
-throwaway tree, and the `.UNSIGNED.txt` fallback contracts of both
-signing drivers executed for real.
+throwaway tree, the `.UNSIGNED.txt` fallback contracts of both
+signing drivers executed for real, and (W24-Y, audit R13 F-U3) step
+7: BOTH `.wxs`-generator self-tests — `gen-wxs.sh --self-test`
+always, `build-msi.ps1 -SelfTest` wherever pwsh is on PATH (honest
+skip label, never a fake PASS, where it is not).
 
 ## The release workflow (`.github/workflows/release.yml`)
 
