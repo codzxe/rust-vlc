@@ -37,7 +37,7 @@ const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...lane
 function useFieldMsg() {
   const m = useMsg();
   return (key: MessageKey | LaneKey | RegistryKey): string =>
-    laneCatalog[key] ?? m(key as MessageKey);
+    m(key as MessageKey) ?? laneCatalog[key];
 }
 
 function numberStep(entry: SettingEntry): number {

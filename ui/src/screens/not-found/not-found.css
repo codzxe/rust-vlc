@@ -1,221 +1,51 @@
-/* 404 (Solstice v2 stage, 2026-11-09): the sun is slipping below the
- * horizon. One theatrical composition, painted in a strict z-ladder
- * (craft rule §2.2):
- *   z 0  the setting sun — a 184px disc with its lower ~40% swallowed by
- *        the ground band (its center rides 18px ABOVE the horizon line:
- *        mid-set, the exact moment of slipping under), wrapped in a wide
- *        warm bloom so it reads as light, not a flat pasted circle
- *   z 0  the torn tape fragment — a strip of washi the lost note landed
- *        on, peeking out at the card's left shoulder (anchored to the
- *        card's own column, so it reads as belonging, never as a stray)
- *   z 1  the ground band — swallows the disc through a soft top edge
- *        (a local deep-occlusion pool at the setting point makes the
- *        submerged rim truly vanish), carries the afterglow radial at
- *        the setting point and the glowing "last light" rim along the
- *        world's edge
- *   z 2  the lost note — the opaque taped card at the optical center
- *        (~46% of the stage height) with the page number, a clear title
- *        and ONE primary CTA home
- * The card's fat bottom padding biases it above the stage's true middle so
- * the lower sky belongs to the setting sun. Semantic tokens only; raw px
- * appears solely for the sun's structural diameter/halo and the tape
- * fragment's torn geometry (no tokens) per the composition-layer rule. */
+/* 404 — the W26 quiet hero (w26.b13). No direct frame (CONTRACT §3): the
+ * composition follows the onboarding hero grammar (Onboarding.svg) at a
+ * smaller scale — the cone mark in accent ink, a display-scale heading,
+ * one quiet body line, one orange primary CTA — centered on the near-black
+ * app surface. Panels are square-edged; rounding lives on the button (r6).
+ * Semantic tokens only (§3.2); the one raw px is the cone's frame-measured
+ * art-box width (frame: Onboarding.svg 107px, scaled to the quiet hero).
+ * The Solstice sunset stage (tape fragment, horizon band, vivid backdrop
+ * tier, note card) is gone (W25 §0). */
 
 .not-found {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
   min-height: 0;
-
-  /* Optical center (~46%): bottom padding 6× the top, lifting the card
-   * out of the geometric middle so the lower sky can hold the setting sun. */
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 8)
-    calc(var(--space-grid) * 36);
+  padding: calc(var(--space-grid) * 6);
   background: transparent;
 }
 
-/* The torn tape fragment — a strip of washi the lost note landed on: it
- * ANCHORS to the card by construction, its left edge tracking the same
- * min(440px, …) column the card is centered in (so the strip tucks a fixed
- * 56px BEHIND the opaque card and peeks a fixed 40px out at its left
- * shoulder) at EVERY stage width. A fixed % offset left the strip either
- * stranded in empty sky (read as a stray artifact) or half-emerging at an
- * accidental depth; anchoring it makes "the note fell onto this tape" the
- * one reading, and the peek never touches the sun's field. z 0 below the
- * card's z 2 — behind, never straddling (craft rule §2.2). */
-.not-found__tape {
-  position: absolute;
-  top: 30%;
-
-  /* Card's left edge from this padding box = 32px side padding +
-   * (width − 64px − card width) / 2, with card width = min(440px, content
-   * width); the tape starts 40px left of that edge. */
-  left: calc((100% - 64px - min(440px, 100% - 64px)) / 2 - 8px);
-  width: 96px;
-  height: 24px;
-  transform: rotate(-7deg);
-  z-index: 0;
-  pointer-events: none;
-  /* stylelint-disable color-named -- art-direction: the washi-tape gradient blends toward white; no semantic blend-anchor token exists yet [PROPOSAL in stylelint.config.js] */
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-tape) 72%, white) 0%,
-    var(--color-tape) 46%,
-    var(--color-tape-edge) 100%
-  );
-  /* stylelint-enable color-named */
-  opacity: 0.72;
-  border-radius: 2px;
-  box-shadow: var(--shadow-card);
-  clip-path: polygon(
-    0% 14%, 3% 2%, 6% 12%, 94% 6%, 97% 0%, 100% 16%,
-    99% 86%, 96% 100%, 93% 88%, 7% 96%, 4% 100%, 1% 84%
-  );
-}
-
-/* The setting sun: a 184px disc, offset toward the right so it stays clear
- * of the centered card on wide stages and tucks behind it on narrow ones
- * (z 0 below the opaque card — never a straddle). Its center rides 18px
- * ABOVE the horizon line (band top at 30% of the stage), so the lower
- * ~40% of the disc is already under the world's edge — mid-set, the exact
- * moment of slipping below; the layered box-shadows are the atmospheric bloom
- * that keeps the disc reading as light rather than a sticker. */
-.not-found__sun {
-  position: absolute;
-  left: 74%;
-  bottom: calc(30% - 74px);
-  width: 184px;
-  height: 184px;
-  margin-left: -92px;
-  z-index: 0;
-  pointer-events: none;
-  box-shadow:
-    0 0 calc(var(--space-inset) * 7) color-mix(in srgb, var(--color-sunset-6) 60%, transparent),
-    0 0 calc(var(--space-inset) * 16) color-mix(in srgb, var(--color-sunset-5) 30%, transparent);
-}
-
-/* Ground band — the horizon. The base linear gains opacity fast (62%
- * within the first tenth) but NOT fast enough on its own: the sun's
- * deepest dip rides 74px under the line where the base is only ~85%, so
- * the disc ghosted through as a dark circle silhouette below the horizon
- * (audit: "z-fighting-like seam"). The OCCLUSION POOL layer fixes it: a
- * deep radial centered on the setting point (74% 0%) that HOLDS ~94%
- * opacity out to 78% of its radius — sized (40% × 64%) so the entire
- * submerged arc of the 184px disc sits inside the hold at every stage
- * width, pushing accumulated opacity past ~98%: the disc truly vanishes
- * under the world's edge, a sinking sun, not a ball with a line through
- * it. Above the pool (in paint order) sit the warm layers so the occluded
- * spot still glows: the tight radial at 74% 6% is reflected light
- * streaking back along the ground under the sun, the broad radial is the
- * afterglow at the setting point, and the ::before rim is the last light
- * glowing along the world's edge (its box-shadow bleeds the glow into
- * the sky above the line, peaking right at the sun). */
-.not-found__horizon {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 30%;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      55% 32% at 74% 6%,
-      color-mix(in srgb, var(--color-sunset-6) 22%, transparent) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      90% 140% at 74% 0%,
-      color-mix(in srgb, var(--color-sunset-6) 32%, transparent) 0%,
-      transparent 58%
-    ),
-    radial-gradient(
-      40% 64% at 74% 0%,
-      color-mix(in srgb, var(--color-surface-deep) 94%, transparent) 0%,
-      color-mix(in srgb, var(--color-surface-deep) 94%, transparent) 78%,
-      transparent 100%
-    ),
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      color-mix(in srgb, var(--color-surface-deep) 62%, transparent) 10%,
-      color-mix(in srgb, var(--color-surface-deep) 88%, transparent) 34%,
-      var(--color-surface-deep) 75%
-    );
-}
-
-.not-found__horizon::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(
-    90deg,
-    transparent 6%,
-    color-mix(in srgb, var(--color-sunset-5) 60%, transparent) 40%,
-    color-mix(in srgb, var(--color-sunset-6) 88%, transparent) 74%,
-    transparent 96%
-  );
-  box-shadow: 0 -3px 18px 3px color-mix(in srgb, var(--color-sunset-6) 42%, transparent);
-}
-
-/* The lost note. Opaque (wins every overlap by construction), one width,
- * left-aligned reading rhythm; the fat top padding keeps the page number
- * clear of the washi tape straddling the top edge. */
-.not-found__card {
-  position: relative;
-  z-index: 2;
-  box-sizing: border-box;
-  width: min(440px, 100%);
+/* The hero group — centered, one measure of air between the marks
+ * (Onboarding.svg's generous hero ladder: mark → heading → body → CTA). */
+.not-found__hero {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 2);
-  align-items: flex-start;
-  padding: calc(var(--space-inset) * 4);
+  align-items: center;
+  gap: calc(var(--space-grid) * 7);
+  max-width: min(440px, 100%);
+  text-align: center;
 }
 
-/* The page number, scribbled large on the note. Note ink (full contrast in
- * both modes — the gold accent stays owned by the CTA), extrabold display
- * at double scale via calc on the display token, with a scrapbook tilt to
- * match the taped-note language. The ::after swipe is a washi-marker
- * underline — the "circle it with a pen" gesture that makes the numeral
- * read as annotated scrapbook art, not typeset text. */
-.not-found__code {
-  position: relative;
-
-  /* Positive bottom margin keeps the marker swipe clear of the title's
-   * cap line — annotated, not colliding. */
-  margin: 0 0 var(--space-grid);
-  font-family: var(--font-family-sans);
-  font-size: calc(var(--font-size-display) * 2);
-  font-weight: var(--font-weight-extrabold);
-  line-height: 0.95;
-  letter-spacing: 0.02em;
-  color: var(--color-note-ink);
-  rotate: -3deg;
+/* The cone mark — frame: Onboarding.svg Icon/Frame 4 (107×126), scaled to
+ * the quiet hero (≈72% of the onboarding hero's 107px). */
+.not-found__cone {
+  width: 76px; /* frame: Onboarding.svg cone, hero-scale */
+  height: auto;
+  color: var(--color-accent);
 }
 
-.not-found__code::after {
-  content: "";
-  position: absolute;
-  left: calc(var(--space-grid) * -1);
-  right: calc(var(--space-grid) * -2);
-  bottom: calc(var(--space-grid) * -1.5);
-  height: 7px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--color-tape) 62%, transparent);
-  rotate: 1.2deg;
-}
-
+/* Hero titles are bright and regular-weight (Onboarding.svg #EAEAEA class). */
 .not-found__title {
   margin: 0;
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-extrabold);
-  line-height: 1.15;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-title); /* the quiet hero scale, under display */
+  font-weight: var(--font-weight-regular);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-content-bright);
 }
 
 .not-found__body {
@@ -223,20 +53,12 @@
   max-width: 38ch;
   font-size: var(--font-size-body);
   line-height: 1.6;
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
-/* One clear way home — the stage-sized primary pill. */
+/* One clear way home — the orange primary (100×32 r6 via the Button
+ * primitive's frame grammar). */
 .not-found__cta {
-  margin-top: calc(var(--space-grid) * 2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .not-found__code {
-    rotate: none; /* the scribble tilt is a motion cue, drop it */
-  }
-
-  .not-found__code::after {
-    rotate: none;
-  }
+  margin-block-start: calc(var(--space-grid) * 2);
+  min-width: 100px; /* frame: Onboarding.svg "Next" 100×32 */
 }

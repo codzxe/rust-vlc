@@ -54,7 +54,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
 
   it("renders unknown paths as the not-found screen", () => {
     renderAt("/definitely-not-a-route");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Lost the thread");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
   });
 
   it("completed profile: / lands on the player home — the wizard never shows again", () => {

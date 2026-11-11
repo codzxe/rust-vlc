@@ -1,67 +1,89 @@
-// * (not-found) — the Solstice v2 404 (2026-11-09): a STAGE screen, not a
-// spool gag. While mounted it flips the app backdrop to full-strength
-// sunset (`html[data-backdrop="vivid"]`, removed on unmount — the same
-// mount-effect pattern as onboarding), and sets one theatrical composition:
-// the sun is slipping below the horizon — a warm disc with its lower ~40%
-// already swallowed by the ground band, its afterglow bleeding along the
-// horizon line — with a lost
-// sticky note floating at the optical center of the stage. The note carries
-// a big handwritten-style "404" page number (decorative, aria-hidden — the
-// accessible name stays with the real heading), a clear title, and exactly
-// ONE way back to the player.
+// * (not-found) — the W26 404 (w26.b13): a CENTERED QUIET HERO, not a
+// stage (the Solstice sunset scene died with the v2 aesthetic, W25 §0).
+// The composition follows the onboarding hero grammar (Onboarding.svg) at
+// a smaller scale: the cone mark in accent ink (frame-exact port), a
+// display-scale "Page not found" heading, one quiet body line, and exactly
+// ONE way back to the player. No backdrop tier, no scenery — the near-black
+// app surface IS the stage.
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/button";
 import { useMsg } from "../../i18n/messages";
+import type { MessageKey } from "../../i18n/messages";
+import { keys as laneKeys } from "../../i18n/keys/w26.b13";
 import "./not-found.css";
 
-export function NotFoundScreen() {
+// ---------------------------------------------------------------------------
+// Lane i18n seam (contract §4.5) — copy with no catalog entry yet
+// ---------------------------------------------------------------------------
+
+/** Keys owned by this lane (registered into messages.ts by the Lead). */
+type LaneKey = keyof typeof laneKeys;
+const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+
+/**
+ * useNotFoundMsg — `useMsg` extended with this lane's pre-registration keys
+ * (w26.b12 discovery precedent). REGISTERED (w26.b19): the catalog now owns
+ * these keys, so the CATALOG wins (pseudo locale + l10n tooling flow through
+ * it); the lane table remains only as a never-hit fallback.
+ */
+function useNotFoundMsg() {
   const m = useMsg();
+  return (key: MessageKey | LaneKey): string => m(key as MessageKey) ?? laneCatalog[key];
+}
+
+/**
+ * ConeMark — the traffic-cone logo art (frame: Onboarding.svg Icon/Frame 4,
+ * the same 107×126 three-segment mark the onboarding hero and the player
+ * empty-state use; geometry is frame-measured, duplicated here because the
+ * onboarding module does not export it — cross-screen imports stay one-way
+ * per the lane rules). `fill: currentColor` so the accent token drives ink.
+ */
+function ConeMark({ className }: { className?: string }): React.ReactElement {
+  return (
+    // frame: Onboarding.svg (Icon/Frame 4) — three-segment cone, 107×126 art box
+    <svg
+      className={className}
+      viewBox="492 122 107 126"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M573.648 200.666L575.932 207.52C569.082 212.546 558.58 217.116 545.795 217.116C532.553 217.116 522.508 212.546 515.659 207.52L517.942 200.666H507.44C505.156 200.666 503.787 202.036 502.873 203.864L492.828 242.247C491.915 244.989 494.198 248.188 497.394 248.188H593.739C596.936 248.188 598.762 245.446 598.306 242.247L587.803 203.864C587.347 202.036 585.52 200.666 583.237 200.666H573.648Z"
+        fill="currentColor"
+      />
+      <path
+        d="M521.138 187.413C526.618 191.526 534.837 195.181 545.339 195.181C555.841 195.181 564.06 191.069 569.539 187.413L563.147 165.48C559.037 168.222 553.101 170.049 545.339 170.049C537.576 170.049 531.64 167.765 527.531 165.48L521.138 187.413Z"
+        fill="currentColor"
+      />
+      <path
+        d="M533.466 144.461L537.575 130.296C539.858 122.985 550.361 122.985 552.644 130.296L556.753 144.461C553.557 145.375 549.904 146.289 545.338 146.289C540.772 146.289 537.119 145.375 533.466 144.461Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function NotFoundScreen() {
+  const m = useNotFoundMsg();
   const navigate = useNavigate();
 
-  // Stage tier (brief §1): the 404 is an emotional moment — full-strength
-  // sunset for exactly as long as this screen is mounted, never longer.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.backdrop = "vivid";
-    return () => {
-      delete root.dataset.backdrop;
-    };
-  }, []);
-
   return (
-    <div className="not-found solstice-rise">
-      {/* Scene, painted strictly BEHIND the card (z 0/1 vs the note's z 2):
-       * the sun sits mid-set — its center rides 18px ABOVE the horizon
-       * line (band top at 30% of the stage) with the lower ~40% of the disc
-       * already under the world's edge, so it reads as slipping below it,
-       * never as an ornament fighting the card (craft rule §2.2). The
-       * afterglow rim glows along the horizon; the torn tape fragment
-       * floating in the sky is where the lost note fell from. */}
-      <span className="not-found__tape" aria-hidden="true" />
-      <span className="not-found__sun solstice-sun" aria-hidden="true" />
-      <span className="not-found__horizon" aria-hidden="true" />
-      <section
-        className="not-found__card solstice-note"
-        data-tape="left"
-        aria-labelledby="not-found-title"
-      >
-        {/* The page number, written large on the lost note like a bookmark
-         * scribble — decorative emphasis of the route status; the heading
-         * below carries the accessible title. */}
-        <span className="not-found__code" aria-hidden="true">
-          404
-        </span>
+    <div className="not-found" data-screen="not-found">
+      <section className="not-found__hero" aria-labelledby="not-found-title">
+        {/* The cone mark — the onboarding hero's logo art, accent ink. */}
+        <ConeMark className="not-found__cone" />
         <h1 id="not-found-title" className="not-found__title">
-          {m("not-found.title")}
+          {m("not-found.heading")}
         </h1>
-        <p className="not-found__body">{m("not-found.body")}</p>
+        <p className="not-found__body">{m("not-found.body-quiet")}</p>
+        {/* One clear way home — the orange primary pill (Onboarding "Next"
+         * grammar). */}
         <Button
           variant="primary"
-          size="lg"
           className="not-found__cta"
           onClick={() => navigate("/player")}
         >

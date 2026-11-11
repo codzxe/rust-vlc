@@ -64,7 +64,7 @@ type LaneKey = keyof typeof laneKeys;
 function useLaneMsg() {
   const m = useMsg();
   const laneCatalog = laneKeys as Record<string, string>;
-  return (key: MessageKey | LaneKey): string => laneCatalog[key] ?? m(key as MessageKey);
+  return (key: MessageKey | LaneKey): string => m(key as MessageKey) ?? laneCatalog[key];
 }
 
 /** DOM id of the collapsible queue panel (the toggle's aria-controls). */

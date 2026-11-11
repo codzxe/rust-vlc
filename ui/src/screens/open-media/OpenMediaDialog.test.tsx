@@ -1,13 +1,15 @@
-// Solstice v2 — open-media dialog flow tests (brief §4.1 contract).
+// Open-media dialog flow tests (the decoupled-trigger + ONE-funnel
+// contracts, unchanged by the W26 w26.b13 redesign).
 //
-// Pins the audit fixes on the open-media surface:
+// Pins the open-media surface's behavior:
 //   * single click on a list item OPENS it (session.open with the real
 //     SourceSpec) and closes the dialog (the old double-click trap is gone);
 //   * the dialog carries a visible Close affordance; Escape closes;
-//   * the subtitle's "or paste a path" is REAL — the path/URL input opens
-//     through the same seam, with honest validation; a PLAYLIST path
-//     loads the list instead (playlist.load — the 4.D1 handoff, issue #3);
-//   * source locations render in full (never ellipsized away).
+//   * the paste-a-path input opens through the same seam, with honest
+//     validation; a PLAYLIST path loads the list instead (playlist.load —
+//     the 4.D1 handoff, issue #3);
+//   * source locations render in full (never ellipsized away);
+//   * source rows wear the honest kind glyphs (file / network stream).
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
@@ -20,6 +22,7 @@ import {
   OpenMediaDialog,
   OPEN_MEDIA_EVENT,
   parseSourceInput,
+  sourceIcon,
 } from "./OpenMediaDialog";
 
 /** Transport that records every sent command and answers successfully. */
@@ -191,27 +194,42 @@ describe("OpenMediaDialog — the decoupled trigger contract", () => {
   });
 });
 
-describe("OpenMediaDialog — modal layer source contract (v2 audit 2)", () => {
-  // jsdom never cascades the real stylesheet (vitest stubs .css imports —
-  // see Button.test.tsx's states.md note), so the PAINT-ORDER defect this
-  // pins cannot be asserted via computed styles: the dialog scrim (shared
-  // .lumen-scrim, z-index auto) must beat the player stage's z-indexed
-  // chrome (empty card z=1, keycap strip z=2, error chip z=3) in the root
-  // stacking context. The browser verification proved it via
-  // elementFromPoint; this source-contract test (node:fs, same precedent as
-  // Button.test.tsx) keeps the z-index from silently regressing.
-  const { dirname } = import.meta as ImportMeta & { dirname?: string };
-  const css = readFileSync(`${dirname}/open-media.css`, "utf8");
+describe("OpenMediaDialog — source-kind affordances (W26)", () => {
+  it("file sources wear the open-file glyph, stream sources the network-stream glyph", () => {
+    expect(sourceIcon({ kind: "file", path: "/media/demo/big-buck-bunny.mkv" })).toBe("open-file");
+    expect(sourceIcon({ kind: "url", url: "https://ice1.somafm.com/groovesalad-128-mp3" })).toBe(
+      "network-stream",
+    );
+    // every pickable row carries its glyph (decorative, aria-hidden)
+    renderDialog(true, () => {}, new RecordingTransport());
+    const bunny = screen.getByRole("button", { name: /Big Buck Bunny/ });
+    expect(bunny.querySelector(".open-media__item-icon svg")).not.toBeNull();
+    expect(bunny.querySelector(".open-media__item-icon svg")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
+});
 
-  it("the solstice scrim rule raises the modal above player chrome layers", () => {
-    const rule = css.match(/\.lumen-scrim:has\(\s*>\s*\.open-media__surface\s*\)\s*\{([^}]*)\}/);
-    expect(rule).not.toBeNull();
-    expect(rule?.[1]).toMatch(/z-index:\s*20/);
+describe("OpenMediaDialog — modal layer source contract (w26.a08 handoff)", () => {
+  // jsdom never cascades the real stylesheet (vitest stubs .css imports),
+  // so layering is pinned at the SOURCE level (node:fs, Button.test.tsx
+  // precedent). Since w26.a08 the shared .lumen-scrim primitive carries
+  // z-index 20 — above the player stage chrome and the menubar popup layer
+  // (menu.css z-index 10). This suite guards the RETIREMENT: the host sheet
+  // must not reintroduce a :has() scrim override or a local z-index (the
+  // Solstice-era patch that used to live here).
+  const { dirname } = import.meta as ImportMeta & { dirname?: string };
+  const raw = readFileSync(`${dirname}/open-media.css`, "utf8");
+
+  // Comments are prose (they may mention the retired pattern); rules only.
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("carries no :has() scrim override — the shared primitive owns the scrim", () => {
+    expect(css).not.toMatch(/:has\(/);
   });
 
-  it("the modal layer stays above the menubar popup layer (menu.css z-index 10)", () => {
-    const rule = css.match(/\.lumen-scrim:has\(\s*>\s*\.open-media__surface\s*\)\s*\{([^}]*)\}/);
-    const z = Number(/z-index:\s*(\d+)/.exec(rule?.[1] ?? "")?.[1]);
-    expect(z).toBeGreaterThan(10);
+  it("carries no local z-index — the primitive's z-index 20 wins by construction", () => {
+    expect(css).not.toMatch(/z-index/);
   });
 });

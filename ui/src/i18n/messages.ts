@@ -652,7 +652,223 @@ export type MessageKey =
   // --- player extras (Solstice) ---
   | "player.keys.strip.label"
   | "player.demo.playing"
-  | "player.open.recent";
+  | "player.open.recent"
+  | "app.name"
+  | "convert.queue.count-suffix"
+  | "convert.source.browse"
+  | "convert.source.browse-gate"
+  | "customize.box.label"
+  | "customize.close"
+  | "customize.instruction"
+  | "customize.save"
+  | "customize.tile.backward-10"
+  | "customize.tile.backward-15"
+  | "customize.tile.forward-10"
+  | "customize.tile.forward-15"
+  | "customize.title"
+  | "discovery.volumes.empty-body"
+  | "discovery.volumes.empty-title"
+  | "not-found.body-quiet"
+  | "not-found.heading"
+  | "onboarding.appearance.heading"
+  | "onboarding.library.body"
+  | "onboarding.library.failed"
+  | "onboarding.library.opened"
+  | "onboarding.library.title"
+  | "onboarding.playback.body"
+  | "onboarding.playback.title"
+  | "onboarding.shortcuts.frame"
+  | "onboarding.shortcuts.heading"
+  | "onboarding.shortcuts.item"
+  | "onboarding.shortcuts.more"
+  | "onboarding.shortcuts.seek"
+  | "onboarding.shortcuts.volume"
+  | "onboarding.subtitles.body"
+  | "onboarding.subtitles.title"
+  | "player.controls.cast"
+  | "player.controls.exit-fullscreen"
+  | "player.controls.fullscreen"
+  | "player.controls.group-output"
+  | "player.controls.next"
+  | "player.mini.queue.label"
+  | "player.mini.queue.toggle"
+  | "player.mini.title-empty"
+  | "player.tools.close"
+  | "player.tools.collapse-settings"
+  | "player.tools.expand-settings"
+  | "playlist.library.count-suffix"
+  | "playlist.library.create"
+  | "playlist.library.empty-body"
+  | "playlist.library.empty-title"
+  | "playlist.library.items-suffix"
+  | "playlist.library.list-label"
+  | "playlist.library.menu"
+  | "playlist.library.menu.play"
+  | "playlist.library.menu.remove"
+  | "playlist.new.browse"
+  | "playlist.new.cancel"
+  | "playlist.new.close"
+  | "playlist.new.details"
+  | "playlist.new.details.helper"
+  | "playlist.new.drop"
+  | "playlist.new.files"
+  | "playlist.new.files.helper"
+  | "playlist.new.name-placeholder"
+  | "playlist.new.save"
+  | "playlist.new.thumbnail"
+  | "playlist.new.thumbnail.hint"
+  | "playlist.new.title"
+  | "playlist.options.entry-menu"
+  | "playlist.options.grid-label"
+  | "playlist.options.list-label"
+  | "playlist.options.sort"
+  | "playlist.options.sort.album-asc"
+  | "playlist.options.sort.album-desc"
+  | "playlist.options.sort.artist-asc"
+  | "playlist.options.sort.artist-desc"
+  | "playlist.options.sort.disc-number-asc"
+  | "playlist.options.sort.disc-number-desc"
+  | "playlist.options.sort.newest-first"
+  | "playlist.options.sort.oldest-first"
+  | "playlist.options.sort.title-asc"
+  | "playlist.options.sort.title-desc"
+  | "playlist.options.sort.track-number-asc"
+  | "playlist.options.sort.track-number-desc"
+  | "playlist.options.sort.unwatched-first"
+  | "playlist.options.sort.uri-asc"
+  | "playlist.options.sort.uri-desc"
+  | "playlist.options.sort.watched-first"
+  | "playlist.options.view"
+  | "playlist.options.view.grid"
+  | "playlist.options.view.list"
+  | "playlist.subtitles.cancel"
+  | "playlist.subtitles.close"
+  | "playlist.subtitles.destination"
+  | "playlist.subtitles.destination.file"
+  | "playlist.subtitles.destination.folder"
+  | "playlist.subtitles.destination.playlist"
+  | "playlist.subtitles.empty-body"
+  | "playlist.subtitles.empty-title"
+  | "playlist.subtitles.folder-path"
+  | "playlist.subtitles.language"
+  | "playlist.subtitles.language.english"
+  | "playlist.subtitles.list-label"
+  | "playlist.subtitles.match"
+  | "playlist.subtitles.match.any"
+  | "playlist.subtitles.match.contains"
+  | "playlist.subtitles.match.exact"
+  | "playlist.subtitles.match.extra"
+  | "playlist.subtitles.match.off"
+  | "playlist.subtitles.pairs-label"
+  | "playlist.subtitles.save"
+  | "playlist.subtitles.search"
+  | "playlist.subtitles.search.placeholder"
+  | "playlist.subtitles.source"
+  | "playlist.subtitles.source.computer"
+  | "playlist.subtitles.source.online"
+  | "playlist.subtitles.title"
+  | "settings.advanced-options"
+  | "settings.area.audio"
+  | "settings.area.controls"
+  | "settings.area.extensions"
+  | "settings.area.recording"
+  | "settings.area.subtitles"
+  | "settings.area.video"
+  | "settings.close"
+  | "settings.controls.defaults"
+  | "settings.controls.edit-shortcuts"
+  | "settings.controls.mouse-double-click"
+  | "settings.controls.mouse-horizontal-scroll"
+  | "settings.controls.mouse-reverse-scroll-direction"
+  | "settings.controls.mouse-scroll-wheel"
+  | "settings.controls.mouse-single-click"
+  | "settings.controls.reset-all-shortcuts"
+  | "settings.controls.reset-shortcuts"
+  | "settings.controls.skip-long"
+  | "settings.controls.skip-medium"
+  | "settings.controls.skip-short"
+  | "settings.controls.skip-very-short"
+  | "settings.extensions.add"
+  | "settings.extensions.empty-body"
+  | "settings.extensions.empty-title"
+  | "settings.extensions.find-more"
+  | "settings.extensions.load-on-startup"
+  | "settings.extensions.remove"
+  | "settings.extensions.search"
+  | "settings.group.app"
+  | "settings.group.media"
+  | "settings.group.system"
+  | "settings.recording.directory"
+  | "settings.recording.format"
+  | "settings.section.controls.keyboard-shortcuts"
+  | "settings.section.controls.mouse"
+  | "settings.section.controls.skip-amounts"
+  | "settings.section.extensions.add-ons"
+  | "settings.section.recording.recording"
+  | "settings.value.controls-mouse-double-click.none"
+  | "settings.value.controls-mouse-double-click.play-pause"
+  | "settings.value.controls-mouse-double-click.show-menu"
+  | "settings.value.controls-mouse-double-click.toggle-fullscreen"
+  | "settings.value.controls-mouse-horizontal-scroll.none"
+  | "settings.value.controls-mouse-horizontal-scroll.seek"
+  | "settings.value.controls-mouse-horizontal-scroll.volume"
+  | "settings.value.controls-mouse-scroll-wheel.none"
+  | "settings.value.controls-mouse-scroll-wheel.seek"
+  | "settings.value.controls-mouse-scroll-wheel.volume"
+  | "settings.value.controls-mouse-single-click.none"
+  | "settings.value.controls-mouse-single-click.play-pause"
+  | "settings.value.controls-mouse-single-click.show-menu"
+  | "settings.value.controls-mouse-single-click.toggle-fullscreen"
+  | "settings.value.recording-format.mp4-remux"
+  | "settings.value.recording-format.wav"
+  | "settings.window-title.audio"
+  | "settings.window-title.controls"
+  | "settings.window-title.extensions"
+  | "settings.window-title.global"
+  | "settings.window-title.interface"
+  | "settings.window-title.library"
+  | "settings.window-title.network"
+  | "settings.window-title.performance"
+  | "settings.window-title.playback"
+  | "settings.window-title.privacy"
+  | "settings.window-title.recording"
+  | "settings.window-title.subtitles"
+  | "settings.window-title.video"
+  | "shell.playlist.anime-to-watch"
+  | "shell.playlist.cool-songs"
+  | "shell.rail.add"
+  | "shell.sidebar.back"
+  | "shell.sidebar.count-suffix"
+  | "shell.sidebar.create"
+  | "shell.sidebar.create.hint"
+  | "shell.sidebar.empty"
+  | "shell.sidebar.list-label"
+  | "shell.sidebar.more"
+  | "shell.sidebar.more.hint"
+  | "shell.sidebar.search"
+  | "shell.sidebar.search.empty"
+  | "shell.sidebar.search.placeholder"
+  | "shell.sidebar.sort"
+  | "shell.sidebar.title"
+  | "shell.sidebar.view-grid"
+  | "shell.sidebar.view-list"
+  | "shell.title.toggle-sidebar"
+  | "shell.window.close"
+  | "shell.window.group"
+  | "shell.window.maximize"
+  | "shell.window.minimize"
+  | "shortcuts.close"
+  | "shortcuts.column.global"
+  | "shortcuts.column.hotkey"
+  | "shortcuts.filter.all"
+  | "shortcuts.filter.label"
+  | "shortcuts.save"
+  | "stream.playlist.hint"
+  | "stream.playlist.label"
+  | "stream.playlist.optional"
+  | "stream.playlist.placeholder"
+  | "stream.url.example"
+  | "stream.url.hint";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
 // generator, tests, and l10n tooling.
@@ -1093,7 +1309,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.section.codecs.cache": "Cache",
   "settings.codecs.hw-decode-unavailable":
     "Hardware decode is accepted policy (ADR-001) but ships in a later phase — disabled while the feature is not exposed (F2).",
-  "settings.area.library": "Playlist & Services",
+  "settings.area.library": "Library",
   "settings.area.network": "Network",
   "settings.area.about": "Updates & About",
   "settings.section.about.updates": "Updates",
@@ -1292,6 +1508,222 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "player.keys.strip.label": "Player keys",
   "player.demo.playing": "Simulated playback",
   "player.open.recent": "Recent",
+  "app.name": "Lumen",
+  "convert.queue.count-suffix": "jobs",
+  "convert.source.browse": "Browse",
+  "convert.source.browse-gate": "Native file browsing is not exposed in this build — paste a path instead.",
+  "customize.box.label": "Toolbar items",
+  "customize.close": "Close customize panel",
+  "customize.instruction": "Drag items around and out of the box below to re-order them. Drag items into the box to remove them from the player.",
+  "customize.save": "Save",
+  "customize.tile.backward-10": "Backward 10s",
+  "customize.tile.backward-15": "Backward 15s",
+  "customize.tile.forward-10": "Forward 10s",
+  "customize.tile.forward-15": "Forward 15s",
+  "customize.title": "Customize Player",
+  "discovery.volumes.empty-body": "Volume watching arrives with the platform integrations (issue #42).",
+  "discovery.volumes.empty-title": "No volumes reported yet",
+  "not-found.body-quiet": "The page you were looking for does not exist.",
+  "not-found.heading": "Page not found",
+  "onboarding.appearance.heading": "Select your preferred theme and color.",
+  "onboarding.library.body": "Open a file, a playlist, or a network stream — paste a path or URL to queue it now, or leave it empty and open media from the player later.",
+  "onboarding.library.failed": "That path could not be opened. Check it and try again.",
+  "onboarding.library.opened": "Opened — it will be waiting when you finish.",
+  "onboarding.library.title": "Media library",
+  "onboarding.playback.body": "Quiet, honest defaults — every change saves the moment you make it and stays editable in Settings.",
+  "onboarding.playback.title": "Playback",
+  "onboarding.shortcuts.frame": "Previous / next frame",
+  "onboarding.shortcuts.heading": "Learn the basic keyboard shortcuts.",
+  "onboarding.shortcuts.item": "Previous / next item",
+  "onboarding.shortcuts.more": "Find the full list in the menu.",
+  "onboarding.shortcuts.seek": "Seek backward / forward",
+  "onboarding.shortcuts.volume": "Increase / decrease volume",
+  "onboarding.subtitles.body": "How subtitle tracks behave when a file carries them — saved the moment you change it, editable in Settings.",
+  "onboarding.subtitles.title": "Subtitles",
+  "player.controls.cast": "Cast",
+  "player.controls.exit-fullscreen": "Exit fullscreen",
+  "player.controls.fullscreen": "Enter fullscreen",
+  "player.controls.group-output": "Player controls",
+  "player.controls.next": "Next",
+  "player.mini.queue.label": "Queue",
+  "player.mini.queue.toggle": "Toggle queue",
+  "player.mini.title-empty": "Nothing playing",
+  "player.tools.close": "Close",
+  "player.tools.collapse-settings": "Collapse Settings",
+  "player.tools.expand-settings": "Expand Settings",
+  "playlist.library.count-suffix": "playlists",
+  "playlist.library.create": "New playlist",
+  "playlist.library.empty-body": "Playlists you create are saved on this device.",
+  "playlist.library.empty-title": "No playlists yet",
+  "playlist.library.items-suffix": "items",
+  "playlist.library.list-label": "Playlists",
+  "playlist.library.menu": "Playlist actions",
+  "playlist.library.menu.play": "Play",
+  "playlist.library.menu.remove": "Remove",
+  "playlist.new.browse": "Select files",
+  "playlist.new.cancel": "Cancel",
+  "playlist.new.close": "Close",
+  "playlist.new.details": "Playlist details",
+  "playlist.new.details.helper": "The playlist will be saved and displayed with this title and thumbnail.",
+  "playlist.new.drop": "Drag files into the box or click here to select files.",
+  "playlist.new.files": "Select files",
+  "playlist.new.files.helper": "These files will be added to the playlist.",
+  "playlist.new.name-placeholder": "e.g., Favorite Videos",
+  "playlist.new.save": "Save",
+  "playlist.new.thumbnail": "Playlist thumbnail",
+  "playlist.new.thumbnail.hint": "Thumbnails are not exposed by this build yet.",
+  "playlist.new.title": "New playlist",
+  "playlist.options.entry-menu": "More actions",
+  "playlist.options.grid-label": "Playlist thumbnails",
+  "playlist.options.list-label": "Playlist media",
+  "playlist.options.sort": "Sorting options",
+  "playlist.options.sort.album-asc": "Album A-Z",
+  "playlist.options.sort.album-desc": "Album Z-A",
+  "playlist.options.sort.artist-asc": "Artist A-Z",
+  "playlist.options.sort.artist-desc": "Artist Z-A",
+  "playlist.options.sort.disc-number-asc": "Disc Number Ascending",
+  "playlist.options.sort.disc-number-desc": "Disc Number Descending",
+  "playlist.options.sort.newest-first": "Newest First",
+  "playlist.options.sort.oldest-first": "Oldest First",
+  "playlist.options.sort.title-asc": "Title A-Z",
+  "playlist.options.sort.title-desc": "Title Z-A",
+  "playlist.options.sort.track-number-asc": "Track Number Ascending",
+  "playlist.options.sort.track-number-desc": "Track Number Descending",
+  "playlist.options.sort.unwatched-first": "Unwatched First",
+  "playlist.options.sort.uri-asc": "URI Ascending",
+  "playlist.options.sort.uri-desc": "URI Descending",
+  "playlist.options.sort.watched-first": "Watched First",
+  "playlist.options.view": "View options",
+  "playlist.options.view.grid": "Grid View",
+  "playlist.options.view.list": "List View",
+  "playlist.subtitles.cancel": "Cancel",
+  "playlist.subtitles.close": "Close",
+  "playlist.subtitles.destination": "Apply subtitles to",
+  "playlist.subtitles.destination.file": "To This File",
+  "playlist.subtitles.destination.folder": "To This Folder",
+  "playlist.subtitles.destination.playlist": "To This Playlist",
+  "playlist.subtitles.empty-body": "Subtitle files that match your videos appear here.",
+  "playlist.subtitles.empty-title": "No subtitle files found",
+  "playlist.subtitles.folder-path": "Subtitle folder path",
+  "playlist.subtitles.language": "Subtitle language",
+  "playlist.subtitles.language.english": "English",
+  "playlist.subtitles.list-label": "Subtitle files",
+  "playlist.subtitles.match": "Filename matching",
+  "playlist.subtitles.match.any": "Any title",
+  "playlist.subtitles.match.contains": "Contains title",
+  "playlist.subtitles.match.exact": "Exact title match",
+  "playlist.subtitles.match.extra": "Title with extra characters",
+  "playlist.subtitles.match.off": "Off",
+  "playlist.subtitles.pairs-label": "Matched subtitle pairs",
+  "playlist.subtitles.save": "Save",
+  "playlist.subtitles.search": "Search subtitles",
+  "playlist.subtitles.search.placeholder": "The Wand S01E01",
+  "playlist.subtitles.source": "Subtitle source",
+  "playlist.subtitles.source.computer": "From Computer",
+  "playlist.subtitles.source.online": "From OpenSubtitles",
+  "playlist.subtitles.title": "Add Subtitles",
+  "settings.advanced-options": "Advanced Options",
+  "settings.area.audio": "Audio",
+  "settings.area.controls": "Controls",
+  "settings.area.extensions": "Extensions",
+  "settings.area.recording": "Recording",
+  "settings.area.subtitles": "Subtitles",
+  "settings.area.video": "Video",
+  "settings.close": "Close settings",
+  "settings.controls.defaults": "Defaults",
+  "settings.controls.edit-shortcuts": "Edit keyboard shortcuts",
+  "settings.controls.mouse-double-click": "Double click on the video",
+  "settings.controls.mouse-horizontal-scroll": "Horizontal scroll",
+  "settings.controls.mouse-reverse-scroll-direction": "Reverse scroll direction",
+  "settings.controls.mouse-scroll-wheel": "Scroll wheel",
+  "settings.controls.mouse-single-click": "Single click on the video",
+  "settings.controls.reset-all-shortcuts": "Reset all shortcuts",
+  "settings.controls.reset-shortcuts": "Reset",
+  "settings.controls.skip-long": "Long skip",
+  "settings.controls.skip-medium": "Medium skip",
+  "settings.controls.skip-short": "Short skip",
+  "settings.controls.skip-very-short": "Very short skip",
+  "settings.extensions.add": "Add",
+  "settings.extensions.empty-body": "Add-ons appear here once the extensions feature ships in this build.",
+  "settings.extensions.empty-title": "No add-ons installed",
+  "settings.extensions.find-more": "Find more extensions",
+  "settings.extensions.load-on-startup": "Load add-ons on startup",
+  "settings.extensions.remove": "Remove",
+  "settings.extensions.search": "Search",
+  "settings.group.app": "App",
+  "settings.group.media": "Media",
+  "settings.group.system": "System",
+  "settings.recording.directory": "Save recordings to",
+  "settings.recording.format": "Recording format",
+  "settings.section.controls.keyboard-shortcuts": "Keyboard shortcuts",
+  "settings.section.controls.mouse": "Mouse",
+  "settings.section.controls.skip-amounts": "Skip Amounts",
+  "settings.section.extensions.add-ons": "Add-ons",
+  "settings.section.recording.recording": "Recording",
+  "settings.value.controls-mouse-double-click.none": "Do nothing",
+  "settings.value.controls-mouse-double-click.play-pause": "Play / Pause",
+  "settings.value.controls-mouse-double-click.show-menu": "Show menu",
+  "settings.value.controls-mouse-double-click.toggle-fullscreen": "Toggle fullscreen",
+  "settings.value.controls-mouse-horizontal-scroll.none": "Do nothing",
+  "settings.value.controls-mouse-horizontal-scroll.seek": "Seek",
+  "settings.value.controls-mouse-horizontal-scroll.volume": "Volume",
+  "settings.value.controls-mouse-scroll-wheel.none": "Do nothing",
+  "settings.value.controls-mouse-scroll-wheel.seek": "Seek",
+  "settings.value.controls-mouse-scroll-wheel.volume": "Volume",
+  "settings.value.controls-mouse-single-click.none": "Do nothing",
+  "settings.value.controls-mouse-single-click.play-pause": "Play / Pause",
+  "settings.value.controls-mouse-single-click.show-menu": "Show menu",
+  "settings.value.controls-mouse-single-click.toggle-fullscreen": "Toggle fullscreen",
+  "settings.value.recording-format.mp4-remux": "MP4 (stream copy)",
+  "settings.value.recording-format.wav": "WAV",
+  "settings.window-title.audio": "Audio Defaults",
+  "settings.window-title.controls": "Mouse, Keyboard & Remote Controls",
+  "settings.window-title.extensions": "Add-ons & Scripts",
+  "settings.window-title.global": "Global Settings",
+  "settings.window-title.interface": "Interface Settings",
+  "settings.window-title.library": "Playlists, Folders & Files",
+  "settings.window-title.network": "Network Connections & Security",
+  "settings.window-title.performance": "Performance Settings",
+  "settings.window-title.playback": "Playback Preferences",
+  "settings.window-title.privacy": "Privacy Settings",
+  "settings.window-title.recording": "Recording, Casting & Streaming Out",
+  "settings.window-title.subtitles": "Subtitle Defaults",
+  "settings.window-title.video": "Video Defaults",
+  "shell.playlist.anime-to-watch": "Anime to Watch",
+  "shell.playlist.cool-songs": "Cool Songs",
+  "shell.rail.add": "Add media",
+  "shell.sidebar.back": "Back",
+  "shell.sidebar.count-suffix": "Items",
+  "shell.sidebar.create": "Create playlist",
+  "shell.sidebar.create.hint": "Creating playlists is not wired to the engine yet.",
+  "shell.sidebar.empty": "No playlists yet.",
+  "shell.sidebar.list-label": "Playlists",
+  "shell.sidebar.more": "More playlist options",
+  "shell.sidebar.more.hint": "Playlist actions are not exposed by this build yet.",
+  "shell.sidebar.search": "Search playlists",
+  "shell.sidebar.search.empty": "No playlists match your search.",
+  "shell.sidebar.search.placeholder": "Search playlists…",
+  "shell.sidebar.sort": "Sort playlists alphabetically",
+  "shell.sidebar.title": "Playlists",
+  "shell.sidebar.view-grid": "Grid view",
+  "shell.sidebar.view-list": "List view",
+  "shell.title.toggle-sidebar": "Toggle playlists sidebar",
+  "shell.window.close": "Stop and return to the player",
+  "shell.window.group": "Window controls",
+  "shell.window.maximize": "Toggle fullscreen",
+  "shell.window.minimize": "Minimize to miniplayer",
+  "shortcuts.close": "Close shortcuts",
+  "shortcuts.column.global": "Global Hotkey",
+  "shortcuts.column.hotkey": "Hotkey",
+  "shortcuts.filter.all": "All Fields",
+  "shortcuts.filter.label": "Search scope",
+  "shortcuts.save": "Save",
+  "stream.playlist.hint": "The playlist will be saved and displayed with this title.",
+  "stream.playlist.label": "Playlist Name",
+  "stream.playlist.optional": "(optional)",
+  "stream.playlist.placeholder": "e.g., Favorite TV Channels",
+  "stream.url.example": "e.g., https://www.example.com/stream.avi",
+  "stream.url.hint": "You can enter multiple links to load.",
 };
 
 export type Msg = (key: MessageKey) => string;

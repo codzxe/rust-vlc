@@ -25,7 +25,7 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 export function usePlaylistMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | PlaylistLaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | PlaylistLaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

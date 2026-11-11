@@ -4,12 +4,12 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { NotFoundScreen } from "./NotFoundScreen";
 
-// Solstice v2 stage 404 (brief §4.8): a theatrical full-sunset scene with
-// ONE clear CTA home. Regression tests for the rebuilt composition's
-// contracts: the vivid backdrop is a mount effect (set while mounted,
-// cleaned up on unmount — never leaked onto the rest of the app), the
-// "404" page number is decorative (aria-hidden; the real heading carries
-// the accessible title), and the primary CTA routes back to the player.
+// The W26 quiet-hero 404 (w26.b13): a centered cone-mark hero with ONE
+// clear CTA home — the onboarding grammar, never a theatrical stage.
+// Regression tests for the rebuild's contracts: the Solstice data-backdrop
+// veil stays retired (mounting touches no tier — W25 §0), the heading is
+// the honest "Page not found" copy, and the primary CTA routes back to the
+// player.
 
 /** Location probe for navigation assertions. */
 function Where(): ReactElement {
@@ -28,22 +28,26 @@ const render404 = (): ReturnType<typeof render> =>
     </MemoryRouter>,
   );
 
-describe("NotFoundScreen (Solstice v2 stage)", () => {
-  it("renders the lost-note scene with a clear title and one primary CTA", () => {
+describe("NotFoundScreen (W26 quiet hero)", () => {
+  it("renders the centered quiet hero with a clear title and one primary CTA", () => {
     render404();
-    expect(screen.getByRole("heading", { level: 1, name: "Lost the thread" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Page not found" }),
+    ).toBeInTheDocument();
     const cta = screen.getByRole("button", { name: "Back to the player" });
     expect(cta).toHaveClass("lumen-button--primary");
   });
 
-  it("the big 404 page number is decorative — never announced", () => {
+  it("the cone mark is decorative — never announced", () => {
     render404();
-    expect(screen.getByText("404")).toHaveAttribute("aria-hidden", "true");
+    const mark = document.querySelector(".not-found__cone");
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("flips the backdrop to the vivid stage tier only while mounted", () => {
+  it("retires the Solstice stage — mounting touches no data-backdrop tier", () => {
     const utils = render404();
-    expect(document.documentElement.dataset.backdrop).toBe("vivid");
+    expect(document.documentElement.dataset.backdrop).toBeUndefined();
     utils.unmount();
     expect(document.documentElement.dataset.backdrop).toBeUndefined();
   });

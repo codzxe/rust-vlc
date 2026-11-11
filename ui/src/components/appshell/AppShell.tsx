@@ -94,7 +94,7 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 function useShellMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | LaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | LaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

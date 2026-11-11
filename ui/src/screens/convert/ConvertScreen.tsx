@@ -3,6 +3,21 @@
 // MP4-remux — see ./convertTargets.ts), and a job queue whose lifecycle
 // mirrors the transcode engine's job outcomes.
 //
+// W26 Figma language (w26.b13 rebuild; no direct frame — CONTRACT §3): the
+// composition follows the design language (§2) with the nearest grammars —
+//   * Settings - *.svg — the working-screen page head (15px-class semibold
+//     heading + one quiet subtitle) and the section-header grammar
+//     (SectionHeader primitive);
+//   * Onboarding.svg / Settings - global.svg — the "input + Browse" source
+//     row (the .lumen-browse combo; the action is the honest
+//     disabled-from-data stub — no catalog command exposes a native picker);
+//   * Dropdown.svg / Setting Preset.svg — the target picker rides the menu
+//     API (Dropdown primitive, compact settings density);
+//   * playlist.svg — the queue rows (name + meta + right-aligned status,
+//     r6 hover fill) inside the r14 bordered Card primitive;
+//   * Open network stream.svg — the footer action row (primary action
+//     right-aligned, 100px r6 buttons).
+//
 // CAPABILITY HONESTY (the card's acceptance criterion — "no capability
 // shown that is not implemented"):
 //   * the target picker offers exactly the two operations crates/transcode
@@ -22,17 +37,20 @@
 //     would (queued/running jobs only; a cancelled running job keeps its
 //     last progress — the honest partial-output shape).
 //
-// The screen renders NO <main> of its own — the AppShell provides it.
+// The screen renders NO <main> of its own — the AppShell provides it. (The
+// Solstice data-backdrop veil is retired with the v2 aesthetic, W25 §0.)
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/button/Button";
-import { TextField } from "../../components/form/TextField";
-import { RadioGroup } from "../../components/form/RadioGroup";
+import { Dropdown } from "../../components/menu/Dropdown";
+import { Card, SectionHeader } from "../../components/surface/Surface";
 import { useClient } from "../../client/ClientProvider";
 import { useMsg } from "../../i18n/messages";
+import type { MessageKey } from "../../i18n/messages";
+import { keys as laneKeys } from "../../i18n/keys/w26.b13";
 import type { CommandListing } from "../../generated/commands";
-import { CONVERT_TARGETS, convertTargetDef } from "./convertTargets";
+import { CONVERT_TARGETS, convertTargetDef, isConvertTargetId } from "./convertTargets";
 import type { ConvertTargetId } from "./convertTargets";
 import {
   LIST_COMMANDS_REQUEST_ID,
@@ -46,6 +64,27 @@ import {
 } from "./convertQueue";
 import type { ConvertJob, ConvertJobState } from "./convertQueue";
 import "./convert.css";
+
+// ---------------------------------------------------------------------------
+// Lane i18n seam (contract §4.5) — copy with no catalog entry yet
+// ---------------------------------------------------------------------------
+
+/** Keys owned by this lane (registered into messages.ts by the Lead). */
+type LaneKey = keyof typeof laneKeys;
+const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+
+/**
+ * useConvertMsg — `useMsg` extended with this lane's pre-registration keys.
+ * Lane keys win while unregistered; once the Lead merges them into the
+ * catalog both paths return the same string (w26.b12 discovery precedent).
+ */
+function useConvertMsg() {
+  const m = useMsg();
+  return useCallback(
+    (key: MessageKey | LaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
+    [m],
+  );
+}
 
 /** The lane probe's settled shape: what the catalog exposes + resolved. */
 interface LaneState {
@@ -65,7 +104,7 @@ const STATUS_KEY: Readonly<Record<ConvertJobState, "convert.job.status.queued" |
 };
 
 export function ConvertScreen() {
-  const m = useMsg();
+  const m = useConvertMsg();
   const client = useClient();
   const navigate = useNavigate();
   const [sourcePath, setSourcePath] = useState("");
@@ -74,16 +113,6 @@ export function ConvertScreen() {
   const [lane, setLane] = useState<LaneState>(LANE_ABSENT);
   const [formError, setFormError] = useState<string | null>(null);
   const nextRequestId = useRef(LIST_COMMANDS_REQUEST_ID);
-
-  // Solstice v2 (brief §1): APP-tier screen — calm backdrop while mounted,
-  // cleaned up on unmount.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.backdrop = "calm";
-    return () => {
-      delete root.dataset.backdrop;
-    };
-  }, []);
 
   // The lane probe (module docs): one `system.list-commands` per transport.
   // A failed or non-listing answer resolves to the ABSENT lane — absence of
@@ -156,76 +185,131 @@ export function ConvertScreen() {
   };
 
   return (
-    <div className="convert">
-      <div className="convert__group">
-        <section
-          className="convert__card solstice-rise"
-          aria-labelledby="convert-title"
-          data-testid="convert-card"
-        >
-          <h1 id="convert-title" className="convert__title">
-            {m("convert.title")}
-          </h1>
-          <p className="convert__subtitle">{m("convert.subtitle")}</p>
+    <div className="convert" data-screen="convert">
+      {/* Page head — the compact working-screen scale (Settings top-bar
+       * grammar: 15px-class semibold heading + one quiet subtitle line). */}
+      <header className="convert__head">
+        <h1 id="convert-title" className="convert__title">
+          {m("convert.title")}
+        </h1>
+        <p className="convert__subtitle">{m("convert.subtitle")}</p>
+      </header>
 
-          <form
-            className="convert__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              startJob();
-            }}
-          >
-            <TextField
-              label={m("convert.source.label")}
+      {/* The conversion panel — one r14 bordered card (Settings - *.svg
+       * content-card grammar) carrying the settings rows + footer. */}
+      <form
+        className="lumen-card convert__card"
+        aria-labelledby="convert-title"
+        data-testid="convert-card"
+        onSubmit={(event) => {
+          event.preventDefault();
+          startJob();
+        }}
+      >
+        {/* Source row — Settings - global.svg "Log file" grammar: label
+         * left, the input + Browse combo right (the .lumen-browse row). The
+         * Browse action is the honest disabled-from-data stub: no catalog
+         * command (nor desktop event) exposes a native file picker to the
+         * UI yet, so it renders with the recorded reason instead of a dead
+         * enabled button (extensions.tsx precedent). */}
+        <div className="convert__field convert__field--row convert__field--top">
+          <label className="convert__field-label" htmlFor="convert-source">
+            {m("convert.source.label")}
+          </label>
+          <div className="lumen-browse convert__source-combo">
+            <input
+              id="convert-source"
+              className="lumen-field__control lumen-browse__control"
               placeholder={m("convert.source.placeholder")}
               value={sourcePath}
-              error={formError ?? undefined}
               spellCheck={false}
               autoComplete="off"
+              aria-invalid={formError !== null || undefined}
+              aria-describedby={formError !== null ? "convert-source-error" : undefined}
               onChange={(event) => {
                 setSourcePath(event.target.value);
                 if (formError !== null) setFormError(null);
               }}
             />
-            <div className="convert__target">
-              <RadioGroup
-                label={m("convert.target.label")}
-                value={target}
-                onChange={(value) => {
-                  if (value === "wav" || value === "mp4") setTarget(value);
-                }}
-                options={CONVERT_TARGETS.map((def) => ({
-                  value: def.id,
-                  label: m(def.labelKey),
-                }))}
-              />
-              <p className="convert__target-note" data-testid="convert-target-note">
-                {m(targetDef.noteKey)}
-              </p>
-            </div>
-            <div className="convert__actions">
-              <Button type="submit" variant="primary" data-testid="convert-start">
-                {m("convert.start")}
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => navigate("/player")}
-                data-testid="convert-back"
-              >
-                {m("convert.back")}
-              </Button>
-            </div>
-          </form>
-        </section>
+            <button
+              type="button"
+              className="lumen-browse__action"
+              disabled
+              aria-describedby="convert-browse-gate"
+              data-wiring-stub="native file picker — no catalog command exposed (card 7.E3)"
+            >
+              {m("convert.source.browse")}
+            </button>
+          </div>
+        </div>
+        <p className="convert__field-gate" id="convert-browse-gate">
+          {m("convert.source.browse-gate")}
+        </p>
+        {formError !== null ? (
+          <p className="lumen-field__error" id="convert-source-error">
+            {formError}
+          </p>
+        ) : null}
 
-        <section
-          className="convert__queue"
-          aria-labelledby="convert-queue-title"
-          data-testid="convert-queue"
+        {/* Target row — the settings label-left / control-right grammar
+         * over the menu API (Dropdown primitive; exactly the engine's two
+         * real operations, honest note under the control). */}
+        <div className="convert__field convert__field--row">
+          <span className="convert__field-label" id="convert-target-label">
+            {m("convert.target.label")}
+          </span>
+          <div className="convert__target-control">
+            <Dropdown
+              options={CONVERT_TARGETS.map((def) => ({
+                value: def.id,
+                labelKey: def.labelKey,
+              }))}
+              value={target}
+              onChange={(value) => {
+                if (isConvertTargetId(value)) setTarget(value);
+              }}
+              label={m("convert.target.label")}
+              resolveLabel={m}
+              density="compact"
+            />
+          </div>
+        </div>
+        <p className="convert__target-note" data-testid="convert-target-note">
+          {m(targetDef.noteKey)}
+        </p>
+
+        {/* Footer — Open network stream.svg grammar: actions right-aligned,
+         * the primary submit first, 100px r6 (Button primitive). */}
+        <div className="convert__actions">
+          <Button
+            variant="default"
+            onClick={() => navigate("/player")}
+            data-testid="convert-back"
+          >
+            {m("convert.back")}
+          </Button>
+          <Button type="submit" variant="primary" data-testid="convert-start">
+            {m("convert.start")}
+          </Button>
+        </div>
+      </form>
+
+      {/* Queue lane: section header at the column edge (Settings grammar,
+       * quiet count in the trailing slot) + the r14 card holding rows. */}
+      <section className="convert__queue-section" aria-labelledby="convert-queue-title">
+        <SectionHeader
+          as="h2"
+          id="convert-queue-title"
+          trailing={
+            <span className="convert__queue-count">
+              <span className="convert__queue-count-num">{String(queue.length)}</span>{" "}
+              {m("convert.queue.count-suffix")}
+            </span>
+          }
         >
-          <h2 id="convert-queue-title" className="convert__queue-title">
-            {m("convert.queue.title")}
-          </h2>
+          {m("convert.queue.title")}
+        </SectionHeader>
+        <Card className="convert__queue" data-testid="convert-queue">
           {lane.resolved && !laneAvailable ? (
             <p className="convert__lane-note" data-testid="convert-lane-note">
               {m("convert.lane.unavailable")}
@@ -237,15 +321,45 @@ export function ConvertScreen() {
             <ul className="convert__queue-list">
               {queue.map((job) => (
                 <li key={job.id} className="convert__job" data-state={job.state}>
-                  <span className="convert__job-name" title={job.sourcePath}>
-                    {sourceBasename(job.sourcePath)}
-                  </span>
-                  <span className="convert__job-target">
-                    {m(convertTargetDef(job.target).labelKey)}
-                  </span>
-                  <span className="convert__job-status" data-testid={`convert-job-status-${job.id}`}>
-                    {m(STATUS_KEY[job.state])}
-                  </span>
+                  <div className="convert__job-line">
+                    <span className="convert__job-name" title={job.sourcePath}>
+                      {sourceBasename(job.sourcePath)}
+                    </span>
+                    <span
+                      className="convert__job-status"
+                      data-testid={`convert-job-status-${job.id}`}
+                    >
+                      {m(STATUS_KEY[job.state])}
+                    </span>
+                  </div>
+                  <div className="convert__job-line convert__job-line--meta">
+                    <span className="convert__job-target">
+                      {m(convertTargetDef(job.target).labelKey)}
+                    </span>
+                    <span className="convert__job-side">
+                      {job.state === "running" && job.progress !== null ? (
+                        <span className="convert__job-partial">
+                          {formatProgressLabel(job.progress)}
+                        </span>
+                      ) : null}
+                      {job.state === "cancelled" && job.progress !== null ? (
+                        <span className="convert__job-partial">
+                          {formatProgressLabel(job.progress)}
+                        </span>
+                      ) : null}
+                      {cancellable(job.state) ? (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="convert__job-cancel"
+                          onClick={() => cancelJob(job.id)}
+                          data-testid={`convert-job-cancel-${job.id}`}
+                        >
+                          {m("convert.job.cancel")}
+                        </Button>
+                      ) : null}
+                    </span>
+                  </div>
                   {job.state === "running" && job.progress !== null ? (
                     <progress
                       className="convert__job-progress"
@@ -256,23 +370,11 @@ export function ConvertScreen() {
                       {formatProgressLabel(job.progress)}
                     </progress>
                   ) : null}
-                  {job.state === "cancelled" && job.progress !== null ? (
-                    <span className="convert__job-partial">
-                      {formatProgressLabel(job.progress)}
-                    </span>
-                  ) : null}
-                  {cancellable(job.state) ? (
-                    <Button
-                      variant="default"
-                      className="convert__job-cancel"
-                      onClick={() => cancelJob(job.id)}
-                      data-testid={`convert-job-cancel-${job.id}`}
-                    >
-                      {m("convert.job.cancel")}
-                    </Button>
-                  ) : null}
                   {job.detail !== null ? (
-                    <p className="convert__job-detail" data-testid={`convert-job-detail-${job.id}`}>
+                    <p
+                      className="convert__job-detail"
+                      data-testid={`convert-job-detail-${job.id}`}
+                    >
                       {job.detail}
                     </p>
                   ) : null}
@@ -280,8 +382,8 @@ export function ConvertScreen() {
               ))}
             </ul>
           )}
-        </section>
-      </div>
+        </Card>
+      </section>
     </div>
   );
 }

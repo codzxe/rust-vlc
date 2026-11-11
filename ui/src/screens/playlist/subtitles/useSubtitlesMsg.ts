@@ -21,7 +21,7 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 export function useSubtitlesMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | SubtitlesLaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | SubtitlesLaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

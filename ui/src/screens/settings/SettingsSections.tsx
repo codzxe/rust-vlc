@@ -31,7 +31,7 @@ const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...lane
 /** useSectionsMsg — useMsg + the settings lanes' pre-registration keys. */
 function useSectionsMsg() {
   const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey): string => laneCatalog[key] ?? m(key as MessageKey);
+  return (key: MessageKey | LaneKey | RegistryKey): string => m(key as MessageKey) ?? laneCatalog[key];
 }
 
 /** Split a section's entries into (normal, advanced), search + gate filtered. */

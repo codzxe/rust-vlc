@@ -59,7 +59,7 @@ const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...lane
 function useSettingsMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | LaneKey | RegistryKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | LaneKey | RegistryKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

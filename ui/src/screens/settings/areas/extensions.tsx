@@ -81,7 +81,7 @@ const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...lane
 function useAreaMsg() {
   const m = useMsg();
   return (key: MessageKey | RegistryKey | LaneKey): string =>
-    laneCatalog[key] ?? m(key as MessageKey);
+    m(key as MessageKey) ?? laneCatalog[key];
 }
 
 /**

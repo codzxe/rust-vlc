@@ -20,7 +20,7 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 export function useOptionsMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | OptionsLaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | OptionsLaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

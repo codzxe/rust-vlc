@@ -25,7 +25,7 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 export function useNetworkStreamMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | NetworkStreamLaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    (key: MessageKey | NetworkStreamLaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }

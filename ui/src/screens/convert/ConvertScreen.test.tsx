@@ -1,19 +1,21 @@
 // /convert tests (card 7.E3, issue #44) — pins the capability honesty:
-//   * the target picker offers EXACTLY the engine's two real operations
-//     (WAV record / MP4-remux) with their honest notes;
+//   * the target picker (the W26 menu API) offers EXACTLY the engine's two
+//     real operations (WAV record / MP4-remux) with their honest notes;
 //   * the screen probes the command catalog (`system.list-commands`) for a
 //     conversion lane; with the REAL namespaces (no convert.* / record.*
 //     commands — today's truth) the honest unavailable banner renders;
 //   * a Start enqueues a job that transitions to `blocked` with the typed
 //     not-exposed reason — NEVER a simulated progress bar, and no request
 //     is fabricated beyond the catalog probe;
+//   * the Browse action is the honest disabled-from-data stub (no native
+//     picker command exists — the extensions.tsx precedent);
 //   * the queue bound refuses the 9th job; terminal rows show no cancel;
 //   * a transport that lists convert.* commands (the future lane) gets a
 //     queued job and no banner — the engine-binding seam's other branch.
 // The full lifecycle arithmetic (start/progress/complete/fail/cancel) is
 // pinned by convertQueue.test.ts against the pure reducer.
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
@@ -82,14 +84,18 @@ const renderScreen = (ids: readonly string[] = REAL_TODAY) => {
   return { transport };
 };
 
+/** Open the target dropdown (menu API) and return its listbox. */
+const openTargets = (): HTMLElement => {
+  fireEvent.click(screen.getByRole("button", { name: "Target" }));
+  return screen.getByRole("listbox", { name: "Target" });
+};
+
 afterEach(() => {
   delete document.documentElement.dataset.backdrop;
 });
 
 describe("ConvertScreen (/convert)", () => {
-  it("veils the backdrop to calm while mounted and cleans up on unmount (v2 §1)", () => {
-    const { unmount } = render(<div />);
-    unmount();
+  it("retires the Solstice backdrop veil — mounting touches no data-backdrop tier", () => {
     const view = render(
       <MemoryRouter initialEntries={["/convert"]}>
         <Routes>
@@ -102,29 +108,44 @@ describe("ConvertScreen (/convert)", () => {
         ),
       },
     );
-    expect(document.documentElement.dataset.backdrop).toBe("calm");
+    expect(document.documentElement.dataset.backdrop).toBeUndefined();
     view.unmount();
     expect(document.documentElement.dataset.backdrop).toBeUndefined();
   });
 
-  it("renders the anchored form with EXACTLY the two real targets and honest notes", async () => {
+  it("renders the working-screen form with EXACTLY the two real targets and honest notes", async () => {
     renderScreen();
     expect(screen.getByText("Convert / Save")).toBeInTheDocument();
     expect(screen.getByLabelText("Source file")).toBeInTheDocument();
-    // exactly two radios — the engine's real capability set, no MP3/MKV lies
-    const radios = screen.getAllByRole("radio");
-    expect(radios).toHaveLength(2);
-    expect(screen.getByRole("radio", { name: "Record to WAV" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Remux to MP4" })).not.toBeChecked();
+    // the trigger shows the wav default; opening the menu (menu API) lists
+    // exactly two options — the engine's real capability set, no MP3/MKV lies
+    expect(screen.getByRole("button", { name: "Target" })).toHaveTextContent("Record to WAV");
+    const list = openTargets();
+    const options = within(list).getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(within(list).getByRole("option", { name: "Record to WAV", selected: true })).toBeInTheDocument();
+    expect(within(list).getByRole("option", { name: "Remux to MP4" })).toBeInTheDocument();
     // the wav note shows first; switching flips the note (the honest per-
     // target description)
     expect(screen.getByTestId("convert-target-note").textContent).toMatch(/uncompressed/i);
-    fireEvent.click(screen.getByRole("radio", { name: "Remux to MP4" }));
+    fireEvent.click(within(list).getByRole("option", { name: "Remux to MP4" }));
     expect(screen.getByTestId("convert-target-note").textContent).toMatch(/without re-encoding/i);
     // standard action row
     expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back to player" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("convert-lane-note")).toBeInTheDocument());
+  });
+
+  it("the Browse action is the honest disabled stub — no dead enabled control, no fabricated request", () => {
+    const { transport } = renderScreen();
+    const browse = screen.getByRole("button", { name: "Browse" });
+    expect(browse).toBeDisabled();
+    expect(browse).toHaveAttribute("data-wiring-stub");
+    // the gate reason is wired to the action for AT
+    const gate = document.getElementById("convert-browse-gate");
+    expect(gate?.textContent).toMatch(/not exposed in this build/i);
+    expect(browse.getAttribute("aria-describedby")).toContain("convert-browse-gate");
+    expect(transport.sent.filter((r) => r.cmd !== "system.list-commands")).toHaveLength(0);
   });
 
   it("probes the command catalog once on mount and shows the honest unavailable banner", async () => {
@@ -152,7 +173,8 @@ describe("ConvertScreen (/convert)", () => {
     fireEvent.change(screen.getByLabelText("Source file"), {
       target: { value: "/media/demo/bunny.mkv" },
     });
-    fireEvent.click(screen.getByRole("radio", { name: "Remux to MP4" }));
+    const list = openTargets();
+    fireEvent.click(within(list).getByRole("option", { name: "Remux to MP4" }));
     fireEvent.submit(screen.getByLabelText("Source file").closest("form")!);
     // the row: name, target, blocked status, honest reason
     expect(screen.getByText("bunny.mkv")).toBeInTheDocument();

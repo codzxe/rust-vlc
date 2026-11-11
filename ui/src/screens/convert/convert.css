@@ -1,123 +1,165 @@
-/* /convert (card 7.E3) — the conversion screen, Solstice v2 craft (brief
- * §1/§2.5/§2.6): an APP-tier screen on the calm backdrop, the same centered
- * anchored-column composition as /open-network-stream (a form, not a
- * poster), standard-size action row, and a quiet glass queue panel with
- * AA-contrast secondary ink. Semantic tokens only. */
+/* /convert (card 7.E3) — the conversion screen in the W26 Figma language
+ * (w26.b13 rebuild; no direct frame — CONTRACT §3). Composition from the
+ * design language (§2) + nearest grammars:
+ *   * Settings - *.svg — the working-screen page head (15px-class
+ *     semibold heading + one quiet subtitle) and the label-left /
+ *     control-right row grammar;
+ *   * Onboarding.svg / Settings - global.svg — the "input + Browse"
+ *     source combo (label above, .lumen-browse row);
+ *   * Dropdown.svg — the target picker (menu API, compact density);
+ *   * playlist.svg — queue rows (name + meta + right-aligned status,
+ *     quiet hover fill) inside the r14 Card primitive;
+ *   * Open network stream.svg — the footer action row (primary right).
+ * Working-screen density: a compact top-anchored column on the near-black
+ * surface — no vertical centering, the shell main region scrolls.
+ * Semantic tokens only (§3.2); raw px is structural layout only. The
+ * Solstice calm-backdrop veil, glass fills, display type and tape-edge
+ * scrollbar are gone (W25 §0). */
 
 .convert {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: calc(var(--space-grid) * 5); /* section rhythm between lanes */
+  width: min(640px, 100%);
+  box-sizing: border-box;
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-tape-edge) transparent;
+  padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 5) calc(var(--space-grid) * 8);
 }
 
-/* The centered composition group (v2 §2.5): auto block margins center it
- * vertically on tall viewports and keep the top reachable when it grows. */
-.convert__group {
+/* --- page head (Settings top-bar grammar: quiet heading + one line) --- */
+
+.convert__head {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-inset) * 3);
-  width: min(560px, 100%);
-  box-sizing: border-box;
-  margin-block: auto;
-}
-
-.convert__card {
-  width: 100%;
-  box-sizing: border-box;
-  padding: calc(var(--space-inset) * 3);
-  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
-  border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-card-lg);
-  box-shadow: var(--shadow-card);
+  gap: var(--space-grid);
 }
 
 .convert__title {
-  margin: 0 0 var(--space-grid);
-  font-size: var(--font-size-display);
-  line-height: 1.1;
-  font-weight: var(--font-weight-extrabold);
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-label); /* the 15px-class section-heading scale */
+  font-weight: var(--font-weight-semibold);
   color: var(--color-content-bright);
 }
 
 .convert__subtitle {
-  margin: 0 0 calc(var(--space-inset) * 2);
+  margin: 0;
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
 }
 
-.convert__form {
+/* --- the conversion panel (r14 bordered Card grammar, via primitive) --- */
+
+.convert__card {
   display: flex;
   flex-direction: column;
   gap: var(--space-inset);
-  align-items: stretch;
+  padding: calc(var(--space-inset) * 1.5);
 }
 
-.convert__form .lumen-field__control {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* The target picker: radiogroup + the selected target's honest note. */
-.convert__target {
+/* Field labels — the dialog-section grammar (network-stream lane): body
+ * size, medium weight, primary ink. */
+.convert__field {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) / 2);
+  gap: calc(var(--space-grid) * 1.5);
 }
 
-.convert__target-note {
+.convert__field-label {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+}
+
+/* The settings row variant: label left · control right. */
+.convert__field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+}
+
+.convert__field--row .convert__field-label {
+  flex: 0 0 auto;
+}
+
+.convert__field--row .convert__source-combo,
+.convert__field--row .convert__target-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Baseline alignment for the taller source combo (34px input). */
+.convert__field--top {
+  align-items: start;
+  padding-block-start: calc(var(--space-grid) * 0.5); /* optical: input cap line */
+}
+
+.convert__field--top .convert__field-label {
+  line-height: 34px; /* frame: the 34px control row (Onboarding.svg input) */
+}
+
+/* The honest Browse gate — quiet tertiary caption naming why the action
+ * is a stub (the extensions.tsx disabled-from-data pattern). */
+.convert__field-gate {
   margin: 0;
   font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* The target picker's honest per-target note (helper copy class). */
+.convert__target-note {
+  margin: calc(var(--space-grid) * -0.5) 0 0; /* tucks toward its control row */
+  font-size: var(--font-size-caption);
+  line-height: 1.5;
   color: var(--color-content-secondary);
 }
 
-/* Standard-size action row: the primary Start + the secondary Back sit
- * end-aligned (v2 §2.6 — one button language, no full-width slabs). */
+/* --- footer — Open network stream.svg grammar: actions right, primary last */
+
 .convert__actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-grid);
-  flex-wrap: wrap;
+  gap: var(--space-inset);
+  margin-block-start: var(--space-grid);
+  padding-block-start: var(--space-inset);
+  border-block-start: 1px solid var(--color-stroke-border);
 }
 
-/* The queue panel — the quiet glass shape of the recents panel. */
-.convert__queue {
-  width: 100%;
-  box-sizing: border-box;
+.convert__actions .lumen-button {
+  min-width: 100px; /* frame: footer actions measure 100×32 r6 */
+}
+
+/* --- queue lane: header at the column edge, card below --- */
+
+.convert__queue-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
-  padding: calc(var(--space-inset) * 1.5);
-  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
-  border-radius: var(--radius-card);
-  backdrop-filter: blur(var(--blur-backdrop-small));
-  box-shadow: var(--shadow-card);
+  gap: calc(var(--space-grid) * 2);
 }
 
-.convert__queue-title {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-content-secondary);
+.convert__queue-count-num {
+  color: var(--color-content-primary);
+}
+
+.convert__queue {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-inset);
 }
 
 /* The honest unavailable banner — secondary ink, AA on the panel. */
 .convert__lane-note {
   margin: 0;
+  padding: 0 var(--space-inset) calc(var(--space-inset) * 1.5);
   font-size: var(--font-size-body);
+  line-height: 1.5;
   color: var(--color-content-secondary);
 }
 
 .convert__queue-empty {
   margin: 0;
+  padding: var(--space-grid) var(--space-inset);
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
 }
@@ -125,26 +167,40 @@
 .convert__queue-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* One job row: name + target + status (+ progress / cancel / detail). */
+/* One job row — playlist row anatomy: name + meta left, status right,
+ * quiet hover fill, hairline between rows (menu-row grammar). */
 .convert__job {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) / 2);
-  padding: var(--space-grid) var(--space-inset);
-  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
-  border: 1px solid var(--color-stroke-border);
+  gap: calc(var(--space-grid) * 1.5);
+  padding: calc(var(--space-grid) * 2) var(--space-inset);
   border-radius: var(--radius-control);
 }
 
+.convert__job + .convert__job {
+  border-block-start: 1px solid var(--color-stroke-border);
+}
+
+.convert__job:hover {
+  background: var(--color-surface-hover);
+}
+
+.convert__job-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  min-width: 0;
+}
+
 .convert__job-name {
-  font-family: var(--font-family-time);
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
   overflow-wrap: anywhere;
 }
@@ -154,37 +210,64 @@
   color: var(--color-content-secondary);
 }
 
+/* Status — quiet secondary text; the ONE accent claims the running state
+ * (the same sparing accent rule as the shell's active rail stop). */
 .convert__job-status {
-  align-self: flex-start;
-  padding: calc(var(--space-grid) / 4) calc(var(--space-grid) / 2);
+  flex: none;
   font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.04em;
   color: var(--color-content-secondary);
-  background: color-mix(in srgb, var(--color-surface-panel) 70%, transparent);
-  border: 1px solid var(--color-stroke-border);
+}
+
+.convert__job[data-state="running"] .convert__job-status {
+  color: var(--color-accent);
+}
+
+.convert__job-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+}
+
+/* The honest partial: a cancelled running job keeps its last percent —
+ * tabular numerals (W25 §1). */
+.convert__job-partial {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* The progress affordance — a slim well track with the accent fill
+ * (seekbar grammar: 3–4px, dark #0e0e0e track, orange fill). */
+.convert__job-progress {
+  width: 100%;
+  height: 4px; /* structural: the slim control-track pitch */
+  appearance: none;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-deep);
+  overflow: hidden;
+}
+
+.convert__job-progress::-webkit-progress-bar {
+  background: var(--color-surface-deep);
   border-radius: var(--radius-control);
 }
 
-/* The honest partial: a cancelled running job keeps its last percent. */
-.convert__job-partial {
-  font-family: var(--font-family-time);
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
+.convert__job-progress::-webkit-progress-value {
+  background: var(--color-accent);
+  border-radius: var(--radius-control);
 }
 
-.convert__job-progress {
-  width: 100%;
-  height: calc(var(--space-grid) / 2);
+.convert__job-progress::-moz-progress-bar {
+  background: var(--color-accent);
+  border-radius: var(--radius-control);
 }
 
 .convert__job-detail {
   margin: 0;
   font-size: var(--font-size-caption);
+  line-height: 1.5;
   color: var(--color-content-secondary);
   overflow-wrap: anywhere;
-}
-
-.convert__job-cancel {
-  align-self: flex-start;
 }
