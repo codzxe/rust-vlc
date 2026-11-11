@@ -1,114 +1,261 @@
 /* Card 4.F2 — player variants: Miniplayer + Music mode styling.
- * Design provenance: doc 08 §1.4 — Miniplayer card 391×339 rx14 #1B1B1B +
- * shadow, thumbnail 373×209 rx5 + 2px #090909 stroke, seek 375×16 rx6,
- * knob 8×12 rx4; Music-mode album art 737×737 rx20, slim seek knob 4×24 rx2.
  *
- * SOLSTICE RESTYLE (2026-11-08): the miniplayer floats as a flat sticky
- * note (.solstice-note composed in MiniPlayer.tsx) with the compact gold
- * play circle; music mode centers a glowing sun disc + caption layout + a
- * static waveform placeholder in the sunset visualizer gradient tokens
- * (--gradient-visualizer-1..4). Semantic tokens only; raw px appears solely
- * for the design's structural dimensions with no token (C1 player.css
- * precedent — recorded in ui/NEXT-STEPS.md). The miniplayer card is a
+ * W26 Figma composition (design/figma/Miniplayer.svg + Player - Music.svg;
+ * renders in design/figma-renders/): near-black surfaces, ONE sparing
+ * orange accent, compact desktop density. The Solstice note/sun/sunset
+ * gradient treatment is GONE — every color below is a semantic token; raw
+ * px appears solely for frame-measured structural dimensions (marked
+ * `frame:`), the C1 player.css precedent.
+ *
+ * Miniplayer (all five artboards): floating card r16 (#191919 + 1px
+ * #404040 + the frame's card shadow), video area r12 + 1px border, slim
+ * progress with orange fill + circular thumb, title row, meta row (folder
+ * chip + queue toggle), collapsible Queue panel above the video (r10,
+ * drag-handle rows, tabular durations). The miniplayer card is a
  * fixed-size compact surface [PROPOSAL: window-level always-on-top is
  * host-owned; the DOM renders the compact frame inside the player root].
  *
- * SOLSTICE v2 (2026-11-09, audit pass): music mode composes top-to-bottom
- * (sun upper third at a deliberate size, caption slot beneath it, waveform
- * anchored low above the transport) instead of centering one cluster in a
- * ~80% void; the miniplayer seek row flexes so the compact seekbar gets
- * the free width (and loses its phantom zero thumb while empty). */
+ * Music mode (Player - Music.svg): the ONE theatrical screen — large
+ * centered artwork treatment (738×737 rx20 on the 1920×1080 stage), ambient
+ * accent-tinted glow, quiet meta, static waveform-tick strip with an
+ * engine-truth played clip. Near-black + orange ONLY (no sunset
+ * gradients); the real C2 ControlBar drives transport in the footer. */
+
+/* ------------------------------------------------------------------ mini */
 
 .lumen-mini {
   display: flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: 6px; /* structural: frame card rhythm (thumb → seek → title → meta) */
   box-sizing: border-box;
-  width: 391px;
-  height: 339px;
+  width: 340px; /* frame: Miniplayer.svg card 391px, compacted to the ~320–360 brief */
   margin: auto; /* centered compact card while window-level placement is host-owned */
-
-  /* Padding + radius belong to the .solstice-note surface (24px / note
-   * radius) — same-specificity overrides here would lose the cascade to
-   * theme/solstice.css, which loads after screen sheets in the dev-server
-   * graph (see the cascade note in appshell.css). */
-  box-shadow: var(--shadow-note);
+  padding: 8px;
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: 16px; /* frame: card rx14; brief r16–20 */
+  box-shadow: var(--shadow-card);
 }
 
-.lumen-mini__thumb {
+/* Video area — the mini canvas seam. Dark in BOTH themes (the
+ * picture-frame rule, W25 spec §1 — same override pattern as the full
+ * canvas in player.css). */
+.lumen-mini__video {
   position: relative;
-  flex: 1;
-  min-height: 0;
-  border-radius: var(--radius-thumbnail);
+  flex: none;
+  aspect-ratio: 16 / 9; /* frame: thumbnail 373×209 */
+  overflow: hidden;
   background: var(--color-surface-deep);
-  outline: 2px solid var(--color-surface-deep); /* design: 2px #090909 thumb stroke */
-  box-shadow: inset 0 0 calc(var(--space-inset) * 2)
-    color-mix(in srgb, var(--color-surface-deep) 85%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: 12px; /* brief: video area r12 (frame rx5) */
 }
 
-.lumen-mini__bar {
+:root[data-theme="light"] .lumen-mini__video {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - Light.svg — the picture-frame rule (W25 spec §1): the video canvas stays dark (#2b2b2b–#333) in BOTH themes; no stays-dark semantic token exists yet (token-lane handoff). */
+  background: #2b2b2b;
+}
+
+/* Compact controls region — the whole lower card in the frame's vertical
+ * order (progress · title · meta · transport); the compact transport row
+ * is the always-available cluster the frame reveals as video overlays in
+ * its expanded state. */
+.lumen-mini__controls {
   display: flex;
-  align-items: center;
-  gap: var(--space-grid);
-  min-height: 32px; /* compact transport row (structural) */
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-/* v2 audit (measured in-browser): the bar's row was over-subscribed — every
- * flex item shrank, squashing the 28px play circle into a 21×28 ELLIPSE and
- * the expand/close stops into 24×32 slabs. The compact seek is the only
- * flexible item (the dominance rule); the buttons keep their fixed circles. */
-.lumen-mini__bar .lumen-icon-button {
-  flex: none;
+/* Full-width slim progress under the video (frame: 375px seek spans the
+ * card). Takes the free width; shows its circular thumb at rest — the
+ * frame's miniplayer carries a visible round knob, unlike the full bar's
+ * hover-reveal. */
+.lumen-mini__controls .lumen-mini__seek {
+  align-self: stretch;
 }
 
-/* v2: the compact seek takes the free width — same dominance language as
- * the full bar, scaled to the mini geometry. */
-.lumen-mini__bar .lumen-seekbar {
-  flex: 1 1 auto;
-  min-width: 0;
+.lumen-mini__controls .lumen-mini__seek .lumen-slider__track {
+  top: calc(50% - 2.5px);
+  height: 5px; /* brief: 4–6px progress (frame seek well 375×16 rx6) */
 }
 
-/* v2: calm unplayed track — no phantom zero thumb while empty (the
- * data-empty hook mirrors the full bar's). */
-.lumen-mini__bar .lumen-seekbar[data-empty] .lumen-slider__thumb,
-.lumen-mini__bar .lumen-seekbar[data-empty] .lumen-slider__fill {
+.lumen-mini__controls .lumen-mini__seek .lumen-slider__thumb {
+  opacity: 1;
+}
+
+/* Calm unplayed track — no phantom zero thumb/fill while there is no
+ * duration to map onto (same honesty rule as the full bar). */
+.lumen-mini__controls .lumen-mini__seek[data-empty] .lumen-slider__thumb,
+.lumen-mini__controls .lumen-mini__seek[data-empty] .lumen-slider__fill {
   opacity: 0;
 }
 
-/* Solstice: the compact gold play circle — the same primary-action language
- * as the full bar, scaled to the mini geometry. v2 audit 2 (VLM crop): with
- * no media (idle) the button rendered DISABLED-but-gold at the primitive's
- * 0.5 opacity — an olive blob with a barely-visible glyph (the same defect
- * the full bar's :disabled override fixed in controls.css). The quiet-
- * surface-when-inert rule is mirrored here: gold reads as "playback
- * possible" exactly when the command behind it can run. */
-.lumen-mini__bar .lumen-icon-button[data-control="play-pause"] {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%; /* functional circle, not a design radius */
-  color: var(--color-content-on-accent);
-  background: var(--color-accent);
+/* Compact transport row — play pill · expand · close. */
+.lumen-mini__transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px; /* structural: compact transport row */
 }
 
-.lumen-mini__bar .lumen-icon-button[data-control="play-pause"]:hover {
+.lumen-mini__transport .lumen-icon-button {
+  flex: none;
+}
+
+/* The orange play pill — the same primary-action language as the full
+ * bar, scaled to the mini geometry. The quiet-surface-when-inert rule
+ * keeps gold reading as "playback possible" exactly when the command
+ * behind it can run (mirrors controls.css). */
+.lumen-mini__controls .lumen-mini__play {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent);
+  border-radius: 50%; /* functional circle, not a design radius */
+}
+
+.lumen-mini__controls .lumen-mini__play:hover {
+  color: var(--color-content-on-accent);
+  background: var(--color-accent-bright);
+}
+
+.lumen-mini__controls .lumen-mini__play:active {
   color: var(--color-content-on-accent);
   background: var(--color-accent-strong);
 }
 
-.lumen-mini__bar .lumen-icon-button[data-control="play-pause"]:disabled {
+.lumen-mini__controls .lumen-mini__play:disabled {
   color: var(--color-content-secondary);
-  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-stroke-border) 90%, transparent);
+  background: var(--color-surface-deep);
+  box-shadow: inset 0 0 0 1px var(--color-stroke-border);
 }
 
-/* Music mode: sun-disc art placeholder + caption + waveform (honest — no
- * fabricated art, static bars until engine audio-level data exists).
- * v2 pass 2 → audit 2 (in-browser + VLM): the stage column composes as
- * THREE weighted bands — the art block claims the free height and anchors
- * its sun+caption group in the UPPER THIRD (see .lumen-music__stage), the
- * waveform anchors directly above the compact transport (one seek area,
- * grouped — no hollow core between them). */
+/* Title row (frame: filename, one quiet line). */
+.lumen-mini__title {
+  margin: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px; /* structural: frame title ~13px on the 391px card */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+}
+
+.lumen-mini__title[data-empty] {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-content-tertiary);
+}
+
+/* Meta row (frame: folder chip left, queue toggle right). */
+.lumen-mini__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 2px 2px;
+}
+
+.lumen-mini__meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.lumen-mini__meta-chip .lumen-icon {
+  flex: none;
+  color: var(--color-stroke-icon);
+}
+
+.lumen-mini__meta-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Queue toggle — right-aligned; the active state carries the accent (the
+ * frame's amber queue-active icon). */
+.lumen-mini__queue-toggle {
+  margin-left: auto;
+  flex: none;
+}
+
+.lumen-mini__queue-toggle[data-active] {
+  color: var(--color-accent-icon);
+}
+
+/* Collapsible Queue panel ABOVE the video (frame artboards 2/4: r10 inset
+ * panel, centered "Queue" header, summary row, drag-handle rows with
+ * tabular durations). */
+.lumen-mini__queue {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  max-height: min(360px, 52vh); /* structural cap while host owns windows */
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: 10px; /* frame: queue panel rx10 */
+}
+
+.lumen-mini__queue-head {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 2px;
+}
+
+.lumen-mini__queue-title {
+  margin: 0;
+  font-size: 13px; /* structural: frame header ~13px */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+}
+
+.lumen-mini__queue-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 6px;
+}
+
+.lumen-mini__queue-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums; /* W25 §1: tabular timecodes */
+}
+
+.lumen-mini__queue-tools {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.lumen-mini__queue-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px 4px;
+}
+
+/* Quiet empty queue — the shared ListEmpty grammar, mini-weighted. */
+.lumen-mini__queue-empty {
+  padding: 12px 8px;
+}
+
+/* ----------------------------------------------------------------- music */
+
+/* The stage column: art block (claims the free height, anchors its
+ * art+meta group in the upper-middle per the frame) + the waveform strip
+ * anchored low, grouped with the transport below it. */
 .lumen-music__art {
   position: relative;
   display: flex;
@@ -116,95 +263,167 @@
   min-height: 0;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: calc(var(--space-inset) * 3);
+  gap: 16px;
   box-sizing: border-box;
-  padding: calc(var(--space-inset) * 4) var(--space-inset) calc(var(--space-inset) * 2.5);
   width: 100%;
+  padding: 24px 24px 12px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+/* Ambient tint — the frame's full-bleed art backdrop, reduced to a quiet
+ * accent-tinted radial glow (the ONE theatrical allowance; purely
+ * decorative, pointer-transparent). */
+.lumen-music__art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    62% 50% at 50% 38%,
+    color-mix(in srgb, var(--color-accent-tinted) 32%, transparent),
+    transparent 72%
+  );
+  pointer-events: none;
 }
 
 .lumen-music__stage {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-
-  /* v2 audit 2 (task composition contract): the sun+caption group anchors
-   * in the UPPER THIRD of the art band (padding pushes it past the exact
-   * top; centering left it hovering mid-band) — against the transparent
-   * stage the sun then sits in the actual sky band of the app-wide sunset
-   * gradient while the waveform rides the horizon glow. The breathing
-   * room lives between caption and waveform (brief §2.5 stage-tier
-   * symmetry is preserved: the gap reads as sky, not void). */
-  justify-content: flex-start;
-  padding-top: calc(var(--space-inset) * 10);
-  flex: 1; /* the art band claims the free height */
-  gap: calc(var(--space-inset) * 2.5);
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
   margin: 0;
   max-width: 520px;
 }
 
-.lumen-music__sun {
-  flex: none;
-
-  /* Deliberate art size (v2 audit): stage presence without a blob —
-     structural, no token. */
-  width: clamp(200px, 26vmin, 300px);
+/* Large centered artwork treatment (frame: 738×737 rx20 on 1920×1080 —
+ * roughly half the stage). The honest placeholder face until the engine
+ * reports artwork; dark in BOTH themes (artwork is content, same
+ * picture-frame reasoning as the video canvas). */
+.lumen-music__artwork {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: min(56vmin, 520px); /* structural: theatrical hero scale (frame art ≈ ½ the stage) */
+  max-width: 100%;
   aspect-ratio: 1 / 1;
+  margin: 0;
+  overflow: hidden;
+  background: var(--color-surface-deep);
+  border-radius: 20px; /* frame: Player - Music.svg art rx20 */
+}
+
+:root[data-theme="light"] .lumen-music__artwork {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - Light.svg — the artwork face stays dark in BOTH themes (picture-frame rule, W25 spec §1; token-lane handoff for a stays-dark token). */
+  background: #2b2b2b;
+}
+
+.lumen-music__artwork-glyph {
+  display: inline-flex;
+  color: var(--color-content-tertiary);
+}
+
+/* Quiet meta — the title/artist layout slot. Engine truth renders bright;
+ * the honest placeholder caption stays secondary. */
+.lumen-music__title {
+  margin: 0;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-bright);
 }
 
 .lumen-music__caption {
   margin: 0;
   max-width: 480px;
   text-align: center;
-  font-size: var(--font-size-label);
+  font-size: 13px; /* structural: quiet placeholder caption */
   color: var(--color-content-secondary);
 }
 
-/* Waveform placeholder — sunset visualizer gradient tokens, rotating
- * through the bar row. Static by design (no fake audio activity). v2 pass
- * 2: grouped tight against the transport (one seek area) — the gap to the
- * art band above is the breathing room, not a hollow core. */
+/* Waveform tick strip (frame bottom bar: 2px ticks, unplayed #404040,
+ * played orange). Static decorative silhouette — engine audio levels do
+ * not exist yet; the played clip is engine truth (position/duration). Two
+ * stacked rows: base (stroke-border ticks) + a played copy clipped to the
+ * progress. */
 .lumen-music__waveform {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: min(560px, 90%);
+  height: 32px; /* structural placeholder strip height */
+}
+
+.lumen-music__waveform-row {
+  grid-area: 1 / 1;
   display: flex;
   align-items: flex-end;
-  gap: var(--space-grid);
-  flex: none;
-  width: min(520px, 88%);
-  height: 56px; /* structural placeholder height — no token */
-  opacity: var(--opacity-emphasis);
+  gap: 3px;
+  height: 100%;
 }
 
-.lumen-music__waveform span {
+.lumen-music__waveform-row span {
   flex: 1;
-  min-height: 4px; /* structural bar floor — no token */
-  border-radius: var(--radius-ring);
+  min-width: 2px; /* structural bar floor — frame: 2px ticks */
+  border-radius: 1px; /* frame: tick rx1 */
+  background: var(--color-stroke-border);
 }
 
-.lumen-music__waveform span:nth-child(4n + 1) {
-  background: var(--gradient-visualizer-1);
+.lumen-music__waveform-row--played {
+  clip-path: inset(0 calc(100% - var(--lumen-wave-progress, 0%)) 0 0);
 }
 
-.lumen-music__waveform span:nth-child(4n + 2) {
-  background: var(--gradient-visualizer-2);
+.lumen-music__waveform-row--played span {
+  background: var(--color-accent);
 }
 
-.lumen-music__waveform span:nth-child(4n + 3) {
-  background: var(--gradient-visualizer-3);
+/* ------------------------------------------------- music-mode chrome hooks */
+
+/* The music layout's title-bar region renders as a quiet centered strip —
+ * the window title bar is the app shell's; this is the stage's centered
+ * label (frame: centered track name in the bar). */
+.lumen-player[data-variant="music"] .lumen-player__topbar {
+  justify-content: center;
+  background: transparent;
+  border-bottom: 0;
 }
 
-.lumen-music__waveform span:nth-child(4n + 4) {
-  background: var(--gradient-visualizer-4);
-}
-
-/* Music-mode seek re-weighting (doc 08 §1.4 "Music-mode seek" — slim knob).
- * The C2 seekbar is reused; only geometry is restyled via the shell's
- * data-variant="music" hook. */
-.lumen-player[data-variant="music"] .lumen-controls__time {
+.lumen-player[data-variant="music"] .lumen-player__title {
+  font-size: 13px; /* structural: quiet centered label */
+  font-weight: var(--font-weight-regular);
   color: var(--color-content-secondary);
 }
 
-/* v2 pass 2 (VLM audit): the top-bar sun mark is redundant beside the big
- * art-stage sun — one sun per stage. The mark stays in the full variant. */
-.lumen-player[data-variant="music"] .lumen-player__mark {
-  display: none;
+/* The emphasized playlist panel docks as a full-height right rail
+ * (Player - Music-1.svg sidebar) instead of the floating tool-card
+ * treatment — the accent edge marks the prominence (4.F2). */
+.lumen-player[data-variant="music"] .lumen-player__panel[data-emphasized] {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 300px; /* structural: rail width (frame ~300px @1080 scaled) */
+  border: 0;
+  border-left: 1px solid var(--color-stroke-border);
+  background: var(--color-surface-panel);
+}
+
+.lumen-player[data-variant="music"] .lumen-player__panel[data-emphasized] .lumen-playlist__empty {
+  margin: auto;
+  max-width: 240px;
+}
+
+/* Music-mode seek re-weighting (doc 08 §1.4 "Music-mode seek"): the C2
+ * bar is reused; only tone shifts via the shell's data-variant="music"
+ * hook — the strip above carries the waveform treatment. */
+.lumen-player[data-variant="music"] .lumen-controls__time {
+  color: var(--color-content-secondary);
 }

@@ -2,9 +2,9 @@
  * naturalCompare / naturalSort — natural (numeric) ordering for list titles
  * and filenames: "Bookmark 1, 2, 10", never the lexical "1, 10, 2".
  *
- * This is the Solstice-v2 FLOW fix (2026-11-09 brief: "natural sort") that
- * MUST survive the W25 reskin — numbered playlists, bookmarks and episode
- * files must keep reading in human order.
+ * This is the 2026-11-09 v2 flow brief's "natural sort" fix that MUST survive
+ * the W25 reskin — numbered playlists, bookmarks and episode files must keep
+ * reading in human order.
  *
  * Hand-rolled (zero-new-deps rule): both strings are chunked into maximal
  * digit / non-digit runs. Digit runs compare by numeric value — compared as

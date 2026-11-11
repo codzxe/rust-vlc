@@ -1,46 +1,33 @@
 /* Player dialogs (issue #32 + w26.a18): Go-to-Time + Bookmarks surfaces,
  * the tools shell and the tools card skeleton, composed on the shared
- * lumen-dialog chrome from components/surface (not owned here).
+ * primitives — surface (w26.a08: scrim veil + modal layer z-index 20,
+ * Escape + scrim-click close, flex-centering) and button (w26.a03: the
+ * dialog footer grammar — secondary Cancel / tinted confirm).
  *
- * Figma dialog grammar (design/figma/Open network stream.svg,
- * Keyboard Shortcuts.svg; menus per menu.svg/option.svg):
- *   * scrim — dark, click-to-close (the shared Dialog owns both Escape and
- *     the scrim click); the frame's backdrop blur rides the token
- *     (--blur-backdrop, measured 25px in both dialog frames);
- *   * panel — r10–12, #1c1c1c–#202020 band (surface-panel token) with a
- *     1px hairline (stroke-border) and the overlay shadow;
- *   * title-bar strip — quiet surface fill, hairline underside, title
- *     15px semibold left + close ✕ right (frame: 50px strip);
- *   * rows — label left, control right; footer — quiet action left,
- *     primary action right (100×32 r6 buttons; primary = accent-tinted
- *     fill + accent ink per the frames' Save button);
+ * Figma dialog grammar (design/figma/Open network stream.svg +
+ * Keyboard Shortcuts.svg, both 1048-wide windows, rx14 #191919 @ 0.95,
+ * 1px border, overlay shadow):
+ *   * scrim — the shared .lumen-scrim paint (rgb(0 0 0 /
+ *     --opacity-scrim-strong)) + click-to-close; NOTHING is patched here
+ *     — the primitive owns the modal layer since w26.a08;
+ *   * title-bar strip — #090909 fill (surface) with NO hairline: the
+ *     frames separate header from body by fill contrast, not a border;
+ *     title 15px semibold left + close ✕ (1.5 stroke, #8F8F8F) right;
+ *   * rows — label left, control right (mission grammar; the frames'
+ *     own inputs run full-width below their labels — the Lead's row pin
+ *     wins for the compact player dialogs);
+ *   * footer — quiet action left, tinted confirm right (100×32 r6;
+ *     Cancel #1B1B1B + #8F8F8F, Save #371F06 + #D37918) floating on the
+ *     panel fill — NO footer strip and NO hairline in the frames;
  *   * bookmark rows — natural order, tabular timecodes, r6 hover.
  * Semantic tokens only; raw px appears solely for structural dimensions
- * with no token (strip height, control sizes, card width band) and each
+ * with no token (strip height, frame gutters, control sizes) and each
  * carries its frame citation. */
 
 /* --------------------------------------------------------------------------
- * Scrim — dark modal veil (the shared .lumen-scrim already paints
- * rgb(0 0 0 / --opacity-scrim-strong) and flex-centers; this scope only
- * lifts the layer and adds the frames' backdrop blur).
- *
- * MODAL LAYER (elementFromPoint-verified, v2 audit 2): the player stage
- * carries z-indexed chrome in the same stacking context (empty-state card
- * z-index 1, keycap strip 2, transport error chip 3) and the menubar
- * popup layer sits at 10 — 20 puts the modal above all of them.
- * Structural, no token (same precedent as open-media.css). */
-.lumen-scrim:has(> .player-dialog__surface) {
-  z-index: 20;
-  display: grid;
-  place-items: center;
-
-  /* frame: Open network stream.svg — scrim backdrop-filter blur(25px) */
-  backdrop-filter: blur(var(--blur-backdrop));
-}
-
-/* --------------------------------------------------------------------------
- * Panel — the r10–12 dialog card (frame: rx14 @ #191919 0.95; menu band
- * r10–12 — the shared --radius-menu token carries it). */
+ * Panel — the dialog card (frame: rx14 @ #191919 0.95 on BOTH dialog
+ * frames — the shared --radius-window token, same as the surface
+ * primitive's own .lumen-dialog chrome). */
 .lumen-dialog.player-dialog__surface {
   box-sizing: border-box;
   width: min(440px, 92vw);
@@ -51,7 +38,7 @@
   color: var(--color-content-primary);
   background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
   border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-menu);
+  border-radius: var(--radius-window);
   box-shadow: var(--shadow-overlay);
 }
 
@@ -65,17 +52,17 @@
   color: var(--color-content-primary);
 }
 
-/* Title-bar strip (frame: 50px quiet strip with hairline underside). */
+/* Title-bar strip (frame: the #090909 path spanning 0–50px with the
+ * panel's r14 top corners; no hairline — the fill step separates). */
 .player-dialog__header {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-inset);
-  height: 48px; /* frame: Open network stream.svg — 50px strip at 1048 wide, compacted */
-  padding: 0 var(--space-grid) 0 calc(var(--space-inset) * 1.5);
+  height: 50px; /* frame: Open network stream.svg — 50px strip */
+  padding: 0 20px; /* frame: ✕ sits 20px off the right edge, title 20px left */
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-stroke-border);
 }
 
 .player-dialog__title {
@@ -90,7 +77,9 @@
    * ([PROPOSAL] a --font-size-heading token — see lane log w26.a18) */
   font-size: 15px;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-content-bright);
+
+  /* frame: both dialog titles are #8F8F8F (secondary ink, quiet header) */
+  color: var(--color-content-secondary);
 }
 
 .player-dialog__close {
@@ -104,23 +93,27 @@
   flex-direction: column;
   gap: var(--space-inset);
   min-height: 0;
-  padding: calc(var(--space-inset) * 1.5);
+  padding: 20px; /* frame: inputs sit 20–21px off the panel edges */
   overflow-y: auto;
 }
 
 .player-dialog__subtitle {
   margin: 0;
   font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
+
+  /* frame: helper copy ("You can enter multiple links…") is #6B6B6B */
+  color: var(--color-content-tertiary);
 }
 
 /* --------------------------------------------------------------------------
  * Rows — label left, control right (frame: Settings/dialog row grammar).
- * The shared TextField renders label-above-input; this scope flips it into
- * the dialog row without touching the primitive. */
+ * The shared TextField renders label-above-input (inline-flex COLUMN); this
+ * scope flips it into the dialog row without touching the primitive —
+ * flex-direction MUST reset to row or the primitive's column wins and the
+ * flex-basis lands on the input's HEIGHT (verified via live-DOM probe). */
 .player-dialog__form .lumen-field {
   display: flex;
-  flex-wrap: wrap;
+  flex-flow: row wrap;
   align-items: center;
   gap: var(--space-inset);
   flex: 1 1 auto;
@@ -189,7 +182,9 @@
   align-items: center;
   gap: var(--space-grid);
   padding: calc(var(--space-grid) / 2) var(--space-grid);
-  border-radius: var(--radius-inset);
+
+  /* r6 hover band (mission pin; menu-row grammar — buttons/menu items r6) */
+  border-radius: var(--radius-control);
   transition: background-color var(--motion-duration-fast) ease-out;
 }
 
@@ -241,58 +236,28 @@
 }
 
 /* --------------------------------------------------------------------------
- * Footer — quiet action left, primary action right (frame: Open network
- * stream.svg Frame 225 — Cancel #1B1B1B left, Save #371F06 + orange ink
- * right, both 100×32 r6). */
+ * Footer — quiet action left, tinted confirm right (frame: Open network
+ * stream.svg Frame 225 — Cancel #1B1B1B left, Save #371F06 + #D37918 ink
+ * right, both 100×32 r6, floating on the panel fill — NO strip fill and
+ * NO hairline; the button primitive's secondary/tinted variants carry
+ * the exact grammar since w26.a03). */
 .player-dialog__footer {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-inset);
-  padding: var(--space-inset) calc(var(--space-inset) * 1.5);
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-stroke-border);
+  padding: var(--space-inset) 20px 20px; /* frame: 20px side/bottom inset */
+}
+
+/* Frame footer actions measure 100×32 (Cancel AND Save alike). */
+.player-dialog__footer .lumen-button {
+  min-width: 100px; /* frame: Open network stream.svg Frame 225 — 100×32 r6 */
 }
 
 /* A lone footer action keeps the right edge (the grammar's action side). */
 .player-dialog__footer > :only-child {
   margin-left: auto;
-}
-
-/* The Figma dialog button grammar, scoped to player dialogs only (the
- * shared Button primitives keep their own rest/default rules elsewhere):
- * quiet = flat panel fill + hairline; primary = accent-tinted fill with
- * accent ink (frame: Save on #371F06 with #D37918 lettering). */
-.player-dialog__surface .lumen-button {
-  background: var(--color-surface-panel);
-  border: 1px solid var(--color-stroke-border);
-  color: var(--color-content-primary);
-}
-
-.player-dialog__surface .lumen-button:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-stroke-border);
-  color: var(--color-content-bright);
-}
-
-.player-dialog__surface .lumen-button:active {
-  background: var(--color-surface-selected);
-}
-
-.player-dialog__surface .lumen-button--primary {
-  background: var(--color-accent-tinted);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
-  color: var(--color-accent-bright);
-}
-
-.player-dialog__surface .lumen-button--primary:hover {
-  background: color-mix(in srgb, var(--color-accent-tinted) 82%, var(--color-accent));
-  color: var(--color-accent-bright);
-}
-
-.player-dialog__surface .lumen-button--primary:active {
-  background: color-mix(in srgb, var(--color-accent-tinted) 70%, var(--color-accent));
 }
 
 /* --------------------------------------------------------------------------
@@ -303,9 +268,12 @@
   gap: calc(var(--space-inset) * 1.5);
 }
 
-/* ToolsCard — the tool frames' collapsible card skeleton (Audio - *
- * .svg / Video - *.svg all share it): toggle bar r6 quiet fill, ~48px,
- * "Expand/Collapse Settings" + chevron; expanded card r8 raised fill. */
+/* ToolsCard — the tool frames' collapsible card skeleton (Audio - Equalizer /
+ * Compressor / Spatializer / Widener and Video - Colors / Crop / Essential /
+ * HDR Options all share it): toggle bar 360×48 rx6 #090909 (surface),
+ * "Expand/Collapse Settings" + chevron; expanded settings card below
+ * (frame rect #1B1B1B rx6 — mission/spec pin r8, shipped via the r8 token;
+ * see lane log). */
 .tools-card__toggle {
   display: flex;
   align-items: center;
@@ -323,7 +291,9 @@
   color: var(--color-content-primary);
   background: var(--color-surface);
   border: none;
-  border-radius: var(--radius-inset);
+
+  /* frame: Audio - Equalizer.svg — toggle bar 360×48 rx6 */
+  border-radius: var(--radius-control);
   cursor: pointer;
   transition: background-color var(--motion-duration-fast) ease-out;
 }
@@ -358,8 +328,14 @@
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-inset) * 1.5);
+
+  /* frame: settings card 360×1048, content inset 16px (x 36 − card 20) */
   padding: calc(var(--space-inset) * 2);
-  background: var(--color-surface-raised);
+
+  /* frame: #1B1B1B card — nearest token is surface-panel (#191919) */
+  background: var(--color-surface-panel);
+
+  /* mission/spec r8 card (frame rect reads rx6 — 2px delta, logged) */
   border-radius: var(--radius-thumbnail);
 }
 
@@ -403,15 +379,15 @@
   max-width: 60%;
 }
 
-/* ToolsValueChip — the r6 dark read-out at a row's right end (frame:
- * EQ rows' 138×34 value fields, mono ink on the recessed fill). */
+/* ToolsValueChip — the dark read-out at a row's right end (frame: EQ /
+ * Compressor rows' 138×34 rx5 #090909 value fields, mono ink). */
 .tools-row__value {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 64px; /* frame: value chips are ~138px on a 360px card */
-  height: 32px; /* frame: 34px control band, compacted with the inputs */
+  min-width: 64px; /* floor only — frame chips run ~138px on a 360px card */
+  height: 34px; /* frame: 34px value band */
   padding: 0 calc(var(--space-inset) * 1.5);
   overflow: hidden;
   font-family: var(--font-family-time);
@@ -420,7 +396,9 @@
   color: var(--color-content-bright);
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: var(--color-surface-deep);
+
+  /* frame: #090909 field fill (surface), rx5 — nearest control token r4 */
+  background: var(--color-surface);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-inset);
 }

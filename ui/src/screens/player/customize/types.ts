@@ -1,4 +1,4 @@
-// Card 4.F3 — customize panel data model (doc 08 §1.6 + §4 note).
+// Card 4.F3 / w26.a17 — customize panel data model (doc 08 §1.6 + §4 note).
 //
 // The customize surface is FULLY DATA-DRIVEN per doc 08 §4: "its button
 // catalog (±10s/15s, speed, PiP, HDR, …) and display toggles become
@@ -8,8 +8,26 @@
 // field ONLY when the engine reports that command as available
 // (capability-gated — see capabilities.ts). Unsupported = hidden, never a
 // dead control (task card AC; contrast settings' disabled-with-reason).
+//
+// W26 rebuild (design/figma "Player - customize*.svg", 9 states): the
+// renderer composes the frame's "Customize Player" editor — a dashed-tile
+// toolbar palette (the "box") for quick-action fields plus per-section
+// adjustment rows (r6 dropdowns, thin sliders + value chips) for
+// select/slider fields. Which zone a field renders in is derived from its
+// control kind; the data model below stays command-bound and kind-driven.
 
+import type { IconName } from "../../../components/icon/icons";
 import type { MessageKey } from "../../../i18n/messages";
+import type { keys } from "../../../i18n/keys/w26.a17";
+
+/**
+ * Field label keys: central catalog keys, plus this lane's pre-registration
+ * keys (ui/src/i18n/keys/w26.a17.ts — the Lead registers them into
+ * messages.ts post-wave; the renderer's seam-first resolver finds them
+ * either way). Widening `labelKey` past MessageKey is ADDITIVE: every
+ * existing MessageKey assignment still typechecks.
+ */
+export type CustomizeLabelKey = MessageKey | keyof typeof keys;
 
 /**
  * Args payload for the field's command — the `args` fragment of a
@@ -22,7 +40,7 @@ export type CommandArgs = Readonly<Record<string, unknown>>;
 /** One selectable value (aspect ratio, crop preset, repeat mode, …). */
 export interface CustomizeOption {
   readonly id: string;
-  readonly labelKey: MessageKey;
+  readonly labelKey: CustomizeLabelKey;
   /** The args payload dispatched when this option is chosen. */
   readonly args: CommandArgs;
 }
@@ -56,10 +74,16 @@ export type CustomizeControl =
 /** A single customize field bound to one command id. */
 export interface CustomizeField {
   readonly id: string;
-  readonly labelKey: MessageKey;
+  readonly labelKey: CustomizeLabelKey;
   /** Command id — doubles as the capability gate and the dispatch target. */
   readonly command: string;
   readonly control: CustomizeControl;
+  /**
+   * Palette tile glyph (W26 frames: every box item is an icon tile; the
+   * 1.5-stroke icon system owns the rendering). Optional — adjustment-row
+   * fields render label-first and need no glyph.
+   */
+  readonly icon?: IconName;
 }
 
 /** A customize panel (doc 08 §1.6: Video - Colors/Crop/Essential, HDR Options). */

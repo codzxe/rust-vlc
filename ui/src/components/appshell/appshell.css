@@ -1,32 +1,29 @@
-/* AppShell (Solstice) — the persistent chrome: menubar banner row, glass
- * icon rail, routed main. Landmarks: banner / nav / main (see AppShell.tsx).
- * Semantic tokens only; raw px appears solely for structural dimensions
- * with no token (rail width, link hit size) per the composition-layer rule.
+/* AppShell (W26 Figma redesign, lane w26.a10) — the persistent chrome
+ * around every route except /onboarding and /dev/tokens: TITLE BAR · ICON
+ * RAIL · PLAYLISTS SIDEBAR · main region.
  *
- * SOLSTICE v2 (2026-11-09, audit pass): the rail gets a consistent vertical
- * rhythm (one item pitch — logo block, divider and stops share the same
- * 10px step; every stop is the same 40px square), the active stop is a
- * filled ACCENT CHIP (the one gold moment of the chrome — consistent across
- * all items), and the glass warms up (translucent sunset-tinted panel +
- * soft tape border) so the rail belongs to the stage instead of a near-black
- * strip that ends abruptly. Icon ink rises to content-secondary for AA on
- * the translucent panel.
+ * Reference frames: design/figma/Player.svg (+ Player-1..6), sidebar.svg,
+ * Miniplayer.svg. Measurements (1920×1080 frames → our 1440×900 viewport):
+ *   title bar 40px → 32 (W25 spec §2 band 24–32) · rail 50px → 52 (spec
+ *   48–56, ≥44px hits) · sidebar 377px → 208 (spec pins the compact
+ *   200–220 band) · playlist row pitch 42px → 36 · rail icon pitch ~45 → 44
+ *   (IconWrapper lg hit) · window-control pitch 36 → 30.
  *
- * CASCADE NOTE (v2 audit, verified in-browser): the rail must NOT compose
- * `.solstice-glass` — main.tsx's import order puts App.tsx (and this sheet)
- * BEFORE theme/solstice.css, so the shared `.solstice-glass` background
- * overrode this rail's warm gradient and tape border entirely (the
- * "near-black strip" the audit flagged). The rail is therefore fully
- * SELF-CONTAINED here (blur, border, radius, shadow, gradient); AppShell.tsx
- * mounts the plain `app-shell__rail` class only.
+ * Frame surfaces (Player.svg): title bar #1B1B1B → --color-surface-chrome,
+ * rail #191919 → Panel default tone, sidebar #0E0E0E → Panel tone="deep".
+ * The rail + sidebar adopt the surface lane's `.lumen-pane` (w26.a08:
+ * square-edged app panel) — AppShell.tsx mounts them via <Panel/> and this
+ * sheet layers ONLY geometry/state on top; the 1px hairlines come from
+ * Panel's `edges` prop (data-edges="end" → var(--color-stroke-border)).
  *
- * BODY-MARGIN RESET (v2 audit defect: docScrollH 916 vs 900 — a 16px
- * overflow on EVERY shell screen): no sheet in the global chain
- * (tokens/solstice/focus/page) zeroes the browser default `body { margin:
- * 8px }`, and the shell is height:100vh — 100vh + 16px scrolls. The reset
- * lives here because the shell is what assumes a full-viewport body; the
- * Lead may want it hoisted into a11y/page.css for the full-bleed routes
- * (onboarding/404) that never mount this sheet's component. */
+ * Semantic tokens only; raw px below is structural geometry with no token
+ * (bar height, region widths, hit sizes, row pitch) per the
+ * composition-layer rule.
+ *
+ * BODY-MARGIN RESET: no sheet in the global chain (tokens/lumen.css/
+ * a11y/page.css) zeroes the browser default `body { margin: 8px }`, and the
+ * shell is height:100vh — 100vh + 16px scrolls on EVERY shell screen. The
+ * reset lives here because the shell is what assumes a full-viewport body. */
 
 body {
   margin: 0; /* shell owns the full viewport (see note above) */
@@ -39,26 +36,99 @@ body {
   min-height: 0;
 }
 
-/* ---- banner row ------------------------------------------------------- */
+/* ---- title bar (banner; Player.svg "topbar") --------------------------- */
 
+/* 32px chrome strip, --color-surface-chrome fill, 1px stroke-border
+ * hairline on its block-end edge (Player.svg topbar 40px @1920 → 32). */
 .app-shell__banner {
+  position: relative; /* the wordmark centers on the bar, not the flex row */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(var(--space-inset) * 1.5);
+  gap: var(--space-inset);
   flex: none;
-  padding: 0 var(--space-inset) 0 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 65%, transparent);
-  background: color-mix(in srgb, var(--color-surface-panel) 55%, transparent);
-  backdrop-filter: blur(var(--blur-backdrop-small));
+  height: 32px; /* frame: Player.svg topbar (structural) */
+  padding: 0 var(--space-grid);
+  background: var(--color-surface-chrome);
+  border-block-end: 1px solid var(--color-stroke-border);
+}
+
+.app-shell__banner-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  min-width: 0;
+}
+
+/* The orange app dot (Player.svg's orange traffic-cone mark → the web
+ * shell's identity dot; THE one accent moment of the bar). */
+.app-shell__appdot {
+  flex: none;
+  width: 10px; /* frame cone ~12px @1920 (structural) */
+  height: 10px;
+  margin-inline-start: var(--space-grid);
+  background: var(--color-accent);
+  border-radius: 50%;
+}
+
+/* Vertical divider ticks flanking the sidebar-toggle (Player.svg x=129
+ * 1.5px #373737 divider → token-driven hairline at our scale). */
+.app-shell__tick {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--color-stroke-border);
+}
+
+/* Breadcrumb (Player.svg "Videos" cluster: folder glyph + section label). */
+.app-shell__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space-grid) * 1.5);
+  min-width: 0;
+  color: var(--color-content-secondary);
+}
+
+.app-shell__crumb-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-caption);
+}
+
+/* Centered wordmark — absolutely centered on the bar so the asymmetric
+ * side clusters cannot push it off-center (Player.svg "VLC Media Player"). */
+.app-shell__wordmark {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-primary);
+  pointer-events: none;
 }
 
 .app-shell__demo-badge {
   flex: none;
-  margin-right: calc(var(--space-inset) * 0.5);
+  margin-inline-end: calc(var(--space-grid) * 0.5);
+  padding: 1px var(--space-grid);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
 }
 
-/* ---- frame: rail + main ----------------------------------------------- */
+/* Window controls (Player.svg right cluster: dash · square · ×, 12px
+ * glyphs at 36px pitch @1920 → 28px IconButton sm hits at 30px pitch). */
+.app-shell__window {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-grid) * 0.5);
+}
+
+/* ---- frame: rail + sidebar + main -------------------------------------- */
 
 .app-shell__frame {
   display: flex;
@@ -66,90 +136,261 @@ body {
   min-height: 0;
 }
 
+/* ---- icon rail (Player.svg rail · <Panel edges="end">) ----------------- */
+
+/* Square-edged panel fill (--color-surface-panel) + the inline-end 1px
+ * hairline arrive from .lumen-pane; this layers the vertical column
+ * geometry. Width 52px (spec band 48–56; frame 50px @1920). */
 .app-shell__rail {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-inset) + 2px); /* the ONE rhythm step (structural) */
+  align-items: center;
   flex: none;
-  width: 56px;
-  box-sizing: border-box;
-  margin: var(--space-inset);
-  padding: calc(var(--space-inset) + 2px) 0;
-  color: var(--color-content-primary);
-  border: 1px solid color-mix(in srgb, var(--color-tape) 26%, transparent);
-  border-radius: var(--radius-panel);
-
-  /* v2: warm glass — the rail reads as part of the sunset scene, not a
-   * near-black strip. Translucent panel with a sunset-tinted top edge.
-   * Self-contained (see the CASCADE NOTE in the header) so import order
-   * can never flatten it back to a plain dark panel. */
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-surface-panel) 58%, var(--color-sunset-7) 14%) 0%,
-    color-mix(in srgb, var(--color-surface-panel) 86%, transparent) 34%,
-    color-mix(in srgb, var(--color-surface-panel) 86%, transparent) 100%
-  );
-  backdrop-filter: blur(var(--blur-backdrop-small));
-  /* stylelint-disable color-named -- art-direction: the chrome's top sheen highlight; no semantic highlight token yet [PROPOSAL in stylelint.config.js] */
-  box-shadow:
-    var(--shadow-card),
-    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
-  /* stylelint-enable color-named */
-}
-
-.app-shell__logo {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 0 auto;
-
-  /* The rhythm divider under the mark — same step as the list gap. */
-  padding-bottom: calc(var(--space-inset) + 2px);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-stroke-border) 60%, transparent);
+  width: 52px; /* frame: Player.svg rail width (structural) */
+  padding: var(--space-grid) 0;
 }
 
 .app-shell__rail-list {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-inset) + 2px); /* identical to the rail step */
+  align-items: center;
+  gap: var(--space-grid);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Every rail stop is a ≥44px hit (W26 contract; IconWrapper lg inside).
+ * The ACTIVE stop is the orange accent at glyph level — the frames carry
+ * no filled chip behind the icon (Player.svg rail: plain glyphs, the
+ * accented one is orange STROKE, #D37918 wand). */
 .app-shell__rail-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px; /* one consistent stop size (structural) */
-  border-radius: var(--radius-control);
-  color: var(--color-content-secondary); /* AA on the translucent panel */
-  transition: color var(--motion-duration-fast) ease-out,
-    background-color var(--motion-duration-fast) ease-out,
-    box-shadow var(--motion-duration-fast) ease-out;
+  width: 44px;
+  height: 44px;
+  color: var(--color-content-secondary);
+  border-radius: 4px; /* frame: Icon Wrapper.svg rx=4 (matches the inner chip) */
+  transition: color var(--motion-duration-fast) ease-out;
 }
 
 .app-shell__rail-link:hover {
   color: var(--color-content-bright);
+}
+
+/* Pinned foot stop (Player.svg rail bottom "+" — add media). */
+.app-shell__rail-foot {
+  margin-block-start: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell__rail-add {
+  color: var(--color-content-secondary);
+}
+
+/* ---- playlists sidebar (sidebar.svg · <Panel tone="deep" edges="end">) - */
+
+/* Deep surface fill + inline-end hairline arrive from .lumen-pane
+ * (sidebar.svg: 377px #0E0E0E @95% → tone="deep" at our 208px scale). */
+.app-shell__sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 208px; /* spec §2 pins the 200–220px band (structural) */
+  min-height: 0;
+}
+
+/* `hidden` must beat the class display (the toggle collapses the rail). */
+.app-shell__sidebar[hidden] {
+  display: none;
+}
+
+/* Header (sidebar.svg Frame 25: back chevron · "Playlists" · … · search). */
+.app-shell__sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  height: 40px; /* frame: sidebar.svg header row (structural) */
+  padding: 0 var(--space-grid) 0 var(--space-inset);
+}
+
+.app-shell__sidebar-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-body); /* 13–14px sidebar medium (W25 §1) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
+}
+
+/* Revealed search field (frame grammar: quiet input on the deep rail). */
+.app-shell__sidebar-search {
+  flex: none;
+  padding: 0 var(--space-inset) var(--space-grid);
+}
+
+.app-shell__sidebar-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-grid) var(--space-inset);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-inset);
+}
+
+.app-shell__sidebar-search-input::placeholder {
+  color: var(--color-content-tertiary);
+}
+
+.app-shell__sidebar-search-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px; /* ring inside the bordered field */
+}
+
+/* Meta row (sidebar.svg "2 items" + sort/list/grid cluster; closed by the
+ * frame's thin separator line → 1px hairline). */
+.app-shell__sidebar-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  height: 36px;
+  padding: 0 var(--space-inset);
+  border-block-end: 1px solid var(--color-stroke-border);
+}
+
+.app-shell__sidebar-count {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.app-shell__sidebar-modes {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-grid) * 0.5);
+  margin-inline-start: auto;
+}
+
+/* "+ Create playlist" row (sidebar.svg: plus glyph + label, tertiary ink —
+ * disabled-honest until the engine grows a create-playlist command). */
+.app-shell__create {
+  justify-content: flex-start;
+  gap: var(--space-grid);
+  width: 100%;
+  height: 36px;
+  padding-inline-start: var(--space-inset);
+  border-radius: 0; /* full-bleed sidebar row, not a chip */
+}
+
+/* Rows region (windowed list / grid via the list primitives' own API). */
+.app-shell__sidebar-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell__sidebar-empty {
+  margin: 0;
+  padding: var(--space-inset);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.app-shell__sidebar-list {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Playlist row (sidebar.svg: playlist glyph + label, 42px pitch @1920 →
+ * 36px; rendered through VirtualList's windowed rows). */
+.app-shell__plrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--space-inset) 0 calc(var(--space-inset) + 2px);
+  color: var(--color-content-primary);
+  text-decoration: none;
+}
+
+.app-shell__plrow:hover {
   background: var(--color-surface-hover);
 }
 
-/* Active rail stop (v2): the accent CHIP — a filled gold square with
- * on-accent ink, identical geometry for every item (no inset-ring illusions
- * that made the highlight read as a different size). */
-.app-shell__rail-link--active {
-  color: var(--color-content-on-accent);
-  background: var(--color-accent);
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 38%, transparent);
+.app-shell__plrow:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
-.app-shell__rail-link--active:hover {
-  color: var(--color-content-on-accent);
-  background: var(--color-accent-strong);
+.app-shell__plrow-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-body);
 }
 
-/* ---- main region ------------------------------------------------------- */
+.app-shell__sidebar-scroll {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Grid view (meta-row toggle): 2-up cards on the deep rail. */
+.app-shell__plgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-inset);
+  padding: var(--space-inset);
+}
+
+.app-shell__plcard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  padding: var(--space-grid);
+  color: var(--color-content-primary);
+  text-decoration: none;
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card);
+}
+
+.app-shell__plcard:hover {
+  background: var(--color-surface-raised);
+}
+
+.app-shell__plcard-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; /* frame: sidebar.svg 32×32 thumbnails (structural) */
+  height: 32px;
+  color: var(--color-content-secondary);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-inset);
+}
+
+.app-shell__plcard-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-caption);
+}
+
+/* ---- main region -------------------------------------------------------- */
 
 .app-shell__main {
   display: flex;

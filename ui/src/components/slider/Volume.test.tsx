@@ -93,6 +93,13 @@ describe("VolumeSlider (w26.a04: volume.svg — compact horizontal, level fill)"
     expect((screen.getByRole("slider") as HTMLElement).style.getPropertyValue("--lumen-slider-fill")).toBe("25");
   });
 
+  it("keeps the lumen-volume grammar class when the caller passes a className (w26.a04 regression: the ControlBar className used to clobber it via the rest spread, dropping the slim grammar)", () => {
+    render(<VolumeSlider value={0.5} className="lumen-controls__volume-slider" />);
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveClass("lumen-volume");
+    expect(slider).toHaveClass("lumen-controls__volume-slider");
+  });
+
   it("disabled stays truthful and inert", () => {
     const onCommit = vi.fn();
     render(<VolumeSlider value={0.3} disabled onCommit={onCommit} />);

@@ -1,9 +1,9 @@
-// Card 4.F3 — the customize panel catalog (doc 08 §1.6 video-tools exports:
-// `Video - Colors/Crop/Essential.svg`, `HDR Options.svg`; button catalog per
-// §1.6 `player.customize` row). Pure DATA: every field names the command it
-// dispatches; capability gating happens in the renderer. When the engine
-// does not expose a command the field is hidden, and a panel whose fields
-// are ALL unsupported is hidden entirely — no dead controls.
+// Card 4.F3 / w26.a17 — the customize panel catalog (doc 08 §1.6 video-tools
+// exports + the "Player - customize*.svg" 9-state frame set). Pure DATA:
+// every field names the command it dispatches; capability gating happens in
+// the renderer. When the engine does not expose a command the field is
+// hidden, and a panel whose fields are ALL unsupported is hidden entirely —
+// no dead controls.
 //
 // Commands below split into two classes:
 //   * in the 1.D4 wire catalog today: video.set-aspect-ratio / set-crop /
@@ -13,11 +13,22 @@
 //     specifies the panels; the engine/catalog do not carry the commands yet,
 //     so these fields stay hidden until a listing exposes them. Their arg
 //     keys are [PROPOSAL] pending catalog regeneration.
+//
+// W26 frame rebuild notes (design/figma "Player - customize.svg"):
+//   * the frame's palette box reads "Playback Speed · Forward 10s ·
+//     Backward 10s · Forward 15s · Backward 15s · Stop · Repeat · Shuffle
+//     · …" — doc 08 §4 calls it the "button catalog (±10s/15s, …)". The
+//     seek fields here therefore carry ±10 s / ±15 s payloads (the frame's
+//     grammar; the old ±60 s rows had no frame and are gone).
+//   * quick-action fields (action / toggle-action) render as palette tiles;
+//     select/slider fields render as per-section adjustment rows — the
+//     split is derived from control kind, never stored twice.
 
-import type { MessageKey } from "../../../i18n/messages";
+import type { IconName } from "../../../components/icon/icons";
 import type {
   CustomizeControl,
   CustomizeField,
+  CustomizeLabelKey,
   CustomizeOption,
   CustomizePanelDef,
 } from "./types";
@@ -144,14 +155,19 @@ export const CUSTOMIZE_PANELS: readonly CustomizePanelDef[] = [
           format: (value) => `${value.toFixed(2)}x`,
         },
       },
-      seekField("seek-back-60", "customize.action.seek-back-60", -60_000),
-      seekField("seek-back-10", "customize.action.seek-back-10", -10_000),
-      seekField("seek-fwd-10", "customize.action.seek-fwd-10", 10_000),
-      seekField("seek-fwd-60", "customize.action.seek-fwd-60", 60_000),
+      // The frame's palette row 1 (doc 08 §4 "±10s/15s") — quick-action
+      // tiles, in frame order: Backward 15s…Forward 15s around the ±10s
+      // pair would scramble the frame's left-to-right reading; keep the
+      // catalog order backward→forward like the old rows.
+      seekTile("seek-back-15", "customize.tile.backward-15", -15_000, "skip-back-15"),
+      seekTile("seek-back-10", "customize.tile.backward-10", -10_000, "skip-back-10"),
+      seekTile("seek-fwd-10", "customize.tile.forward-10", 10_000, "skip-forward-10"),
+      seekTile("seek-fwd-15", "customize.tile.forward-15", 15_000, "skip-forward-15"),
       {
         id: "stop",
         labelKey: "player.controls.stop",
         command: "playback.stop",
+        icon: "stop",
         control: { kind: "action", args: {} },
       },
       {
@@ -164,6 +180,7 @@ export const CUSTOMIZE_PANELS: readonly CustomizePanelDef[] = [
         id: "shuffle",
         labelKey: "customize.action.shuffle",
         command: "playlist.set-shuffle",
+        icon: "shuffle",
         control: {
           kind: "toggle-action",
           argsFor: (engineValue) => ({ enabled: !(engineValue ?? false) }),
@@ -219,11 +236,17 @@ function colorSlider(min: number, max: number, initial: number): CustomizeContro
   };
 }
 
-function seekField(id: string, labelKey: MessageKey, deltaMs: number): CustomizeField {
+function seekTile(
+  id: string,
+  labelKey: CustomizeLabelKey,
+  deltaMs: number,
+  icon: IconName,
+): CustomizeField {
   return {
     id,
     labelKey,
     command: "playback.seek",
+    icon,
     control: { kind: "action", args: { target: { kind: "relative", deltaMs } } },
   };
 }

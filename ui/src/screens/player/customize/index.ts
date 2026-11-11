@@ -1,4 +1,4 @@
-// Card 4.F3 — customize panels barrel.
+// Card 4.F3 / w26.a17 — customize panels barrel.
 export { CustomizePanels } from "./CustomizePanels";
 export type { CustomizePanelsProps } from "./CustomizePanels";
 export {
@@ -13,6 +13,7 @@ export type {
   CommandArgs,
   CustomizeControl,
   CustomizeField,
+  CustomizeLabelKey,
   CustomizeOption,
   CustomizePanelDef,
 } from "./types";

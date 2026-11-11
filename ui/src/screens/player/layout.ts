@@ -361,8 +361,9 @@ anchor = "bottom"
 label_key = "player.region.controls-bar"
 order = 10
 
-# Player.png: the playlist sidebar docks LEFT of the canvas, open by default
-# (the shell title bar's sidebar-toggle collapses it — lumen:toggle-sidebar).
+# Player.png: the queue panel docks LEFT of the canvas, open by default
+# (cross-lane pin — variants.test.tsx asserts it present in the full variant;
+# the shell title bar's sidebar-toggle collapses it via lumen:toggle-sidebar).
 [[region]]
 id = "playlist"
 anchor = "left"

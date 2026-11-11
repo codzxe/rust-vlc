@@ -75,6 +75,10 @@ export interface VirtualListProps<T> {
  * VirtualList — windowed listbox (doc 08 §4 virtualization requirement;
  * §4.5: playlist → `listbox`/`option`). Native scrolling; rows are absolutely
  * positioned children of a full-height spacer.
+ *
+ * The rendered window is clamped to the CURRENT data length: the measured
+ * range can lag one render behind a shrinking dataset (a filter applied),
+ * and consumers must never see a stale `data[i]` (AppShell relies on this).
  */
 export function VirtualList<T>({ data, itemHeight, overscan = 5, renderItem, label, scrollToIndex = null, className = "", style }: VirtualListProps<T>) {
   const { viewportRef, range, onScroll, scrollToIndex: scroll } = useWindowedRange(data.length, itemHeight, overscan);
@@ -83,8 +87,10 @@ export function VirtualList<T>({ data, itemHeight, overscan = 5, renderItem, lab
     if (scrollToIndex) scroll(scrollToIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll on target change only
   }, [scrollToIndex?.index, scrollToIndex?.align]);
+  const startIndex = Math.min(range.startIndex, Math.max(0, data.length - 1));
+  const endIndex = Math.min(range.endIndex, data.length - 1);
   const rows: ReactNode[] = [];
-  for (let i = range.startIndex; i <= range.endIndex; i++) {
+  for (let i = startIndex; i <= endIndex; i++) {
     rows.push(
       <div key={i} role="option" aria-selected={false} className="lumen-vrow" style={{ top: i * itemHeight, height: itemHeight }}>
         {renderItem(data[i]!, i)}
@@ -134,9 +140,12 @@ export function VirtualTable<T>({ data, itemHeight, overscan = 5, columns, label
     if (scrollToIndex) scroll(scrollToIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll on target change only
   }, [scrollToIndex?.index, scrollToIndex?.align]);
+  // Same shrink-lag clamp as VirtualList — never render past the data.
+  const startIndex = Math.min(range.startIndex, Math.max(0, data.length - 1));
+  const endIndex = Math.min(range.endIndex, data.length - 1);
   const gridTemplate = columns.map((c) => (c.width ? `${c.width}px` : "1fr")).join(" ");
   const rows: ReactNode[] = [];
-  for (let i = range.startIndex; i <= range.endIndex; i++) {
+  for (let i = startIndex; i <= endIndex; i++) {
     rows.push(
       <div key={i} role="row" className="lumen-vtable__row" style={{ top: i * itemHeight, height: itemHeight, gridTemplateColumns: gridTemplate }}>
         {columns.map((column) => (

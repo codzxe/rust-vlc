@@ -107,9 +107,11 @@ describe("Toggle state styling consumes semantic tokens (Toggle.svg, W26)", () =
   // can never clear 4.5:1 on the #191919 segment in either theme (axe
   // wcag2aa color-contrast). Secondary keeps "dimmer than the accent
   // on-state" while being compliant; deviation documented in states.md.
-  it("micro labels: font-size-micro, on=accent, off=content-secondary (doc 08 §1.3/§1.5, 4.F4 contrast fix)", () => {
+  // Label size: Toggle.svg ON/OFF cap-height 9.0px => ~12px type; caption
+  // (11px) is the nearest semantic step (w26.a03 relaunch measurement).
+  it("micro labels: font-size-caption (frame ~12px), on=accent, off=content-secondary (doc 08 §1.3/§1.5, 4.F4 contrast fix)", () => {
     const label = cssRule(".lumen-toggle__label");
-    expect(label).toContain("font-size: var(--font-size-micro)");
+    expect(label).toContain("font-size: var(--font-size-caption)");
     expect(cssRule(".lumen-toggle__label--on")).toContain("color: var(--color-accent)");
     expect(cssRule(".lumen-toggle__label--off")).toContain("color: var(--color-content-secondary)");
   });

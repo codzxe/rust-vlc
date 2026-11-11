@@ -22,6 +22,11 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "titl
    * row hover/focus-within. `label` is the accessible name (i18n: useMsg).
    */
   kebab?: { label: string; onClick: () => void };
+  /**
+   * Drag-handle queue rows (Miniplayer.svg queue): when the row is draggable
+   * a quiet two-bar handle renders before the icon and the cursor grabs.
+   */
+  draggable?: boolean | "true" | "false";
   /** Selected state: --color-surface-selected fill + accent icon. */
   selected?: boolean;
 }
@@ -48,7 +53,7 @@ export function ListRow({
   children,
   ...rest
 }: ListRowProps) {
-  const showHandle = Boolean(rest.draggable);
+  const showHandle = rest.draggable === true || rest.draggable === "true"; // Booleanish: "false" must NOT show a handle
   const overflow =
     actions ??
     (kebab ? (

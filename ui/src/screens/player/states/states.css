@@ -13,6 +13,12 @@
  *   * Unsupported/Error — honest cards in the Figma panel grammar: r12
  *     surface-panel, 1px stroke-border hairline, overlay shadow, secondary
  *     copy, compact stage pill, one primary action.
+ *   * Hide-UI (Player - hide UI.svg) — the transient overlays are chrome:
+ *     they fade with the idle chrome (the screen root carries
+ *     data-chrome="hidden" from useChromeAutoHide) and return on activity.
+ *     Failure surfaces (error/unsupported) are assertive alerts and NEVER
+ *     fade on idle (doc 08 §4.5 — an alert that vanished would strand the
+ *     user); the empty hero cannot hide (chrome locks visible while idle).
  * Semantic tokens only (§3.2); raw px appears solely for structural
  * dimensions with no token (indicator sizes — same precedent as the 4.C1
  * shell's structural px). Spinner/fill motion lives inside a
@@ -42,6 +48,23 @@
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
+
+  /* Hide-UI fade is declared here (not inside no-preference) so the hidden
+   * end-state applies for reduced-motion users too; only the TRANSITION is
+   * motion-gated (mirrors the chrome-part rule in player.css). */
+  transition: opacity 160ms ease;
+}
+
+/* Hide-UI (Player - hide UI.svg): the transient overlays fade with the idle
+ * chrome — the frame shows NOTHING over the video once the cursor rests.
+ * Scoped to loading/buffering ONLY: error/unsupported are role=alert and
+ * must stay assertively visible (doc 08 §4.5/§5.4); the empty hero locks
+ * chrome visible (PlayerScreen locks while !hasMedia), so it never hides. */
+.lumen-player[data-chrome="hidden"] .lumen-state-overlay[data-overlay="loading"],
+.lumen-player[data-chrome="hidden"] .lumen-state-overlay[data-overlay="buffering"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Centered cluster; `data-card` upgrades it to the Figma panel grammar
@@ -190,6 +213,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .lumen-state-overlay {
+    transition: none; /* instant hide-UI switch (doc 08 §4.5) */
+  }
+}
+
 @keyframes lumen-state-spin {
   to {
     transform: rotate(360deg);
@@ -217,24 +246,22 @@
   flex-direction: column;
   align-items: center;
   gap: calc(var(--space-inset) * 3); /* 24px — airy onboarding rhythm */
-  max-width: 420px;
+  max-width: 480px; /* Onboarding.png hero column ~490px @900 render */
 }
 
-/* Cone mark — accent ink; ~0.9× the Onboarding.svg hero scale. The width
- * is frame-measured art, not a token (see ConeMark in StageOverlays.tsx). */
+/* Cone mark — accent ink, frame-measured art (see ConeMark in
+ * StageOverlays.tsx); ~0.9× the Onboarding.svg hero cone (107×126 art box →
+ * VLM-calibrated against Onboarding.png). Structural width, not a token. */
 .lumen-state-hero__mark {
-  width: 84px; /* ~0.8x the Onboarding.svg hero cone — VLM-calibrated scale */
+  width: 96px;
   height: auto;
   margin-bottom: var(--space-grid); /* optical air between mark and heading */
   color: var(--color-accent);
 }
 
-/* The hero CTA follows the onboarding primary exactly: r6 accent fill
- * (Onboarding.svg 100x32 rx6) — scoped tighter than the shared button's
- * default control radius for this surface. */
-.lumen-state-hero .lumen-button--primary {
-  border-radius: var(--radius-inset);
-}
+/* The hero CTA is the shared primary button unchanged: r6 accent fill
+ * (Onboarding.svg "Next" 100x32 rx6) — button.css owns the control radius;
+ * no per-surface override (the r4 override was a pre-relaunch mistake). */
 
 /* Onboarding hero heading: display scale, REGULAR weight — the hero reads
  * calm and confident, not shouted (Onboarding.png heading grammar). */
@@ -247,6 +274,8 @@
 
 .lumen-state-hero__body {
   margin: 0;
+  max-width: 46ch; /* Onboarding.png body column ~490px @900 — same reading measure */
   color: var(--color-content-secondary);
   font-size: var(--font-size-body);
+  line-height: 1.6; /* the onboarding paragraph's comfortable leading */
 }

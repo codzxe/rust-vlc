@@ -12,8 +12,9 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 /**
- * TextField primitive (doc 08 §1.4 onboarding text input: surface-deep fill,
- * 2px surface stroke). Error state wires `aria-invalid` + `aria-describedby`
+ * TextField primitive (wave 26 input grammar: #2a2a2a-class fill, 1px
+ * #3a3a3a-class border, r6, focus orange — form.css token seams pending the
+ * input tokens). Error state wires `aria-invalid` + `aria-describedby`
  * to the rendered error message (doc 08 §4.4/§5.4).
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
@@ -23,7 +24,12 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     const errorId = `${inputId}-error`;
     return (
       <div className={["lumen-field", className].filter(Boolean).join(" ")}>
-        <label className="lumen-field__label" htmlFor={inputId} style={hideLabel ? visuallyHidden : undefined}>
+        <label
+          className={["lumen-field__label", hideLabel ? "lumen-field__label--hidden" : ""]
+            .filter(Boolean)
+            .join(" ")}
+          htmlFor={inputId}
+        >
           {label}
         </label>
         <input
@@ -46,15 +52,3 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
 );
 
 TextField.displayName = "TextField";
-
-const visuallyHidden = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-  whiteSpace: "nowrap",
-  border: 0,
-} as const;

@@ -61,11 +61,13 @@ state tints. `aria-label` mandatory (§4.5).
 Track: 68x32 rx6 `--color-surface` (#090909 per Toggle.svg — was surface-deep
 pre-W26), 3px padding/radius/pitch (frame-measured structural px, no token).
 
-Micro labels (doc 08 §1.3 row 4.4 + §1.5 Toggle.svg): `--font-size-micro`,
-ON = `--color-accent` (#D37918), OFF = `--color-content-secondary` — the
-frame's #6B6B6B tertiary is 3.4:1 on the #191919 segment; secondary clears
-4.5:1 (4.F4 a11y deviation, kept). Decorative (`aria-hidden`): the switch
-conveys state via `aria-checked` alone; label text is not translated.
+Micro labels (doc 08 §1.3 row 4.4 + §1.5 Toggle.svg): `--font-size-caption`
+(11px; frame-measured ON/OFF cap-height 9.0px ⇒ ~12px type — the doc-08
+"micro" 6px was half-size, fixed in the w26.a03 relaunch), ON =
+`--color-accent` (#D37918), OFF = `--color-content-secondary` — the frame's
+#6B6B6B tertiary is 3.4:1 on the #191919 segment; secondary clears 4.5:1
+(4.F4 a11y deviation, kept). Decorative (`aria-hidden`): the switch conveys
+state via `aria-checked` alone; label text is not translated.
 
 ARIA note: the task card mentioned `aria-pressed`, but doc 08 §4.5 mandates
 `toggles → switch`; implemented as `role="switch"` + `aria-checked` (a switch
@@ -76,17 +78,28 @@ Space/Enter activation.
 checked all present. Pending: not required for Toggle (§4.4 scopes it to
 command-dispatching components).
 
-## Honest gaps (next sessions)
+## Honest gaps (w26.a03 relaunch state)
 
 - Visual snapshots: 4.G1's harness doesn't exist; vitest stubs `.css` imports
   (`?raw` returns EMPTY — use `node:fs` + `import.meta.dirname`), so jsdom
   never cascades the stylesheet. Current "visual snapshot" = DOM snapshot +
-  CSS-source→semantic-token assertions.
+  CSS-source→semantic-token assertions. (The comparison loop runs against a
+  `/tmp` static harness + live routes — see the lane log.)
 - Toggle 3px radii/pitch are raw px — no 3px semantic radius/space token
   exists; handoff to the token owner (themes/tokens.json is Rust-owned).
-- `--radius-control` / `--font-size-body` are assumed to re-scale to 6px /
-  13px when the W26 token lane regenerates tokens.css (spec §1: "r6 buttons",
-  "10–13px body"). Until then buttons render with the interim Solstice token
-  values (10px radius, 14px text) — token lane dependency, not a local fix.
-- `form/Switch.tsx` (separate component, form lane) still re-implements a
-  switch-like control; unify on Toggle when that lane restyles.
+- RESOLVED (a01 landed): `--radius-control` = 6px and the Inter font stack
+  now resolve to the W25 values; button labels measure ~14px in the dialog
+  frames (cap-height 10.5px), matching `--font-size-body` — the "12–13px"
+  task-card figure is approximated by the frame at ~14px, kept on the token.
+- `form/Switch.tsx` (separate component, form lane) re-implements the same
+  Toggle.svg anatomy for settings rows (`.lumen-switch`, 68×32 too); both
+  stay until the form lane unifies on one primitive. The task card's
+  "32×16 settings toggle" does not exist in the frames — every settings
+  toggle measures 68×32 (Settings - global.svg / playback.svg).
+- Frame residue, documented (not local fixes): dialog-frame secondary button
+  fill is #1B1B1B with no border (this lane ships raised #222222 + 1px
+  stroke-border per the task card); `Button.svg`'s 360×32 bars are rx4 with
+  surface/surface-panel fills and tertiary/secondary labels — that anatomy
+  is the settings "Advanced Options" footer composition (consumer CSS), not
+  a primitive variant; dialog frames pin button width at 100px (consumers
+  should set width/min-width — the primitive stays auto-width).

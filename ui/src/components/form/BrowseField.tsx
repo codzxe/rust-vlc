@@ -29,7 +29,12 @@ export const BrowseField = forwardRef<HTMLInputElement, BrowseFieldProps>(
     const errorId = `${inputId}-error`;
     return (
       <div className={["lumen-field", className].filter(Boolean).join(" ")}>
-        <label className="lumen-field__label" htmlFor={inputId} style={hideLabel ? visuallyHidden : undefined}>
+        <label
+          className={["lumen-field__label", hideLabel ? "lumen-field__label--hidden" : ""]
+            .filter(Boolean)
+            .join(" ")}
+          htmlFor={inputId}
+        >
           {label}
         </label>
         <div className="lumen-browse">
@@ -65,15 +70,3 @@ export const BrowseField = forwardRef<HTMLInputElement, BrowseFieldProps>(
 );
 
 BrowseField.displayName = "BrowseField";
-
-const visuallyHidden = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-  whiteSpace: "nowrap",
-  border: 0,
-} as const;

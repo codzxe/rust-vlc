@@ -42,6 +42,7 @@ import { Icon } from "../icon/Icon";
 import { IconWrapper } from "../icon/IconWrapper";
 import type { IconName } from "../icon/icons";
 import { ScrollArea, VirtualList } from "../list";
+import { Panel } from "../surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.a10";
@@ -52,11 +53,11 @@ import {
   GlyphChevronLeft,
   GlyphClose,
   GlyphGrid,
-  GlyphGrip,
   GlyphList,
   GlyphMaximize,
   GlyphMinimize,
   GlyphMore,
+  GlyphPlaylist,
   GlyphPlus,
   GlyphSearch,
   GlyphSort,
@@ -383,8 +384,10 @@ export function AppShell({
       </header>
 
       <div className="app-shell__frame">
-        {/* ---- icon rail (Player.svg rail: nav glyphs + pinned "+" foot) -- */}
-        <nav className="app-shell__rail" aria-label={m("nav.title")}>
+        {/* ---- icon rail (Player.svg rail: nav glyphs + pinned "+" foot) --
+         * <Panel edges="end"> = the surface lane's square .lumen-pane fill
+         * (#191919) + the 1px inline-end hairline (w26.a08 adoption). */}
+        <Panel as="nav" className="app-shell__rail" edges="end" aria-label={m("nav.title")}>
           <ul className="app-shell__rail-list">
             {RAIL_ITEMS.map((item) => (
               <li key={item.to}>
@@ -421,10 +424,16 @@ export function AppShell({
               </IconWrapper>
             </IconButton>
           </div>
-        </nav>
+        </Panel>
 
-        {/* ---- playlists sidebar (sidebar.svg; collapsible) ---------------- */}
-        <nav
+        {/* ---- playlists sidebar (sidebar.svg; collapsible) ----------------
+         * <Panel tone="deep" edges="end"> = the #0E0E0E sidebar fill
+         * (sidebar.svg measures the deep surface) + the 1px hairline
+         * against the main region (w26.a08 adoption). */}
+        <Panel
+          as="nav"
+          tone="deep"
+          edges="end"
           className="app-shell__sidebar"
           id={SIDEBAR_ID}
           aria-label={t("shell.sidebar.title")}
@@ -531,12 +540,17 @@ export function AppShell({
                 itemHeight={PLAYLIST_ROW_HEIGHT}
                 label={t("shell.sidebar.list-label")}
                 className="app-shell__sidebar-list"
-                renderItem={(row) => (
-                  <Link to="/playlist" className="app-shell__plrow" draggable={false}>
-                    <GlyphGrip size={14} />
-                    <span className="app-shell__plrow-label">{row.label}</span>
-                  </Link>
-                )}
+                renderItem={(row) =>
+                  /* Guard: VirtualList's windowed range can lag one render
+                   * behind a shrinking dataset (filter applied) — the list
+                   * lane owns the clamp; the shell never crashes on it. */
+                  row ? (
+                    <Link to="/playlist" className="app-shell__plrow" draggable={false}>
+                      <GlyphPlaylist size={14} />
+                      <span className="app-shell__plrow-label">{row.label}</span>
+                    </Link>
+                  ) : null
+                }
               />
             ) : (
               /* Grid view — the scroll primitive over a 2-up card grid. */
@@ -554,7 +568,7 @@ export function AppShell({
               </ScrollArea>
             )}
           </div>
-        </nav>
+        </Panel>
 
         {provideMain ? (
           <main className="app-shell__main">{children}</main>

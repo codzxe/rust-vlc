@@ -148,6 +148,13 @@ describe("virtualization math (computeRange)", () => {
     expect(bottom.startIndex).toBe(94);
     expect(bottom.endIndex).toBe(99);
   });
+
+  it("clamps a stale scrollTop past a shrunken dataset back onto the data", () => {
+    // 10k rows scrolled to row 9000, then filtered to 3 items — the offset
+    // (9000×28) is past the new end; the window must re-attach to the data.
+    expect(computeRange(3, 28, 9000 * 28, 560, 5)).toMatchObject({ startIndex: 0, endIndex: 2 });
+    expect(computeRange(0, 28, 9000 * 28, 560, 5)).toMatchObject({ startIndex: 0, endIndex: -1 });
+  });
 });
 
 const makeRows = (n: number) => Array.from({ length: n }, (_, i) => `Row ${i}`);
@@ -230,6 +237,28 @@ describe("VirtualList — 10k-row AC (doc 08 §4 virtualization)", () => {
     );
     expect(viewport.scrollTop).toBe(9_999 * 28); // clamped to last row
   });
+
+  it("never renders past the data when the dataset shrinks mid-window", () => {
+    // Deep scroll → stale window ~rows 495–524, then the filter shrinks the
+    // dataset to 3 items before any scroll event fires (AppShell's guard
+    // case — the list lane owns the clamp, not the consumer).
+    const { container, rerender } = render(
+      <VirtualList data={data} itemHeight={28} overscan={5} label="Big list" renderItem={(row) => <span>{row}</span>} />,
+    );
+    const viewport = container.querySelector<HTMLElement>('[role="listbox"]')!;
+    shimViewportHeight(viewport, 560);
+    viewport.scrollTop = 500 * 28;
+    fireEvent.scroll(viewport);
+    expect(container.querySelectorAll('[role="option"]').length).toBeGreaterThan(20);
+    rerender(
+      <VirtualList data={["A", "B", "C"]} itemHeight={28} overscan={5} label="Big list" renderItem={(row) => <span>{row}</span>} />,
+    );
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('[role="option"]'));
+    expect(rows.length).toBe(3); // clamped to the shrunken data, not the stale window
+    expect(rows.map((r) => r.textContent)).toEqual(["A", "B", "C"]);
+    rerender(<VirtualList data={[]} itemHeight={28} overscan={5} label="Big list" renderItem={(row) => <span>{row}</span>} />);
+    expect(container.querySelectorAll('[role="option"]').length).toBe(0); // empty → zero rows
+  });
 });
 
 function screenByTop(container: HTMLElement, top: number): string | null {
@@ -298,6 +327,11 @@ describe("ListRow — Figma row grammar (W25 §2: playlist.svg / media.svg / men
     const { container, rerender } = render(<ListRow title="Row" draggable />);
     expect(container.querySelector(".lumen-lrow__handle")).not.toBeNull();
     rerender(<ListRow title="Row" />);
+    expect(container.querySelector(".lumen-lrow__handle")).toBeNull();
+  });
+
+  it('Booleanish edge: draggable="false" never shows the handle', () => {
+    const { container } = render(<ListRow title="Row" draggable="false" />);
     expect(container.querySelector(".lumen-lrow__handle")).toBeNull();
   });
 
@@ -391,7 +425,7 @@ describe("ListEmpty — quiet empty-list state", () => {
   });
 });
 
-describe("naturalCompare / naturalSort (Solstice-v2 flow fix: numeric order)", () => {
+describe("naturalCompare / naturalSort (2026-11-09 v2 flow fix: numeric order)", () => {
   it('"Bookmark 1, 2, 10" — never the lexical "1, 10, 2"', () => {
     expect(naturalSort(["Bookmark 10", "Bookmark 2", "Bookmark 1"])).toEqual([
       "Bookmark 1",

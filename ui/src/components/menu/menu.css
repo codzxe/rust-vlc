@@ -107,7 +107,7 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-label); /* 15–16px medium labels */
   font-weight: var(--font-weight-medium);
-  color: var(--color-content-primary); /* #e8e8e8-class label (spec §2 Menus) */
+  color: var(--color-content-bright); /* label #e8e8e8-class (task W26; spec §2 Menus) — nearest semantic token #eaeaea */
   cursor: pointer;
   border-radius: var(--radius-control); /* r6 row radius */
   transition: background-color 120ms ease, color 120ms ease;
@@ -122,13 +122,13 @@
 
 .lumen-menu__item:hover {
   background: var(--color-surface-hover);
-  color: var(--color-content-bright);
 }
 
-/* The roving-focus "active" row (keyboard navigation) reads as selected. */
+/* The roving-focus "active" row (keyboard navigation) reads as selected.
+ * Label keeps its base bright tone (frames hold label color on hover/selected;
+ * the row fill is the state signal). */
 .lumen-menu__item:focus {
   background: var(--color-surface-selected);
-  color: var(--color-content-bright);
 }
 
 .lumen-menu__item:focus-visible {
@@ -146,7 +146,7 @@
 .lumen-menu__icon {
   display: inline-flex;
   flex: none;
-  color: var(--color-content-secondary); /* frame icons stroke #8F8F8F */
+  color: var(--color-stroke-icon); /* frame icon strokes #8F8F8F */
 }
 
 /* Defaults size the icon for comfortable density; compact overrides below
@@ -196,18 +196,16 @@
 .lumen-menu__accelerator {
   margin-left: auto;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body); /* 13–14px shortcuts */
+  font-size: var(--font-size-body); /* 13–14px shortcuts at BOTH densities (task W26) */
   font-variant-numeric: tabular-nums;
-  color: var(--color-content-tertiary); /* dim gray, right-aligned (frames #6B6B6B) */
+  color: var(--color-content-secondary); /* #9e9e9e-class (task W26) — nearest semantic token #8F8F8F */
 }
 
-.lumen-menu--compact .lumen-menu__accelerator {
-  font-size: var(--font-size-caption);
-}
-
+/* Submenu affordance: a "›" chevron (frame `menu.svg` Vector 27: 10px chevron,
+ * stroke #8F8F8F 1.5) — not a filled triangle. */
 .lumen-menu__submenu-arrow::before {
-  content: "\25B8"; /* right-pointing submenu affordance */
-  color: var(--color-content-tertiary);
+  content: "\203A"; /* › chevron — graphical, not an i18n string */
+  color: var(--color-stroke-icon);
 }
 
 /* Thin separators at row boundaries (frames: full row span, 1px hairline). */
@@ -304,9 +302,18 @@
   white-space: nowrap;
 }
 
+/* Trigger chevron: "›" rotated into a ∨ (frame `Dropdown.svg` Vector 27:
+ * 10px chevron-down, stroke #8F8F8F 1.5 — not a filled triangle). The open
+ * state flips it to point up (`Setting Preset.svg` open trigger). */
 .lumen-dropdown__arrow::before {
-  content: "\25BE"; /* chevron-down affordance */
-  color: var(--color-content-tertiary);
+  display: inline-block; /* transformable glyph box */
+  content: "\203A"; /* › chevron — graphical, not an i18n string */
+  transform: rotate(90deg);
+  color: var(--color-stroke-icon);
+}
+
+.lumen-dropdown__trigger[aria-expanded="true"] .lumen-dropdown__arrow::before {
+  transform: rotate(-90deg);
 }
 
 /* Open list: r6 panel, 2px inset (frame: option 360×44 rx4 inside a 364 list). */
@@ -367,10 +374,12 @@
 }
 
 /* Orange check on the selected option (frame `option.svg`/`Dropdown.svg`
- * Vector 44, stroke #D37918). */
+ * Vector 44, stroke #D37918 @2px) — semibold for stroke weight. */
 .lumen-dropdown__option[aria-selected="true"]::after {
   margin-left: auto;
+  font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
   content: "\2713"; /* graphical glyph, not an i18n string */
   color: var(--color-accent-icon);
 }

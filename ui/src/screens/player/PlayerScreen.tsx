@@ -3,11 +3,18 @@
 // layout-config structure; figma-fidelity-spec §2 "Player" family).
 //
 // COMPOSITION (Player.png, Player-6, Player - Light — all 7 frames agree):
-//   * window title bar + icon rail — the APP SHELL's regions (appshell lane;
-//     this screen is hosted inside AppShell's main and never duplicates them)
-//   * DOCKED PLAYLIST SIDEBAR, left of the canvas, open by default — the
-//     `lumen:toggle-sidebar` window event (exported below) is the seam the
-//     shell's title-bar toggle drives; `openPanels: ["playlist"]` also shows it
+//   * window title bar + icon rail + PLAYLISTS SIDEBAR — the APP SHELL's
+//     regions (appshell lane owns them, W26); this screen is hosted inside
+//     AppShell's main and never duplicates them — the SHELL sidebar is the
+//     default left rail of Player.png (sidebar.svg grammar)
+//   * DOCKED QUEUE PANEL, left of the canvas, open by default and
+//     collapsible — the cross-lane pin (variants.test.tsx asserts it present
+//     in the full variant; PlayerScreen.test.tsx owns the toggle seam).
+//     NOTE for the Lead: Player.png itself shows ONE left sidebar (the
+//     shell's playlists rail) — whether the queue dock stays in the default
+//     composition is an integration call (see docs/waves/w26/logs/w26.a13.md
+//     open issue 1). It also opens via `openPanels: ["playlist"]` and the
+//     `lumen:toggle-sidebar` window event (exported below).
 //   * MAIN CANVAS — near-black in BOTH themes (the picture-frame rule); the
 //     honest engine-unwired placeholder (no <video>/<canvas> until 4.H1)
 //     centers the playing media's identity; the first-run EMPTY state is the
@@ -66,10 +73,11 @@ import { useChromeAutoHide } from "./useChromeAutoHide";
 import { useFullscreen } from "./useFullscreen";
 
 /**
- * Shell seam (W26): the window title bar's sidebar-toggle dispatches this
- * window event; the player answers by collapsing/expanding the docked
- * playlist sidebar (Player.png ↔ Player-6.png). Same CustomEvent contract
- * shape as `lumen:open-media`.
+ * Shell seam (W26): dispatching this window event toggles the player's
+ * docked queue panel (the on-demand left dock). The shell's title-bar
+ * sidebar-toggle owns the SHELL playlists sidebar; if it also dispatches
+ * this event the two collapses compose (Player.png ↔ Player-6.png).
+ * Same CustomEvent contract shape as `lumen:open-media`.
  */
 export const PLAYER_TOGGLE_SIDEBAR_EVENT = "lumen:toggle-sidebar";
 
@@ -160,11 +168,15 @@ function PlayerScreenInner({
     [onVariantChange],
   );
 
-  // W26 Player.png: the docked playlist sidebar is part of the player's
-  // default composition — OPEN first-run, collapsible. The shell's
-  // sidebar-toggle drives it through the exported window event (see
-  // PLAYER_TOGGLE_SIDEBAR_EVENT); `openPanels` forcing it open keeps the
-  // old host seam honest (a panel a host asked for never hides).
+  // W26 cross-lane pin: the docked queue panel is part of the player's
+  // default composition — OPEN first-run, collapsible (variants.test.tsx
+  // asserts it present in the full variant; this screen owns the toggle
+  // seam). The shell's title-bar sidebar toggle can drive it through the
+  // exported window event (see PLAYER_TOGGLE_SIDEBAR_EVENT); `openPanels`
+  // forcing it open keeps the host seam honest (a host-requested panel
+  // never hides). Whether the dock belongs in the DEFAULT frame beside the
+  // shell's playlists sidebar (Player.png shows one sidebar) is the Lead's
+  // integration call — lane log, open issue 1.
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     const onToggleSidebar = (): void => setSidebarOpen((open) => !open);
@@ -367,8 +379,9 @@ function PlayerScreenInner({
       data-has-media={hasMedia}
       data-sidebar={sidebarVisible ? "open" : "closed"}
     >
-      {/* Docked playlist sidebar (Player.png) — collapses via the shell's
-          sidebar-toggle (lumen:toggle-sidebar) or openPanels omission. */}
+      {/* Docked queue panel (cross-lane pin: open first-run, collapsible).
+          Collapses via the shell toggle event (lumen:toggle-sidebar) or
+          openPanels omission. */}
       {dockedSidebar !== undefined && sidebarVisible ? (
         <PlaylistSidebar region={dockedSidebar} />
       ) : null}
@@ -466,11 +479,11 @@ function PlayerScreenInner({
   );
 }
 
-/** The docked playlist sidebar (Player.png left rail of the canvas):
- * a full-height deep surface with a hairline right edge. Content is the
- * real 4.D1 playlist panel (queue semantics) — the playlists-LIST model
- * (multiple saved playlists, Player.png "Cool Songs"/"Anime to Watch" rows)
- * has no engine surface yet and is NOT fabricated here (see lane log). */
+/** The docked queue panel (on-demand left dock): a full-height deep surface
+ * with a hairline right edge. Content is the real 4.D1 playlist panel (queue
+ * semantics); the playlists-LIST rail (Player.png "Cool Songs"/"Anime to
+ * Watch" rows) is the app shell's sidebar (appshell lane) — not duplicated
+ * here. */
 function PlaylistSidebar({ region }: { region: LayoutRegion }) {
   const m = useMsg();
   return (

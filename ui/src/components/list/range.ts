@@ -26,9 +26,13 @@ export interface VirtualRange {
  * itemHeight) regardless of data size — a 10k-row list renders ~25 row nodes,
  * not 10k (asserted by the perf test). Absolute row positioning inside a
  * full-height spacer keeps the scrollbar native and scroll-jump-exact.
+ *
+ * `scrollTop` is clamped to the last item: a stale scroll offset (a dataset
+ * that just shrank — filter applied — can leave the offset past the new end
+ * for one frame) must never detach the window from the data.
  */
 export function computeRange(count: number, itemHeight: number, scrollTop: number, viewportHeight: number, overscan: number): VirtualRange {
-  const firstVisible = Math.floor(Math.max(0, scrollTop) / itemHeight);
+  const firstVisible = Math.min(Math.floor(Math.max(0, scrollTop) / itemHeight), Math.max(0, count - 1));
   const visibleCount = Math.ceil(Math.max(0, viewportHeight) / itemHeight);
   const startIndex = Math.max(0, firstVisible - overscan);
   const endIndex = Math.min(count - 1, firstVisible + visibleCount + overscan - 1);

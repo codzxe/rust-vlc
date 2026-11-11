@@ -154,16 +154,15 @@ export function GlyphGrid({ size = 16 }: { size?: number }) {
   );
 }
 
-/** Drag grip (playlist rows, Player.png sidebar: two dotted columns). */
-export function GlyphGrip({ size = 14 }: { size?: number }) {
+/** Playlist row glyph (sidebar.svg rows: three stacked lines + the small
+ * play triangle biting the last one — "Cool Playlist" / "Cool Songs"). */
+export function GlyphPlaylist({ size = 14 }: { size?: number }) {
   return (
-    <Glyph size={size} filled>
-      <circle cx="9" cy="6" r="1.3" />
-      <circle cx="15" cy="6" r="1.3" />
-      <circle cx="9" cy="12" r="1.3" />
-      <circle cx="15" cy="12" r="1.3" />
-      <circle cx="9" cy="18" r="1.3" />
-      <circle cx="15" cy="18" r="1.3" />
+    <Glyph size={size}>
+      <path d="M5 6H19" />
+      <path d="M5 12H19" />
+      <path d="M5 18H12.5" />
+      <path d="M16 14.5V21.5L21.5 18L16 14.5Z" />
     </Glyph>
   );
 }

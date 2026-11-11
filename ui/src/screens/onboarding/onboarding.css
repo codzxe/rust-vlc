@@ -1,267 +1,392 @@
-/* Onboarding wizard (card 4.F1) — Solstice v2 stage (2026-11-09).
- * The screen is a transparent stage over the FULL-STRENGTH sunset
- * (html[data-backdrop="vivid"] is set by the component while mounted),
- * composed as a three-row grid over a painted horizon so the scene
- * survives 1440×900 AND 1024×768 with nothing clipped:
- *   row 1  keycap step indicator, top-left, ON the gradient
- *   row 2  the washi-taped sticky note (.solstice-note) at the OPTICAL
- *          center (~45% stage height — the wrap's extra bottom padding
- *          lifts it above the row's true middle; the bottom sky belongs
- *          to the afterglow ground and the keycap strip, not dead haze)
- *   row 3  ambient keycap strip resting on the afterglow ground,
- *          ≥24px safe padding below it
- * The sun is an absolutely-positioned sky ornament at z-index 0; every
- * content row sits at z-index 1, so at narrow widths the sun tucks BEHIND
- * the opaque card instead of straddling it (brief §2.2).
- * Colors/radii/spacing strictly via semantic tokens; mode-conditional
- * paints are composed with color-mix, never raw hex. Raw px appears only
- * for the legibility floors the token set lacks (brief §2.9: caps ≥13px
- * on this reference screen, chip labels ≥12px). */
+/* Onboarding wizard (card 4.F1) — W26 Figma redesign (wave 26, lane w26.a12).
+ *
+ * Composition per the wave plan + design/figma-fidelity-spec.md §2:
+ * a near-black stage (surface token) centers ONE wizard window —
+ * surface-chrome #161616, r-xl (--radius-window, the frames' rx14 window
+ * corner), 1px stroke-border frame, overlay shadow — carrying the dot step
+ * indicator, the step content, and the frames' footer anatomy (step
+ * furniture left · Back/Skip/Next right).
+ *
+ * Frame provenance (design/figma/Onboarding*.svg, 1090×759):
+ *   · Onboarding.svg — hero cone, heading, body, folder input row 469×34 +
+ *     Browse 114×35 r6, "Next" 100×32 r6 accent.
+ *   · Onboarding-1.svg / -3..10 — theme cards 100×100 r12 (+120×120 rx21
+ *     4px selected ring), 9 accent dots r20 at 80px pitch (+60×60 rx30
+ *     ring on the selected), Back 100×32 r6 panel + Next accent.
+ *   · Onboarding-2.svg — shortcuts tour: two columns × six rows, label left
+ *     · keycap chips right (42px r12 #1B1B1B with a #373737 inset stroke),
+ *     "/" separators between pairs, tertiary 12px footer note.
+ *
+ * Colors/fonts/radii strictly via semantic tokens (contract §4.4); raw px
+ * only for frame-measured structural values, each marked `frame:`, plus
+ * the theme-swatch and accent-dot depictions (the same frame-measured
+ * art the form lane ships in form.css — no depiction tokens exist).
+ *
+ * The Solstice stage (sunset vars, taped note, keycaps-as-chips grammar,
+ * Nunito) is gone. */
+
+/* --- stage ------------------------------------------------------------ */
 
 .onboarding {
   box-sizing: border-box;
-  position: relative;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
 
-  /* Fits the FIRST PAINT exactly: the app-wide 8px body margins (no global
-   * reset exists yet) sit outside this box, so a bare 100vh stage always
-   * spilled 16px into a phantom scroll that crowded the bottom strip
-   * (v2 audit defect 1). Subtracting them keeps the whole scene — indicator,
-   * note, keycap strip — inside the fold at 1440×900 AND 1024×768; if the
-   * body margins ever disappear, the stage simply sits 16px high on a sky
-   * that paints to the viewport edges regardless. Longer content (pseudo
-   * locale) still grows the grid and scrolls honestly (§2.7). */
+  /* The app still ships the browser-default 8px body margins (no global
+   * reset yet) — subtract them so the stage fits the first paint exactly
+   * at 1440×900 and 1024×768 with nothing clipped (same note as the
+   * previous sheet; longer step content scrolls honestly). */
   min-height: calc(100vh - 16px);
   min-height: calc(100dvh - 16px);
 
-  /* Safe padding: ≥24px below the keycap strip so no label ever touches
-   * the viewport edge, whatever the window height (36px also absorbs the
-   * app-wide 8px body margins that currently inset the whole stage). */
-  padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 6)
-    calc(var(--space-grid) * 9);
+  /* ≥24px safe padding on every edge. */
+  padding: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: var(--color-surface);
+  color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
-  color: var(--color-content-primary);
-
-  /* Transparent on purpose: the vivid sunset IS the background. */
-  background: transparent;
 }
 
-/* ------------------------------------------------------------------ */
+/* --- the wizard window (framed card) ---------------------------------- */
 
-/* The sun — sky ornament, always BEHIND the content rows              */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__sun {
-  position: absolute;
-  top: 9vh;
-  right: 10%;
-  width: calc(var(--space-grid) * 34);
-  height: calc(var(--space-grid) * 34);
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* The horizon — the lower sky's warm afterglow ground (v2 audit defect 3:
- * the bottom third read as dead brown haze). Pure scene dressing at z 0,
- * behind every content row: a soft amber bloom swelling from the bottom
- * edge plus a gentle dusk falloff, so the keycap strip rests on evening
- * light instead of floating on a void. Same setting-sun language as the
- * 404's ground band — the two stage screens share one sky. */
-.onboarding__horizon {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 34%;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      120% 90% at 50% 100%,
-      color-mix(in srgb, var(--color-sunset-6) 16%, transparent) 0%,
-      transparent 62%
-    ),
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      color-mix(in srgb, var(--color-surface-deep) 46%, transparent) 80%,
-      color-mix(in srgb, var(--color-surface-deep) 72%, transparent) 100%
-    );
-}
-
-/* ------------------------------------------------------------------ */
-
-/* Step indicator — caption + numbered keycap chips, top-left          */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__stage-meta {
-  z-index: 1;
+.onboarding__window {
+  /* `margin: auto` (not grid centering) so an over-tall step grows the
+   * stage and scrolls instead of clipping its top edge. */
+  margin: auto;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 1.5);
-  justify-self: start;
-  padding-bottom: calc(var(--space-grid) * 1);
-
-  /* note-ink flips with the mode: cream on the dark sunset, ink on the dawn. */
-  color: var(--color-note-ink);
+  gap: 28px;
+  width: min(960px, 100%);
+  padding: 32px 48px 28px;
+  background: var(--color-surface-chrome); /* frame: Onboarding.svg window fill #161616-class */
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-window); /* r-xl */
+  box-shadow: var(--shadow-overlay);
 }
 
-.onboarding__stepcount {
-  margin: 0;
-
-  /* 12px label floor (brief §2.9) — the caption token (11px) is a notch
-   * small for the reference screen's indicator. */
-  font-size: 12px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-}
+/* --- step indicator (composed in the frames' quiet grammar) ------------ */
 
 .onboarding__progress {
   display: flex;
   align-items: center;
-  gap: calc(var(--space-grid) * 1.5);
+  justify-content: center;
+  gap: var(--space-grid);
   margin: 0;
   padding: 0;
   list-style: none;
-
-  /* Scrapbook tilt — the same craft cue as the note card itself. */
-  rotate: -1.2deg;
 }
 
-/* Keycap step chips: translucent glass at rest, gold rim once done, and a
- * solid accent keycap (slightly larger, on-accent ink) for the current
- * step — clear emphasis without any looping motion. Ink stays note-ink in
- * both modes so the chips read on the dawn AND the dusk sky (AA: ≥7:1). */
-.onboarding__progress-cap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--color-note-ink) 34%, transparent);
-  border-bottom-width: 3px;
-  border-radius: var(--radius-inset);
-  background: color-mix(in srgb, var(--color-note-ink) 10%, transparent);
-  color: var(--color-note-ink);
-  font-family: var(--font-family-sans);
-  font-size: 13px;
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
+.onboarding__progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-card-lg); /* 6px pill ends */
+  background: var(--color-stroke-border);
+  transition: width var(--motion-duration-fast) ease, background-color var(--motion-duration-fast) ease;
 }
 
-.onboarding__progress-cap--done {
-  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
-  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
-}
-
-.onboarding__progress-cap--current {
-  width: 32px;
-  height: 32px;
-  border-color: var(--color-accent-strong);
+.onboarding__progress-dot--done {
   background: var(--color-accent);
-  color: var(--color-content-on-accent);
-  box-shadow:
-    0 3px 0 color-mix(in srgb, var(--color-accent-strong) 70%, transparent),
-    0 0 calc(var(--space-inset) * 2.5)
-      color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
-/* ------------------------------------------------------------------ */
-
-/* The sticky-note card                                                */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__note-wrap {
-  position: relative;
-  z-index: 1; /* above the sky sun — overlaps read as behind the card */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 0;
-
-  /* Optical center (~45% of the stage): the extra bottom padding lifts the
-   * card above the row's true middle, rebalancing the scene away from the
-   * top-heavy v1 composition. */
-  padding-block: 0 clamp(24px, 7vh, 80px);
+.onboarding__progress-dot--current {
+  width: 18px;
+  background: var(--color-accent);
 }
 
-/* Compound selector: must outrank .solstice-note's own padding whatever
- * the stylesheet evaluation order turns out to be. Asymmetric padding — a
- * taller top than sides/bottom — keeps the step content clear of the washi
- * tape, which straddles the note's top edge and dips ~16px into it at the
- * tape's deepest torn corner (rotation + clip-path): 48px top padding buys
- * ≥32px of clearance between tape and the first line of step content (v2
- * audit defect 6). */
-.onboarding__note.solstice-note {
-  box-sizing: border-box;
-  width: min(520px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--space-grid) * 2);
-  padding: calc(var(--space-inset) * 6) calc(var(--space-inset) * 4)
-    calc(var(--space-inset) * 4);
-}
+/* --- step content ------------------------------------------------------ */
 
 .onboarding__step {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) * 2);
+  gap: 16px;
 
-  /* Keeps card geometry stable across the lighter hero steps — sized so
-   * the full scene (indicator + note + keycap strip) fits a 1024×768
-   * window without scrolling. */
-  min-height: calc(var(--space-grid) * 46);
+  /* Stable geometry across the lighter hero steps. */
+  min-height: 296px;
 }
 
 .onboarding__step--center {
   align-items: center;
-  text-align: center;
-
-  /* Hero steps carry little content, so the step's stable min-height leaves
-   * a tall gap between the copy block and the footer rule. Centering the
-   * block on the cross of the step turns that gap into symmetric breathing
-   * room above AND below — a hung note, not a void pooling at the divider. */
   justify-content: center;
+  text-align: center;
 }
 
+/* Hero titles are bright (frame: Onboarding.svg #EAEAEA); working-step
+ * titles sit a notch quieter (frame: Onboarding-1/-2.svg #969696). */
 .onboarding__title {
   margin: 0;
   font-size: var(--font-size-display);
-  font-weight: var(--font-weight-extrabold);
-  line-height: 1.15;
-  color: var(--color-note-ink);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-content-secondary);
+}
+
+.onboarding__step--center .onboarding__title {
+  color: var(--color-content-bright);
 }
 
 .onboarding__body {
   margin: 0;
-  max-width: 46ch;
+  max-width: 592px; /* frame: Onboarding.svg body column 590px */
   font-size: var(--font-size-body);
   line-height: 1.6;
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .onboarding__step--center .onboarding__body {
-  max-width: 40ch;
+  /* Frame 0's paragraph is justified inside its centered column. */
+  text-align: justify;
+  text-align-last: center;
 }
 
-/* ------------------------------------------------------------------ */
+/* The cone mark (frame: Onboarding.svg Icon/Frame 4 — accent ink). */
+.onboarding__cone {
+  width: 104px;
+  height: auto;
+  margin-bottom: 4px;
+  color: var(--color-accent);
+}
 
-/* Privacy step — note lines, not boxes                                */
+/* --- library step — the real open-path funnel -------------------------- */
 
-/* ------------------------------------------------------------------ */
+.onboarding__open-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  width: 100%;
+  max-width: 592px;
+  margin-inline: auto;
+}
 
-.onboarding__privacy-list {
+.onboarding__open-form .lumen-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding__open-notice {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.onboarding__open-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding__open-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+}
+
+/* --- shortcuts tour (frame: Onboarding-2.svg) --------------------------- */
+
+.onboarding__shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 48px;
+}
+
+.onboarding__shortcut-column {
   display: flex;
   flex-direction: column;
+  gap: 14px;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding__shortcut-row,
+.onboarding__open-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.onboarding__shortcut-label {
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame: #969696 labels */
+}
+
+.onboarding__shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.onboarding__shortcut-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding__shortcut-sep {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary); /* frame: "/" separators #969696 */
+}
+
+/* Keycap chips — frame: Onboarding-2.svg 42px r12 #1B1B1B caps with the
+ * #373737 inset stroke, #EAEAEA glyphs; scaled to the card (36px, r12). */
+.onboarding__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  font-family: var(--font-family-sans);
+  font-size: 13px; /* frame: cap glyph height */
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  color: var(--color-content-bright); /* frame: #EAEAEA glyphs */
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-menu); /* frame: r12 */
+}
+
+/* --- appearance step (frames: Onboarding-1/-3..10) ---------------------- */
+
+.onboarding__theme-cards {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 56px; /* frame: card pitch 156 − 100 */
+  padding-top: 8px;
+}
+
+.onboarding__theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px; /* frame: label sits 33px under the card */
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-family-sans);
+  color: var(--color-content-secondary);
+  cursor: pointer;
+}
+
+.onboarding__theme-card:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.onboarding__theme-swatch {
+  position: relative;
+  width: 100px; /* frame: 100×100 */
+  height: 100px;
+  border-radius: var(--radius-card); /* frame: r12 */
+  box-shadow: inset 0 0 0 1px var(--color-stroke-border);
+}
+
+/* Selected card: the frame's 120×120 rx21 4px accent ring — drawn 10px
+ * outside the card, exactly like the frames. */
+.onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch::after {
+  content: "";
+  position: absolute;
+  inset: -10px; /* frame: ring outset */
+  border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
+  border-radius: var(--radius-ring); /* frame: rx21 */
+}
+
+.onboarding__theme-label {
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame: #8F8F8F labels */
+}
+
+/* Theme depictions — frame-measured art (Onboarding-1.svg): Light #AFAFAF,
+ * Dark #222222, System a hard diagonal split of the two. No depiction
+ * tokens exist (the form lane ships the same pattern in form.css). */
+/* stylelint-disable color-no-hex -- frame: Onboarding-1.svg theme depictions (frame-measured) */
+.onboarding__theme-card--light .onboarding__theme-swatch {
+  background: #afafaf;
+}
+
+.onboarding__theme-card--dark .onboarding__theme-swatch {
+  background: #222222;
+}
+
+.onboarding__theme-card--system .onboarding__theme-swatch {
+  background: linear-gradient(225deg, #afafaf 50%, #222222 50%);
+}
+/* stylelint-enable color-no-hex */
+
+/* --- playback / subtitles steps — real settings rows -------------------- */
+
+.onboarding__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 620px;
+  margin-inline: auto;
+}
+
+.onboarding__setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-stroke-border);
+}
+
+.onboarding__setting-row:last-child {
+  border-bottom: none;
+}
+
+.onboarding__setting-label {
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+}
+
+/* Fields that carry their own label render in the same row grammar. */
+.onboarding__setting-field.lumen-field {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-stroke-border);
+}
+
+.onboarding__setting-field .lumen-field__label {
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+}
+
+.onboarding__setting-field .lumen-number {
+  justify-self: end;
+}
+
+/* The 4-way subtitle segmented control fits the row (Values.svg's 104px
+ * min was the 3-way segment). */
+.onboarding__setting-segmented .lumen-segmented__segment {
+  min-width: 88px;
+}
+
+/* --- privacy step — the honest opt-in rows ------------------------------ */
+
+.onboarding__privacy-list {
+  width: 100%;
+  max-width: 620px;
+  margin: 0;
+  margin-inline: auto;
   padding: 0;
   list-style: none;
 }
@@ -270,9 +395,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(var(--space-grid) * 2);
-  padding: calc(var(--space-grid) * 2) 0;
-  border-bottom: 1px dashed color-mix(in srgb, var(--color-note-edge) 90%, transparent);
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-stroke-border);
 }
 
 .onboarding__privacy-row:last-child {
@@ -282,146 +407,86 @@
 .onboarding__privacy-text {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-grid) / 2);
+  gap: 2px;
 }
 
 .onboarding__privacy-label {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-note-ink);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
 }
 
 .onboarding__privacy-description {
   font-size: var(--font-size-caption);
   line-height: 1.5;
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .onboarding__privacy-note {
-  margin: calc(var(--space-grid) * 2) 0 0;
+  max-width: 620px;
+  margin: 12px auto 0;
   font-size: var(--font-size-caption);
   line-height: 1.5;
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
-/* The Switch track token assumes app-chrome neighbors; on the note it needs
- * the muted well to read in both modes (scoped to this screen only). */
-.onboarding__privacy-row .lumen-toggle,
-.onboarding__privacy-row .lumen-toggle:hover {
-  background: var(--color-surface-muted);
-}
+/* --- footer — step furniture left · buttons right (frames) -------------- */
 
-/* ------------------------------------------------------------------ */
-
-/* Appearance step — sticky swatches + sticker dots                    */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__theme-cards {
+.onboarding__footer {
   display: flex;
-  gap: calc(var(--space-grid) * 4);
-  flex-wrap: wrap;
-}
-
-.onboarding__theme-card {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: calc(var(--space-grid) * 1.5);
-  padding: 0;
-  border: none;
-  background: none;
-  font-family: var(--font-family-sans);
-  color: var(--color-note-ink);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 44px;
 }
 
-.onboarding__theme-card:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: default;
+.onboarding__footer-aside {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
 }
 
-.onboarding__theme-label {
+.onboarding__footer-note {
+  margin: 0;
   font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-tertiary); /* frame: Onboarding-2.svg #6B6B6B */
 }
 
-/* Mini sticky swatch: previews are anchored on the mode-STABLE tape tokens
- * (color-mix with white/black), so "Light"/"Dark" look like themselves in
- * either app mode. */
-.onboarding__theme-swatch {
-  position: relative;
-  width: calc(var(--space-grid) * 14);
-  height: calc(var(--space-grid) * 14);
-  border: 1px solid var(--color-note-edge);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-card);
-  rotate: -1.2deg;
+.onboarding__footer-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
 }
 
-.onboarding__theme-swatch::before {
-  content: "";
-  position: absolute;
-  top: calc(var(--space-inset) * -0.75);
-  left: 50%;
-  width: 34px;
-  height: 10px;
-  transform: translateX(-50%) rotate(-3deg);
-  background: var(--color-tape);
-  opacity: 0.85;
-  border-radius: 2px;
+/* Frame: Onboarding.svg "Frame 140" — 100×32 r6 buttons. */
+.onboarding__back,
+.onboarding__footer-actions .lumen-button--primary {
+  min-width: 100px;
 }
 
-/* stylelint-disable color-named -- art-direction: the light-theme swatch deliberately depicts raw paper (tape ink toward white); no swatch token exists by design [PROPOSAL in stylelint.config.js] */
-.onboarding__theme-card--light .onboarding__theme-swatch {
-  background: color-mix(in srgb, var(--color-tape) 45%, white);
-}
-/* stylelint-enable color-named */
-
-/* stylelint-disable color-named -- art-direction: the dark-theme swatch deliberately depicts raw night (tape edge toward black); no swatch token exists by design [PROPOSAL in stylelint.config.js] */
-.onboarding__theme-card--dark .onboarding__theme-swatch {
-  background: color-mix(in srgb, var(--color-tape-edge) 18%, black);
-}
-/* stylelint-enable color-named */
-
-/* stylelint-disable color-named -- art-direction: the system swatch halves the light/dark depictions above; no swatch tokens exist by design [PROPOSAL in stylelint.config.js] */
-.onboarding__theme-card--system .onboarding__theme-swatch {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-tape) 45%, white) 50%,
-    color-mix(in srgb, var(--color-tape-edge) 18%, black) 50%
-  );
-}
-/* stylelint-enable color-named */
-
-.onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch {
-  rotate: 0deg;
-  box-shadow: 0 0 0 3px var(--color-accent), var(--shadow-card);
+.onboarding__hidden {
+  visibility: hidden; /* keeps footer geometry stable across steps */
 }
 
-.onboarding__group-label {
-  margin: calc(var(--space-grid) * 2) 0 0;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.05em;
-  color: var(--color-note-ink-muted);
-}
+/* --- accent dots (frame: Onboarding-1.svg footer row) -------------------- */
 
-/* Accent sticker dots: the selected one fills with the LIVE accent token —
- * picking a dot updates root[data-accent], so the ring is the preview. */
 .onboarding__accents {
   display: flex;
-  gap: calc(var(--space-grid) * 1.5);
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px; /* frame pitch 80 → card scale */
 }
 
 .onboarding__accent {
-  width: calc(var(--space-grid) * 7);
-  height: calc(var(--space-grid) * 7);
+  position: relative;
+  width: 36px; /* frame: r20 dots, card-scaled */
+  height: 36px;
   padding: 0;
-  border: 1px solid var(--color-note-edge);
+  border: none;
   border-radius: 50%;
-  background: var(--color-accent-tinted);
   cursor: pointer;
+  transition: box-shadow var(--motion-duration-fast) ease;
 }
 
 .onboarding__accent:disabled {
@@ -429,269 +494,131 @@
   cursor: default;
 }
 
-.onboarding__accent[aria-pressed="true"] {
-  background: var(--color-accent);
-  box-shadow:
-    0 0 0 2px var(--color-note),
-    0 0 0 4px var(--color-accent);
+/* Selected dot: the frame's 60×60 rx30 4px accent ring. */
+.onboarding__accent[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -9px; /* frame: 1.5× the dot */
+  border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
+  border-radius: 50%; /* frame: rx30 on a 60×60 ring */
 }
 
-/* ------------------------------------------------------------------ */
+/* The 9 dot primaries — frame-measured (Onboarding-1.svg footer, ids 1–9;
+ * identical set to the generated per-accent blocks, which are
+ * :root[data-accent]-scoped and cannot be consumed here). */
+/* stylelint-disable color-no-hex -- frame: Onboarding-1.svg (9 accent dot primaries, frame-measured) */
+.onboarding__accent[data-accent="orange"] {
+  background: #d37918;
+}
 
-/* Shortcuts step — the real-keymap tour                               */
+.onboarding__accent[data-accent="red"] {
+  background: #e15032;
+}
 
-/* ------------------------------------------------------------------ */
+.onboarding__accent[data-accent="yellow"] {
+  background: #c49e23;
+}
 
-.onboarding__shortcut-list {
-  margin: 0;
+.onboarding__accent[data-accent="green"] {
+  background: #19a234;
+}
+
+.onboarding__accent[data-accent="cyan"] {
+  background: #18aad3;
+}
+
+.onboarding__accent[data-accent="blue"] {
+  background: #185dd3;
+}
+
+.onboarding__accent[data-accent="violet"] {
+  background: #8e42ff;
+}
+
+.onboarding__accent[data-accent="pink"] {
+  background: #f052b3;
+}
+
+.onboarding__accent[data-accent="gray"] {
+  background: #afafaf;
+}
+/* stylelint-enable color-no-hex */
+
+/* --- utilities ----------------------------------------------------------- */
+
+/* Screen-local sr-only (the dot numerals; the list carries the count). */
+.onboarding .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   padding: 0;
-  list-style: none;
-}
-
-.onboarding__shortcut-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: calc(var(--space-grid) * 2);
-  padding: calc(var(--space-grid) * 1.5) 0;
-  border-bottom: 1px dashed color-mix(in srgb, var(--color-note-edge) 90%, transparent);
-}
-
-.onboarding__shortcut-row:last-child {
-  border-bottom: none;
-}
-
-.onboarding__shortcut-label {
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-  color: var(--color-note-ink);
-}
-
-.onboarding__shortcut-keys {
-  display: flex;
-  flex: none;
-  gap: var(--space-grid);
-}
-
-/* Reference-screen keycaps: ≥13px caps (brief §2.9) — sized here rather
- * than via .solstice-key--sm, whose micro token (6px) sits far below the
- * legibility floor. */
-.onboarding__shortcut-keys .solstice-key {
-  min-width: 28px;
-  height: 28px;
-  font-size: 13px;
-}
-
-.onboarding__shortcut-more {
-  margin: calc(var(--space-grid) * -1) 0 0;
-  font-size: var(--font-size-caption);
-  line-height: 1.5;
-  color: var(--color-note-ink-muted);
-}
-
-/* ------------------------------------------------------------------ */
-
-/* Footer actions — Back (ghost) · Skip (ghost) · Next/Get started     */
-
-/* (gold pill). One row, one height, one baseline — no lone rotations.  */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__note .onboarding__rule {
-  margin: calc(var(--space-grid) * 2) 0 0;
-}
-
-.onboarding__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: calc(var(--space-grid) * 2);
-}
-
-.onboarding__footer-group {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space-grid) * 1.5);
-}
-
-/* Back = ghost on the note (compound scope beats .lumen-button). */
-.onboarding__footer .onboarding__back {
-  background: transparent;
-  color: var(--color-note-ink-muted);
-}
-
-.onboarding__footer .onboarding__back:hover {
-  background: color-mix(in srgb, var(--color-note-edge) 40%, transparent);
-  color: var(--color-note-ink);
-}
-
-/* Skip = quiet ghost chip at the primary pill's height and type size, so
- * the Skip/Next pair is baseline-aligned by construction (brief §2.4).
- * Muted note ink holds ≥4.5:1 on the note in both modes. */
-.onboarding__skip {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 var(--space-inset);
-  border: 1px solid color-mix(in srgb, var(--color-note-edge) 90%, transparent);
-  border-radius: var(--radius-control);
-  background: transparent;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-note-ink-muted);
-  cursor: pointer;
-}
-
-.onboarding__skip:hover {
-  background: color-mix(in srgb, var(--color-note-edge) 35%, transparent);
-  color: var(--color-note-ink);
-}
-
-.onboarding__hidden {
-  visibility: hidden; /* keeps footer geometry stable across steps */
-}
-
-/* ------------------------------------------------------------------ */
-
-/* Ambient keycap strip — on the gradient, bottom center               */
-
-/* ------------------------------------------------------------------ */
-
-.onboarding__keys {
-  z-index: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: calc(var(--space-grid) * 6);
-  padding-top: calc(var(--space-grid) * 4);
-
-  /* Subtle by scale and placement, not by transparency: opacity on gradient
-   * zones would risk the AA contrast floor for the tiny labels. */
-}
-
-.onboarding__keys-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--space-grid) * 1.5);
-}
-
-/* Reference-screen keycaps (brief §2.9): 13px caps on 34px keys. */
-.onboarding__keys .solstice-key {
-  min-width: 34px;
-  height: 34px;
-  font-size: 13px;
-}
-
-.onboarding__keys-label {
-  font-size: 12px; /* §2.9 label floor */
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-note-ink);
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
+  border: 0;
 }
 
-/* ------------------------------------------------------------------ */
+/* --- short viewports (≤ 800px tall, e.g. 1024×768) ----------------------- */
 
-/* Short viewports (≤ 800px tall, e.g. 1024×768)                        */
-
-/* ------------------------------------------------------------------ */
-
-/* The shortcuts tour is the tallest step; at 768px of stage height its six
- * rows pushed the keycap strip past the fold (v2 audit defect 1: labels
- * clipped at the bottom edge). Everything tightens JUST enough to fit the
- * whole scene inside the first paint — caps stay ≥13px and labels ≥12px
- * (§2.9 floors hold), the strip keeps its ≥24px safe padding, and taller
- * windows keep the airy 1440×900 spacing untouched. */
 @media (height <= 800px) {
-  .onboarding__note-wrap {
-    padding-block: 0 clamp(24px, 4vh, 48px);
+  .onboarding {
+    padding: 16px;
+  }
+
+  .onboarding__window {
+    gap: 20px;
+    padding: 24px 36px 20px;
   }
 
   .onboarding__step {
-    min-height: calc(var(--space-grid) * 40);
-  }
-
-  .onboarding__shortcut-row {
-    padding: var(--space-grid) 0;
-  }
-
-  .onboarding__shortcut-keys .solstice-key {
-    min-width: 26px;
-    height: 26px;
-  }
-
-  .onboarding__keys {
-    padding-top: calc(var(--space-grid) * 2);
-  }
-
-  .onboarding__keys .solstice-key {
-    min-width: 32px;
-    height: 32px;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-
-/* Small viewports                                                     */
-
-/* ------------------------------------------------------------------ */
-
-@media (width <= 600px) {
-  .onboarding {
-    padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 4)
-      calc(var(--space-grid) * 7);
-  }
-
-  .onboarding__sun {
-    right: 4%;
-  }
-
-  .onboarding__note.solstice-note {
-    /* Asymmetric here too: keep the tape clear of step content (§2 defect 6)
-     * while reclaiming width on narrow stages. The top stays one inset
-     * taller than the sides for the tape's ~16px dip. */
-    padding: calc(var(--space-inset) * 5) calc(var(--space-inset) * 3);
-  }
-
-  .onboarding__keys {
-    flex-wrap: wrap;
-    gap: calc(var(--space-grid) * 3);
+    min-height: 264px;
   }
 
   .onboarding__theme-cards {
-    gap: calc(var(--space-grid) * 2);
+    gap: 40px;
+  }
+
+  .onboarding__shortcut-grid {
+    gap: 10px 32px;
+  }
+
+  .onboarding__shortcut-column {
+    gap: 10px;
   }
 }
 
-/* Motion: only the ambient polish is animated, behind the guard. The
- * .solstice-rise entrance and note tilt are already reduced-motion safe. */
-@media (prefers-reduced-motion: no-preference) {
-  .onboarding__progress-cap {
-    transition:
-      background-color var(--motion-duration-fast) ease-out,
-      border-color var(--motion-duration-fast) ease-out,
-      box-shadow var(--motion-duration-fast) ease-out,
-      width var(--motion-duration-fast) ease-out,
-      height var(--motion-duration-fast) ease-out;
+/* --- narrow stages -------------------------------------------------------- */
+
+@media (width <= 760px) {
+  .onboarding__shortcut-grid {
+    grid-template-columns: 1fr; /* the tour reads down one column */
   }
 
-  .onboarding__theme-swatch {
-    transition:
-      rotate var(--motion-duration-fast) ease-out,
-      box-shadow var(--motion-duration-fast) ease-out;
+  .onboarding__theme-cards {
+    gap: 24px;
   }
 
-  .onboarding__accent {
-    transition:
-      background-color var(--motion-duration-fast) ease-out,
-      box-shadow var(--motion-duration-fast) ease-out;
+  .onboarding__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .onboarding__footer-actions {
+    justify-content: flex-end;
+  }
+
+  .onboarding__accents {
+    flex-wrap: wrap;
+    gap: 12px;
   }
 }
+
+/* --- motion --------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .onboarding__progress {
-    rotate: none; /* the tilt is a motion cue for the inner ear, drop it */
+  .onboarding__progress-dot,
+  .onboarding__accent {
+    transition: none;
   }
 }

@@ -61,12 +61,16 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
   });
 
   it("composes the docked playlist sidebar (Player.png) with the real 4.D1 panel", () => {
+    // Cross-lane pin: the dock is part of the player's default composition
+    // (open first-run — variants.test.tsx asserts it present in the full
+    // variant; see the PlayerScreen.tsx composition note for the open
+    // Player.png single-sidebar question).
     renderWithClient(<PlayerScreen />);
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
     expect(playlist).toHaveAttribute("data-region-id", "playlist");
     expect(playlist).toHaveClass("lumen-player__sidebar");
-    // Card 4.D1: the docked sidebar renders the real panel + queue semantics
-    // (empty state honest until the app shell wires playlist.load).
+    // Card 4.D1: the docked panel renders the real queue semantics (empty
+    // state honest until the app shell wires playlist.load).
     expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
     expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
   });
@@ -82,8 +86,20 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
 
   it("does not duplicate the window title bar (the app shell owns it, W26)", () => {
     renderWithClient(<PlayerScreen />);
-    expect(screen.queryByRole("banner")).toBeNull();
+    // The default W26 layout declares no top region: no player top strip, no
+    // screen-title h1 (the window title bar is the app shell's banner).
+    expect(document.querySelector(".lumen-player__topbar")).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: "Player" })).toBeNull();
+    // No banner the PLAYER renders. The only <header> elements on screen are
+    // the sibling panels' internal headers scoped inside complementary
+    // landmarks — generic (NOT banner) in real accessibility trees per
+    // HTML-AAM; jsdom's role engine lacks that scoping exception, so filter
+    // by scope. Any banner OUTSIDE a complementary region would be a
+    // title-bar duplicate rendered by this screen — there must be none.
+    const unscopedBanner = screen
+      .queryAllByRole("banner")
+      .find((el) => el.closest('[role="complementary"]') === null);
+    expect(unscopedBanner).toBeUndefined();
   });
 
   it("renders open tool panels as labelled complementary landmarks; closed ones render nothing", () => {
@@ -197,11 +213,17 @@ describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
     // The empty-state button is a REAL affordance — it dispatches the
     // shell-wide `lumen:open-media` event (the app-shell file dialog,
     // another workstream, listens for exactly that name). The test contract
-    // follows the behavior; the click path is asserted.
+    // follows the behavior; the click path is asserted. Queries scope to the
+    // CANVAS region — the hero's home — because the docked queue panel
+    // (playlist lane) renders its own honest empty-queue CTA with the same
+    // label; scoping keeps this assertion about THIS surface.
     renderWithClient(<PlayerScreen />);
-    expect(screen.getByRole("heading", { level: 2, name: "No media open" })).toBeInTheDocument();
-    expect(screen.getByText("Open media to start playback.")).toBeInTheDocument();
-    const open = screen.getByRole("button", { name: "Open media" });
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    expect(
+      within(canvas).getByRole("heading", { level: 2, name: "No media open" }),
+    ).toBeInTheDocument();
+    expect(within(canvas).getByText("Open media to start playback.")).toBeInTheDocument();
+    const open = within(canvas).getByRole("button", { name: "Open media" });
     expect(open).toBeEnabled();
     expect(open).not.toHaveAttribute("data-wiring-stub");
     const heardOpenMedia = vi.fn();
@@ -212,11 +234,26 @@ describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
   });
 
   it("hides the empty state once media is present; has-media regions appear", () => {
-    renderWithClient(<PlayerScreen media={{ hasVideo: true, hasChapters: false }} />);
-    expect(screen.queryByRole("heading", { name: "No media open" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Open media" })).toBeNull();
+    renderWithClient(
+      <PlayerScreen
+        media={{ hasVideo: true, hasChapters: false }}
+        openPanels={["media-info"]}
+      />,
+    );
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    expect(within(canvas).queryByRole("heading", { name: "No media open" })).toBeNull();
+    // The CANVAS hero + its CTA are gone. The docked queue panel's own
+    // empty-queue CTA (playlist lane, same label) stays honest to ITS data —
+    // the queue is still empty — so scope the absence to the canvas region.
+    expect(within(canvas).queryByRole("button", { name: "Open media" })).toBeNull();
     const root = document.querySelector(".lumen-player")!;
     expect(root).toHaveAttribute("data-has-media", "true");
+    // The empty state's has-media gate lifts: the visible_when = "has-media"
+    // media-info tool panel now renders for a host that opened it (it stayed
+    // hidden in the empty state — see the test below).
+    expect(
+      screen.getByRole("complementary", { name: "Media information" }),
+    ).toBeInTheDocument();
   });
 
   it("hides has-media-gated regions in the empty state (visible_when = has-media)", () => {

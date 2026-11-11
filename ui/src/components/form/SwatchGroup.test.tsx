@@ -84,4 +84,11 @@ describe("SwatchGroup skin consumes the Settings - global.svg language", () => {
     expect(formCss).toMatch(/\.lumen-swatchgroup__dot\s*\{[^}]*width: 20px;[^}]*height: 20px;/s);
     expect(formCss).toMatch(/\.lumen-swatchgroup__swatch\s*\{[^}]*width: 32px;[^}]*height: 32px;/s);
   });
+
+  it("rest dots dim to --opacity-swatch-rest (frame opacity 0.7), inset radius tokenized", () => {
+    expect(formCss).toMatch(
+      /\.lumen-swatchgroup__swatch\[aria-checked="false"\] \.lumen-swatchgroup__dot\s*\{[^}]*--opacity-swatch-rest/,
+    );
+    expect(formCss).toMatch(/\.lumen-swatchgroup__swatch\s*\{[^}]*--radius-inset/);
+  });
 });

@@ -15,10 +15,12 @@
 // command exists (nor is one needed).
 //
 // SKIN (w26.a18, Figma dialog grammar — design/figma/Open network
-// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), r12
-// panel + hairline border, title-bar strip (title 15px semibold + ✕),
-// the Time row label-left / control-right with a tabular mono input,
-// and the footer grammar — quiet action left, primary action right.
+// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), rx14
+// panel + hairline border, 50px #090909 title-bar strip (title 15px
+// semibold + ✕, fill contrast — no hairline), the Time row label-left /
+// control-right with a tabular mono input, and the footer grammar — quiet
+// Cancel left, TINTED confirm right (Button primitive variant "tinted":
+// #371F06 fill + orange ink, the frames' Save).
 //
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map), so central keys are the recorded
@@ -140,10 +142,10 @@ export function GotoTimeDialog({
           </p>
         </div>
 
-        {/* Footer grammar (frame: quiet action left, primary action right). */}
+        {/* Footer grammar (frame: quiet Cancel left, tinted confirm right). */}
         <div className="player-dialog__footer">
           <Button onClick={onClose}>{GOTO_COPY.cancel}</Button>
-          <Button type="submit" variant="primary" form={formId}>
+          <Button type="submit" variant="tinted" form={formId}>
             {GOTO_COPY.action}
           </Button>
         </div>

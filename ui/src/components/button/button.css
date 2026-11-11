@@ -18,9 +18,10 @@
  *     white 6% ≈ surface-hover; 1.5px stroke glyphs default to 16px (Icon);
  *     hit areas 28/32/48 (≥ 28px).
  *   Toggle.svg — 68x32 rx6 track #090909 (surface); ON: 33x26 rx3
- *     accent-tinted fill + "ON" accent micro label + 26x26 rx3
- *     accent-strong knob right; OFF: 26x26 rx3 stroke-border knob left +
- *     33x26 rx3 surface-panel segment with "OFF" micro label.
+ *     accent-tinted fill + "ON" accent label (caption 11px; frame-measured
+ *     ~12px type) + 26x26 rx3 accent-strong knob right; OFF: 26x26 rx3
+ *     stroke-border knob left + 33x26 rx3 surface-panel segment with "OFF"
+ *     label.
  *   Heights compact per frames: 28 (sm) / 32 (md) / 36 (lg); type 12–13px
  *     medium via --font-size-body (token re-scale). Disabled = tertiary
  *     content. NO bubbles, NO shadows (no frame shows one).
@@ -300,14 +301,16 @@
   transition: background-color var(--motion-duration-fast) ease;
 }
 
-/* micro labels (doc 08 §1.3 row 4.4, §1.5 Toggle.svg): ~6px, on=accent.
+/* micro labels (Toggle.svg ON/OFF paths: cap-height 9.0px => ~12px type;
+ * w26.a03 relaunch measured — the doc-08 "micro" 6px was half-size).
+ * --font-size-caption (11px) is the nearest semantic step. ON = accent.
  * OFF keeps content-secondary (4.F4 a11y fix): the frame's #6B6B6B tertiary
  * is 3.4:1 on the #191919 segment; secondary clears 4.5:1 in both themes.
  * Decorative: aria-hidden in TSX (state conveyed by aria-checked). */
 .lumen-toggle__label {
   flex: none;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
   line-height: 1;
   white-space: nowrap;

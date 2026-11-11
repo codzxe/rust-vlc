@@ -10,10 +10,12 @@
  *     the level) — resolved through the --gradient-volume-level token when
  *     the token lane lands it; the accent is the fallback (same grammar).
  *   EQ.svg / Audio - Equalizer.svg (EQ rows, W25 spec §2): full-width pill
- *     track 14px r7 on the surface-deep well, amber gradient fill
- *     (accent.tinted #371f06 → eq fill end #a5621a — frame-measured), 8×20
- *     r4 amber handle. The value chip (audio value.svg) is rendered by
- *     CONSUMERS, outside the slider.
+ *     track 14px r7 on the surface well (#090909 on the frames' #1b1b1b
+ *     panels), amber gradient fill (accent.tinted #371f06 → eq fill end
+ *     #a5621a — frame-measured; the frames render flat #371f06, so the
+ *     fallback end is a subtle 30% lift toward accent-strong), 8×20 r4 amber
+ *     handle. The value chip (audio value.svg) is rendered by CONSUMERS,
+ *     outside the slider.
  * Semantic tokens only for colors (eslint + stylelint enforce; the
  * frame-measured hexes above live in comments). Raw px below are structural
  * dimensions pinned by the design exports — no token exists (states.md). */
@@ -32,22 +34,29 @@
   outline: none;
 }
 
-/* track — the 14px r7 pill well (EQ.png / Audio - Equalizer.png grammar) */
+/* track — the 14px r7 pill well (EQ.png / Audio - Equalizer.png grammar).
+ * Well = `surface` (#090909 on the frame's #1b1b1b panels — every measured
+ * slider well in the corpus is #090909; frame: Audio - Equalizer.svg). The
+ * SEEKBAR/VOLUME below override to `surface-deep` per the w26.a04 brief
+ * (W25 spec §1 "recessed wells" mapping). */
 .lumen-slider__track {
   position: absolute;
   right: 0;
   left: 0;
   top: calc(50% - 7px); /* 14px pill centered in the hit area */
   height: 14px;
-  background: var(--color-surface-deep);
+  background: var(--color-surface);
   border-radius: 7px; /* r7 pill ends (frame: EQ.png) */
   transition: background-color 120ms ease;
 }
 
 /* fill — the level/progress value; width driven by --lumen-slider-fill.
- * Amber gradient accent.tinted → eq fill end (frame: #371f06 → #a5621a);
- * the dedicated eq tokens win once the token lane lands them, falling back
- * to accent-tinted / accent-strong (the frame's #ab6314 family). */
+ * Amber gradient accent.tinted → eq fill end (frame: #371f06 → #a5621a).
+ * The dedicated eq tokens win once the token lane lands them. The fallback
+ * end is a SUBTLE lift of accent-tinted toward accent-strong (30%): the
+ * frames' fills render flat #371f06 (EQ.png pixel sample) and the VLM loop
+ * read the full accent-strong end as too saturated — the 30% mix keeps the
+ * amber gradient grammar while matching the frame's muted render. */
 .lumen-slider__fill {
   position: absolute;
   top: 0;
@@ -57,7 +66,10 @@
   background: linear-gradient(
     90deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
-    var(--color-eq-fill-end, var(--color-accent-strong))
+    var(
+      --color-eq-fill-end,
+      color-mix(in srgb, var(--color-accent-strong) 30%, var(--color-accent-tinted))
+    )
   );
   border-radius: 7px; /* mirrors the track pill */
   transition: width 120ms ease;
@@ -97,7 +109,10 @@
   background: linear-gradient(
     0deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
-    var(--color-eq-fill-end, var(--color-accent-strong))
+    var(
+      --color-eq-fill-end,
+      color-mix(in srgb, var(--color-accent-strong) 30%, var(--color-accent-tinted))
+    )
   );
   transition: height 120ms ease;
 }
@@ -133,6 +148,7 @@
   top: calc(50% - 2px);
   height: 4px;
   border-radius: 999px; /* radius (pill) ends */
+  background: var(--color-surface-deep); /* brief/W25 §1: the recessed well */
 }
 
 .lumen-seekbar .lumen-slider__fill {
@@ -141,12 +157,14 @@
 }
 
 /* buffer sub-regions — engine-reported, honest overlay (doc 08 §4.3);
- * deliberately *no* ARIA: the spec (§4.5) assigns roles to the slider itself */
+ * deliberately *no* ARIA: the spec (§4.5) assigns roles to the slider itself.
+ * 30% content-secondary over the deep well ≈ #353535 — quiet but legible on
+ * the 4px bar (22% read as uniform dark in the w26.a04 vision loop). */
 .lumen-seekbar__buffer {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: color-mix(in srgb, var(--color-content-secondary) 22%, transparent);
+  background: color-mix(in srgb, var(--color-content-secondary) 30%, transparent);
   border-radius: 999px;
 }
 
@@ -176,6 +194,7 @@
   top: calc(50% - 2px);
   height: 4px;
   border-radius: 999px;
+  background: var(--color-surface-deep); /* same grammar as the seekbar */
 }
 
 .lumen-volume .lumen-slider__fill {
@@ -204,12 +223,18 @@
 
 /* hover — the handle warms up (accent-strong lifted toward the bright
  * content tone: a real signal in dark too, where accent-bright == accent),
- * the well lifts one step */
+ * the well lifts one step (per-well: surface for the EQ family, the
+ * surface-deep well for the slim seek/volume bars) */
 .lumen-slider:hover .lumen-slider__thumb {
   background: color-mix(in srgb, var(--color-accent-strong) 82%, var(--color-content-bright));
 }
 
 .lumen-slider:hover .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface) 70%, var(--color-surface-hover));
+}
+
+.lumen-seekbar:hover .lumen-slider__track,
+.lumen-volume:hover .lumen-slider__track {
   background: color-mix(in srgb, var(--color-surface-deep) 70%, var(--color-surface-hover));
 }
 

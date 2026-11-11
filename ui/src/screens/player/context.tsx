@@ -231,7 +231,7 @@ export function PlayerControlsProvider({
           // mount-time media.get-info probe on an idle session answers
           // `not-found`, and the stage already renders the honest empty
           // state for it. The error chip stays reserved for real failures
-          // (Solstice, 2026-11-08 — demo shell + engine parity).
+          // (demo shell + engine parity, 2026-11-08).
           const isEmptyProbe =
             request.cmd === "media.get-info" && response.result.error.code === "not-found";
           if (!isEmptyProbe) {

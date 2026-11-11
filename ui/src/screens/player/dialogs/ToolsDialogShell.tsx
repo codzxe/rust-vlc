@@ -6,12 +6,15 @@
 // "Audio - Equalizer.svg", "EQ.svg", "Audio - Compressor Settings.svg",
 // "Video - Colors.svg", "Video - Crop.svg", "HDR Options.svg", …):
 //   * dialog chrome — the same player-dialog grammar as Go-to-Time and
-//     Bookmarks (scrim, r12 panel + hairline border, title bar strip with
-//     title + close ✕, Escape / scrim-click close via the shared Dialog);
-//   * ONE collapsible card per tool: a full-width toggle bar (r6, ~48px,
-//     quiet surface fill, "Expand Settings"/"Collapse Settings" + chevron)
-//     above the settings card (r8, raised fill) when expanded;
-//   * card rows — label left, control right (value chips r6 dark, tabular).
+//     Bookmarks (scrim, rx14 panel + hairline border, 50px #090909 title
+//     strip with title + close ✕, Escape / scrim-click close via the
+//     shared Dialog);
+//   * ONE collapsible card per tool: a full-width toggle bar (rx6, 48px,
+//     #090909 surface fill, "Expand Settings"/"Collapse Settings" +
+//     chevron) above the settings card (r8, #1B1B1B-band fill) when
+//     expanded;
+//   * card rows — label left, control right (value chips r4 dark #090909,
+//     tabular).
 //
 // The shell stays GENERIC: it owns chrome + the card skeleton and exposes
 // slots (body → cards/rows, footer → dialog actions); the tool value of a
@@ -104,7 +107,11 @@ export function ToolsDialogShell({
           {subtitle ? <p className="player-dialog__subtitle">{subtitle}</p> : null}
           <div className="tools-dialog__cards">{children}</div>
         </div>
-        {footer ? <div className="player-dialog__footer">{footer}</div> : null}
+        {footer ? (
+          /* The Figma footer grammar — quiet action left, tinted confirm
+           * right (compose with the Button primitive's variants). */
+          <div className="player-dialog__footer">{footer}</div>
+        ) : null}
       </div>
     </Dialog>
   );

@@ -1,7 +1,8 @@
 // Card 4.F2 — player variants tests: variant model + persistence,
 // variant-scoped layout data (design matrix), layout condition evaluation,
 // keymap-driven switching, miniplayer compact transport (C2 mapping reuse),
-// music-mode playlist emphasis + honest art placeholder.
+// the W26 mini card anatomy (Miniplayer.svg), music-mode playlist emphasis
+// + honest art placeholder (Player - Music.svg).
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,13 +102,33 @@ describe("variant-scoped layout data (design matrix, doc 08 §1.6)", () => {
 });
 
 describe("full variant (default first run)", () => {
-  it("renders the video canvas and hides panels until opened — no variant chrome", () => {
-    renderWithClient(<PlayerScreen />);
+  it("renders the video canvas and hides tool panels until opened — no variant chrome", () => {
+    // W26 Player.png composition: the docked playlist sidebar is part of
+    // the full shell (pinned by PlayerScreen.test.tsx — asserted present
+    // here so the variant contract stays explicit). The variant-owned
+    // claim: NO miniplayer/music chrome renders, and the right-side TOOL
+    // panels stay closed until a host opens them through the openPanels
+    // seam (doc 07 §7) — both directions pinned below.
+    const first = renderWithClient(
+      <PlayerScreen media={{ hasVideo: true, hasChapters: false }} />,
+    );
     const root = screen.getByRole("region", { name: "Video canvas" }).closest(".lumen-player");
     expect(root).toHaveAttribute("data-variant", "full");
+    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Miniplayer" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Album art" })).toBeNull();
-    expect(screen.queryByRole("complementary", { name: "Playlist" })).toBeNull();
+    // has-media regions exist in the layout, but nothing opens until asked.
+    expect(screen.queryByRole("complementary", { name: "Media information" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Customize" })).toBeNull();
+    first.unmount();
+
+    renderWithClient(
+      <PlayerScreen
+        media={{ hasVideo: true, hasChapters: false }}
+        openPanels={["media-info"]}
+      />,
+    );
+    expect(screen.getByRole("complementary", { name: "Media information" })).toBeInTheDocument();
   });
 });
 
@@ -149,6 +170,30 @@ describe("miniplayer variant", () => {
       "data-region-id",
       "video-canvas",
     );
+  });
+
+  it("W26 card anatomy: honest empty title, meta row, collapsible queue panel ABOVE the video", () => {
+    renderWithClient(<PlayerScreen variant="miniplayer" />);
+    const mini = screen.getByRole("region", { name: "Miniplayer" });
+    // Honest quiet title while nothing plays — never a fabricated name.
+    expect(within(mini).getByText("Nothing playing")).toBeInTheDocument();
+    // Meta row: the queue toggle starts collapsed.
+    const toggle = within(mini).getByRole("button", { name: "Toggle queue" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(mini).queryByRole("region", { name: "Queue" })).toBeNull();
+
+    // Opening the queue renders the panel ABOVE the video area (frame
+    // artboards 2/4), with the honest empty state — MockTransport exposes
+    // no playlist items, so no rows are fabricated.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const queue = within(mini).getByRole("region", { name: "Queue" });
+    const video = within(mini).getByRole("region", { name: "Video canvas" });
+    expect(
+      // the video FOLLOWS the queue in DOM order = panel sits above it
+      Boolean(queue.compareDocumentPosition(video) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    expect(within(queue).getByText("Nothing in the queue")).toBeInTheDocument();
   });
 });
 

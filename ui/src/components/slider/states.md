@@ -25,11 +25,11 @@ Hit areas are ≥16px on the interaction axis (roots 20–24px tall/wide over
 
 | Component | Track | Fill | Thumb |
 |---|---|---|---|
-| `Slider` (base, horizontal) | 14px r7 pill, `surface-deep` | full-height pill, amber gradient `accent-tinted`→eq-fill-end, width = value | 8×20 r4 `accent-strong`, overhangs track |
+| `Slider` (base, horizontal) | 14px r7 pill, `surface` (#090909 on the frames' #1b1b1b panels; frame: Audio - Equalizer.svg) | full-height pill, amber gradient `accent-tinted`→eq-fill-end (fallback end = 30% lift toward `accent-strong`; frames render flat #371f06), width = value | 8×20 r4 `accent-strong`, overhangs track |
 | `Slider` vertical | 14px-wide pill | bottom-anchored, gradient to-top | 20×8 r4 |
 | `EQSlider` (additive) | base pill, full width | base gradient | base handle |
-| `Seekbar` | 4px pill-ended, `surface-deep` | `accent`, pill ends, width = engine position | circular 12px `accent`, opacity 0 at rest |
-| `VolumeSlider` | 4px pill-ended, compact 96px | level fill: `--gradient-volume-level` token if present, else `accent` | circular 12px `accent`, opacity 0 at rest |
+| `Seekbar` | 4px pill-ended, `surface-deep` (brief/W25 §1 recessed well) | `accent`, pill ends, width = engine position | circular 12px `accent`, opacity 0 at rest |
+| `VolumeSlider` | 4px pill-ended, `surface-deep` (seekbar grammar), compact 96px | level fill: `--gradient-volume-level` token if present, else `accent` | circular 12px `accent`, opacity 0 at rest |
 
 Value chip (EQ rows, audio value.svg) is rendered by CONSUMERS — outside
 the slider primitive.
@@ -39,7 +39,7 @@ the slider primitive.
 | State | Visual (slider.css) | ARIA / data |
 |---|---|---|
 | rest | above; seekbar/volume thumbs hidden (quiet bars) | `role=slider`, `aria-valuemin/max/now(/text)`, `aria-orientation`, `tabindex=0` |
-| hover | handle → accent-strong lifted toward content-bright (color-mix; a real signal in dark, where accent-bright == accent); track well lifts one step (surface-deep ∙ surface-hover mix); seekbar/volume circular thumb fades in | — |
+| hover | handle → accent-strong lifted toward content-bright (color-mix; a real signal in dark, where accent-bright == accent); track well lifts one step (per-well mix toward surface-hover: `surface` base / `surface-deep` slim bars); seekbar/volume circular thumb fades in | — |
 | dragging (active) | `data-dragging`, grabbing cursor, handle stays `accent-bright`, thumb visible | `aria-valuenow` tracks the preview |
 | focus-visible | 2px `accent` outline, 2px offset; hidden thumbs revealed | — |
 | disabled | `--opacity-disabled`, `pointer-events:none` | `aria-disabled="true"`, `tabindex=-1`, value stays truthful |
@@ -63,8 +63,11 @@ slider role to the bar itself). The component never invents buffer data.
 ## Token gaps logged for the token lane (do not hand-code in consumers)
 
 - `--color-eq-fill-start` / `--color-eq-fill-end` — EQ amber gradient stops
-  (frame-measured `#371f06` → `#a5621a`). slider.css falls back to
-  `--color-accent-tinted` / `--color-accent-strong` until they land.
+  (spec/brief: `#371f06` → `#a5621a`; the frames' fills are FLAT `#371f06`
+  with an `#ab6314` handle — pixel-sampled EQ.png / Audio - Equalizer.png;
+  the gradient reading is a W25-spec VLM measurement). slider.css falls back
+  to `--color-accent-tinted` → a 30% lift toward `--color-accent-strong`
+  (frame-credible muted amber) until they land.
 - `--gradient-volume-level` — the volume signal gradient
   (`#95D318 → #B2A918 → #D37918 → #FF3737`, revealed to the level;
   Player.svg/volume.svg). slider.css falls back to `--color-accent`.

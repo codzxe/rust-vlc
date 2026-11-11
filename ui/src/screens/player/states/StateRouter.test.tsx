@@ -3,11 +3,15 @@
 // (no fabricated %); unsupported shows real format info from the typed
 // error; error is stage-tagged + actionable + retryable; empty first-run.
 import { act, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { CommandTransport, Event } from "../../../client/transport";
 import type { CommandError, PlaybackState } from "../../../generated/commands";
 import { usePlayerEngineView, type PlayerEngineView } from "./context-bridge";
 import { resolveOverlay, StateRouter } from "./StateRouter";
+
+const { dirname } = import.meta as ImportMeta & { dirname?: string };
+const statesCss = readFileSync(`${dirname}/states.css`, "utf8");
 
 const IDLE_VIEW: PlayerEngineView = {
   state: "idle",
@@ -224,6 +228,78 @@ describe("Empty surface — first-run (doc 08 §5.3)", () => {
     renderRouter(view({ state: "idle" }), { onOpenMedia });
     screen.getByRole("button", { name: "Open media" }).click();
     expect(onOpenMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the onboarding cone mark as decorative inline art (W26 hero)", () => {
+    // The hero's cone is the frame-exact Onboarding.svg port — decorative
+    // (aria-hidden) inline SVG carrying no text alternative (the heading
+    // carries the semantics), filled by the accent token via currentColor.
+    const { container } = renderRouter(view({ state: "idle" }));
+    const mark = container.querySelector(".lumen-state-hero__mark");
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(mark?.querySelectorAll("path").length).toBe(3); // plinth + band + tip
+  });
+});
+
+// ------------------------------------------------------------ states.css skin (W26) ---
+
+describe("states.css — the W26 Figma skin (figma-fidelity-spec §1–§2)", () => {
+  it("overlays sit on a dark scrim; failure cards are r12 panels with hairline + shadow", () => {
+    expect(statesCss).toMatch(
+      /\.lumen-state-overlay\s*\{[^}]*color-mix\(in srgb, var\(--color-surface-deep\) 72%, transparent\)/,
+    );
+    expect(statesCss).toMatch(
+      /\.lumen-state-overlay__cluster\[data-card\]\s*\{[^}]*--color-surface-panel[^}]*--color-stroke-border[^}]*--radius-panel[^}]*--shadow-overlay/,
+    );
+  });
+
+  it("loading/buffering: thin orange arc spinner + slim orange bar on a deep track", () => {
+    expect(statesCss).toMatch(
+      /\.lumen-state-overlay__spinner\s*\{[^}]*--color-accent\) 32%[^}]*border-top-color: var\(--color-accent\)/,
+    );
+    expect(statesCss).toMatch(
+      /\.lumen-state-overlay__bar\s*\{[^}]*--color-surface-deep[^}]*--radius-ring/,
+    );
+    expect(statesCss).toMatch(
+      /\.lumen-state-overlay__fill\s*\{[^}]*--color-accent/,
+    );
+  });
+
+  it("hero: accent cone, display-scale regular heading, secondary body — onboarding grammar", () => {
+    expect(statesCss).toMatch(
+      /\.lumen-state-hero__mark\s*\{[^}]*width: 96px[^}]*--color-accent/,
+    );
+    expect(statesCss).toMatch(
+      /\.lumen-state-hero__title\s*\{[^}]*--color-content-bright[^}]*--font-size-display[^}]*--font-weight-regular/,
+    );
+    expect(statesCss).toMatch(
+      /\.lumen-state-hero__body\s*\{[^}]*--color-content-secondary/,
+    );
+    // The hero CTA is the shared primary button (r6, button.css) — no
+    // per-surface radius override may fight the shared control radius.
+    expect(statesCss).not.toMatch(/\.lumen-state-hero[^{]*\.lumen-button[^{]*\{/);
+  });
+
+  it("hide-UI (Player - hide UI.svg): transient overlays fade with the hidden chrome; alerts never do", () => {
+    // Loading + buffering fade when the screen chrome hides (idle cursor)…
+    expect(statesCss).toMatch(
+      /\.lumen-player\[data-chrome="hidden"\] \.lumen-state-overlay\[data-overlay="loading"\],\s*\n\.lumen-player\[data-chrome="hidden"\] \.lumen-state-overlay\[data-overlay="buffering"\]\s*\{[^}]*opacity: 0/,
+    );
+    // …but the selector must NOT reach the failure surfaces (role=alert) or
+    // the empty hero (chrome locks visible while idle).
+    expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*data-overlay="error"/);
+    expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*data-overlay="unsupported"/);
+    expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*lumen-state-hero/);
+  });
+
+  it("motion is reduced-motion safe: spinner spin + hide-UI fade are motion-gated", () => {
+    expect(statesCss).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\)\s*\{[^}]*\.lumen-state-overlay__spinner\s*\{[^}]*animation: lumen-state-spin/,
+    );
+    expect(statesCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.lumen-state-overlay\s*\{[^}]*transition: none/,
+    );
   });
 });
 

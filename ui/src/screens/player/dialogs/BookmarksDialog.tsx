@@ -16,10 +16,12 @@
 // "bookmarks") through keymap.ts's DIALOG_KEYMAP seed.
 //
 // SKIN (w26.a18, Figma dialog grammar — design/figma/Open network
-// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), r12
-// panel + hairline border, title-bar strip (title 15px semibold + ✕),
-// rows label-left / control-right, r6 row hovers, tabular timecodes and
-// the list in NATURAL order (naturalSort.ts — "1, 2, 10", never lexical).
+// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), rx14
+// panel + hairline border, 50px #090909 title-bar strip (title 15px
+// semibold + ✕), rows label-left / control-right, r6 row hovers,
+// tabular timecodes and the list in NATURAL order (naturalSort.ts —
+// "1, 2, 10", never lexical). The Add action rides the Button
+// primitive's "tinted" dialog-confirm variant (the frames' Save).
 //
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map); central keys are the recorded
@@ -198,7 +200,7 @@ export function BookmarksDialog({
                 setLabelValue(event.target.value);
               }}
             />
-            <Button type="submit" variant="primary" className="player-dialog__form-action">
+            <Button type="submit" variant="tinted" className="player-dialog__form-action">
               {BOOKMARKS_COPY.add}
             </Button>
           </form>
