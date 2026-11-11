@@ -23,6 +23,14 @@ pub struct ProductConfig {
     pub features: BTreeMap<String, bool>,
     pub playback: Playback,
     pub limits: Limits,
+    /// Doc 09 §2.4's web size budgets (card 7.K1). `None` = the document
+    /// carries no `[web]` table — valid for sparse layer fixtures; the
+    /// web-budget gate rejects a committed product.toml without it.
+    /// NOT layer-overridable in v1: `PartialProduct` has no web field, so
+    /// a layer document carrying `[web]` fails loudly as an unknown key
+    /// (budgets are a product decision, not a user preference).
+    #[serde(default)]
+    pub web: Option<WebSection>,
     #[serde(default)]
     pub telemetry: Telemetry,
     pub urls: Urls,
@@ -171,6 +179,28 @@ pub struct Limits {
     pub max_playlist_items: u64,
     pub max_open_sessions: u64,
     pub max_wasm_extension_memory_mib: u64,
+}
+
+/// Web-target product decisions (doc 09; card 7.K1, issue #49).
+/// Optional (`None` when the layer omits `[web]`) — budgets are a product
+/// decision with NO code-side default: the consumer (`cargo xtask
+/// web-budget`, full_gate step 10 / CI) errors loudly when the committed
+/// product.toml lacks them, rather than falling back to a literal that
+/// would silently bypass the review that owns the number.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebSection {
+    pub size_budgets: WebSizeBudgets,
+}
+
+/// The wasm-module size ceilings doc 09 §2.4 pins as config (doc 09
+/// §2.4; measured against docs/web/size-record.toml by the web-budget
+/// gate). Units: MiB (binary) of the gzip-compressed module.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebSizeBudgets {
+    pub phase2_vertical_max_mib: u64,
+    pub full_p0_max_mib: u64,
 }
 
 /// Telemetry & privacy — opt-in only, shipped defaults off (doc 07 §2.6).
