@@ -1,41 +1,99 @@
-# Lumen CI — the local gate, replicated (W3-10; doc 10 §2 gate/CI parity).
+# Lumen CI — merge-blocking core (issue #5: the 3-OS matrix reconciled live).
 #
-# INFRA UNLOCK: this is the repo's FIRST live workflow. CI was documented as
-# blocked (PAT lacked `workflow` scope; see docs/gates/phase1-exit.md:21,
-# docs/gates/phase2-exit.md:5,74-77 and the Phase-1 skeleton parked under
-# .github/workflows-disabled/). A user-issued workflow-scoped PAT unlocked
-# GitHub Actions (worklog 3.WAVE2-CLOSE, "INFRA UNLOCK", 2026-10-22); this
-# card (W3-10) turns the unlock into a running pipeline. No token is embedded
-# in this file: the implicit per-run GITHUB_TOKEN (permissions: contents:
-# read, below) is sufficient for checkout and cache.
+# HISTORY (folded in from the deleted .github/workflows-disabled/README.md,
+# task 1.A2 → INFRA-BACKUP-1 → W3-10 → this card, issue #5):
+#   * 1.A2 wrote the parked 3-OS fast-tier skeleton (validated with
+#     actionlint 1.7.12; every cargo command run green locally).
+#   * INFRA-BACKUP-1 (2026-10-20) renamed .github/workflows/ →
+#     .github/workflows-disabled/ because the then-PAT lacked `workflow`
+#     scope: GitHub rejects scope-less pushes touching .github/workflows/.
+#     CI had never executed at that point.
+#   * W3-10 (worklog 3.WAVE2-CLOSE "INFRA UNLOCK", 2026-10-22): a
+#     workflow-scoped PAT landed; the FIRST live workflow was a deliberate
+#     ONE lean ubuntu job replicating scripts/full_gate.sh.
+#   * THIS card (issue #5, 2026-11-09) reconciles the parked matrix with
+#     current reality: everything the parked file gated that is OS-
+#     independent is live below on ubuntu (merge-blocking), and the 3-OS
+#     check/clippy/test matrix lives in ci-full.yml as a NON-BLOCKING
+#     [PROPOSAL] (runner-budget honesty, see below). The parked directory
+#     is deleted; its README rationale survives in these comments.
 #
-# PARITY TARGET: scripts/full_gate.sh — the *implemented* local gate (the
-# doc 10 §2.1 table's engine subset, i.e. the `cargo xtask gate --no-ui`
-# shape of doc 10 §2.2: the UI/tauri/wasm steps do not exist yet and land
-# with their owning cards). The five cargo commands below are the gate
-# script's five commands VERBATIM, in the same order, with the same
+# TRIGGER NOTE (issue #5 "critical bug" verification, 2026-11-09): the
+# reported corruption `branches: ain]` on push+pull_request was checked at
+# BYTE level and does NOT exist on disk — both triggers read
+# `branches: [main]` (codepoints 0x5b 0x6d 0x61 0x69 0x6e 0x5d; `git show
+# origin/main:.github/workflows/ci.yml | od -c` agrees). The `ain]`
+# appearance is a display artifact: the two bytes `[` `m` (0x5b 0x6d) are
+# swallowed by ANSI-escape-hungry renderers (reproduced: `cat -A` and
+# python `repr()` output lose `[m`; `od -c` with spaced bytes does not).
+# No fix was needed; nothing was fabricated. If you can read "ain]" below,
+# your viewer is eating the bytes — check with `od -c`.
+#
+# PARITY TARGET: scripts/full_gate.sh — the *implemented* local gate. The
+# `gate` job's cargo commands are the gate script's commands VERBATIM (its
+# six steps: fmt #1 lives in the `lint` job here, clippy/test/arch/
+# fixtures/fuzz-registry #2-#6 below), in the same order, with the same
 # keep-going aggregation (full_gate.sh runs every step and reports the
 # aggregate; `if: always()` on the gate steps replicates that — one failing
 # step never hides the state of the others).
 #
-# RUNNER BUDGET: GitHub standard runners are 2-core — this is deliberately
-# ONE lean ubuntu job: no --release, no 3-OS matrix, no artifact uploads.
-# The full Phase-1 matrix design (fmt/actionlint/deps/check/clippy/test ×
-# 3 OS + later-gate stubs) remains parked in .github/workflows-disabled/
-# pending Lead reconciliation with this file. Cargo caching uses
-# Swatinem/rust-cache (keyed on Cargo.lock + rust-toolchain.toml); it needs
-# no PAT scopes beyond the default GITHUB_TOKEN.
+# RUNNER-BUDGET HONESTY (issue #5 step 4): the repo is PRIVATE
+# (codzxe/rust-vlc), so GitHub bills standard runners at linux 1x /
+# windows 2x / macOS 10x against the 2,000 free minutes/month tier. A
+# per-PR 3-OS x (check+clippy+test) matrix is ~80 raw minutes ≈ ~1,000+
+# billed minutes per run — unaffordable. Split taken here:
+#   * THIS workflow (merge-blocking): ubuntu-only, ~all OS-independent
+#     jobs from the parked file — per-PR signal for clippy/test parity is
+#     preserved because `gate` runs the IDENTICAL clippy+test strings.
+#   * ci-full.yml [PROPOSAL, non-blocking]: the parked 3-OS matrix
+#     (check/clippy/test x ubuntu/windows/macos), nightly + dispatch
+#     only. Promote to per-PR blocking when budget allows (or when the
+#     repo goes public — macOS/windows minutes are free on public repos).
 #
-# Toolchain: rust-toolchain.toml pins 1.99.1 + [rustfmt, clippy] (Lead-owned,
-# doc 10 §2.5). The dtolnay/rust-toolchain `1.99.1` branch installs exactly
-# that version with no inputs; the assert step below fails loudly if the
-# file pin, the action, and the effective rustc ever disagree.
+# WASM LANE: the parked wasm.yml canary is live below as `wasm-build` —
+# theme-tokens (crates/theme-tokens, [[bin]] tokens-gen) EXISTS, so this
+# is a real build, not a stub. Doc 09 §2.5 items 1-3 (workspace-wide wasm
+# check, wasm-bindgen tests) still wait for the engine wasm binding crate.
 #
-# Action pins (re-resolved via `git ls-remote` on 2026-10-22, W3-10; all
-# three match the 1.A2 table recorded in worklog.md):
-#   actions/checkout       v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
-#   dtolnay/rust-toolchain 1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch)
-#   Swatinem/rust-cache    v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6  (peeled commit)
+# UI LANE: lives in ui.yml (do not fork it here) — typecheck/lint/l10n/
+# vitest/playwright-smoke + the visual PR lane + the non-blocking
+# macOS/windows BASELINE SEED job.
+#
+# Toolchain: rust-toolchain.toml pins 1.99.1 + [rustfmt, clippy] (Lead-
+# owned, doc 10 §2.5). The dtolnay/rust-toolchain `1.99.1` branch installs
+# exactly that version with no inputs; the assert step below fails loudly
+# if the file pin, the action, and the effective rustc ever disagree.
+# Components come from rust-toolchain.toml: rustup auto-installs
+# file-declared components on first use.
+#
+# "CURRENT REALITY" RECONCILIATIONS (verified in this worktree, 2026-11-09
+# — both are fresh-checkout blockers the parked file did not know about):
+#   1. `cargo xtask <cmd>` DOES NOT RESOLVE in a fresh clone: the committed
+#      .cargo/config.toml lost its `[alias] xtask = "run -p xtask --"` entry
+#      (worklog 1.A3 records the alias-only original; commit 3116aec replaced
+#      the file with a build.target-dir redirect and dropped the alias —
+#      `cargo xtask check-architecture` errors "no such command: `xtask`").
+#      Every workflow step below uses the alias's exact expansion,
+#      `cargo run -p xtask --locked -- <cmd>`, which works everywhere
+#      (proven locally: arch/schema-gen/codegen/fixtures/rebrand all exit 0).
+#      [PROPOSAL] Lead restores the alias in .cargo/config.toml (Lead-owned
+#      file, out of this card's scope) — then these strings can revert to
+#      `cargo xtask ...` for literal full_gate.sh parity.
+#   2. The committed .cargo/config.toml hard-codes build.target-dir to the
+#      Lead sandbox path /home/z/my-project/target — on a hosted runner the
+#      first cargo build would die creating /home/z (permission denied).
+#      CARGO_TARGET_DIR (env vars override config) forces the per-runner
+#      default below.
+#
+# Action pins (re-resolved via `git ls-remote` on 2026-11-09, issue #5;
+# all six match the previously recorded table — no drift found):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1  (tag, lightweight)
+#   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch head)
+#   Swatinem/rust-cache     v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6  (peeled tag commit)
+#   actions/upload-artifact v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9  (tag, lightweight)
+# Non-action tools pinned below: actionlint 1.7.12 (release download
+# script at the v1.7.12 tag), cargo-deny 0.20.2 (SHA-256-verified release
+# tarball) — no floating tool installs in CI (doc 11 §3.7 posture).
 
 name: CI
 
@@ -44,6 +102,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -54,25 +114,31 @@ defaults:
 
 concurrency:
   # One run per branch/PR head (doc 10 §10.1); superseded PR runs are
-  # cancelled, pushes to main never are.
+  # cancelled, pushes to main and merge-queue runs never are.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
   CARGO_TERM_COLOR: always
+  # Overrides the sandbox-path build.target-dir pinned in the committed
+  # .cargo/config.toml (see "CURRENT REALITY RECONCILIATIONS" #2 above).
+  CARGO_TARGET_DIR: target
 
 jobs:
-  gate:
-    name: gate (fmt / clippy / test / arch / fixtures)
+  # ------------------------------------------------------------------------
+  # OS-independent static checks, deduplicated into ONE ubuntu job from the
+  # parked file's three (fmt / actionlint / deps — issue #5 step 2). Same
+  # commands, same order; one runner instead of three.
+  # ------------------------------------------------------------------------
+  lint:
+    name: lint (fmt / actionlint / deps)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - id: toolchain
         uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
-
       - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
         run: |
           pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
@@ -85,28 +151,502 @@ jobs:
             echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
             exit 1
           fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: "1. fmt (full_gate.sh #1; doc 10 §2.1 #1)"
+        run: cargo fmt --all -- --check
+      - name: "2. actionlint 1.7.12 (doc 10 §10.5 pipeline self-check)"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf -o /tmp/download-actionlint.bash \
+            https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash
+          bash /tmp/download-actionlint.bash 1.7.12 /tmp
+          /tmp/actionlint -version
+          /tmp/actionlint
+      - name: "3a. Assert Cargo.lock is fresh (doc 11 §3.7 - CI builds run --locked)"
+        run: cargo metadata --format-version 1 --locked > cargo-metadata.json
+      - name: "3b. Record dependency tree (doc 10 §2.1 #5 + §2.3 auditors' edges)"
+        run: |
+          cargo tree --workspace > deps-tree.txt
+          cargo tree --workspace --edges normal,build,dev > deps-tree-full.txt
+      - name: Upload deps evidence (doc 10 §4.5)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-deps-ubuntu-latest-${{ github.run_id }}
+          path: |
+            cargo-metadata.json
+            deps-tree.txt
+            deps-tree-full.txt
+          retention-days: 90
 
+  # ------------------------------------------------------------------------
+  # scripts/full_gate.sh steps 2-6, verbatim, keep-going (if: always()).
+  # `cargo test --workspace --all-features` includes the merge-blocking
+  # scenario suites: playback-engine scenarios_b (doc 10 §6.4 — the 16-row
+  # list, 23 tests) and the soak loop (doc 10 §6.5). The parked file's
+  # separate `check` job is subsumed: clippy (below) runs the same analysis
+  # plus lints, and the 3-OS `check` matrix lives in ci-full.yml.
+  # ------------------------------------------------------------------------
+  gate:
+    name: gate (clippy / test+scenarios_b / arch / fixtures / fuzz-registry)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      # --- scripts/full_gate.sh steps 1-5, verbatim -------------------------
+      # --- scripts/full_gate.sh steps 2-6, verbatim -------------------------
       # `if: always()` = the gate script's keep-going aggregation: every step
       # runs and reports, the job fails if any of them failed.
-      - name: "1. fmt (full_gate.sh #1)"
-        if: always()
-        run: cargo fmt --all --check
-
       - name: "2. clippy (full_gate.sh #2)"
         if: always()
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: "3. test (full_gate.sh #3)"
+      - name: "3. test — incl. scenarios_b + soak (full_gate.sh #3)"
         if: always()
         run: cargo test --workspace --all-features
 
       - name: "4. check-architecture (full_gate.sh #4)"
         if: always()
-        run: cargo xtask check-architecture
+        run: cargo run -p xtask --locked -- check-architecture
 
       - name: "5. fixtures --check (full_gate.sh #5)"
         if: always()
-        run: cargo xtask fixtures --check
+        run: cargo run -p xtask --locked -- fixtures --check
+
+      - name: "6. fuzz-registry (full_gate.sh #6; doc 04 §8.5)"
+        if: always()
+        run: bash scripts/fuzz_registry_check.sh
+
+  # ------------------------------------------------------------------------
+  # G1/G6 schema validation (doc 10 §4.6; spec: doc 07 §3.4 + §9 C4).
+  # Folded from the parked file unchanged (activated by card 1.E2; every
+  # step is a real check with seeded-violation evidence in the 1.E2 worklog
+  # entry). Boundary-check (G5) is NOT duplicated here: it is `gate` step 4.
+  # ------------------------------------------------------------------------
+  schema-validation:
+    name: schema-validation (G1/G6 — product.toml + settings schema + feature-matrix + command-catalog drift)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: product.toml vs product.schema.json (doc 07 §3.4 — product-config committed suite)
+        run: cargo test -p product-config
+      - name: schemas/settings.toml D1-D6 + generated-output drift (doc 07 §5.2, §9 step 5)
+        run: cargo run -p xtask --locked -- schema-gen --check
+      - name: command-catalog artifacts drift (doc 05 §5.1 — card 1.D4)
+        run: cargo run -p xtask --locked -- codegen --check
+      - name: fixtures drift — byte-stability AC (doc 03 §7/§8 — card 2.A3)
+        run: cargo run -p xtask --locked -- fixtures --check
+      - name: docs/feature-matrix.toml v0 structural check (doc 02 §4.6 R-subset)
+        run: |
+          python3 - <<'PY'
+          # v0 structural check for docs/feature-matrix.toml (card 1.E2).
+          # Covers R9 (parse + meta), top-level shape, per-row required
+          # keys, R1 id-regex/uniqueness, R2 ranges, R3 platform columns +
+          # vocabulary, R4/R5/R6 conditionals. NOT covered (needs
+          # tools/feature-audit): R1 category-prefix map, R2 P0 rule, R4
+          # evidence resolution, R7 config cross-check, R8 inventory
+          # completeness, R10 anti-hallucination refs.
+          # Exit codes: 0 pass, 1 violation(s) or unreadable file.
+          import re
+          import sys
+
+          try:
+              import tomllib
+          except ImportError:
+              print("feature-matrix: python3 >= 3.11 (stdlib tomllib) is required", file=sys.stderr)
+              sys.exit(1)
+
+          STATUSES = {
+              "not_started", "in_progress", "implemented", "verified",
+              "partial", "unsupported", "blocked",
+          }
+          PLATFORMS = {"windows", "linux", "macos", "web"}
+          PRIORITIES = {"P0", "P1", "P2", "P3"}
+          META_KEYS = {
+              "schema_version", "schema_frozen", "baseline",
+              "last_updated", "populated_by", "change_control",
+          }
+          ROW_REQUIRED = {"id", "category", "priority", "phase_target", "status", "evidence"}
+          ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)+$")
+
+          path = sys.argv[1] if len(sys.argv) > 1 else "docs/feature-matrix.toml"
+          errors = []
+
+          try:
+              with open(path, "rb") as fh:
+                  doc = tomllib.load(fh)
+          except (OSError, tomllib.TOMLDecodeError) as exc:
+              print(f"feature-matrix: cannot parse {path}: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          stray = set(doc) - {"meta", "feature"}
+          if stray:
+              errors.append(f"unexpected top-level key(s): {sorted(stray)}")
+          meta = doc.get("meta")
+          if not isinstance(meta, dict):
+              errors.append("missing [meta] table")
+              meta = {}
+          missing_meta = META_KEYS - set(meta)
+          if missing_meta:
+              errors.append(f"[meta] missing key(s): {sorted(missing_meta)}")
+          version = meta.get("schema_version")
+          if not isinstance(version, int) or isinstance(version, bool):
+              errors.append("[meta] schema_version must be an integer")
+
+          rows = doc.get("feature")
+          if not isinstance(rows, list) or not rows:
+              errors.append("no [[feature]] rows")
+              rows = []
+
+          ids = set()
+          for index, row in enumerate(rows):
+              where = f"row {index + 1}"
+              if isinstance(row.get("id"), str):
+                  where = f"{row['id']!r} (row {index + 1})"
+              if not isinstance(row, dict):
+                  errors.append(f"{where}: not a table")
+                  continue
+              missing = ROW_REQUIRED - set(row)
+              if missing:
+                  errors.append(f"{where}: missing key(s) {sorted(missing)}")
+              rid = row.get("id")
+              if not isinstance(rid, str) or not ID_RE.match(rid):
+                  errors.append(f"{where}: id {rid!r} violates ^[a-z0-9]+(-[a-z0-9]+)+$")
+              elif rid in ids:
+                  errors.append(f"{where}: duplicate id {rid!r}")
+              else:
+                  ids.add(rid)
+              if row.get("priority") not in PRIORITIES:
+                  errors.append(f"{where}: priority {row.get('priority')!r} not in {sorted(PRIORITIES)}")
+              phase = row.get("phase_target")
+              if not isinstance(phase, int) or isinstance(phase, bool) or not 2 <= phase <= 8:
+                  errors.append(f"{where}: phase_target {phase!r} outside 2..=8")
+              status = row.get("status")
+              if not isinstance(status, dict):
+                  errors.append(f"{where}: status must be a table")
+              else:
+                  if set(status) != PLATFORMS:
+                      errors.append(f"{where}: status keys {sorted(status)} != exactly {sorted(PLATFORMS)}")
+                  for platform, value in sorted(status.items()):
+                      if value not in STATUSES:
+                          errors.append(f"{where}: status.{platform} = {value!r} not in the vocabulary")
+                  values = set(status.values())
+                  if "verified" in values and not row.get("evidence"):
+                      errors.append(f"{where}: verified requires evidence (R4)")
+                  if values & {"blocked", "unsupported"} and not row.get("blocked_reason"):
+                      errors.append(f"{where}: blocked/unsupported requires blocked_reason (R5)")
+                  if "partial" in values and not row.get("notes"):
+                      errors.append(f"{where}: partial requires notes (R6)")
+
+          if errors:
+              for error in errors:
+                  print(f"feature-matrix: {error}", file=sys.stderr)
+              print(f"feature-matrix: {len(errors)} violation(s) in {path}", file=sys.stderr)
+              sys.exit(1)
+
+          categories = {row.get("category") for row in rows if isinstance(row, dict)}
+          print(
+              f"feature-matrix: {len(rows)} rows, {len(categories)} categories, "
+              f"schema_version {version} — v0 structural check passed "
+              "(R1 id-regex/uniqueness, R2 ranges, R3 platform columns + "
+              "vocabulary, R4/R5/R6 conditionals, R9 parse + meta)"
+          )
+          PY
+      - name: Honest skip ledger — config surfaces with no validator yet (doc 07 §9 C4)
+        run: |
+          echo "COVERED product.toml + product.schema.json: step above (product-config committed suite)."
+          echo "COVERED schemas/settings.toml + generated outputs: step above (schema-gen --check)."
+          echo "COVERED docs/feature-matrix.toml: step above (v0 inline check; R7/R8/R10 + full R4 need tools/feature-audit)."
+          echo "COVERED locales/: config-propagation job below (C3) — not duplicated here."
+          echo "SKIP keymaps/default.toml: no keymap validator exists yet (doc 07 §7.3 vs doc 05 §8.1 path reconciliation is open question doc 07 §11 Q4)."
+          echo "SKIP themes/: the theme-token pipeline exists (tokens-gen --check) but is outside card 1.E2's product+settings+feature-matrix scope — wire with the next G1 expansion."
+          echo "SKIP profiles/, layouts/, plugin manifests: none of these files exist in the tree yet (doc 07 §9 C4 enumerates them for when they do)."
+
+  # ------------------------------------------------------------------------
+  # Config propagation (doc 07 §9 C1-C5; MP §5 "config propagation test").
+  # Folded from the parked file (card 1.E2) + extended by card 7.w21a:
+  # C3 localization audit, C2 rebrand reverse-control no-op, and the
+  # C1/C2 literal + identity scanners (xtask lint-literals /
+  # check-identity); C4/C5 ledgers below.
+  # ------------------------------------------------------------------------
+  config-propagation:
+    name: config-propagation (doc 07 §9 C1-C5 — identity + l10n propagation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: C3 — localization audit over the shipped tree (doc 07 §6.4, seed_integrity suite)
+        run: cargo test -p localization
+      - name: C2 — rebrand reverse-control no-op (doc 07 §8.3 step 6, fast tier)
+        run: |
+          dest="${RUNNER_TEMP:-/tmp}/lumen-rebrand-noop"
+          log="${RUNNER_TEMP:-/tmp}/lumen-rebrand-noop.log"
+          rm -rf "${dest}"
+          cargo run -p xtask --locked -- rebrand --config product.toml --dest "${dest}" >"${log}" 2>&1
+          cat "${log}"
+          # rebrand's own exit code propagates (-e): a malformed or
+          # identity-incomplete product.toml is exit 2.
+          grep -q '^result: no-op$' "${log}" \
+            || { echo "::error::identity-equal rebrand was NOT a no-op - propagation mismatch (doc 07 §8.3 step 6)"; exit 1; }
+          # Reverse control, strong form: every v0 surface in the dest copy
+          # must be byte-identical to the repository file.
+          for surface in \
+            product.toml \
+            README.md \
+            schemas/generated/settings-docs.md \
+            schemas/generated/settings-help.txt
+          do
+            cmp "${surface}" "${dest}/${surface}" \
+              || { echo "::error::no-op rebrand modified ${surface} - rewriter regression"; exit 1; }
+          done
+      - name: C1 — lint-literals over crates/apps sources (doc 07 §9; card 7.w21a)
+        run: cargo run -p xtask --locked -- lint-literals
+      - name: C2 — check-identity over crates/apps sources (doc 07 §9; card 7.w21a)
+        run: cargo run -p xtask --locked -- check-identity
+      - name: Honest skip ledger — C-conditions with no enforceable artifact yet (doc 07 §9)
+        run: |
+          echo "COVERED C2 (partial): rebrand reverse-control no-op above; generated-artifact drift via schema-gen --check in schema-validation."
+          echo "COVERED C3 (partial): cargo test -p localization above (shipped-tree audit; the l10n-audit xtask subcommand itself does not exist)."
+          echo "COVERED C4: schema-validation job (this workflow) owns product.toml / settings / feature-matrix validation."
+          echo "COVERED C5: boundary-check (gate job step 4, card 1.E1, doc 01 §5) owns crate boundaries."
+          echo "COVERED C1 lint-literals: cargo run -p xtask lint-literals above (card 7.w21a) - the config-plane literal scan (identity/URL/abs-path/hex-color, audited inline markers); the ESLint half runs in ui.yml (npm run lint); doc 07 §9 C1."
+          echo "COVERED C2 check-identity: cargo run -p xtask check-identity above (card 7.w21a) - the full no-hardcoded-identity scan (brand trio + technical ids + accent), alongside the rebrand no-op stand-in."
+          echo "SKIP C2 packaging regen check: no packaging plane yet (no MSI/plist metadata); doc 07 §9 C2."
+
+  # ------------------------------------------------------------------------
+  # G3/G4 dependency & advisory gate (doc 10 §4.6; doc 11 §3.2, §3.5).
+  # Folded from the parked file unchanged (card 1.E5-R): INDEPENDENT of the
+  # build/test matrix — a failing audit must never be masked by green tests.
+  # cargo-deny is not installed via a (composite) action on purpose: the
+  # upstream release tarball is downloaded and SHA-256-verified, matching
+  # the doc 11 §3.7 pinning posture (no floating tool installs in CI):
+  #   cargo-deny 0.20.2
+  #   tarball cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+  #   sha256 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+  #   tag 0.20.2 dereferences to commit bca0dde53651ee946720e4540b5ce2610bec8f06
+  #     (git ls-remote refs/tags/0.20.2^{}, re-verified 2026-10-20)
+  # A toolchain is still required: cargo-deny shells out to
+  # `cargo metadata` to build the crate graph.
+  # ------------------------------------------------------------------------
+  cargo-deny:
+    name: cargo-deny (G3/G4 — licenses/sources/bans/advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - name: Install cargo-deny 0.20.2 (SHA-256-pinned release binary)
+        run: |
+          cd "${RUNNER_TEMP}"
+          curl --proto '=https' --tlsv1.2 -sSfL -o cargo-deny.tar.gz \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  cargo-deny.tar.gz" | sha256sum -c -
+          tar -xzf cargo-deny.tar.gz
+          install -m 0755 "cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny" "${HOME}/.cargo/bin/cargo-deny"
+          cargo deny --version
+      - name: cargo deny --workspace check (doc 11 §3.2/§3.5 — G3 licenses/sources/bans + G4 advisories)
+        run: cargo deny --workspace check licenses sources bans advisories
+      # SBOM (issue #52, doc 11 §3.4): generate the CycloneDX 1.5 SBOM from
+      # the exact lockfile this job just audited and drift-check it against
+      # the committed docs/security/sbom/cyclonedx.json — a dependency change
+      # without a regenerated SBOM fails the merge gate. Runs AFTER the deny
+      # check so a policy failure is reported first (cheap-first, doc 11 §3.5
+      # order). Same std-only xtask generator as scripts/full_gate.sh step 9.
+      - name: SBOM — generate + drift check (issue #52, doc 11 §3.4)
+        run: cargo run -p xtask --locked -- sbom --check
+
+  # ------------------------------------------------------------------------
+  # WASM toolchain canary (G12, doc 10 §4.6; doc 09 §2). Folded from the
+  # deleted .github/workflows-disabled/wasm.yml (cards 1.E3/1.E3-R).
+  # WHAT THIS JOB IS TODAY: a canary build of `theme-tokens` for
+  # wasm32-unknown-unknown plus a measured-only size report. theme-tokens
+  # is the Phase-1 canary because it is the one workspace crate with a
+  # [[bin]] (`tokens-gen`), so the build produces a REAL loadable .wasm
+  # module, not just an rlib; its dependency (serde_json) is pure Rust.
+  # WHAT IT IS NOT YET: doc 09 §2.5 items 1-3 (workspace-wide wasm check
+  # and clippy, wasm-bindgen-test under Node/headless Chromium) and item
+  # 4's release+wasm-opt numbers wait for the engine wasm binding crate
+  # (doc 05 §5.2; doc 10 §2.1 #10).
+  # SIZE BUDGETS: NONE enforced. Doc 09 §2.4's 3 MB / 6 MB baselines are
+  # [PROPOSAL] pending doc 09 §12 Q5; the >5% regression gate activates
+  # only once a budget is pinned. This job RECORDS raw + gzip sizes (with
+  # sha256 and a wasm-magic check) and fails only on build failure or a
+  # non-wasm / missing artifact.
+  # ------------------------------------------------------------------------
+  wasm-build:
+    name: wasm-build (G12 canary — theme-tokens, wasm32-unknown-unknown)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - name: Install wasm32-unknown-unknown std (doc 09 §2.1 recommended target)
+        run: |
+          rustup target add wasm32-unknown-unknown
+          if ! rustup target list --installed | grep -Fqx 'wasm32-unknown-unknown'; then
+            echo "::error::wasm32-unknown-unknown absent from 'rustup target list --installed' after 'rustup target add'"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Build canary (doc 09 §2.5; doc 11 §3.7 - CI builds run --locked)
+        run: cargo build -p theme-tokens --target wasm32-unknown-unknown --locked
+      - name: Size report (doc 09 §2.4 - measured only; budgets [PROPOSAL] per §12 Q5)
+        run: |
+          # DEV-profile baseline: the release-profile + wasm-opt measurement
+          # (doc 09 §2.3) lands with the engine wasm binding crate. gzip -n
+          # strips name/timestamp so the gzip size is deterministic.
+          wasm_dir="target/wasm32-unknown-unknown/debug"
+          report="wasm-size-report.txt"
+          summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+
+          {
+            echo "Lumen wasm canary size report (task 1.E3, doc 09 §2.4)."
+            echo "Canary: theme-tokens [[bin]] tokens-gen (dev profile)."
+            echo "Size budgets: enforced by 'cargo xtask web-budget --check'"
+            echo "(card 7.K1, issue #49) - ceilings live in product.toml"
+            echo "[web.size_budgets]; the >5% growth rule is integer-exact."
+            echo "Release + wasm-opt numbers land with the engine wasm"
+            echo "binding crate (doc 09 §2.3, §2.5 item 4)."
+            echo
+            echo "Toolchain: $(rustc --version)"
+            echo
+            echo "Produced artifacts (${wasm_dir}):"
+          } > "${report}"
+
+          shopt -s nullglob
+          wasms=( "${wasm_dir}"/*.wasm )
+          shopt -u nullglob
+          if [ "${#wasms[@]}" -eq 0 ]; then
+            echo "::error::no .wasm artifacts under ${wasm_dir} - the build step succeeded without producing a loadable module"
+            exit 1
+          fi
+
+          # ls -l is the human-readable evidence listing this card mandates;
+          # paths come from our own build output, not from user input.
+          # shellcheck disable=SC2012
+          ls -l -- "${wasms[@]}" | tee -a "${report}"
+
+          rows=()
+          for wasm in "${wasms[@]}"; do
+            name="$(basename -- "${wasm}")"
+            raw="$(wc -c < "${wasm}" | tr -d '[:space:]')"
+            gz="$(gzip -n -c -- "${wasm}" | wc -c | tr -d '[:space:]')"
+            sha="$(sha256sum -- "${wasm}" | cut -d' ' -f1)"
+            # A real wasm module starts with the 4-byte magic \0asm (00 61 73 6d).
+            magic="$(od -An -tx1 -N4 -- "${wasm}" | tr -d '[:space:]')"
+            if [ "${magic}" != "0061736d" ]; then
+              echo "::error::${wasm} does not start with the wasm magic bytes (got ${magic})"
+              exit 1
+            fi
+            {
+              echo
+              echo "${name}"
+              echo "  raw bytes : ${raw}"
+              echo "  gzip -n   : ${gz}"
+              echo "  sha256    : ${sha}"
+              printf '  magic     : %s (\\0asm)\n' "${magic}"
+            } | tee -a "${report}"
+            rows+=("| \`${name}\` (dev profile) | ${raw} | ${gz} |")
+          done
+
+          # Step summary (doc 09 §2.4: size printed next to merge claims).
+          {
+            echo "### wasm canary size report (wasm-build)"
+            echo
+            echo "- Canary: \`theme-tokens\` (\`tokens-gen\` bin), dev profile; release +"
+            echo "  wasm-opt numbers land with the engine wasm binding crate (doc 09 §2.3)."
+            echo "- Size budgets: enforced by \`cargo xtask web-budget --check\` (7.K1)"
+            echo "  - ceilings from product.toml [web.size_budgets] (doc 09 §2.4)."
+            echo
+            echo "| artifact | raw bytes | gzip -n bytes |"
+            echo "|---|---|---|"
+            printf '%s\n' "${rows[@]}"
+          } >> "${summary}"
+          echo "Size report written to ${report}; summary appended to the step summary."
+      - name: Web size-budget gate (doc 09 §2.4 - card 7.K1, issue #49)
+        run: |
+          # Budget ceilings come from product.toml [web.size_budgets] (validated
+          # by product.schema.json); the gate re-measures via real cargo build
+          # and fails on breach or >5% growth. No budget literal lives here.
+          cargo xtask web-budget --check --locked
+      - name: Upload wasm size-report evidence (doc 10 §4.5 - evidence-<job>-<os>-<run_id>)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-wasm-build-ubuntu-latest-${{ github.run_id }}
+          # The .wasm modules ride along so the "real loadable module" claim
+          # is checkable from the artifact itself, not just from the report.
+          path: |
+            wasm-size-report.txt
+            target/wasm32-unknown-unknown/debug/*.wasm
+          retention-days: 90
+          if-no-files-found: error

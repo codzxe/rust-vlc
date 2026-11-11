@@ -76,12 +76,19 @@ pub const ID_TIMESTAMP_SCALE: u32 = 0x002A_D7B1;
 /// `Duration` — segment duration in scale units... in *seconds* (a
 /// float; the spec's own unit quirk — see `header::SegmentInfo`).
 pub const ID_DURATION: u32 = 0x4489;
+/// `Info` `Title` — the segment's own title string (issue #34: the
+/// container-title element ffmpeg's muxer writes for `-metadata
+/// title=`; ffprobe surfaces it as the format `title`).
+pub const ID_INFO_TITLE: u32 = 0x7BA9;
 /// `Tracks` — the track table master.
 pub const ID_TRACKS: u32 = 0x1654_AE6B;
 /// `TrackEntry`.
 pub const ID_TRACK_ENTRY: u32 = 0xAE;
 /// `TrackNumber` — the id blocks reference.
 pub const ID_TRACK_NUMBER: u32 = 0xD7;
+/// `TrackUID` — the track's stable unique id (issue #34: the join key
+/// `TagTrackUID` targets and the stable-across-reloads identity).
+pub const ID_TRACK_UID: u32 = 0x73C5;
 /// `TrackType` — 1 video, 2 audio, 0x11 subtitle, 0x20+ special.
 pub const ID_TRACK_TYPE: u32 = 0x83;
 /// `FlagLacing` — whether the track's blocks may be laced (default on).

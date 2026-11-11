@@ -1,0 +1,43 @@
+# crates/platform-windows — the Windows platform adapter (card 7.A1,
+# issue #40; doc 01 §2.7 L5 registry row).
+#
+# Registry: doc 01 §2.7 `platform-windows` (layer L5, deps:
+# media-types, codec-api, audio-output, renderer-wgpu,
+# device-discovery). This card's v0 surface uses the audio-output
+# vocabulary (DeviceDesc/DeviceId — the seam the L4 trait layer
+# minted, ADR-005) + media-types (AudioFormat); codec-api (hw decode)
+# is issue #41, renderer-wgpu (wgpu import) is Lead-gated by its
+# admission record, device-discovery is issue #42 — the manifest is
+# an allowlist, those edges join when their cards land. Edges point
+# downward: L5 → L4 (audio-output) → L0 (media-types).
+#
+# Std-only by C5: NO external dependencies, NO windows-s crate — the
+# OS C-ABIs (ole32 COM: WASAPI MMDevice enumeration + IMMNotification
+# client, DXGI adapter enumeration, IFileOpenDialog/IFileSaveDialog)
+# are hand-declared `extern "system"` in src/windows/ with documented
+# invariants per block (the MP §9 audited OS-service exception).
+#
+# Sandbox honesty: this Linux sandbox has no Windows SDK, so the
+# FFI surface is compile-verified via `cargo check --target
+# x86_64-pc-windows-msvc` (typechecked declarations, no linking, no
+# runtime); the host-runnable tests cover the typed seams, capability
+# negotiation and fallbacks. Real-device behavior is `[VERIFY]`.
+
+[package]
+name = "platform-windows"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen Windows platform adapter: WASAPI device enumeration + change notifications, DXGI GPU adapter enumeration, common-item dialogs — hand-rolled COM FFI, typed Unavailable fallback (issue #40, card 7.A1)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+audio-output = { path = "../audio-output" }
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must/assert_err for the
+# seam + capability-negotiation acceptance tests.
+testkit = { path = "../testkit" }

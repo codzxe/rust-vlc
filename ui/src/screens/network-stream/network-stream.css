@@ -102,6 +102,7 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+
   /* secondary ink — AA on the panel (the old tertiary pair was ≈3:1) */
   color: var(--color-content-secondary);
 }

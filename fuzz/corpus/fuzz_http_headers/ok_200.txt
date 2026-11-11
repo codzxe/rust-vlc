@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+Content-Length: 1000
+Content-Type: video/mp2t
+

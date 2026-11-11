@@ -45,18 +45,20 @@ fn color_of(
 fn committed_source_parses_with_the_documented_shape() -> Result<(), Box<dyn std::error::Error>> {
     let set = committed_set()?;
     let counts = set.counts();
-    assert_eq!(counts.primitives, 92, "primitive-layer token count");
-    assert_eq!(counts.aliases, 70, "alias-layer token count");
-    assert_eq!(counts.semantic, 70, "semantic-layer token count");
+    assert_eq!(counts.primitives, 146, "primitive-layer token count");
+    assert_eq!(counts.aliases, 93, "alias-layer token count");
+    assert_eq!(counts.semantic, 94, "semantic-layer token count");
     assert_eq!(set.modes(), ["dark", "light"]);
     assert_eq!(set.default_mode(), "dark");
+    // Solstice (doc 08 §1.2 redesign): Keyvox gold `yellow` is the default
+    // accent; the mined `orange` ramp demoted to first alternate.
     assert_eq!(
         set.accents(),
         [
-            "orange", "red", "yellow", "green", "cyan", "blue", "violet", "pink", "gray"
+            "yellow", "orange", "red", "green", "cyan", "blue", "violet", "pink", "gray"
         ]
     );
-    assert_eq!(set.default_accent(), "orange");
+    assert_eq!(set.default_accent(), "yellow");
     // Doc 08 §3.3: exactly the six accent-family semantic tokens.
     assert_eq!(
         set.accent_family_css(),
@@ -76,56 +78,67 @@ fn committed_source_parses_with_the_documented_shape() -> Result<(), Box<dyn std
 #[test]
 fn resolved_values_match_doc_08_section_1_2() -> Result<(), Box<dyn std::error::Error>> {
     let set = committed_set()?;
-    // Dark neutral ramp anchors.
+    // Dark warm-neutral ramp anchors (Solstice gray ramp).
     assert_eq!(
         color_of(&set, "--color-surface-deep", Some("dark"))?,
-        Rgb8::new(0x09, 0x09, 0x09)
+        Rgb8::new(0x12, 0x10, 0x0b)
     );
     assert_eq!(
         color_of(&set, "--color-surface", Some("dark"))?,
-        Rgb8::new(0x19, 0x19, 0x19)
+        Rgb8::new(0x24, 0x1d, 0x13)
     );
     assert_eq!(
         color_of(&set, "--color-content-primary", Some("dark"))?,
-        Rgb8::new(0x8f, 0x8f, 0x8f)
+        Rgb8::new(0xcb, 0xbd, 0xa1)
     );
     assert_eq!(
         color_of(&set, "--color-content-bright", Some("dark"))?,
-        Rgb8::new(0xea, 0xea, 0xea)
+        Rgb8::new(0xf5, 0xee, 0xdc)
     );
     // Light table.
     assert_eq!(
         color_of(&set, "--color-surface", Some("light"))?,
-        Rgb8::new(0xd5, 0xd5, 0xd5)
+        Rgb8::new(0xef, 0xe3, 0xc6)
     );
     assert_eq!(
         color_of(&set, "--color-surface-deep", Some("light"))?,
-        Rgb8::new(0xde, 0xde, 0xde)
+        Rgb8::new(0xf6, 0xef, 0xdd)
     );
     assert_eq!(
         color_of(&set, "--color-content-primary", Some("light"))?,
-        Rgb8::new(0x2e, 0x2e, 0x2e)
+        Rgb8::new(0x4a, 0x3e, 0x2a)
     );
-    // Orange family + per-mode accent roles.
+    // Keyvox-gold family + per-mode accent roles.
     assert_eq!(
         color_of(&set, "--color-accent", None)?,
-        Rgb8::new(0xd3, 0x79, 0x18)
+        Rgb8::new(0xf2, 0xc4, 0x1d)
     );
     assert_eq!(
         color_of(&set, "--color-accent-strong", None)?,
-        Rgb8::new(0xab, 0x63, 0x14)
+        Rgb8::new(0xc8, 0x9a, 0x10)
     );
     assert_eq!(
         color_of(&set, "--color-accent-tinted", Some("dark"))?,
-        Rgb8::new(0x37, 0x1f, 0x06)
+        Rgb8::new(0x3b, 0x2f, 0x08)
     );
     assert_eq!(
         color_of(&set, "--color-accent-tinted", Some("light"))?,
-        Rgb8::new(0xd8, 0xba, 0x9a)
+        Rgb8::new(0xe8, 0xd3, 0x9a)
     );
     assert_eq!(
         color_of(&set, "--color-accent-bright", Some("light"))?,
-        Rgb8::new(0xe8, 0x85, 0x1a)
+        Rgb8::new(0xff, 0xd8, 0x4d)
+    );
+    // Motion durations resolve as ms dimensions (px-only parser regression).
+    let motion = set
+        .semantic_by_css_name("--motion-duration-fast")
+        .ok_or("missing --motion-duration-fast")?;
+    assert_eq!(
+        motion.values.value_for(None),
+        Some(&ResolvedValue::Dimension {
+            value: 120.0,
+            unit: theme_tokens::model::DimensionUnit::Ms,
+        })
     );
     // Modeless tokens really are modeless.
     let record = set
@@ -138,11 +151,11 @@ fn resolved_values_match_doc_08_section_1_2() -> Result<(), Box<dyn std::error::
 #[test]
 fn accent_ramps_follow_the_contrast_rule() -> Result<(), Box<dyn std::error::Error>> {
     let set = committed_set()?;
-    // Default ramp carries the mined orange family.
-    let orange = set.ramp_for("orange").ok_or("missing orange ramp")?;
-    assert_eq!(orange.primary, Rgb8::new(0xd3, 0x79, 0x18));
-    assert_eq!(orange.tinted_dark, Rgb8::new(0x37, 0x1f, 0x06));
-    assert_eq!(orange.on_accent, Rgb8::new(0x16, 0x16, 0x16));
+    // The default (yellow) ramp carries the mined Keyvox-gold family.
+    let yellow = set.ramp_for("yellow").ok_or("missing yellow ramp")?;
+    assert_eq!(yellow.primary, Rgb8::new(0xf2, 0xc4, 0x1d));
+    assert_eq!(yellow.tinted_dark, Rgb8::new(0x3b, 0x2f, 0x08));
+    assert_eq!(yellow.on_accent, Rgb8::new(0x1f, 0x1b, 0x14));
     // Every ramp's on-accent glyph meets doc 08 §3.3 (≥ 4.5:1).
     for ramp in set.accent_ramps() {
         let ratio = theme_tokens::color::contrast_ratio(ramp.on_accent, ramp.primary);
@@ -155,7 +168,7 @@ fn accent_ramps_follow_the_contrast_rule() -> Result<(), Box<dyn std::error::Err
     // Blue falls through to the brightest text, violet to the white fallback.
     assert_eq!(
         set.ramp_for("blue").ok_or("missing blue ramp")?.on_accent,
-        Rgb8::new(0xea, 0xea, 0xea)
+        Rgb8::new(0xf5, 0xee, 0xdc)
     );
     assert_eq!(
         set.ramp_for("violet")
@@ -163,10 +176,17 @@ fn accent_ramps_follow_the_contrast_rule() -> Result<(), Box<dyn std::error::Err
             .on_accent,
         Rgb8::new(0xff, 0xff, 0xff)
     );
-    // Gray stays achromatic (doc 08 §1.2 gray swatch).
+    // The gray accent stays warm-achromatic: every channel pair runs
+    // red ≥ green ≥ blue (Solstice "warm gray", doc 08 §1.2).
     let gray = set.ramp_for("gray").ok_or("missing gray ramp")?;
-    assert_eq!(gray.strong.r, gray.strong.b);
-    assert_eq!(gray.tinted_light.r, gray.tinted_light.b);
+    assert_eq!(gray.strong, Rgb8::new(0x96, 0x86, 0x67));
+    assert_eq!(gray.tinted_light, Rgb8::new(0xc0, 0xbb, 0xb2));
+    for c in [gray.primary, gray.strong, gray.tinted_light] {
+        assert!(
+            c.r >= c.g && c.g >= c.b,
+            "gray ramp drifted chromatic: {c:?}"
+        );
+    }
     Ok(())
 }
 
@@ -200,7 +220,7 @@ fn emitted_documents_have_the_documented_structure() -> Result<(), Box<dyn std::
     assert!(css.contains(":root {\n"));
     assert!(css.contains(":root[data-theme=\"light\"] {\n"));
     for accent in [
-        "red", "yellow", "green", "cyan", "blue", "violet", "pink", "gray",
+        "orange", "red", "green", "cyan", "blue", "violet", "pink", "gray",
     ] {
         assert!(
             css.contains(&format!(":root[data-accent=\"{accent}\"] {{\n")),
@@ -214,16 +234,22 @@ fn emitted_documents_have_the_documented_structure() -> Result<(), Box<dyn std::
         );
     }
     // The default accent's values live in :root / the light block instead.
-    assert!(!css.contains("data-accent=\"orange\""));
-    // A representative declaration per layer concern (doc 08 §3.2 examples).
+    assert!(!css.contains("data-accent=\"yellow\""));
+    // A representative declaration per layer concern (doc 08 §3.2 examples),
+    // including the ms motion durations that motivated the px|ms parser.
     for decl in [
-        "--color-surface: #191919;",
-        "--color-surface: #d5d5d5;",
-        "--radius-control: 6px;",
+        "--color-surface: #241d13;",
+        "--color-surface: #efe3c6;",
+        "--radius-control: 10px;",
         "--space-inset: 8px;",
         "--font-size-body: 14px;",
-        "--shadow-overlay: 0px 4.76px 5.9px 0px rgba(0, 0, 0, 0.7);",
+        "--font-weight-bold: 700;",
+        "--shadow-overlay: 0px 12px 36px 0px rgba(12, 8, 3, 0.6);",
         "--blur-backdrop: 25px;",
+        "--gradient-visualizer-2: #f2c41d;",
+        "--motion-duration-fast: 120ms;",
+        "--motion-duration-step: 280ms;",
+        "--motion-duration-slow: 480ms;",
     ] {
         assert!(css.contains(decl), "CSS output missing `{decl}`");
     }
@@ -232,15 +258,19 @@ fn emitted_documents_have_the_documented_structure() -> Result<(), Box<dyn std::
     for line in [
         "pub const MODES: &[&str] = &[\"dark\", \"light\"];",
         "pub const DEFAULT_MODE: &str = \"dark\";",
-        "pub const COLOR_SURFACE_DARK: Rgb8 = Rgb8::new(0x19, 0x19, 0x19);",
-        "pub const COLOR_SURFACE_LIGHT: Rgb8 = Rgb8::new(0xd5, 0xd5, 0xd5);",
-        "pub const RADIUS_CARD_LG: f32 = 30.0;",
-        "pub const SPACE_TRACK_INSET: f32 = 2.0;",
+        "pub const COLOR_SURFACE_DARK: Rgb8 = Rgb8::new(0x24, 0x1d, 0x13);",
+        "pub const COLOR_SURFACE_LIGHT: Rgb8 = Rgb8::new(0xef, 0xe3, 0xc6);",
+        "pub const RADIUS_CONTROL: f32 = 10.0;",
+        "pub const SPACE_INSET: f32 = 8.0;",
         "pub const OPACITY_SWATCH_REST: f32 = 0.7;",
-        "pub const FONT_FAMILY_SANS: &[&str] = &[\"Inter\", \"system-ui\", \"sans-serif\"];",
-        "pub const ACCENT_ORANGE_PRIMARY: Rgb8 = Rgb8::new(0xd3, 0x79, 0x18);",
+        "pub const FONT_FAMILY_SANS: &[&str] = &[\"Nunito\", \"Inter\", \"system-ui\", \"sans-serif\"];",
+        "pub const FONT_WEIGHT_BOLD: f32 = 700.0;",
+        "pub const MOTION_DURATION_FAST: f32 = 120.0;",
+        "pub const MOTION_DURATION_STEP: f32 = 280.0;",
+        "pub const MOTION_DURATION_SLOW: f32 = 480.0;",
+        "pub const ACCENT_YELLOW_PRIMARY: Rgb8 = Rgb8::new(0xf2, 0xc4, 0x1d);",
         "pub const ACCENT_VIOLET_ON_ACCENT: Rgb8 = Rgb8::new(0xff, 0xff, 0xff);",
-        "pub const ACCENT_GRAY_TINTED_DARK: Rgb8 = Rgb8::new(0x1e, 0x1e, 0x1e);",
+        "pub const ACCENT_GRAY_TINTED_DARK: Rgb8 = Rgb8::new(0x24, 0x20, 0x19);",
     ] {
         assert!(rust.contains(line), "Rust output missing `{line}`");
     }

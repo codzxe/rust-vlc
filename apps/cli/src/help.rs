@@ -98,7 +98,7 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
 pub fn version_text() -> String {
     // [PROPOSAL: product.toml identity (name/brand) joins with the
     // rebrand-propagation wiring; v0 reports the crate's own version.]
-    format!("lumen {}\n", env!("CARGO_PKG_VERSION"))
+    format!("lumen {}\n", env!("CARGO_PKG_VERSION")) // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
 }
 
 /// The full `--help` text: synopsis + the generated areas index.
@@ -110,18 +110,18 @@ pub fn help_text() -> Result<String, String> {
     let generated = generated_help()?;
     let mut out = String::new();
     out.push_str(&version_text());
-    out.push_str("The Lumen command-line player — headless host of the engine's first\n");
+    out.push_str("The Lumen command-line player — headless host of the engine's first\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("vertical, driven through the one command layer (doc 05 §5.3).\n\n");
     out.push_str("Usage:\n");
-    out.push_str("  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive\n");
-    out.push_str("  lumen --control-stdio                NDJSON machine mode\n");
-    out.push_str("  lumen --help [AREA]                  this help / one settings area\n\n");
+    out.push_str("  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+    out.push_str("  lumen --control-stdio                NDJSON machine mode\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+    out.push_str("  lumen --help [AREA]                  this help / one settings area\n\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("Commands (the playing subset of the command catalog):\n");
     for (verb, id, help) in SUBCOMMANDS {
         out.push_str(&format!("  {verb:<58} {id}\n      {help}\n"));
     }
     out.push_str("\nSettings-derived flags (--<area>-<key> <value>):\n");
-    out.push_str("  `lumen --help` lists areas with counts; `lumen --help <area>` lists that\n");
+    out.push_str("  `lumen --help` lists areas with counts; `lumen --help <area>` lists that\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("  area's flags (the VLC --longhelp pattern, generated).\n");
     out.push_str("  Reserved (non-settings) flags: -h/--help, -v/--version, --json,\n");
     out.push_str("  --control-stdio.\n\n");
@@ -300,27 +300,78 @@ mod tests {
         assert_eq!(generated, artifact);
     }
 
+    /// The Areas index lists exactly the screens the seed's `[[setting]]`
+    /// rows place themselves on — with true per-screen counts and the
+    /// engine-internal annotation. The expectation is DERIVED from
+    /// `schemas/settings.toml` (the single source of truth) by an
+    /// independent raw-TOML read, never pinned as a second literal: a
+    /// seed that legitimately grows (c71cd5a grew it 27 entries / 6→7
+    /// screens) can never strand this test stale again — only a real
+    /// seed→schema→G2 pipeline defect can fail it (phase-7 gate OF-2).
     #[test]
-    fn areas_block_lists_the_six_areas() {
+    fn areas_block_lists_every_screen_the_seed_declares() {
         let generated = match generated_help() {
             Ok(text) => text,
             Err(err) => unreachable!("{err}"),
         };
-        let areas = known_areas(&generated);
+        let seed_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas/settings.toml");
+        let seed_text = std::fs::read_to_string(&seed_path).unwrap_or_else(|err| {
+            unreachable!(
+                "reading the committed seed ({}): {err}",
+                seed_path.display()
+            )
+        });
+        let seed = toml::from_str::<toml::Table>(&seed_text)
+            .unwrap_or_else(|err| unreachable!("parsing the committed seed: {err}"));
+        let entries = seed
+            .get("setting")
+            .and_then(toml::Value::as_array)
+            .unwrap_or_else(|| unreachable!("the seed carries no [[setting]] rows"));
+        fn placement_of(entry: &toml::Value) -> Option<&toml::Table> {
+            entry.get("placement").and_then(toml::Value::as_table)
+        }
+        fn screen_of(entry: &toml::Value) -> &str {
+            placement_of(entry)
+                .and_then(|placement| placement.get("screen"))
+                .and_then(toml::Value::as_str)
+                .unwrap_or_default()
+        }
+        // The G2 emitter's own rule: sorted, deduped `placement.screen`.
+        let mut screens: Vec<&str> = entries.iter().map(screen_of).collect();
+        screens.sort_unstable();
+        screens.dedup();
+
+        // Rebuild the whole expected block (mirrors the emitter's row
+        // shape: `  <screen> <count> options[  (engine-internal…)]`).
+        let mut expected = String::from("Areas:\n");
+        for screen in &screens {
+            let on_screen: Vec<&toml::Value> = entries
+                .iter()
+                .filter(|entry| screen_of(entry) == *screen)
+                .collect();
+            let count = on_screen.len();
+            let plural = if count == 1 { "option" } else { "options" };
+            let internal = on_screen.iter().all(|entry| {
+                placement_of(entry)
+                    .and_then(|placement| placement.get("ui"))
+                    .and_then(toml::Value::as_bool)
+                    .is_some_and(|ui| !ui)
+            });
+            let annotation = if internal {
+                "  (engine-internal: ui = false)"
+            } else {
+                ""
+            };
+            expected.push_str(&format!("  {screen:<14} {count} {plural}{annotation}\n"));
+        }
         assert_eq!(
-            areas,
-            vec![
-                "engine",
-                "global",
-                "interface",
-                "performance",
-                "playback",
-                "privacy"
-            ]
+            areas_block(&generated),
+            expected,
+            "the Areas index must mirror the seed: its screens (sorted), \
+             per-screen option counts and engine-internal annotations"
         );
-        let block = areas_block(&generated);
-        assert!(block.starts_with("Areas:\n  engine"));
-        assert!(block.contains("6 options"));
+        assert_eq!(known_areas(&generated), screens);
     }
 
     #[test]

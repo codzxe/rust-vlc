@@ -17,8 +17,7 @@
 import { useContext, useEffect } from "react";
 import { useSettings } from "../screens/settings/SettingsProvider";
 import { SETTINGS_ENTRIES } from "../screens/settings/generated/schema";
-import { ThemeContext } from "./ThemeProvider";
-import type { ThemeModeSetting } from "./ThemeProvider";
+import { ThemeContext, type ThemeModeSetting } from "./context";
 
 /** The schema key this seam consumes (absent key ⇒ honest no-op). */
 export const THEME_SETTING_KEY = "interface.theme";

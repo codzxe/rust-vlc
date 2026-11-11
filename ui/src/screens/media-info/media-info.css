@@ -62,6 +62,7 @@
   color: var(--color-content-primary);
   border-radius: var(--radius-inset);
   rotate: -0.35deg;
+
   /* 35% tape keeps primary ink on the highlight ≥ 4.5:1 in both modes */
   background: linear-gradient(
     90deg,
@@ -97,6 +98,7 @@
 .lumen-mi__rows {
   margin: 0;
   display: grid;
+
   /* two columns of label|value pairs on the page, one inside the 377px
      player side panel — no media query needed */
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -242,6 +244,7 @@
   flex: 1;
   min-height: 0;
   box-sizing: border-box;
+
   /* transparent on purpose — the calm backdrop frames the card stack */
   background: transparent;
 }

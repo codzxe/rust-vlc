@@ -396,12 +396,13 @@ mod tests {
         let _ = decoder
             .flush(&mut sink)
             .unwrap_or_else(|err| unreachable!("flush: {err}"));
-        // The granule tail clamp's pin (6.FIX-ogg-reanchor): the
-        // delivered count is the 128-frame head emission excess +
-        // the 66,150-sample valid timeline — the encoder's 986
-        // padding samples past the final granule are trimmed, never
-        // played (the old pin, 67,264, counted them).
-        assert_eq!(sink.0, 66_278, "the reference raw_samples pin");
+        // The granule tail clamp's pin (6.FIX-ogg-reanchor), synced
+        // to main's wave-7 vorbis head-trim: the 128-frame head
+        // emission excess is trimmed with the encoder's 986 padding
+        // samples past the final granule — the delivered count is
+        // exactly the 66,150-sample valid timeline (the pre-trim
+        // pin, 66,278, counted the head excess).
+        assert_eq!(sink.0, 66_150, "the reference raw_samples pin");
         assert_eq!(sink.1, 2, "the negotiated channel count");
     }
 
@@ -567,6 +568,7 @@ mod tests {
     fn corpus_ogg_lanes_through_the_open_path() {
         let Some(dir) = corpus_dir() else {
             eprintln!(
+                // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
                 "corpus(ogg-cli): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS unset \
                  — SKIP (the differential table for the 2026-10-24 instance is in the worklog)"
             );
@@ -690,10 +692,11 @@ mod tests {
 
     /// The corpus media dir (the corpus_ogg.rs convention).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 }

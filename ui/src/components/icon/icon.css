@@ -9,6 +9,7 @@
   flex: none; /* don't shrink inside flex rows */
   box-sizing: content-box;
   color: var(--color-stroke-icon);
+
   /* Icon Wrapper.svg: ~48px hit area. Padding reaches it without inflating
    * layout — interactive hosts opt in via --lumen-icon-hit. */
   padding: var(--lumen-icon-hit, 0);
@@ -27,13 +28,30 @@
   color: var(--color-content-bright);
 }
 
+/* stylelint-disable no-descending-specificity -- state rules read base → feedback → selection → disabled; :hover/:active carry higher specificity and still win when both match, so the cascade is order-independent */
 .lumen-icon-host--selected .lumen-icon,
 .lumen-icon-host--open .lumen-icon {
   color: var(--color-accent-icon);
 }
+/* stylelint-enable no-descending-specificity */
 
 .lumen-icon-host:focus-visible .lumen-icon {
   color: var(--color-content-bright);
+}
+
+/* stylelint-disable no-descending-specificity -- disabled is documented last in the state narrative; :hover/:focus-visible outrank it by specificity either way */
+/* Emphasis stroke variants (issue #35, doc 08 §1.4 "stroke-width 1.5; 2 and 3
+ * for emphasis"; §1.5 active-state glyphs redraw at 2). Icon.tsx also sets the
+ * matching numeric attribute (1.5/2/3) so the SVG is self-describing; the CSS
+ * rule wins over presentation attributes and keeps the width token-driven
+ * (--stroke-icon-strong / --stroke-icon-max). Default variant carries no
+ * class — pre-issue-#35 behaviour is unchanged. */
+.lumen-icon--strong {
+  stroke-width: var(--stroke-icon-strong);
+}
+
+.lumen-icon--max {
+  stroke-width: var(--stroke-icon-max);
 }
 
 .lumen-icon-host--disabled .lumen-icon,
@@ -41,6 +59,7 @@
   color: var(--color-stroke-icon);
   opacity: var(--opacity-disabled);
 }
+/* stylelint-enable no-descending-specificity */
 
 @media (prefers-reduced-motion: reduce) {
   .lumen-icon {

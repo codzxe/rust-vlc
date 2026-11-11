@@ -1,0 +1,808 @@
+# Lumen Release — tag-triggered cross-platform artifact pipeline
+# (issue #56 release-engineering half + user release requirements,
+# card 7.w22g; REWIRED onto the W24-C packaging lanes in r3).
+#
+# WHAT SHIPS TODAY: the `lumen` CLI (package lumen-cli, apps/cli — the
+# real engine surface: demux/decode/playback through the ONE command
+# layer) and `lumen-desktop` (package desktop, apps/desktop — the
+# std-only ADR-004 composition-root skeleton, NOT a webview app yet).
+# Payload honesty (W24-R1 P2-4): tar.gz/zip/deb/rpm/msi package BOTH
+# binaries + the [shipped] docs list; the AppImage and the macOS
+# .app/.dmg/app-zip are DESKTOP-ONLY GUI-shell payloads (no CLI, no
+# docs) — per-artifact payload table in docs/packaging/README.md.
+# Nothing claims a GUI that does not exist.
+#
+# HONESTY NOTE — THIS WORKFLOW HAS NEVER EXECUTED (CI billing blocked):
+# every Actions run in this repository currently dies at 0 steps
+# (spending limit on the private repo; worklog 7.CLOSEOUT; issues
+# #53/#56 track it). Correctness evidence, strongest first:
+#   * the ENTIRE Linux lane (tar.gz + .deb + .AppImage + rpm spec,
+#     packaged-binary launch tests, per-artifact SBOMs, checksum
+#     manifest) was EXECUTED for real on this host — see
+#     docs/packaging/evidence/linux-lane-20261110.log;
+#   * the same script the Linux jobs below run (verify-linux-
+#     artifacts.sh) is that proof script — no CI-only divergence;
+#   * every script below passes `bash -n` + `sh -n`, and the locally
+#     provable halves of the Windows/macOS lanes (.wxs generation,
+#     env assertions, unsigned-fallback sidecars, SBOM writing) run in
+#     scripts/packaging/gate.sh (full_gate step 11);
+#   * this file parses (python yaml.safe_load) and follows ci.yml's
+#     proven action-pin patterns.
+# Runtime claims that could not be exercised here are marked [VERIFY]
+# inline. When Actions billing is unblocked, run a `workflow_dispatch`
+# dry-run first: it builds and uploads all artifacts WITHOUT cutting a
+# release (the `gh release create` step is tag-ref-gated).
+#
+# CONFIG-DRIVEN — NO PRODUCT/VERSION/PACKAGING LITERALS IN THIS FILE:
+# product identity (name, version, publisher, per-OS identifiers, MSI
+# UpgradeCode, both bin names) comes from product.toml, and every
+# packaging decision (install dirs, shipped docs, SBOM suffix + spec
+# version, checksum algorithm + manifest name, upgrade-test gate,
+# signing secret NAMES) comes from packaging/packaging.toml — both
+# merged into the job environment by scripts/packaging/
+# packaging-env.py (the W24-C bridge; it wraps and re-uses the wave-22
+# scripts/release/product-env.py). A rebrand, version bump, docs-list
+# change, or checksum-algorithm change touches the TOML only. The
+# single sanctioned exception: the two Cargo package ids in the build
+# command and the packaging-env.py invocation (`lumen-cli`, `desktop`)
+# — crate names needed to address the build, not product identity.
+# A second, same-shaped exception: the `secrets.<NAME>` references in
+# the signing steps' env: blocks — GitHub's secrets context only takes
+# static keys, so the secret NAMES configured in packaging.toml
+# [signing.*] are repeated there; every mapping is guarded by a
+# fail-loud cross-check whose expected set is DERIVED FROM
+# packaging.toml at guard time (a step errors if a name drifts OR if a
+# future [signing.*] *_env key is added without a mapping), so the
+# TOML stays the source of truth (W24-R1 P1-2; W24-R6 P4-1 hardening,
+# W24-Q).
+#
+# LANE MAP (per-platform jobs -> scripts/packaging/* drivers):
+#   windows: build-zip.sh (flat zip) + build-msi.sh (gen-wxs + WiX +
+#            sign-windows.sh) + test-msi-upgrade.ps1 (config-gated)
+#   macos:   build-dmg.sh (make-app + sign-macos.sh --app + make-dmg +
+#            sign-macos.sh --dmg: codesign/notarize/staple, R-35
+#            sidecars when credentials are absent)
+#   linux:   verify-linux-artifacts.sh (tar.gz + deb + AppImage + rpm
+#            + launch tests + SBOMs + per-set manifest) — the SAME
+#            script proven locally
+#   every job: gen-sboms.sh (per-artifact CycloneDX SBOM)
+#   release job: global checksum manifest (algorithm + name from
+#            packaging.toml) + notes + `gh release create`
+#
+# Action pins (mirror of the ci.yml pin table; the first four are the
+# exact SHAs recorded there. download-artifact resolved the same way —
+# `git ls-remote` — on 2026-11-10 for this card, since ci.yml never
+# needed it):
+#   actions/checkout          v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1  (tag, lightweight)
+#   dtolnay/rust-toolchain    1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8  (branch head)
+#   Swatinem/rust-cache       v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6  (peeled tag commit)
+#   actions/upload-artifact   v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9  (tag, lightweight)
+#   actions/download-artifact v8.0.2  9000827ccba6bdab643e8b6fd33ac0654aef8333  (tag, lightweight; = main head at resolution time)
+# Non-action tools pinned below with SHA-256 verification (the ci.yml
+# cargo-deny posture — no floating tool installs):
+#   WiX v5.0.2          wix.5.0.2.nupkg from the nuget.org flat-container
+#                       (deterministic URL; contains tools/net6.0/any/wix.exe)
+#   appimagetool 1.9.1  release assets from github.com/AppImage/appimagetool
+#                       (x86_64 + aarch64)
+#   type2 runtime       dated release tag 20251108 from
+#                       github.com/AppImage/type2-runtime (x86_64 + aarch64)
+#                       — passed to appimagetool --runtime-file so NO rolling
+#                       runtime is fetched at build time
+# `gh`, `pwsh`, `hdiutil`/`ditto`, `dpkg-deb`, and `apt-get install
+# rpm` are preinstalled/native on their respective runner images
+# [VERIFY at first live run].
+#
+# RUNNER BUDGET (same honesty as ci.yml): this workflow only runs on
+# tag pushes (a handful of times per release cycle, never per-PR). At
+# the private-repo multipliers (windows 2x, macOS 10x) a full run is
+# roughly 6 jobs x ~15-25 raw minutes ≈ 200-300 billed minutes —
+# acceptable ONLY because it is tag-gated. The optional arm64 job is
+# continue-on-error (see its own comment).
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # manual dry-run: builds + uploads artifacts, no release (see `release` job)
+
+permissions:
+  contents: write # `gh release create` with the built-in GITHUB_TOKEN
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+  # Overrides the sandbox-path build.target-dir pinned in the committed
+  # .cargo/config.toml (ci.yml "CURRENT REALITY RECONCILIATIONS" #2).
+  CARGO_TARGET_DIR: target
+
+jobs:
+  # ------------------------------------------------------------------------
+  # Windows x64: flat zip + MSI (WiX v5, pinned nupkg) + Authenticode
+  # signing driver + config-gated MSI upgrade-path test.
+  # ------------------------------------------------------------------------
+  windows:
+    name: windows (x86_64 — zip + msi)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      OS_ID: windows
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
+        run: |
+          # python3 is the image default on all three OSes [VERIFY at
+          # first live run]; python is the git-bash fallback.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install WiX v5.0.2 (pinned nupkg, SHA-256 verified)
+        run: |
+          # Deterministic URL: the nuget.org v3 flat-container address of
+          # the wix .NET tool package. The nupkg carries
+          # tools/net6.0/any/wix.exe (+ deps); wix.runtimeconfig.json
+          # sets rollForward=Major, so the .NET 8/9 runtimes on
+          # windows-latest satisfy the net6.0 target [VERIFY].
+          wix_url="https://api.nuget.org/v3-flatcontainer/wix/5.0.2/wix.5.0.2.nupkg"
+          wix_sha256="f30ef0c74e2a986126539c5780be93ac24e8136eaf723b1937b26272703ae173"
+          curl -sSfL -o /tmp/wix.5.0.2.nupkg "$wix_url"
+          echo "${wix_sha256}  /tmp/wix.5.0.2.nupkg" | sha256sum -c -
+          PY="$(command -v python3 || command -v python)"
+          "$PY" -m zipfile -e /tmp/wix.5.0.2.nupkg .tools/wix
+          test -x .tools/wix/tools/net6.0/any/wix.exe
+          echo "WIX_EXE=${PWD}/.tools/wix/tools/net6.0/any/wix.exe" >> "$GITHUB_ENV"
+      - name: Package flat zip (scripts/packaging/build-zip.sh — exes + [shipped] docs from config)
+        run: scripts/packaging/build-zip.sh
+      - name: Package MSI (scripts/packaging/build-msi.sh — config-driven .wxs + WiX + sign-windows.sh)
+        # sign-windows.sh (called inside): real signtool signing when the
+        # user-owned certificate secrets exist; explicit .UNSIGNED.txt
+        # sidecar + ::warning:: when they do not (never fake signing).
+        #
+        # SECRET WIRING (W24-R1 P1-2): GitHub does NOT inject repository
+        # secrets as env vars on its own — without this env: block the
+        # runbook's "set the repository secrets" next-step changed
+        # nothing and releases stayed unsigned forever, silently. The
+        # names below are the ones configured in packaging.toml
+        # [signing.windows]; an absent secret arrives as an EMPTY string,
+        # so the honest-unsigned path is unchanged.
+        env:
+          WINDOWS_SIGNING_PFX_B64: ${{ secrets.WINDOWS_SIGNING_PFX_B64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          # Fail-loud wiring guard: every secret name configured in
+          # packaging.toml [signing.windows] must be mapped in this
+          # step's env: block. The expected set is DERIVED FROM
+          # packaging.toml AT GUARD TIME (python parses the same TOML the
+          # parse step schema-validated; every [signing.*] key ending in
+          # _env names a secret), so a future [signing.*] key is
+          # automatically required to be mapped too — the guard no longer
+          # enumerates only the names it knows (W24-R1 P1-2, hardened in
+          # W24-Q after W24-R6 P4-1). An unmapped name is UNSET — how a
+          # config change that outlived this mapping would silently
+          # disable signing — while an absent-but-mapped secret is an
+          # empty string (honest unsigned).
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - windows <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-msi.sh
+      - name: "MSI upgrade-path test (config-gated: packaging.toml windows.upgrade_test)"
+        run: |
+          if [ "${PACKAGING_WINDOWS_UPGRADE_TEST:?}" != "true" ]; then
+            echo "skipped: packaging.toml [windows] upgrade_test = ${PACKAGING_WINDOWS_UPGRADE_TEST}"
+            exit 0
+          fi
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          # pwsh (PowerShell 7) is preinstalled on windows-latest [VERIFY
+          # at first live run]. The test installs a predecessor MSI built
+          # from the same tree + frozen UpgradeCode, then proves the
+          # current one REPLACES it (MajorUpgrade semantics).
+          pwsh scripts/packaging/test-msi-upgrade.ps1 -CurrentMsi "dist/${base}.msi"
+      - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          scripts/packaging/gen-sboms.sh "dist/${base}.zip" "dist/${base}.msi"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-windows-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # macOS arm64 (macos-latest = arm64 hardware): .app bundle -> codesign
+  # -> .dmg -> sign + notarize + staple, plus the ditto .app zip.
+  #
+  # UNIVERSAL-BINARY DECISION (card 8.E2 deliverable, recorded here +
+  # docs/packaging/README.md): ship TWO per-arch dmg/app sets —
+  # aarch64 on macos-latest, x86_64 on macos-15-intel — NOT one
+  # lipo'd universal .app. Rationale:
+  #   * a universal .app means building BOTH rust targets in one job
+  #     and lipo-creating the binaries: ~2x build time on the most
+  #     expensive runner class (macOS 10x multiplier) for every
+  #     release, where the per-arch split pays that cost once per
+  #     slice and parallelizes;
+  #   * every artifact stays self-contained: its own SBOM, its own
+  #     checksum line, its own (future R-35) signature — a universal
+  #     dmg would additionally need every slice signed
+  #     (docs/inventory/platform-macos.md: "Universal (arm64+x86_64)
+  #     builds require signing each slice"), which cannot even be
+  #     exercised until R-35 resolves;
+  #   * the download self-selects by arch today (the arch segment in
+  #     the artifact name comes from product.toml per-OS identifiers);
+  #   * reversible purely in this file (add `--target
+  #     aarch64-apple-darwin --target x86_64-apple-darwin` + a lipo
+  #     step): no packaging script or config change needed, so the
+  #     cheap option ships first.
+  # Revisit trigger: R-35 (Apple Developer account) unblocks and a
+  # user preference for a single universal download is recorded.
+  # ------------------------------------------------------------------------
+  macos-arm64:
+    name: macos (aarch64 — dmg + app zip)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      OS_ID: macos
+      ARCH_ID: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
+        # sign-macos.sh (called inside, twice): real codesign/notarytool/
+        # stapler when the user-owned Apple credentials exist; explicit
+        # .UNSIGNED.txt / .NOT-NOTARIZED.txt sidecars + ::warning:: when
+        # they do not (risk R-35, owner = user — never fake signing).
+        #
+        # SECRET WIRING (W24-R1 P1-2, same contract as the windows job's
+        # MSI step): the six secret names configured in packaging.toml
+        # [signing.macos], mapped to env for sign-macos.sh. Absent
+        # secrets arrive as EMPTY strings -> honest-unsigned unchanged.
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          # Fail-loud wiring guard (W24-R1 P1-2; W24-Q hardening after
+          # W24-R6 P4-1): every secret name configured in packaging.toml
+          # [signing.macos] must be mapped in this step's env: block —
+          # unset means wiring gap, empty means absent credential (the
+          # honest unsigned path). The expected set is DERIVED FROM
+          # packaging.toml at guard time (python parses the same TOML the
+          # parse step schema-validated), so a future [signing.macos]
+          # key is automatically required to be mapped too.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-dmg.sh
+      - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mkdir -p dist
+          ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
+          test -s "dist/${base}.zip"
+          # The .app's unsigned sidecar must ride with the zip: the
+          # upload step takes dist/** only, and bundle/ is not uploaded
+          # — without this copy the app-zip would be the one release
+          # asset whose unsigned status is not self-describing (the dmg
+          # sidecar already ships; W24-R1 P3-4). A signed .app has no
+          # sidecar and needs none (the zip carries the signed bundle).
+          if [ -f "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" ]; then
+            cp "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" "dist/${base}.zip.UNSIGNED.txt"
+          fi
+      - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          scripts/packaging/gen-sboms.sh "dist/${base}.dmg" "dist/${base}.zip"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-macos-aarch64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # macOS x64 (Intel): same artifact set.
+  #
+  # DEVIATION FROM THE CARD TEXT (documented): the card suggested
+  # macos-13, but actionlint 1.7.12's runner-label database (resolved
+  # from live GitHub metadata) no longer knows that label — the Intel
+  # images of record are the macos-*-intel family. macos-15-intel is
+  # used instead [VERIFY at first live run].
+  # ------------------------------------------------------------------------
+  macos-x64:
+    name: macos (x86_64 — dmg + app zip)
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      OS_ID: macos
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
+        # sign-macos.sh (called inside, twice): see macos-arm64. Same
+        # six-secret wiring + fail-loud guard (W24-R1 P1-2).
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          # Same TOML-derived fail-loud wiring guard as the macos-arm64
+          # dmg step (see there; W24-R1 P1-2 + W24-Q hardening for
+          # W24-R6 P4-1): the expected secret-name set comes from
+          # packaging.toml [signing.macos] at guard time.
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+          done
+          scripts/packaging/build-dmg.sh
+      - name: "Zip the .app bundle (native ditto: preserves bundle metadata)"
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mkdir -p dist
+          ditto -c -k --keepParent "bundle/${PRODUCT_NAME}.app" "dist/${base}.zip"
+          test -s "dist/${base}.zip"
+          # Unsigned sidecar rides with the zip (W24-R1 P3-4) — see the
+          # macos-arm64 zip step for the rationale.
+          if [ -f "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" ]; then
+            cp "bundle/${PRODUCT_NAME}.app.UNSIGNED.txt" "dist/${base}.zip.UNSIGNED.txt"
+          fi
+      - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          scripts/packaging/gen-sboms.sh "dist/${base}.dmg" "dist/${base}.zip"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-macos-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Linux x64: tar.gz + .deb (native dpkg-deb) + .AppImage (pinned
+  # appimagetool) + .rpm (rpmbuild, apt-installed) + packaged-binary
+  # launch tests — ALL via the locally-PROVEN harness
+  # scripts/packaging/verify-linux-artifacts.sh (evidence:
+  # docs/packaging/evidence/linux-lane-20261110.log).
+  # ------------------------------------------------------------------------
+  linux-x64:
+    name: linux (x86_64 — tar.gz + deb + AppImage + rpm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OS_ID: linux
+      ARCH_ID: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
+        run: |
+          # Two pinned downloads (NOT rolling tags — pinning policy):
+          # 1. appimagetool 1.9.1 from its GitHub release. Self-reports
+          #    "git version 8c8c91f" — the 1.9.1 tag commit, cross-checked
+          #    against `git ls-remote` at pin time (worklog 7.w22g).
+          # 2. The AppImage type2 runtime from the DATED type2-runtime
+          #    tag 20251108. Without --runtime-file appimagetool silently
+          #    fetches the ROLLING `continuous` runtime at build time —
+          #    a floating component this pipeline refuses (doc 11 §3.7).
+          # Both tools are AppImages/ELFs: the packaging script runs with
+          # APPIMAGE_EXTRACT_AND_RUN=1 because hosted runners do not
+          # guarantee a usable FUSE (ubuntu-24.04 dropped libfuse2).
+          tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
+          tool_sha256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+          runtime_url="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64"
+          runtime_sha256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
+          curl -sSfL -o appimagetool.AppImage "$tool_url"
+          echo "${tool_sha256}  appimagetool.AppImage" | sha256sum -c -
+          chmod +x appimagetool.AppImage
+          curl -sSfL -o type2-runtime "$runtime_url"
+          echo "${runtime_sha256}  type2-runtime" | sha256sum -c -
+          echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+          echo "RUNTIME_FILE=${PWD}/type2-runtime" >> "$GITHUB_ENV"
+      - name: Install rpmbuild (the real binary .rpm lane — the local proof could only validate the spec)
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends rpm
+      - name: Package + verify (verify-linux-artifacts.sh — the locally-PROVEN harness)
+        run: scripts/packaging/verify-linux-artifacts.sh
+        # Builds tar.gz + deb + AppImage + the binary rpm, launch-tests
+        # the packaged binaries (--version, decode-bench on a fixture,
+        # the desktop skeleton exit code), asserts deb/rpm header fields
+        # against the config, writes per-artifact SBOMs (gen-sboms.sh)
+        # and the per-set checksum manifest.
+      - name: Scope the per-set checksum manifest (avoid flat-merge collision)
+        run: |
+          # verify-linux-artifacts.sh writes the manifest under the plain
+          # configured name (packaging.toml checksum.manifest_name); the
+          # release job flat-merges BOTH linux sets into one directory,
+          # so each set's manifest is renamed to <base>.<manifest> first.
+          # The release job then writes THE global manifest under the
+          # plain configured name (and hashes these per-set copies too).
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mv "dist/${PACKAGING_CHECKSUM_MANIFEST:?}" "dist/${base}.${PACKAGING_CHECKSUM_MANIFEST}"
+          ls -l dist/
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-linux-x86_64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Linux arm64 — BEST-EFFORT, deliberately non-blocking.
+  #
+  # Honest limitation: linux-arm64 hosted runners (ubuntu-24.04-arm) are
+  # a newer runner class whose availability for PRIVATE repos has varied
+  # (paid preview / regional rollout). If the job cannot start or fails
+  # for infrastructure reasons the release still ships the other five
+  # artifact sets. Do not "fix" a red-but-ignored arm64 failure without
+  # checking whether it is an infra failure — that is what this flag is
+  # for. Same artifact set + harness as linux-x64.
+  # ------------------------------------------------------------------------
+  linux-arm64:
+    name: linux (aarch64 — tar.gz + deb + AppImage + rpm; best-effort)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    continue-on-error: true
+    env:
+      OS_ID: linux
+      ARCH_ID: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/release.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py \
+            --cli-package lumen-cli --desktop-package desktop \
+            --github-env --github-env-file "$GITHUB_ENV"
+      - name: Build (release, locked — both shipped binaries)
+        run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
+        run: |
+          # aarch64 builds of the same pinned releases (see linux-x64).
+          tool_url="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-aarch64.AppImage"
+          tool_sha256="f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158"
+          runtime_url="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-aarch64"
+          runtime_sha256="00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444"
+          curl -sSfL -o appimagetool.AppImage "$tool_url"
+          echo "${tool_sha256}  appimagetool.AppImage" | sha256sum -c -
+          chmod +x appimagetool.AppImage
+          curl -sSfL -o type2-runtime "$runtime_url"
+          echo "${runtime_sha256}  type2-runtime" | sha256sum -c -
+          echo "APPIMAGETOOL=${PWD}/appimagetool.AppImage" >> "$GITHUB_ENV"
+          echo "RUNTIME_FILE=${PWD}/type2-runtime" >> "$GITHUB_ENV"
+      - name: Install rpmbuild (the real binary .rpm lane — the local proof could only validate the spec)
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends rpm
+      - name: Package + verify (verify-linux-artifacts.sh — the locally-PROVEN harness)
+        run: scripts/packaging/verify-linux-artifacts.sh
+      - name: Scope the per-set checksum manifest (avoid flat-merge collision)
+        run: |
+          base="${PRODUCT_LOWER:?}-${PRODUCT_VERSION:?}-${ARCH_ID:?}-${OS_ID:?}"
+          mv "dist/${PACKAGING_CHECKSUM_MANIFEST:?}" "dist/${base}.${PACKAGING_CHECKSUM_MANIFEST}"
+          ls -l dist/
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-linux-aarch64
+          path: dist/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Release: needs all build jobs, runs on the tag (or dispatch dry-run).
+  # - downloads every dist-* artifact (merge-multiple: one flat dir)
+  # - writes the global checksum manifest over all assets (algorithm +
+  #   file name from packaging.toml [checksum] — the per-arch set
+  #   manifests uploaded by the Linux jobs ride along as ordinary
+  #   assets and are hashed too)
+  # - generates notes (git log since last tag; docs/RELEASE.md template)
+  # - cuts the GitHub release with the PREINSTALLED gh CLI + GITHUB_TOKEN
+  #   (no third-party release action), tag refs only
+  # ------------------------------------------------------------------------
+  release:
+    name: release (checksum manifest + notes + gh release create)
+    needs: [windows, macos-arm64, macos-x64, linux-x64, linux-arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # release-notes.sh reads full history (git log since the
+          # previous tag); the default shallow checkout truncates it.
+          fetch-depth: 0
+      - name: Parse product.toml + packaging.toml -> job env (identity + checksum config; no bins needed here)
+        run: |
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          "$PY" scripts/packaging/packaging-env.py --github-env --github-env-file "$GITHUB_ENV"
+      - name: "Signing-credentials visibility (W24-R1 P1-2 hardening: absent = warned, unmapped = failed)"
+        # Maps ALL eight configured signing names once more, here where
+        # the whole release is assembled, so "credentials provisioned
+        # but not wired" can never recur silently: an UNSET variable is a
+        # wiring gap (hard error); an EMPTY one is an absent credential
+        # (::warning:: naming the blockers-table owners).
+        env:
+          WINDOWS_SIGNING_PFX_B64: ${{ secrets.WINDOWS_SIGNING_PFX_B64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_CERT_P12_B64: ${{ secrets.MACOS_SIGNING_CERT_P12_B64 }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          absent=""
+          # The expected secret-name set is DERIVED FROM packaging.toml
+          # at guard time (python parses the same TOML the parse step
+          # schema-validated; every [signing.*] key ending in _env names
+          # a secret), so a future [signing.*] key is automatically
+          # required to be mapped here too (W24-Q hardening after
+          # W24-R6 P4-1 — the guard used to enumerate only the 8 names
+          # it knew).
+          PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          for cfg in $("$PY" - windows macos <<'PYEOF'
+          import sys, tomllib
+          with open("packaging/packaging.toml", "rb") as fh:
+              signing = tomllib.load(fh)["signing"]
+          for section in sys.argv[1:]:
+              for key in sorted(signing[section]):
+                  if key.endswith("_env"):
+                      print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
+          PYEOF
+          ); do
+            name="${!cfg-}"
+            if [ -z "$name" ]; then
+              echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
+              exit 1
+            fi
+            if [ -z "${!name+x}" ]; then
+              echo "::error::secret wiring gap: packaging.toml names \$$name but this step's env: block does not map it — update the mapping (docs/packaging/README.md blockers table)"
+              exit 1
+            fi
+            [ -n "${!name}" ] || absent="$absent $name"
+          done
+          if [ -n "$absent" ]; then
+            echo "::warning::signing credentials absent — this release ships labeled-unsigned artifacts + checksums (blockers 1-2, owner: user):$absent"
+          else
+            echo "all configured signing credentials are present — artifacts should be signed"
+          fi
+      - name: Download all dist artifacts (flat merge)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Verify artifact set (non-empty, expected kinds present)
+        run: |
+          test -n "$(find dist -type f -print -quit)" || { echo "::error::no artifacts downloaded"; exit 1; }
+          # Honest expectation: the five blocking artifact sets. arm64 is
+          # best-effort and may be absent — that absence is reported, not
+          # fatal (mirrors the linux-arm64 continue-on-error decision).
+          # Artifact names are <slug>-<version>-<arch>-<os>.<ext>, so the
+          # OS segment is dash-joined: match *-<kind> (the wave-22 form
+          # *.<kind> matched NOTHING — a latent no-op caught by the r3
+          # local dry-run, docs/packaging/evidence/w24c-r3.log).
+          ls -l dist/
+          for kind in windows.zip windows.msi macos.dmg macos.zip \
+                      linux.tar.gz linux.deb linux.AppImage linux.rpm; do
+            if ls dist/*-"$kind" >/dev/null 2>&1; then
+              echo "artifact kind present: ${kind}"
+            else
+              echo "::warning::artifact kind missing: ${kind} (arm64 best-effort or job failure — check the build jobs)"
+            fi
+          done
+          # Per-artifact SBOMs: suffix from packaging.toml [sbom].
+          sbom_suffix="${PACKAGING_SBOM_ARTIFACT_SUFFIX:?}"
+          if ls dist/*."${sbom_suffix}" >/dev/null 2>&1; then
+            echo "per-artifact SBOMs present (suffix .${sbom_suffix})"
+          else
+            echo "::warning::no per-artifact SBOMs found (suffix .${sbom_suffix}) — check the build jobs"
+          fi
+      - name: Generate the global checksum manifest (algorithm + name from packaging.toml)
+        run: |
+          cd dist
+          case "${PACKAGING_CHECKSUM_ALGORITHM:?}" in
+            sha256) hasher=sha256sum ;;
+            *) echo "::error::no wired hasher for algorithm ${PACKAGING_CHECKSUM_ALGORITHM} (packaging.toml checksum.algorithm)"; exit 1 ;;
+          esac
+          # Hash every asset BEFORE adding the manifest itself — the
+          # manifest never hashes itself (same contract as the per-set
+          # manifests the Linux jobs wrote).
+          "$hasher" -- * >"../${PACKAGING_CHECKSUM_MANIFEST:?}"
+          mv "../${PACKAGING_CHECKSUM_MANIFEST}" "./${PACKAGING_CHECKSUM_MANIFEST}"
+          cat "./${PACKAGING_CHECKSUM_MANIFEST}"
+      - name: Generate release notes (git log since last tag)
+        run: scripts/release/release-notes.sh notes.md
+      - name: Cross-check tag vs product.toml version (warning only — honest, not fatal)
+        if: github.ref_type == 'tag'
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "${tag_version}" != "${PRODUCT_VERSION}" ] && [ "${tag_version}" != "${MSI_VERSION}" ]; then
+            echo "::warning::tag ${GITHUB_REF_NAME} matches neither identity.display_version (${PRODUCT_VERSION}) nor its numeric MSI form (${MSI_VERSION}) — intentional?"
+          fi
+      - name: Create the GitHub release (tag refs only; gh + GITHUB_TOKEN, no third-party action)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # `gh` is preinstalled on GitHub-hosted runners [VERIFY at
+          # first live run]. All assets ride along (packages, SBOMs,
+          # per-set manifests, the .wxs audit source, signing sidecars);
+          # the global manifest is regenerated above from exactly these
+          # bytes.
+          gh release create "$GITHUB_REF_NAME" \
+            --title "${PRODUCT_NAME} ${PRODUCT_VERSION}" \
+            --notes-file notes.md \
+            dist/*
+      - name: Dry-run summary (workflow_dispatch — no release was cut)
+        if: github.ref_type != 'tag'
+        run: |
+          echo "### Release dry-run (workflow_dispatch)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Built and checksummed the full artifact set; NO GitHub release was" >> "$GITHUB_STEP_SUMMARY"
+          echo "created (that step is tag-ref-gated). Notes preview:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"

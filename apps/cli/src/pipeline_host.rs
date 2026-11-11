@@ -61,7 +61,7 @@ use codecs::audio::vorbis::VorbisDecoder;
 use codecs::video::av1::Av1Decoder;
 use codecs::video::dnx::DnxDecoder;
 use codecs::video::vp9::Vp9Decoder;
-use media_clock::MediaClock;
+use media_clock::{MediaClock, PlaybackClock};
 use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
     VideoFrame,
@@ -626,11 +626,43 @@ pub struct VideoLimb {
     scheduler: PresentationScheduler,
     queue: PresentationQueue,
     renderer: Renderer,
+    /// The session clock — read for the live generation at latch
+    /// reads (a seek mints a new generation before the clock
+    /// publishes it; a latched slot of an unpublished generation is
+    /// stale, and the anchor is the truth until the next frame
+    /// presents).
+    clock: Arc<MediaClock>,
+    /// The presentation latch (F3, issue #16): `(generation, slot
+    /// ns)` of the last request the renderer took. The deterministic
+    /// position truth for an audio-less session — its clock is the
+    /// system monotonic, so `now()` there extrapolates wall elapsed,
+    /// never a media fact.
+    last_presented: Option<(GenerationId, i64)>,
     /// Frames handed to the renderer (presents + repeats).
     pub presented: u64,
     /// Frames the scheduler refused (window full / unschedulable) —
     /// observable, never silent.
     pub refused: u64,
+}
+
+/// A [`Presenter`] seam that records the last request the renderer
+/// took — the latch above is written exactly when a frame really
+/// reaches the screen, through the queue's drain (batches included)
+/// and the direct-render path alike (F3, issue #16).
+struct LatchingPresenter<'a> {
+    renderer: &'a mut Renderer,
+    latch: &'a mut Option<(GenerationId, i64)>,
+}
+
+impl Presenter for LatchingPresenter<'_> {
+    fn present(
+        &mut self,
+        request: &PresentRequest,
+    ) -> Result<video_engine::sink::PresentInfo, EngineError> {
+        let info = self.renderer.present(request)?;
+        *self.latch = Some((request.generation, request.when.ticks));
+        Ok(info)
+    }
 }
 
 impl VideoLimb {
@@ -668,7 +700,12 @@ impl VideoLimb {
                 return Ok(());
             }
         }
-        let delivered = match self.queue.drain_to(&mut self.renderer) {
+        let (renderer, latch, queue) = (
+            &mut self.renderer,
+            &mut self.last_presented,
+            &mut self.queue,
+        );
+        let delivered = match queue.drain_to(&mut LatchingPresenter { renderer, latch }) {
             Ok(count) => count,
             Err(error) => {
                 // The delivered-before-failure count is the queue's own
@@ -684,6 +721,7 @@ impl VideoLimb {
 
     fn render_request(&mut self, request: PresentRequest) -> Result<(), EngineError> {
         self.renderer.present(&request)?;
+        self.last_presented = Some((request.generation, request.when.ticks));
         self.presented = self.presented.saturating_add(1);
         Ok(())
     }
@@ -716,6 +754,19 @@ impl VideoLimb {
     #[must_use]
     pub fn scheduler_stats(&self) -> video_engine::SchedulerStats {
         self.scheduler.stats()
+    }
+
+    /// The last presented frame's slot, in nanoseconds — the
+    /// deterministic position latch for an audio-less session
+    /// (F3, issue #16). `None` when nothing has presented under the
+    /// **live** (clock-published) generation yet — nothing ever
+    /// presented, or a seek just minted a new generation and the
+    /// pre-seek latch is stale (the anchor is the truth until the
+    /// next frame presents).
+    #[must_use]
+    pub fn last_presented_ns(&self) -> Option<i64> {
+        let (generation, slot_ns) = self.last_presented?;
+        (generation == self.clock.snapshot().generation).then_some(slot_ns)
     }
 
     /// The renderer's staging measurements (frames, bytes, copies).
@@ -1025,6 +1076,20 @@ impl CliFrameConsumer {
     pub fn take_video_error(&self) -> Option<EngineError> {
         self.lock().video_error.take()
     }
+
+    /// The presentation latch (F3, issue #16): the last frame the
+    /// video scheduler presented under the live generation, in
+    /// nanoseconds — `None` while nothing has presented. The
+    /// deterministic position truth for audio-less sessions (their
+    /// clock is the system monotonic; `now()` there is wall-elapsed,
+    /// never a media fact).
+    #[must_use]
+    pub fn last_presented_ns(&self) -> Option<i64> {
+        self.lock()
+            .video
+            .as_ref()
+            .and_then(VideoLimb::last_presented_ns)
+    }
 }
 
 impl FrameConsumer for CliFrameConsumer {
@@ -1119,6 +1184,8 @@ fn accept_video(
             ),
             queue,
             renderer,
+            clock: Arc::clone(clock),
+            last_presented: None,
             presented: 0,
             refused: 0,
         });

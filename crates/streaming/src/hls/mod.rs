@@ -13,9 +13,19 @@
 //!   demand-driven reload under a stalled-request budget, `ENDLIST`
 //!   termination, typed live-timeout / lost-window refusals, and the
 //!   same recorded-discontinuity contract.
+//! * `master` (cards 6.B2a/6.B2b) — **master playlists + variant
+//!   switching**: the variant ladder selected by a bandwidth cap,
+//!   and an adaptive session that switches rungs at segment
+//!   boundaries under a hysteresis band (timeline continuity via
+//!   absolute media sequence; seams recorded as discontinuities).
+//! * `timestamp_map` (card 6.B3) — **`#EXT-X-TIMESTAMP-MAP`**: the
+//!   PTS↔wallclock anchor parsed from the media playlist (exact
+//!   across the 33-bit PTS wraparound) and applied to the live
+//!   session's live-edge wallclock derivation.
 //!
-//! Later cards land here on top: master playlists/variant selection
-//! (6.B2a), records + conformance (6.B3).
+//! Later cards land here on top: records + conformance (6.B3).
 
 pub mod live;
+pub mod master;
 pub mod media;
+pub mod timestamp_map;

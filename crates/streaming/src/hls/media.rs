@@ -88,6 +88,7 @@ use plugin_api::{SeekOrigin, SourcePosition, SourceStream};
 
 use crate::error::NetworkError;
 use crate::fetch::{ByteRange, DEFAULT_RESPONSE_LIMIT, HttpFetch, HttpRequest};
+use crate::hls::timestamp_map::TimestampMap;
 
 /// Default retention budget for the seekable prefix: 64 MiB,
 /// mirroring the ranged resource's window default
@@ -620,6 +621,12 @@ fn content_range_total(value: Option<&str>) -> Option<u64> {
     total.parse::<u64>().ok()
 }
 
+/// The `#EXT-X-TIMESTAMP-MAP:` tag prefix (card 6.B3): parsed from
+/// the raw playlist body by [`crate::hls::timestamp_map`] — the
+/// shared grammar tolerates it as an unknown tag, so the live
+/// session's mapping is extracted from the text it already holds.
+pub(super) const TAG_TIMESTAMP_MAP: &str = "#EXT-X-TIMESTAMP-MAP:";
+
 /// Map the playlists crate's typed refusals into the engine taxonomy
 /// (each cause keeps its own dotted code so tests and UI copy can
 /// match on vocabulary, not Display text).
@@ -631,6 +638,9 @@ pub(super) fn parse_media_playlist_typed(
         let code = match &err {
             HlsPlaylistError::NotHls => "streaming.hls.not-hls",
             HlsPlaylistError::MasterPlaylist => "streaming.hls.master-playlist",
+            // Unreachable from the media parser (it never emits this
+            // variant) but mapped honestly for exhaustiveness.
+            HlsPlaylistError::MediaPlaylist => "streaming.hls.media-playlist",
             HlsPlaylistError::BadTagValue { .. } => "streaming.hls.bad-tag-value",
             HlsPlaylistError::Parse { .. } => "streaming.hls.parse-failed",
         };
@@ -663,7 +673,13 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
         | NetworkError::TooManyRedirects { .. }
         | NetworkError::RedirectLoop { .. }
         | NetworkError::CrossHostRedirect { .. }
+        | NetworkError::CrossSchemeRedirect { .. }
         | NetworkError::HttpStatus { .. } => NetworkCause::ConnectionLost,
+        // A superseded fetch (6.D2 generation bump): mapped as
+        // lost-connection weather so the caller's retry policy
+        // re-issues under the fresh generation (the ranged resource's
+        // identical decision).
+        NetworkError::Cancelled { .. } => NetworkCause::ConnectionLost,
         NetworkError::ResponseTooLarge { limit, actual } => {
             return mint(
                 ErrorKind::ResourceLimit {
@@ -677,7 +693,8 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
         NetworkError::UnsupportedScheme { .. }
         | NetworkError::ProtocolViolation { .. }
         | NetworkError::InvalidContentRange
-        | NetworkError::RangeNotSatisfiable => {
+        | NetworkError::RangeNotSatisfiable
+        | NetworkError::AuthFailed { .. } => {
             return refuse("streaming.hls.fetch-refused");
         }
         NetworkError::Io { .. } => NetworkCause::ConnectionLost,
@@ -688,13 +705,15 @@ pub(super) fn map_fetch_err(err: NetworkError) -> EngineError {
 /// Fetch and type one media playlist (shared by the VOD and live
 /// sessions, 6.B1b's extraction of the identical open/reload
 /// prelude): one budgeted GET, the success check, the UTF-8 check,
-/// and the typed model. Returns the model plus the response body's
-/// byte count — the caller folds both into its own stats accounting.
+/// and the typed model. Returns the model, the `X-TIMESTAMP-MAP`
+/// carried by this playlist body (6.B3; `None` when absent or
+/// unparseable — never fatal), and the response body's byte count —
+/// the caller folds all into its own stats accounting.
 pub(super) fn fetch_playlist_model(
     fetch: &Arc<dyn HttpFetch>,
     url: &str,
     response_limit: u64,
-) -> Result<(MediaPlaylist, u64), EngineError> {
+) -> Result<(MediaPlaylist, Option<TimestampMap>, u64), EngineError> {
     let request = HttpRequest::get(url.to_owned()).with_response_limit(response_limit);
     let body = match fetch.fetch(request) {
         Ok(resp) if resp.is_success() => resp.body,
@@ -712,7 +731,8 @@ pub(super) fn fetch_playlist_model(
     let text = std::str::from_utf8(&body)
         .map_err(|_| playlist_corrupt("streaming.hls.playlist-not-utf8"))?;
     let (model, _warnings) = parse_media_playlist_typed(url, text)?;
-    Ok((model, bytes))
+    let timestamp_map = TimestampMap::from_playlist_text(text);
+    Ok((model, timestamp_map, bytes))
 }
 
 #[cfg(test)]
@@ -797,7 +817,7 @@ mod tests {
             ("/seg0.ts", b"AAAA"),
             ("/seg1.ts", b"BBBBBB"),
         ]);
-        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default())
+        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         {
             Ok(s) => s,
             Err(e) => unreachable!("VOD must open: {e}"),
@@ -833,6 +853,7 @@ mod tests {
     fn b1b_shapes_refuse_typed_with_their_codes() {
         fn code_for(playlist: &str) -> String {
             let fetch = router(&[("/pl.m3u8", playlist.as_bytes()), ("/s.ts", b"x")]);
+            // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) {
                 Ok(_) => unreachable!("shape must refuse: {playlist:?}"),
                 Err(e) => e.context.code.clone(),
@@ -893,7 +914,7 @@ mod tests {
             ("/seg0.ts", b"AAAA"),
             ("/seg1.ts", b"BBBBBB"),
         ]);
-        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default())
+        let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         {
             Ok(s) => s,
             Err(e) => unreachable!("a discontinuity VOD must open (B1b): {e}"),
@@ -933,6 +954,7 @@ mod tests {
     #[test]
     fn missing_segment_fails_typed_at_open() {
         let fetch = router(&[("/pl.m3u8", PLAIN_VOD.as_bytes()), ("/seg0.ts", b"AAAA")]);
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let err = match open_vod(fetch, "http://unit.test/pl.m3u8", HlsVodConfig::default()) {
             Ok(_) => unreachable!("seg1 is a 404 — the size probe must fail the open"),
             Err(e) => e,
@@ -964,6 +986,7 @@ mod tests {
             segment_response_limit: 8, // seg1 is 10 bytes: over budget
             max_retained_bytes: 1024,
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let err = match open_vod(fetch, "http://unit.test/pl.m3u8", config) {
             Ok(_) => unreachable!("seg1 is over budget — the probe must fail the open"),
             Err(e) => e,
@@ -990,6 +1013,7 @@ mod tests {
             segment_response_limit: 1024,
             max_retained_bytes: 8, // seg0+seg1 (10) overflow the budget
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let mut stream = match open_vod(fetch, "http://unit.test/pl.m3u8", config) {
             Ok(s) => s,
             Err(e) => unreachable!("open: {e}"),
@@ -1092,6 +1116,7 @@ mod tests {
             segment_response_limit: 0,
             ..HlsVodConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_vod(fetch.clone(), "http://unit.test/pl.m3u8", zero) else {
             unreachable!("zero budget must refuse");
         };
@@ -1100,6 +1125,7 @@ mod tests {
             max_retained_bytes: MAX_RETAINED_BYTES + 1,
             ..HlsVodConfig::default()
         };
+        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         let Err(err) = open_vod(fetch, "http://unit.test/pl.m3u8", over) else {
             unreachable!("over-ceiling retention must refuse");
         };

@@ -12,12 +12,14 @@
 //! |---|---|---|
 //! | `SOAK_MINUTES` | `2` (the CI-short default) | soak duration in **real** minutes (f64 — fractional values legal for smoke runs) |
 //! | `SOAK_SAMPLE_MS` | `1000` | the fixed memory-sampling cadence (ms) |
+//! | `SOAK_LEAK_MB_PER_H` | `50` ([`CEILING_MB_PER_H`]) | the **asserted** live-bytes slope ceiling (MB/h) — the nightly tightens it to the 5 MB/h design target |
 //! | `SOAK_REPORT` | (unset) | write the full markdown report to this path |
 //!
 //! The nightly tier invocation is therefore:
-//! `SOAK_MINUTES=240 cargo test -p playback-engine --test soak --release`
-//! (wiring a scheduled CI job around it is a Lead/handoff item — the
-//! workflow file is not this card's owned surface).
+//! `SOAK_MINUTES=240 SOAK_LEAK_MB_PER_H=5 cargo test -p playback-engine --test soak --release`
+//! — wired as the scheduled job `.github/workflows/soak-nightly.yml`
+//! (issue #18; its 5 MB/h ceiling is `[PROPOSAL]` until the first
+//! real 4 h measurement says otherwise).
 //!
 //! # The measurement discipline
 //!
@@ -31,9 +33,10 @@
 //!   (`/proc/self/status`; kernel truth including arenas).
 //! - **The assertion** (the card's instruction): the measured-window
 //!   live-bytes slope must stay under a GENEROUS ceiling
-//!   ([`CEILING_MB_PER_H`], 50 MB/h) so CI catches gross leaks without
-//!   flaking; the 5 MB/h figure is the design TARGET `[PROPOSAL]`,
-//!   reported honestly, never asserted.
+//!   ([`CEILING_MB_PER_H`], 50 MB/h unless `SOAK_LEAK_MB_PER_H`
+//!   tightens it) so CI catches gross leaks without flaking; the
+//!   nightly's 5 MB/h figure is the design TARGET `[PROPOSAL]`,
+//!   asserted there only after a real measurement blesses it.
 //! - **Liveness is asserted** (D-6): cycles must complete, ops must
 //!   actually run (skip rates bounded), frames must decode — a soak
 //!   that skips its ops is a ritual, not a measurement.
@@ -72,8 +75,9 @@ fn live_bytes() -> isize {
     ALLOC.state().snapshot().live_bytes
 }
 
-/// The generous CI ceiling (MB/h): gross leaks fail, noise does not.
-/// The card's 5 MB/h target `[PROPOSAL]` is REPORTED, not asserted.
+/// The generous default ceiling (MB/h): gross leaks fail, noise does
+/// not. The nightly tightens it via `SOAK_LEAK_MB_PER_H` toward the
+/// card's 5 MB/h target `[PROPOSAL until first real measurement]`.
 const CEILING_MB_PER_H: f64 = 50.0;
 /// The warmup fraction of the run.
 const WARMUP_FRACTION: f64 = 0.15;
@@ -131,9 +135,36 @@ fn soak_minutes() -> f64 {
     parse_minutes(std::env::var("SOAK_MINUTES").ok().as_deref()).must()
 }
 
+/// Parse the asserted leak ceiling (MB/h). `None` (unset) is the
+/// generous default; a set-but-invalid value refuses (the
+/// `SOAK_MINUTES` discipline — garbage never silently becomes 50).
+fn parse_leak_mb_per_h(value: Option<&str>) -> Result<f64, String> {
+    let Some(text) = value else {
+        return Ok(CEILING_MB_PER_H);
+    };
+    let mb: f64 = text
+        .trim()
+        .parse()
+        .map_err(|_| format!("SOAK_LEAK_MB_PER_H is not a number: {text:?}"))?;
+    if !(0.0..=100_000.0).contains(&mb) {
+        return Err(format!(
+            "SOAK_LEAK_MB_PER_H={mb} is outside (0, 100000]; refusing"
+        ));
+    }
+    if mb <= 0.0 {
+        return Err(format!("SOAK_LEAK_MB_PER_H={mb} must be positive"));
+    }
+    Ok(mb)
+}
+
 /// The configured sample cadence (env `SOAK_SAMPLE_MS`).
 fn soak_sample_ms() -> u64 {
     parse_sample_ms(std::env::var("SOAK_SAMPLE_MS").ok().as_deref()).must()
+}
+
+/// The configured leak ceiling (env `SOAK_LEAK_MB_PER_H`).
+fn leak_mb_per_h() -> f64 {
+    parse_leak_mb_per_h(std::env::var("SOAK_LEAK_MB_PER_H").ok().as_deref()).must()
 }
 
 /// The optional report path (env `SOAK_REPORT`).
@@ -158,6 +189,7 @@ fn soak_loops_stay_memory_bounded() {
     let _serial = serialize_tests();
     let minutes = soak_minutes();
     let sample_ms = soak_sample_ms();
+    let ceiling = leak_mb_per_h();
     let duration = Duration::from_secs_f64(minutes * 60.0);
     let warmup = Duration::from_secs_f64(
         (duration.as_secs_f64() * WARMUP_FRACTION)
@@ -277,10 +309,10 @@ fn soak_loops_stay_memory_bounded() {
     if let Some(slope) = live_slope {
         let mb_per_h = slope * 3600.0 / 1e6;
         assert!(
-            mb_per_h < CEILING_MB_PER_H,
+            mb_per_h < ceiling,
             "soak bounded-memory: measured-window live_bytes slope is {slope:.1} B/s = \
-             {mb_per_h:.3} MB/h (EXTRAPOLATION from a {:.1} s window), above the generous \
-             {CEILING_MB_PER_H:.0} MB/h CI ceiling — a leak the soak must name (see the \
+             {mb_per_h:.3} MB/h (EXTRAPOLATION from a {:.1} s window), above the configured \
+             {ceiling:.0} MB/h ceiling (SOAK_LEAK_MB_PER_H) — a leak the soak must name (see the \
              triage: {})",
             measured_window_s,
             triage_summary(&phases)
@@ -297,7 +329,7 @@ fn soak_loops_stay_memory_bounded() {
         samples,
         live_slope_b_per_s: live_slope,
         rss_slope_kb_per_s: rss_slope,
-        ceiling_mb_per_h: CEILING_MB_PER_H,
+        ceiling_mb_per_h: ceiling,
         counts,
         phases,
         frames_delivered: stats.frames_delivered,
@@ -368,6 +400,27 @@ mod tests {
             parse_minutes(Some("20000")).is_err(),
             "beyond a week refuses"
         );
+    }
+
+    #[test]
+    fn leak_mb_per_h_default_and_valid_shapes() {
+        let _serial = serialize_tests();
+        assert_eq!(
+            parse_leak_mb_per_h(None).must(),
+            50.0,
+            "unset = the generous default"
+        );
+        assert_eq!(
+            parse_leak_mb_per_h(Some("5")).must(),
+            5.0,
+            "the nightly target [PROPOSAL]"
+        );
+        assert!(
+            parse_leak_mb_per_h(Some("bogus")).is_err(),
+            "garbage refuses, never defaults"
+        );
+        assert!(parse_leak_mb_per_h(Some("0")).is_err(), "zero refuses");
+        assert!(parse_leak_mb_per_h(Some("-1")).is_err(), "negative refuses");
     }
 
     #[test]

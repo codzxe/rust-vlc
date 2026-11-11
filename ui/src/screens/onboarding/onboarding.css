@@ -23,6 +23,7 @@
   position: relative;
   display: grid;
   grid-template-rows: auto 1fr auto;
+
   /* Fits the FIRST PAINT exactly: the app-wide 8px body margins (no global
    * reset exists yet) sit outside this box, so a bare 100vh stage always
    * spilled 16px into a phantom scroll that crowded the bottom strip
@@ -33,6 +34,7 @@
    * locale) still grows the grid and scrolls honestly (§2.7). */
   min-height: calc(100vh - 16px);
   min-height: calc(100dvh - 16px);
+
   /* Safe padding: ≥24px below the keycap strip so no label ever touches
    * the viewport edge, whatever the window height (36px also absorbs the
    * app-wide 8px body margins that currently inset the whole stage). */
@@ -41,12 +43,15 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-primary);
+
   /* Transparent on purpose: the vivid sunset IS the background. */
   background: transparent;
 }
 
 /* ------------------------------------------------------------------ */
+
 /* The sun — sky ornament, always BEHIND the content rows              */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__sun {
@@ -88,7 +93,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Step indicator — caption + numbered keycap chips, top-left          */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__stage-meta {
@@ -98,12 +105,14 @@
   gap: calc(var(--space-grid) * 1.5);
   justify-self: start;
   padding-bottom: calc(var(--space-grid) * 1);
+
   /* note-ink flips with the mode: cream on the dark sunset, ink on the dawn. */
   color: var(--color-note-ink);
 }
 
 .onboarding__stepcount {
   margin: 0;
+
   /* 12px label floor (brief §2.9) — the caption token (11px) is a notch
    * small for the reference screen's indicator. */
   font-size: 12px;
@@ -118,6 +127,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
+
   /* Scrapbook tilt — the same craft cue as the note card itself. */
   rotate: -1.2deg;
 }
@@ -162,7 +172,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* The sticky-note card                                                */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__note-wrap {
@@ -173,6 +185,7 @@
   justify-content: center;
   width: 100%;
   min-height: 0;
+
   /* Optical center (~45% of the stage): the extra bottom padding lifts the
    * card above the row's true middle, rebalancing the scene away from the
    * top-heavy v1 composition. */
@@ -201,6 +214,7 @@
   display: flex;
   flex-direction: column;
   gap: calc(var(--space-grid) * 2);
+
   /* Keeps card geometry stable across the lighter hero steps — sized so
    * the full scene (indicator + note + keycap strip) fits a 1024×768
    * window without scrolling. */
@@ -210,6 +224,7 @@
 .onboarding__step--center {
   align-items: center;
   text-align: center;
+
   /* Hero steps carry little content, so the step's stable min-height leaves
    * a tall gap between the copy block and the footer rule. Centering the
    * block on the cross of the step turns that gap into symmetric breathing
@@ -238,7 +253,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Privacy step — note lines, not boxes                                */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__privacy-list {
@@ -294,7 +311,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Appearance step — sticky swatches + sticker dots                    */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__theme-cards {
@@ -352,14 +371,19 @@
   border-radius: 2px;
 }
 
+/* stylelint-disable color-named -- art-direction: the light-theme swatch deliberately depicts raw paper (tape ink toward white); no swatch token exists by design [PROPOSAL in stylelint.config.js] */
 .onboarding__theme-card--light .onboarding__theme-swatch {
   background: color-mix(in srgb, var(--color-tape) 45%, white);
 }
+/* stylelint-enable color-named */
 
+/* stylelint-disable color-named -- art-direction: the dark-theme swatch deliberately depicts raw night (tape edge toward black); no swatch token exists by design [PROPOSAL in stylelint.config.js] */
 .onboarding__theme-card--dark .onboarding__theme-swatch {
   background: color-mix(in srgb, var(--color-tape-edge) 18%, black);
 }
+/* stylelint-enable color-named */
 
+/* stylelint-disable color-named -- art-direction: the system swatch halves the light/dark depictions above; no swatch tokens exist by design [PROPOSAL in stylelint.config.js] */
 .onboarding__theme-card--system .onboarding__theme-swatch {
   background: linear-gradient(
     135deg,
@@ -367,6 +391,7 @@
     color-mix(in srgb, var(--color-tape-edge) 18%, black) 50%
   );
 }
+/* stylelint-enable color-named */
 
 .onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch {
   rotate: 0deg;
@@ -412,7 +437,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Shortcuts step — the real-keymap tour                               */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__shortcut-list {
@@ -463,8 +490,11 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Footer actions — Back (ghost) · Skip (ghost) · Next/Get started     */
+
 /* (gold pill). One row, one height, one baseline — no lone rotations.  */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__note .onboarding__rule {
@@ -524,7 +554,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Ambient keycap strip — on the gradient, bottom center               */
+
 /* ------------------------------------------------------------------ */
 
 .onboarding__keys {
@@ -534,6 +566,7 @@
   justify-content: center;
   gap: calc(var(--space-grid) * 6);
   padding-top: calc(var(--space-grid) * 4);
+
   /* Subtle by scale and placement, not by transparency: opacity on gradient
    * zones would risk the AA contrast floor for the tiny labels. */
 }
@@ -560,7 +593,9 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Short viewports (≤ 800px tall, e.g. 1024×768)                        */
+
 /* ------------------------------------------------------------------ */
 
 /* The shortcuts tour is the tallest step; at 768px of stage height its six
@@ -569,7 +604,7 @@
  * whole scene inside the first paint — caps stay ≥13px and labels ≥12px
  * (§2.9 floors hold), the strip keeps its ≥24px safe padding, and taller
  * windows keep the airy 1440×900 spacing untouched. */
-@media (max-height: 800px) {
+@media (height <= 800px) {
   .onboarding__note-wrap {
     padding-block: 0 clamp(24px, 4vh, 48px);
   }
@@ -598,10 +633,12 @@
 }
 
 /* ------------------------------------------------------------------ */
+
 /* Small viewports                                                     */
+
 /* ------------------------------------------------------------------ */
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
   .onboarding {
     padding: calc(var(--space-grid) * 5) calc(var(--space-grid) * 4)
       calc(var(--space-grid) * 7);

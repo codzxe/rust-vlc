@@ -70,9 +70,11 @@ fn mutated_and_truncated_inputs_never_panic() {
         fuzz_codec_vorbis(&pristine);
     }
     // The real corpus row when present (skip-with-msg otherwise).
+    let mut corpus_lane = false;
     if let Some(root) = corpus_dir() {
         let path = root.join("media/0085-audio-only.ogg");
         if path.is_file() {
+            corpus_lane = true;
             let data = std::fs::read(&path).must();
             let mut rng = Lcg(0x0085);
             for _ in 0..40 {
@@ -89,7 +91,13 @@ fn mutated_and_truncated_inputs_never_panic() {
     } else {
         eprintln!("corpus: LUMEN_CORPUS unset and /tmp/my-project/corpus-v4 absent — SKIP");
     }
-    assert_eq!(mutants, 280, "60 mutants x 4 fixtures + 40 corpus mutants");
+    // 60 mutants x 4 fixtures, + 40 corpus mutants when the corpus lane
+    // is runnable (the skip-with-msg path documented above).
+    assert_eq!(
+        mutants,
+        240 + usize::from(corpus_lane) * 40,
+        "60 mutants x 4 fixtures + 40 corpus mutants (corpus lane run: {corpus_lane})"
+    );
     assert_eq!(truncations, 80, "20 truncations x 4 fixtures");
     eprintln!(
         "vorbis fuzz-lite: {mutants} mutants + {truncations} truncations survived (no panic, no hang)"

@@ -106,3 +106,36 @@ candidate), `veloster-prores`/`veloce-prores` soak + conformance,
 unless doc 11 changes the LGPL posture. Any admission is a Phase-6+
 card with differential vs VLC + fuzz (`fuzz_codec_prores` /
 `fuzz_codec_dnxhd` per doc 04 §4.1 pattern).
+
+---
+
+## Addendum (2026-11-10) — status is stale for the DNxHD half: the matrix row is now partial (W24-R7 finding NEW-2)
+
+Post-review correction (append-only — everything above is the
+2026-10-24 authoring-date record and is left as written):
+
+- **DNxHD/HR: the "Status: deferred (later)" line above is
+  superseded for the DNxHD half.** On **2026-11-09** the issue #7
+  admissions wave (W16-EE) landed the admission this record named as
+  its lead candidate: `filmcraft-dnx = { version = "=0.9.0",
+  default-features = false }` is pinned in `crates/codecs/Cargo.toml`
+  (cards **6.M-dnx + 6.VTA-DNX-RATIFY**, the Lead-ratified ±2-LSB
+  tolerance class), decode glue lives at `crates/codecs/src/video/dnx/**`,
+  and the matrix row `codec-video-prores-dnxhd` in
+  `docs/feature-matrix.toml` is now **partial ×3**
+  (windows/linux/macos `partial`, web `not_started`). Current
+  evidence: the dependency record
+  `docs/dependencies/records/filmcraft-dnx-0.9.0.md` **+ its
+  2026-11-09 admission addendum** (in-tree differential:
+  `dnx_differential` 6/6 pass in the codecs suite, 643 tests / 624
+  pass / 0 fail) and the matrix row's `evidence` field.
+- **ProRes: NOT implemented — the record's deferred verdict stands
+  for the ProRes half.** Re-verified 2026-11-10: `rg -li prores
+  crates/codecs/` → zero hits (no ProRes code, no ProRes record);
+  the §Evidence candidates (`oxideav-prores`, `veloster-prores`,
+  `veloce-prores`) remain unmeasured, so this record's evidence base
+  is still the future ProRes admission card's starting point.
+- The row's honest state is therefore "DNxHD implemented / ProRes
+  not" (matrix `notes`, issue #7 flip) — one row, two halves, hence
+  `partial`. The §Limits "not_started ×4" line above is the
+  authoring-date matrix state, superseded as recorded here.

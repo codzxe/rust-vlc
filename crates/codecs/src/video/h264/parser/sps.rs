@@ -361,6 +361,28 @@ impl SeqParameterSet {
         Some((w, h))
     }
 
+    /// `MaxFrameNum = 2^(log2_max_frame_num_minus4 + 4)` (§7.4.3) —
+    /// the `frame_num` wrap modulus. The parser bounds the exponent
+    /// to 12, so the shift is ≤ 16 and the value ≤ 65536 (always in
+    /// `u32` range for a parsed SPS).
+    ///
+    /// 7.B1 wiring (task 7.w23a): the VA-API DPB/POC reconstruction
+    /// (`hw/vaapi/session.rs`) consumes this — pure derivation, kept
+    /// beside the field it derives from.
+    #[must_use = "pure derivation"]
+    pub fn max_frame_num(&self) -> u32 {
+        1u32 << (u32::from(self.log2_max_frame_num_minus4) + 4)
+    }
+
+    /// `MaxPicOrderCntLsb = 2^(log2_max_pic_order_cnt_lsb_minus4 + 4)`
+    /// (§7.4.3) — the POC-LSB wrap modulus for `pic_order_cnt_type ==
+    /// 0` streams. Non-type-0 SPSs carry no exponent (`None` → the
+    /// minimum modulus 16, unused by those streams' POC arithmetic).
+    #[must_use = "pure derivation"]
+    pub fn max_pic_order_cnt_lsb(&self) -> u32 {
+        1u32 << (u32::from(self.log2_max_pic_order_cnt_lsb_minus4.unwrap_or(0)) + 4)
+    }
+
     /// Visible (post-cropping) size — the width/height a container
     /// and ffprobe report. `None` when crop offsets exceed the coded
     /// size or arithmetic overflows (corruption, not a feature).

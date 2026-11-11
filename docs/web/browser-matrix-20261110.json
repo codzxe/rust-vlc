@@ -1,0 +1,652 @@
+{
+  "schema": "lumen.web.browser-matrix/1",
+  "generated": "2026-11-11T03:13:30.976Z",
+  "git": {
+    "commit": "3755dc350213f71b2031f50225841ece9f773a81",
+    "branch": "w24/a",
+    "dirty": true
+  },
+  "capture": {
+    "commit": "3755dc350213f71b2031f50225841ece9f773a81",
+    "branch": "w24/a",
+    "recorded": "2026-11-11T03:13:30.976Z",
+    "note": "Filled below from this run's own generated/git values, so the capture facts survive any later --restamp provenance regeneration."
+  },
+  "tooling": {
+    "node": "v24.22.2",
+    "harness": "ui/e2e/web (card 7.I1)",
+    "chromiumExecutable": "/home/z/.agent-browser/browsers/chrome-157.0.8103.50/chrome",
+    "chromiumLaunchArgs": [
+      "--no-sandbox",
+      "--disable-dev-shm-usage"
+    ]
+  },
+  "artifact": {
+    "path": "target/wasm32-unknown-unknown/release/lumen_web.wasm",
+    "profile": "release",
+    "bytes": 1294311,
+    "sha256": "4a0f33831d6411dfef20b13925bb82a2f658d79c843dd1ec1ebfab78ca478d87"
+  },
+  "fixture": {
+    "path": "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
+    "bytes": 425516
+  },
+  "lanes": [
+    {
+      "browser": "chromium",
+      "evidence": "playwright-run",
+      "playwrightVersion": "1.64.1",
+      "modes": [
+        {
+          "browser": "chromium",
+          "browserVersion": "157.0.8103.50",
+          "evidence": "playwright-run",
+          "mode": "isolation-off",
+          "coopCoep": false,
+          "crossOriginIsolated": false,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+          "wasmResponses": [
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5187/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            }
+          ],
+          "suite": {
+            "scenarios": [
+              {
+                "name": "boot-handshake",
+                "category": "capability",
+                "status": "pass",
+                "ms": 57,
+                "evidence": {
+                  "engineVersion": "0.1.0",
+                  "catalogVersion": "1",
+                  "features": [
+                    "first-vertical:avi-mjpeg-pcm",
+                    "audio.null-device",
+                    "video.headless-counter-presenter",
+                    "scheduler.cooperative-pump"
+                  ],
+                  "threading": "single",
+                  "renderer": "webgl2",
+                  "audioOutput": "null device (the headless sample-counter clock; the AudioWorklet lane is browser [VERIFY], card 7.I1)",
+                  "decoders": [],
+                  "blockedRows": [
+                    "rtsp-rtp-udp-access",
+                    "optical-discs",
+                    "dvb-capture-hardware",
+                    "capture-getusermedia",
+                    "hardware-decode",
+                    "local-filesystem",
+                    "http-streaming",
+                    "canvas-render-surface",
+                    "audioworklet-output",
+                    "builtin-software-decoders"
+                  ]
+                }
+              },
+              {
+                "name": "renderer-ladder-consistency",
+                "category": "capability",
+                "status": "pass",
+                "ms": 29,
+                "evidence": {
+                  "probed": {
+                    "webgpuApi": true,
+                    "webgpuAdapter": false,
+                    "webgl2Context": true
+                  },
+                  "activeBackend": "webgl2"
+                }
+              },
+              {
+                "name": "open-play-pause-stop",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 149,
+                "error": "open must be class-A accepted, got {\"error\":{\"stage\":\"decode\",\"code\":\"unsupported\",\"message\":\"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's external engines do not build for wasm32-unknown-unknown) — the typed refusal until the crate splits (Lead decision, see the capability snapshot's builtin-software-decoders row)\",\"details\":{\"code\":\"web.decoders_absent\"}}}"
+              },
+              {
+                "name": "play-to-end",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 30135,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "media-info-and-tracks",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 30163,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "open-rtsp-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 42,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "rtsp-rtp-udp-access"
+                }
+              },
+              {
+                "name": "open-file-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 30,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "local-filesystem"
+                }
+              },
+              {
+                "name": "open-http-pending-lane",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 40,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "http-streaming"
+                }
+              },
+              {
+                "name": "open-garbage-blob-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 36,
+                "evidence": {
+                  "stage": "probe",
+                  "code": "unsupported"
+                }
+              },
+              {
+                "name": "seek-not-served",
+                "category": "error-path",
+                "status": "fail",
+                "ms": 30150,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "unserved-config-command",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 36,
+                "evidence": {
+                  "stage": "control",
+                  "code": "unsupported-for-host"
+                }
+              },
+              {
+                "name": "event-envelope-invariants",
+                "category": "invariants",
+                "status": "fail",
+                "ms": 30138,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "idempotent-pause-echo",
+                "category": "invariants",
+                "status": "fail",
+                "ms": 30149,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "autoplay-gate-parks-and-resumes",
+                "category": "autoplay",
+                "status": "fail",
+                "ms": 30173,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "fetch-range-supported-server",
+                "category": "transport",
+                "status": "pass",
+                "ms": 7,
+                "evidence": {
+                  "status": 206,
+                  "contentRange": "bytes 0-1023/425516",
+                  "acceptRanges": "bytes"
+                }
+              },
+              {
+                "name": "fetch-range-blind-server",
+                "category": "transport",
+                "status": "pass",
+                "ms": 16,
+                "evidence": {
+                  "status": 200,
+                  "bodyBytes": 425516
+                }
+              },
+              {
+                "name": "audio-context-and-worklet",
+                "category": "transport",
+                "status": "pass",
+                "ms": 47,
+                "evidence": {
+                  "contextConstructible": true,
+                  "workletModuleLoaded": true,
+                  "contextState": "running",
+                  "sampleRate": 44100
+                }
+              }
+            ],
+            "probes": {
+              "crossOriginIsolated": false,
+              "isolationMode": "isolation-off"
+            }
+          }
+        },
+        {
+          "browser": "chromium",
+          "browserVersion": "157.0.8103.50",
+          "evidence": "playwright-run",
+          "mode": "isolation-coop-coep",
+          "coopCoep": true,
+          "crossOriginIsolated": true,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+          "wasmResponses": [
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            },
+            {
+              "url": "http://127.0.0.1:5188/lumen_web.wasm",
+              "status": 200,
+              "contentType": "application/wasm",
+              "contentLength": "1294311"
+            }
+          ],
+          "suite": {
+            "scenarios": [
+              {
+                "name": "boot-handshake",
+                "category": "capability",
+                "status": "pass",
+                "ms": 71,
+                "evidence": {
+                  "engineVersion": "0.1.0",
+                  "catalogVersion": "1",
+                  "features": [
+                    "first-vertical:avi-mjpeg-pcm",
+                    "audio.null-device",
+                    "video.headless-counter-presenter",
+                    "scheduler.cooperative-pump"
+                  ],
+                  "threading": "single",
+                  "renderer": "webgl2",
+                  "audioOutput": "null device (the headless sample-counter clock; the AudioWorklet lane is browser [VERIFY], card 7.I1)",
+                  "decoders": [],
+                  "blockedRows": [
+                    "rtsp-rtp-udp-access",
+                    "optical-discs",
+                    "dvb-capture-hardware",
+                    "capture-getusermedia",
+                    "hardware-decode",
+                    "local-filesystem",
+                    "http-streaming",
+                    "canvas-render-surface",
+                    "audioworklet-output",
+                    "builtin-software-decoders"
+                  ]
+                }
+              },
+              {
+                "name": "renderer-ladder-consistency",
+                "category": "capability",
+                "status": "pass",
+                "ms": 29,
+                "evidence": {
+                  "probed": {
+                    "webgpuApi": true,
+                    "webgpuAdapter": false,
+                    "webgl2Context": true
+                  },
+                  "activeBackend": "webgl2"
+                }
+              },
+              {
+                "name": "open-play-pause-stop",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 159,
+                "error": "open must be class-A accepted, got {\"error\":{\"stage\":\"decode\",\"code\":\"unsupported\",\"message\":\"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's external engines do not build for wasm32-unknown-unknown) — the typed refusal until the crate splits (Lead decision, see the capability snapshot's builtin-software-decoders row)\",\"details\":{\"code\":\"web.decoders_absent\"}}}"
+              },
+              {
+                "name": "play-to-end",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 30135,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "media-info-and-tracks",
+                "category": "happy-path",
+                "status": "fail",
+                "ms": 30140,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "open-rtsp-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 35,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "rtsp-rtp-udp-access"
+                }
+              },
+              {
+                "name": "open-file-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 28,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "local-filesystem"
+                }
+              },
+              {
+                "name": "open-http-pending-lane",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 40,
+                "evidence": {
+                  "stage": "input",
+                  "code": "unsupported-for-host",
+                  "capability": "http-streaming"
+                }
+              },
+              {
+                "name": "open-garbage-blob-refused",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 46,
+                "evidence": {
+                  "stage": "probe",
+                  "code": "unsupported"
+                }
+              },
+              {
+                "name": "seek-not-served",
+                "category": "error-path",
+                "status": "fail",
+                "ms": 30164,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "unserved-config-command",
+                "category": "error-path",
+                "status": "pass",
+                "ms": 36,
+                "evidence": {
+                  "stage": "control",
+                  "code": "unsupported-for-host"
+                }
+              },
+              {
+                "name": "event-envelope-invariants",
+                "category": "invariants",
+                "status": "fail",
+                "ms": 30155,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "idempotent-pause-echo",
+                "category": "invariants",
+                "status": "fail",
+                "ms": 30175,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "autoplay-gate-parks-and-resumes",
+                "category": "autoplay",
+                "status": "fail",
+                "ms": 30158,
+                "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
+              },
+              {
+                "name": "fetch-range-supported-server",
+                "category": "transport",
+                "status": "pass",
+                "ms": 7,
+                "evidence": {
+                  "status": 206,
+                  "contentRange": "bytes 0-1023/425516",
+                  "acceptRanges": "bytes"
+                }
+              },
+              {
+                "name": "fetch-range-blind-server",
+                "category": "transport",
+                "status": "pass",
+                "ms": 6,
+                "evidence": {
+                  "status": 200,
+                  "bodyBytes": 425516
+                }
+              },
+              {
+                "name": "audio-context-and-worklet",
+                "category": "transport",
+                "status": "pass",
+                "ms": 51,
+                "evidence": {
+                  "contextConstructible": true,
+                  "workletModuleLoaded": true,
+                  "contextState": "running",
+                  "sampleRate": 44100
+                }
+              }
+            ],
+            "probes": {
+              "crossOriginIsolated": true,
+              "isolationMode": "isolation-coop-coep"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "browser": "firefox",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Current Firefox desktop (BCD 2026-10-19): WASM MVP+SIMD128 yes; Wasm GC 120+/EH-final 131+; SAB 79+ isolation-gated; Atomics.waitAsync 145+; WebGPU 141+ Windows-only; WebGL2 51+; AudioWorklet 76+; WebCodecs 130+ desktop (Android no).",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set (Chrome/Edge | Firefox | Safari columns)",
+        "v1 suite needs none of SAB/WebGPU: engine core + WebGL2 floor + fetch Range — expected to pass on current Firefox desktop",
+        "renderer ladder expectation: WebGL2 active (WebGPU Windows-only per BCD; Firefox Android permanently WebGL2, doc 09 §10)"
+      ],
+      "nextStep": "Run the same Playwright suite with a real Firefox binary on a dev machine or a CI runner with browsers installed (doc 09 §8.2 scheduled tier [PROPOSAL]); record per-scenario rows into this JSON."
+    },
+    {
+      "browser": "webkit",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Playwright's WebKit ≈ Safari macOS (BCD 2026-10-19): WASM yes; GC 18.2+/EH-final 18.4+; SAB 15.2+ isolation-gated; WebGPU 26+; WebGL2 15+; AudioWorklet 14.1+; OffscreenCanvas 16.4+; rVFC 15.4+.",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set",
+        "v1 suite expected to pass on Safari 18+ desktop via the WebGL2 lane; deltas vs real Safari must be recorded (Playwright WebKit is a build, not the shipping browser)"
+      ],
+      "nextStep": "Add the weekly Playwright-WebKit smoke tier (doc 09 §8.2 [PROPOSAL]) once a machine with the WebKit build exists; real-Safari validation stays manual per release."
+    },
+    {
+      "browser": "safari",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Safari macOS (BCD 2026-10-19): WASM MVP+SIMD128 yes; Wasm GC 18.2+/EH-final 18.4+; threads+SAB 15.2+ (COOP/COEP mandatory); WebGPU 26+; WebGL2 15+; AudioWorklet 14.1+; WebCodecs 16.4+.",
+      "bcdExpectations": [
+        "doc 09 §8.1 row set",
+        "autoplay policy is gesture-gated (doc 09 §5.3): expect gestureRequired on the suspended-context path — the suite's parked/resume scenario exercises exactly that"
+      ],
+      "nextStep": "Per-release manual protocol on a real Mac (doc 09 §8.2/§11.4): fresh profile → capability probe → fixture corpus → results recorded as feature-matrix evidence."
+    },
+    {
+      "browser": "safari-ios",
+      "evidence": "not-runnable-in-sandbox",
+      "summary": "Safari iOS (BCD 2026-10-19): aligns with Safari 18.2+/26+ rows; no SAB without COOP/COEP on iOS; WebGPU iOS 26+; lower memory ceilings (doc 09 §2.4 budget must respect them); fullscreen + autoplay gesture-gated.",
+      "bcdExpectations": [
+        "doc 09 §8.1 iOS constraints note",
+        "physical-device evidence is MANDATORY for any web = verified claim touching SAB, WebGPU or autoplay (doc 09 §11.4)"
+      ],
+      "nextStep": "Physical iOS device run per release (doc 09 §8.2 manual protocol); no simulator substitute for the memory-pressure + background-throttling rows."
+    }
+  ]
+}

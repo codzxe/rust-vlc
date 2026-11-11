@@ -47,6 +47,17 @@
 # yanked = "deny": a locked crate version that crates.io has yanked fails
 # the check (doc 11 §3.2 sketch; G4 auto-issue flow per doc 10 §4.6).
 yanked = "deny"
+# Unmaintained-but-not-vulnerable advisories, each with a removal plan;
+# an entry here is a documented acceptance, not a pass-through (the
+# crate stays visible in every run via cargo-deny's ignore ledger).
+ignore = [
+    # RUSTSEC-2024-0436: `paste` 1.0.15, pulled by rav1d 1.1.0 (the
+    # pure-Rust AV1 decode path, doc 11 §2.4). Informational unmaintained
+    # advisory — no vulnerability; upstream solution is "No safe upgrade
+    # is available". Drop this entry when a paste-free rav1d release
+    # lands and Cargo.lock is bumped to it.
+    { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 via rav1d 1.1.0: unmaintained-but-functional macro helper, no fixed upstream release; drop with the next rav1d upgrade" },
+]
 
 [licenses]
 # Minimal allow set for the current lockfile (22 registry crates):
@@ -79,6 +90,23 @@ allow = [
     "ISC",
     "BSD-3-Clause",
     "CDLA-Permissive-2.0",
+    # ---- added by card W18-KK (local CI-gate verification, 2026-11-09) ----
+    # License classes of the symphonia 0.6.1 + rav1d 1.1.0 trees that the
+    # sets above did not cover (those crates were admitted after 1.E5-R
+    # froze the minimal set, and the billing-blocked cargo-deny CI job
+    # could not surface the drift; first observed in the W18-KK local
+    # verification run). Evidence: `cargo metadata --locked` license
+    # fields of every locked crate:
+    #   MPL-2.0      — symphonia 0.6.1 family: bundle-mp3, codec-aac,
+    #                  codec-alac, codec-vorbis, common, core, metadata
+    #   BSD-2-Clause — rav1d 1.1.0 (pure-Rust AV1 path, doc 11 §2.4)
+    #   CC0-1.0      — to_method 1.1.0 (rav1d dependency)
+    # Per the minimal-set posture above, these are re-added crate-by-crate
+    # now that locked crates actually need them — the doc 11 §3.2 sketch's
+    # wider list already included BSD/CC0/MPL-2.0.
+    "MPL-2.0",
+    "BSD-2-Clause",
+    "CC0-1.0",
 ]
 
 [licenses.private]

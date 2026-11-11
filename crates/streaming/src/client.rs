@@ -63,9 +63,10 @@
 //! * `Location` resolution is the port's typed `Url::join`: absolute
 //!   and root-relative references only (v0). ureq's own follower
 //!   resolves more shapes; the port's typed refusal is the contract.
-//! * Same-host scheme/port changes (e.g. an https→http hop) are
-//!   followed — `cross_host` compares hosts, not origins. Widening
-//!   that to origin equality is the 6.H1 SSRF review's call.
+//! * An https→http redirect is a typed refusal
+//!   ([`NetworkError::CrossSchemeRedirect`]), same host or not — a
+//!   TLS downgrade is the classic MITM vector (security review 6.H1
+//!   F1, fixed wave 19). Upgrades (http→https) stay followable.
 //! * 1xx final responses and non-`Location` 3xx (300, 304) surface as
 //!   `Ok` for the caller to judge — mock-client parity.
 
@@ -200,6 +201,22 @@ fn map_ureq_error(error: ureq::Error, redirect_limit: u32) -> NetworkError {
 /// `Location`-carrying redirects and surface to the caller).
 fn is_redirect(status: u16) -> bool {
     matches!(status, 301 | 302 | 303 | 307 | 308)
+}
+
+/// Whether a redirect hop would weaken the transport: the current
+/// hop is `https` and the target is `http` (the parser lowercases
+/// and only ever mints those two schemes, so this is the one
+/// downgrade shape the port can express).
+///
+/// Security review 6.H1 F1 (wave 19 fix): a TLS downgrade is the
+/// classic MITM vector, so it is refused **unconditionally** —
+/// before and independent of the cross-host check, whatever the
+/// host policy says, and with no `RedirectPolicy` opt-in (no
+/// caller has a legitimate reason to weaken its own transport).
+/// The reverse direction (http→https) is an upgrade and always
+/// followable.
+fn is_scheme_downgrade(url: &Url, next: &Url) -> bool {
+    url.scheme == "https" && next.scheme == "http"
 }
 
 /// Single-hop status classification (mock-client parity): 2xx is
@@ -341,6 +358,25 @@ impl UreqClient {
 
 impl HttpFetch for UreqClient {
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, false)
+    }
+
+    /// Challenge surfacing (card 6.E1): a final 401 is `Ok` with
+    /// its `WWW-Authenticate` header intact, so the auth layer
+    /// (`crate::auth`) can answer the challenge.
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, true)
+    }
+}
+
+impl UreqClient {
+    /// The shared fetch loop; `surface_challenge` turns the final
+    /// 401 into an `Ok` response (see `fetch_with_challenge`).
+    fn fetch_inner(
+        &self,
+        request: HttpRequest,
+        surface_challenge: bool,
+    ) -> Result<HttpResponse, NetworkError> {
         // Validate the URL through the port's typed surface first —
         // scheme and structure violations never reach the transport.
         let mut url = Url::parse(&request.url)?;
@@ -358,6 +394,9 @@ impl HttpFetch for UreqClient {
             let response = single_hop(&agent, &url, &request, drop_authorization)?;
 
             if !is_redirect(response.status) {
+                if surface_challenge && response.status == 401 {
+                    return Ok(response);
+                }
                 return classify(response);
             }
 
@@ -381,10 +420,19 @@ impl HttpFetch for UreqClient {
             }
             let next = url.join(&location)?;
 
+            // Scheme-downgrade refusal (security review 6.H1, F1 —
+            // wave 19): an https hop never follows a redirect down
+            // to http, same host or not. Checked before the
+            // cross-host gate: transport safety outranks host
+            // policy, and no policy combination may opt in.
+            if is_scheme_downgrade(&url, &next) {
+                return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
+            }
+
             // Cross-host enforcement (RedirectPolicy::cross_host):
-            // hosts compare case-insensitively; scheme/port changes
-            // on the same host are followed (6.H1 owns origin
-            // widening).
+            // hosts compare case-insensitively; a same-host port
+            // change is followed (scheme safety is settled above —
+            // downgrades refused, upgrades allowed).
             let cross_host = !next.host.eq_ignore_ascii_case(&url.host);
             if cross_host && !request.redirects.cross_host {
                 return Err(NetworkError::CrossHostRedirect { hops: followed + 1 });
@@ -409,7 +457,7 @@ impl HttpFetch for UreqClient {
 mod tests {
     use super::*;
     use crate::fetch::{ByteRange, RedirectPolicy};
-    use crate::mockhttp::{MockConfig, MockServer};
+    use crate::mockhttp::{MockClient, MockConfig, MockServer};
     use std::time::Duration;
     use testkit::{Must, assert_err};
 
@@ -437,12 +485,12 @@ mod tests {
     /// and a parsed Content-Length.
     #[test]
     fn ok_200_roundtrip() {
-        let server = spawn(MockConfig::body(b"lumen roundtrip".to_vec()));
+        let server = spawn(MockConfig::body(b"lumen roundtrip".to_vec())); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         let response = UreqClient::new()
             .fetch(HttpRequest::get(server.url("/media/one.flac")))
             .must();
         assert_eq!(response.status, 200);
-        assert_eq!(response.body, b"lumen roundtrip");
+        assert_eq!(response.body, b"lumen roundtrip"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         assert_eq!(response.header("Content-Length"), Some("15"));
         server.requests(); // server stays alive through the assertion
     }
@@ -616,6 +664,90 @@ mod tests {
         assert_eq!(response.body, b"across hosts");
         assert_eq!(origin.requests().len(), 1);
         assert_eq!(target.requests().len(), 1);
+    }
+
+    /// Security review 6.H1 F1 (wave 19): an https→http redirect is
+    /// a typed refusal, never followed — same host or not, whatever
+    /// the host policy says. A TLS downgrade is the classic MITM
+    /// vector.
+    ///
+    /// The ureq adapter itself cannot be fronted with TLS in-tree
+    /// (the mock testkit is a plaintext socket — the same honest
+    /// limit `https_activation.rs` records), so the wire-level
+    /// refusal is pinned on the testkit client, whose fetch loop is
+    /// the documented parity copy of this adapter's; the adapter's
+    /// own gate is pinned by `scheme_downgrade_gate_pins_transport_safety`.
+    #[test]
+    fn https_to_http_redirect_downgrade_is_refused_not_followed() {
+        // The "downgraded" target: plaintext http, ready to serve.
+        let target = spawn(MockConfig::body(b"downgraded bytes".to_vec()));
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some(target.url("/media/leak.flac"));
+        let origin = spawn(origin);
+        // The origin is fetched over an https-scheme URL (the testkit
+        // client transports plaintext regardless — exactly the shape
+        // that lets the Location's absolute http target express the
+        // downgrade).
+        let https_start = origin.url("/start").replacen("http://", "https://", 1); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+
+        // A permissive policy — cross-host allowed, budget 5 — must
+        // still not buy a transport downgrade.
+        let request = HttpRequest::get(https_start).with_redirects(follow_policy(5, true));
+        let error = assert_err(
+            MockClient::new().fetch(request),
+            "an https-to-http redirect must be refused, never followed",
+        );
+        match error {
+            NetworkError::CrossSchemeRedirect { hops } => assert_eq!(hops, 1),
+            other => unreachable!("wrong variant: {other:?}"),
+        }
+        assert_eq!(error.code(), "streaming.net.cross-scheme-redirect");
+        assert!(!error.is_retryable(), "a policy refusal is not weather");
+        assert_eq!(
+            origin.requests().len(),
+            1,
+            "the https origin answered exactly once"
+        );
+        assert!(
+            target.requests().is_empty(),
+            "the downgraded http target must never be contacted"
+        );
+    }
+
+    /// The production gate the redirect loop consults before every
+    /// followed hop: https→http (same host or not) is the only
+    /// refused scheme transition; upgrades and same-scheme hops
+    /// pass. Pinned separately from the wire-level test because the
+    /// ureq adapter cannot be fronted with TLS in-tree (plaintext
+    /// mock testkit — see
+    /// `https_to_http_redirect_downgrade_is_refused_not_followed`).
+    #[test]
+    fn scheme_downgrade_gate_pins_transport_safety() {
+        let https = Url::parse("https://cdn.example.org/a.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        // The exact hostile shapes from the review: `Url::join`
+        // accepts an absolute http Location against an https base.
+        let same_host_downgrade = https.join("http://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        let cross_host_downgrade = https.join("http://mirror.example.net/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        assert!(
+            is_scheme_downgrade(&https, &same_host_downgrade),
+            "a same-host https→http hop is a transport downgrade"
+        );
+        assert!(
+            is_scheme_downgrade(&https, &cross_host_downgrade),
+            "a cross-host https→http hop is a transport downgrade too"
+        );
+
+        // Everything else passes the gate: the upgrade …
+        let http = Url::parse("http://cdn.example.org/a.flac").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        let upgrade = http.join("https://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        assert!(!is_scheme_downgrade(&http, &upgrade));
+        // … same-scheme hops, both directions of scheme …
+        let https_hop = https.join("https://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        let http_hop = http.join("http://cdn.example.org/b.flac").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        assert!(!is_scheme_downgrade(&https, &https_hop));
+        assert!(!is_scheme_downgrade(&http, &http_hop));
+        // … and a plain http start can never trip an https-only rule.
+        assert!(!is_scheme_downgrade(&http, &same_host_downgrade));
     }
 
     /// A cross-host hop into a self-looping second server is a loop,
@@ -828,7 +960,7 @@ mod tests {
     #[ignore = "live network required: run with --ignored"]
     fn live_example_com_returns_200() {
         let response = UreqClient::new()
-            .fetch(HttpRequest::get("https://example.com/"))
+            .fetch(HttpRequest::get("https://example.com/")) // lumen-allow-literal: URL parse/redaction test vector — data under test
             .must();
         assert_eq!(response.status, 200);
         assert!(!response.body.is_empty());
@@ -849,7 +981,7 @@ mod tests {
     #[ignore = "live network required: run with --ignored"]
     fn live_httpbin_redirect_chain_lands_on_200() {
         let response = UreqClient::new()
-            .fetch(HttpRequest::get("https://httpbin.org/redirect/2"))
+            .fetch(HttpRequest::get("https://httpbin.org/redirect/2")) // lumen-allow-literal: opt-in live-network test (--ignored only) — a deliberate real endpoint, never a default
             .must();
         assert_eq!(response.status, 200, "two hops must land on the final body");
         assert!(!response.body.is_empty());

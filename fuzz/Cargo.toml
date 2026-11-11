@@ -49,6 +49,9 @@ codecs = { path = "../crates/codecs" }
 demux = { path = "../crates/demux" }
 subtitles = { path = "../crates/subtitles" }
 playlists = { path = "../crates/playlists" }
+# streaming (card 6.C1c): the DASH MPD target's in-crate harness
+# lives at streaming::dash::fuzz (parse + bounded 6.C1b resolution).
+streaming = { path = "../crates/streaming" }
 
 # Release-mode fuzzing keeps overflow checks: integer overflow in a
 # decoder walking attacker bytes is a finding, not noise. (cargo-fuzz
@@ -282,6 +285,36 @@ bench = false
 [[bin]]
 name = "fuzz_playlist_cue"
 path = "fuzz_targets/fuzz_playlist_cue.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_demux_mpd"
+path = "fuzz_targets/fuzz_demux_mpd.rs"
+test = false
+doc = false
+bench = false
+
+# The issue #14 (M2) network-facing targets: the HLS interpretation
+# stack over hostile playlist bytes, and the transport's response-head
+# grammar. Harness bodies: the in-crate fns each shim's first call
+# names (playlists::fuzz::fuzz_playlist_m3u /
+# streaming::mockhttp::fuzz_response_head) plus the #[path]-included
+# crates/streaming/tests/netfuzz/fuzz.rs passes (the wave agent's
+# ownership boundary — no src/ additions beyond the banked mockhttp
+# extension). Seeds: fuzz/corpus/<target>/ (real playlists fixtures +
+# authored heads).
+[[bin]]
+name = "fuzz_hls_playlist"
+path = "fuzz_targets/fuzz_hls_playlist.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_http_headers"
+path = "fuzz_targets/fuzz_http_headers.rs"
 test = false
 doc = false
 bench = false

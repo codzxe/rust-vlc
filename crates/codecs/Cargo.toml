@@ -14,9 +14,20 @@
 # historical RUSTSEC-2018-0004 advisory is outside the pinned range).
 # Exact pin per doc 11 §3.7: a bump re-triggers the record.
 #
-# `decoders` feature: v0 shipped the mjpeg module unconditionally; per-codec
-# Cargo features of doc 01 §2.5(a) arrive with the registration card (R3) —
-# flac rides the crate unconditionally for now, like pcm.
+# `decoders` feature history: v0 shipped the mjpeg module unconditionally;
+# card 7.K1 (issue #49, doc 09 §2.4's per-codec feature-gate lane) landed the
+# FIRST half of doc 01 §2.5(a)'s registration surface: every EXTERNAL decode
+# engine is now `optional = true` behind its `codec-*` Cargo feature, with
+# `default` enabling the full set so every existing consumer (native hosts,
+# the CLI, tests, fuzz) resolves the exact SAME dependency graph as before
+# this edit — the gates only ever REMOVE code, and only when a build asks
+# (`--no-default-features` / feature subsets; the wasm tree-shake builds in
+# docs/web/size-report.md are the first consumers). The IN-HOUSE decoders
+# (mjpeg, pcm, adpcm, h264, hevc, mpeg12 — zero external deps) stay
+# unconditional: their per-codec gates arrive with the registration card
+# itself (doc 01 §2.5(a) `register()`), whose registry surface is their
+# natural home [PROPOSAL]; gating them changes no dependency graph, so the
+# tree-shake signal they would add is second-order.
 
 [package]
 name = "codecs"
@@ -28,18 +39,53 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# Per-codec gates for the EXTERNAL decode engines (card 7.K1, issue #49 —
+# doc 09 §2.4: "every decoder/demuxer plugin is a Cargo feature"). `default`
+# is the full set — the pre-7.K1 unconditional graph — so nothing changes
+# for existing consumers; subsets are opt-in measurement/minimal builds.
+default = [
+    "codec-aac",
+    "codec-alac",
+    "codec-av1",
+    "codec-dnx",
+    "codec-flac",
+    "codec-mp2",
+    "codec-mp3",
+    "codec-opus",
+    "codec-vorbis",
+    "codec-vp9",
+]
+codec-aac = ["dep:symphonia-codec-aac", "dep:symphonia-core"]
+codec-alac = ["dep:symphonia-codec-alac", "dep:symphonia-core"]
+# rav1d does not compile for wasm32-unknown-unknown (39 errors, measured
+# 2026-11-10 — asm-gated core code; apps/web's target gate and
+# docs/web/size-report.md carry the honest record). The feature exists so
+# native subsets can drop it; wasm builds simply never enable it.
+codec-av1 = ["dep:rav1d"]
+codec-dnx = ["dep:filmcraft-dnx"]
+codec-flac = ["dep:claxon"]
+# Layer II rides the bundle-mp3 family engine AND mp3's sync/header glue
+# (src/audio/mp2/header.rs imports crate::audio::mp3) — one feature, one
+# engine, two decoders.
+codec-mp2 = ["codec-mp3"]
+codec-mp3 = ["dep:symphonia-bundle-mp3", "dep:symphonia-core"]
+codec-opus = ["dep:ruopus"]
+codec-vorbis = ["dep:symphonia-codec-vorbis", "dep:symphonia-core"]
+codec-vp9 = ["dep:rusty_vp9"]
+
 [dependencies]
 codec-api = { path = "../codec-api" }
 media-types = { path = "../media-types" }
-claxon = "=0.4.3"
+claxon = { version = "=0.4.3", optional = true }
 # 5.A3 (Lead pre-approval, C5): the MP3/MP2/MP3 decode engine. Purity
 # verified in docs/dependencies/records/symphonia-mp3-0.6.1.md BEFORE
 # this edit; the metadata/ID3/Xing/VBRI/seek surface stays ours.
-symphonia-bundle-mp3 = "=0.6.1"
+symphonia-bundle-mp3 = { version = "=0.6.1", optional = true }
 # Direct edge to the engine's core (same pinned version; the node is
 # already in the graph transitively — the direct edge adds NO new
 # packages, it only names the types our glue code touches).
-symphonia-core = "=0.6.1"
+symphonia-core = { version = "=0.6.1", optional = true }
 # 5.B2 (Lead pre-approval, C5): the Vorbis decode engine. Purity
 # verified in docs/dependencies/records/symphonia-vorbis-0.6.1.md BEFORE
 # this edit; the identification/comment-header parsing, granule
@@ -48,19 +94,19 @@ symphonia-core = "=0.6.1"
 # 0.6.1 train's Vorbis crate is `symphonia-codec-vorbis`; the record's
 # R1 explains. Adds 4 lock nodes: -codec-vorbis, -common, -metadata,
 # regex-lite.)
-symphonia-codec-vorbis = "=0.6.1"
+symphonia-codec-vorbis = { version = "=0.6.1", optional = true }
 # 5.C2a (Lead pre-approval, C5): the AAC-LC decode engine. Purity
 # verified in docs/dependencies/records/symphonia-aac-0.6.1.md BEFORE
 # this edit; the ADTS header parse + error taxonomy stay ours. (The
 # brief's `symphonia-bundle-aac` spelling does not exist on crates.io —
 # the record's reality check.)
-symphonia-codec-aac = "=0.6.1"
+symphonia-codec-aac = { version = "=0.6.1", optional = true }
 # 5.J3a (Lead pre-approval, C5): the ALAC decode engine. Purity
 # verified in docs/dependencies/records/symphonia-alac-0.6.1.md BEFORE
 # this edit; the ALACSpecificConfig parse + error taxonomy stay ours.
 # Adds exactly 1 lock node (log/common/core all shared with the
 # siblings — the record's R2).
-symphonia-codec-alac = "=0.6.1"
+symphonia-codec-alac = { version = "=0.6.1", optional = true }
 # 5.E1 (Lead pre-approval, C5): the AV1 decode engine — rav1d, the
 # Rust port of dav1d. Purity verified in
 # docs/dependencies/records/rav1d-1.1.0.md BEFORE this edit; the
@@ -70,7 +116,7 @@ symphonia-codec-alac = "=0.6.1"
 # The record's R3 sabotage build (CC=/nonexistent-cc) proves build.rs
 # is inert with asm off. The OBU temporal-unit framing, error
 # taxonomy and codec-api contract surface stay ours.
-rav1d = { version = "=1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+rav1d = { version = "=1.1.0", optional = true, default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
 # 6.M-opus (Lead admission, docs/dependencies/records/ruopus-0.1.2.md):
 # the Opus decode engine. Purity verified in the record BEFORE this
 # edit (pure Rust, SIMD-kernel unsafe only, no build.rs, no FFI).
@@ -82,7 +128,7 @@ rav1d = { version = "=1.1.0", default-features = false, features = ["bitdepth_8"
 # (young release line — a bump re-triggers the record). The OpusHead
 # parse/validation, pre-skip/end-trim granule arithmetic and error
 # taxonomy stay ours.
-ruopus = { version = "=0.1.2", default-features = false, features = ["std"] }
+ruopus = { version = "=0.1.2", optional = true, default-features = false, features = ["std"] }
 # 6.M-vp9 (Lead admission, docs/dependencies/records/rusty_vp9-0.1.3.md):
 # the VP9 decode engine. Purity verified in the record BEFORE this
 # edit (pure Rust, AVX2/SSE-kernel unsafe only, no build.rs, no FFI,
@@ -90,7 +136,7 @@ ruopus = { version = "=0.1.2", default-features = false, features = ["std"] }
 # `prometheus-telemetry` feature stays OFF). Exact pin per the
 # record's R8 (0.x API-churn risk — a bump re-triggers the record).
 # The error taxonomy and codec-api contract surface stay ours.
-rusty_vp9 = "=0.1.3"
+rusty_vp9 = { version = "=0.1.3", optional = true }
 # 6.M-dnx (Lead admission, docs/dependencies/records/
 # filmcraft-dnx-0.9.0.md + the 6.VTA-DNX-RATIFY tolerance): the
 # DNxHD/DNxHR (SMPTE ST 2019-1 VC-3) decode engine. Purity verified
@@ -104,7 +150,7 @@ rusty_vp9 = "=0.1.3"
 # feature change (esp. enabling `threads`) re-triggers the record
 # (doc 11 §3.7). The CBR truncation gate, output-format mapping and
 # error taxonomy stay ours.
-filmcraft-dnx = { version = "=0.9.0", default-features = false }
+filmcraft-dnx = { version = "=0.9.0", optional = true, default-features = false }
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):

@@ -3,15 +3,18 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ClientProvider } from "./client/ClientProvider";
-// Browser dev shell: the DEMO transport — a friendly simulated engine that
-// speaks the real 1.D4 wire protocol so every screen comes alive (open
-// media, playback clock, playlist, tracks). It is a simulation, badged in
-// the UI via the AppShell "Demo" chip; no audio actually plays. The
-// desktop host (apps/desktop) injects TauriTransport here instead — that
-// wiring is tracked as a separate GitHub issue. MockTransport stays
-// exported from ./client/transport for tests that want the honest
-// feature-not-exposed envelope.
-import { DemoTransport } from "./client/demo-transport";
+// App-layer transport wiring (issue #3 — the 4.H1 handoff a): ONE host
+// probe decides the transport. Inside the Lumen desktop shell the
+// webview host surface is present and the app runs on the REAL
+// TauriTransport — every command through the shell's single
+// `lumen_dispatch` command, engine events on `lumen://event`. In a
+// plain browser (dev shell, visual harness) the DemoTransport
+// simulation drives the UI instead: a friendly simulated engine that
+// speaks the real 1.D4 wire protocol, badged "Demo" in the chrome.
+// The choice is announced once via console.debug — never silent.
+// MockTransport stays exported from ./client/transport for tests that
+// want the honest feature-not-exposed envelope.
+import { selectAppTransport } from "./client/app-transport";
 import { setActiveLocale } from "./i18n/messages";
 import { ThemeProvider } from "./theme/ThemeProvider";
 // Generated semantic tokens (card 4.A2): the CSS custom-property cascade the
@@ -42,13 +45,14 @@ if (requestedLocale !== null) {
   setActiveLocale(requestedLocale);
 }
 
-// Browser dev shell wiring: the demo simulation drives the UI (see the
-// DemoTransport import note above); real hosts inject their own
-// CommandTransport at this exact seam.
+// The app-layer transport choice (see the import note above): probe the
+// host once, log the decision once, run the whole UI on the result.
+const appTransport = selectAppTransport();
+
 createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
-      <ClientProvider transport={new DemoTransport()}>
+      <ClientProvider transport={appTransport.transport}>
         <BrowserRouter>
           <App />
         </BrowserRouter>

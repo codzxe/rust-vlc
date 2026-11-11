@@ -1,0 +1,5 @@
+# Phase-7 exit gate — cargo fmt --check
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T16:56:26Z
+# Cmd: cargo fmt --check
+FMT_EXIT=0

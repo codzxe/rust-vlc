@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import type { CSSProperties, HTMLAttributes } from "react";
+import { formatSeekTime } from "./formatTime";
 import { clamp, toPercent, useSliderInteraction } from "./interaction";
 import "./slider.css";
 
@@ -38,16 +39,6 @@ export interface SeekbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "onCh
   /** Formats `aria-valuetext` (doc 08 §4.5: formatted time). */
   formatTime?: (seconds: number) => string;
 }
-
-/** Default time formatter: `M:SS` / `H:MM:SS`, negative-safe. */
-export const formatSeekTime = (seconds: number): string => {
-  const total = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
-  return `${h > 0 ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
-};
 
 /**
  * Seekbar (doc 08 §4.3, §5.2). Anatomy per design (§1.4): track 28px rx6

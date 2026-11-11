@@ -12,9 +12,17 @@ import { SettingsScreen } from "./screens/settings/SettingsScreen";
 // placeholder routes + persistent navigation (AppShell).
 import { OPEN_MEDIA_EVENT } from "./screens/open-media";
 import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
+// Discovery panel (card 7.D1, issue #42): the device-discovery surface —
+// live devices.volume-* events + the honest network-lane verdict.
+import { DiscoveryScreen } from "./screens/discovery/DiscoveryScreen";
+// Card 7.E3 (issue #44): the conversion screen — target picker limited to
+// the engine's real capability (WAV record / MP4-remux), job queue wired
+// to the command-catalog capability probe.
+import { ConvertScreen } from "./screens/convert/ConvertScreen";
 import { ShortcutsScreen } from "./screens/shortcuts/ShortcutsScreen";
 import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
+import { isDesktopShell } from "./client/app-transport";
 
 // Doc 08 §1.6 screen inventory, now fully real:
 //   * /player + /player/music + /miniplayer — the real player screen shell,
@@ -25,12 +33,12 @@ import { TokenSandbox } from "./tokens/TokenSandbox";
 //     workstream); ScreenPlaceholder is gone.
 
 /**
- * True for the browser dev shell: main.tsx injects DemoTransport there (a
- * simulated engine, badged "Demo" by the AppShell). Hardcoded here because
- * the transport choice is a main.tsx-level decision — the desktop host
- * renders the same tree with its real transport and no badge.
+ * True for the browser dev shell: the app-layer transport probe
+ * (client/app-transport.ts — the same one main.tsx uses) selected the
+ * DemoTransport simulation there, badged "Demo" by the AppShell. The
+ * desktop shell runs the real TauriTransport and renders no badge.
  */
-const DEMO_SHELL = true;
+const DEMO_SHELL = !isDesktopShell();
 
 /** Route path for a player variant (the URL is the variant's source of truth). */
 function playerVariantPath(variant: PlayerVariant): string {
@@ -86,6 +94,8 @@ export function App() {
         <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
         <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
         <Route path="/open-network-stream" element={<NetworkStreamScreen />} />
+        <Route path="/discovery" element={<DiscoveryScreen />} />
+        <Route path="/convert" element={<ConvertScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Route>
 

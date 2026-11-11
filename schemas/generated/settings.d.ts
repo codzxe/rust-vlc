@@ -2,7 +2,7 @@
 // Generator G1 (doc 07 §5.3): the typed settings surface for the UI.
 // Regenerate: `cargo xtask schema-gen` (idempotent; CI diffs with --check).
 //
-// 27 entries across 6 screen(s) (14 known areas). The value-bearing table
+// 32 entries across 7 screen(s) (14 known areas). The value-bearing table
 // (ui/src/generated/settings-schema.ts) lands with the settings framework
 // (card 4.E1); this ambient file fixes the type surface only.
 
@@ -34,6 +34,7 @@ export type SettingControl =
 /** Screen ids from schemas/settings.toml `[areas]` (doc 07 §5.4). */
 export type SettingScreen =
   | 'engine'
+  | 'extensions'
   | 'global'
   | 'interface'
   | 'performance'
@@ -48,6 +49,11 @@ export type SettingKey =
   | 'engine.queue-packets-audio'
   | 'engine.queue-packets-video'
   | 'engine.tick-interval-ms'
+  | 'extensions.crash-backoff-initial-ms'
+  | 'extensions.crash-backoff-max-ms'
+  | 'extensions.crash-backoff-multiplier'
+  | 'extensions.crash-disabled-reenable-ms'
+  | 'extensions.crash-restart-limit'
   | 'global.language'
   | 'interface.remember-window-geometry'
   | 'interface.start-maximized'
@@ -117,6 +123,7 @@ export interface SettingEntry {
 /** Entries per screen in `(section, order)` order (doc 07 §5.4 navigation). */
 export interface SettingsByScreen {
   engine: readonly SettingEntry[];
+  extensions: readonly SettingEntry[];
   global: readonly SettingEntry[];
   interface: readonly SettingEntry[];
   performance: readonly SettingEntry[];

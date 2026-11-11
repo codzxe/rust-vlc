@@ -114,7 +114,123 @@ fn committed_outputs_have_no_drift() {
         out.stderr
     );
     assert!(out.stdout.contains("no drift"), "stdout: {}", out.stdout);
-    assert!(out.stdout.contains("27 entries"), "stdout: {}", out.stdout);
+    // The entry count is DERIVED from the seed (its `[[setting]]` rows),
+    // never pinned — the seed is the single source of truth, so this
+    // cannot go stale when the seed legitimately grows (phase-7 exit
+    // gate OF-2: c71cd5a's 27→32 growth stranded a pinned literal here).
+    assert!(
+        out.stdout
+            .contains(&format!("{} entries", committed_seed_entry_count())),
+        "stdout: {}",
+        out.stdout
+    );
+}
+
+/// The committed seed's `[[setting]]` row count, read straight from
+/// `schemas/settings.toml` with an independent raw-TOML parse (the crate
+/// under test must not be asked what its own input contains).
+fn committed_seed_entry_count() -> usize {
+    let text = fs::read_to_string(repo_root().join("schemas/settings.toml"))
+        .unwrap_or_else(|err| unreachable!("reading the committed seed: {err}"));
+    let table = toml::from_str::<toml::Table>(&text)
+        .unwrap_or_else(|err| unreachable!("parsing the committed seed: {err}"));
+    table
+        .get("setting")
+        .and_then(toml::Value::as_array)
+        .map_or(0, Vec::len)
+}
+
+/// Phase-7 exit gate OF-2 guard: the seed's own shape must be exactly what
+/// every committed generated artifact self-reports. If the seed grows (or
+/// changes shape) without regeneration, THIS fails first, naming the two
+/// regeneration commands — the drift class `c71cd5a` introduced (seed grew
+/// 27→32; the Rust artifacts were regenerated but three test pins and the
+/// UI artifact were left stale, and nothing tied the artifacts' own
+/// self-reported counts back to the seed at test time).
+#[test]
+fn seed_shape_is_what_every_committed_artifact_self_reports() {
+    let root = repo_root();
+    let text = fs::read_to_string(root.join("schemas/settings.toml"))
+        .unwrap_or_else(|err| unreachable!("reading the committed seed: {err}"));
+    let table = toml::from_str::<toml::Table>(&text)
+        .unwrap_or_else(|err| unreachable!("parsing the committed seed: {err}"));
+    let entries = table
+        .get("setting")
+        .and_then(toml::Value::as_array)
+        .unwrap_or_else(|| unreachable!("the seed carries no [[setting]] rows"));
+    let known_areas = table
+        .get("areas")
+        .and_then(toml::Value::as_table)
+        .and_then(|areas| areas.get("known"))
+        .and_then(toml::Value::as_array)
+        .unwrap_or_else(|| unreachable!("the seed carries no [areas] known registry"));
+    fn screen_of(entry: &toml::Value) -> &str {
+        entry
+            .get("placement")
+            .and_then(toml::Value::as_table)
+            .and_then(|placement| placement.get("screen"))
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default()
+    }
+    // Validate every row's screen AT COLLECTION TIME, so a missing or
+    // unregistered screen fails HERE with a message naming the offending
+    // row — not one step later as a confusing G1-header/G2-row shape
+    // mismatch (R5-3: the previous `screens.len() == entries.len()`
+    // assert was tautological; the map above is 1:1, so a row without a
+    // screen contributed `""` and sailed through it).
+    let mut screens: Vec<&str> = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let key = entry
+            .get("key")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("<row without a key>");
+        let screen = screen_of(entry);
+        assert!(
+            !screen.is_empty(),
+            "every [[setting]] row must name a placement.screen — row #{} (`{key}`) does not",
+            index + 1
+        );
+        assert!(
+            known_areas.iter().any(|area| area.as_str() == Some(screen)),
+            "placement.screen `{screen}` of `{key}` (row #{}) is not in the seed's \
+             [areas] known registry",
+            index + 1
+        );
+        screens.push(screen);
+    }
+    screens.sort_unstable();
+    screens.dedup();
+
+    // G1 (`schemas/generated/settings.d.ts`) self-reports all three counts
+    // in its header comment.
+    let types = read(&root.join("schemas/generated/settings.d.ts"));
+    let header = format!(
+        "// {} entries across {} screen(s) ({} known areas).",
+        entries.len(),
+        screens.len(),
+        known_areas.len()
+    );
+    assert!(
+        types.contains(&header),
+        "settings.d.ts must self-report the seed's shape ({header}) — regenerate with \
+         `cargo xtask schema-gen`, and the UI side with `npm run settings:generate` in ui/"
+    );
+
+    // G2 (`schemas/generated/settings-help.txt`): the Areas index lists
+    // exactly the screens in use, each with its true per-screen count.
+    let help = read(&root.join("schemas/generated/settings-help.txt"));
+    for screen in &screens {
+        let count = entries
+            .iter()
+            .filter(|entry| screen_of(entry) == *screen)
+            .count();
+        let plural = if count == 1 { "option" } else { "options" };
+        let row = format!("  {screen:<14} {count} {plural}");
+        assert!(
+            help.contains(&row),
+            "settings-help.txt must list `{row}` — regenerate with `cargo xtask schema-gen`"
+        );
+    }
 }
 
 #[test]

@@ -132,11 +132,11 @@ fn assert_lane_matches_ffprobe(path: &std::path::Path) {
 
     let mut demuxer = MkvDemuxer::new(open_via_input(path).must()).must();
     demuxer.start().must();
-    let info = *demuxer.segment_info();
+    let info = demuxer.segment_info().clone();
     let scale = u64::from(info.timestamp_scale);
 
-    // -- chapters ------------------------------------------------------
-    let chapters = demuxer.chapters().must();
+    // -- chapters (retained at `start`, issue #34) ---------------------
+    let chapters = demuxer.chapters();
     let ours = chapters.atoms_flattened();
     let mut why = String::new();
     if ours.len() != probe_chapters.len() {
@@ -175,8 +175,8 @@ fn assert_lane_matches_ffprobe(path: &std::path::Path) {
         why.push_str(&format!("beyond_duration {} ", chapters.beyond_duration));
     }
 
-    // -- attachments ---------------------------------------------------
-    let attachments = demuxer.attachments().must();
+    // -- attachments (retained at `start`, issue #34) ------------------
+    let attachments = demuxer.attachments();
     if attachments.files.len() != probe_attachments.len() {
         why.push_str(&format!(
             "attachments {} vs {} ",
@@ -204,8 +204,14 @@ fn assert_lane_matches_ffprobe(path: &std::path::Path) {
         }
     }
     assert!(why.is_empty(), "{name}: {why}");
+    // Snapshot the retained surfaces (owned — the packet walk below
+    // takes the demuxer mutably).
+    let chapter_count = ours.len();
+    let first_start_ns = ours.first().map(|atom| atom.start_ns);
+    let attachment_count = attachments.files.len();
 
-    // -- the packet walk is untouched by the getters (positional) -----
+    // -- the packet walk is untouched by the retained metadata (the
+    // open() walk reads cluster headers only, payloads on demand) ----
     let mut packets = 0u64;
     for _ in 0..64 {
         match demuxer.next_event().must() {
@@ -217,17 +223,17 @@ fn assert_lane_matches_ffprobe(path: &std::path::Path) {
     assert!(packets > 0, "{name}: packets still flow after the getters");
     // A present-timestamp sanity bound: chapters land inside the
     // stream's own timing vocabulary.
-    if let Some(first) = ours.first() {
+    if let Some(start_ns) = first_start_ns {
         let _ = Stamp::Present(media_types::time::Timestamp::new(
-            (first.start_ns / scale) as i64,
+            (start_ns / scale) as i64,
             demuxer.segment_info().time_base().must(),
         ));
     }
     println!(
         "PASS {name}: {} chapters, {} attachments (ffprobe-matched{})",
-        ours.len(),
-        attachments.files.len(),
-        if ours.is_empty() {
+        chapter_count,
+        attachment_count,
+        if chapter_count == 0 {
             ", none declared"
         } else {
             ""
@@ -386,7 +392,7 @@ fn generated_fixture_attachments_chapters_differential() {
     let notes_bytes = std::fs::read(dir.join("d2a-notes.txt")).must();
     let mut demuxer = MkvDemuxer::new(open_via_input(&path).must()).must();
     demuxer.start().must();
-    let attachments = demuxer.attachments().must();
+    let attachments = demuxer.attachments();
     assert_eq!(attachments.files.len(), 2, "cover + notes attached");
     let by_name = |name: &str| {
         attachments
@@ -413,7 +419,7 @@ fn generated_fixture_attachments_chapters_differential() {
     );
 
     // The chapter surface: 2 chapters, the ffmetadata times, titles.
-    let chapters = demuxer.chapters().must();
+    let chapters = demuxer.chapters();
     let atoms = chapters.atoms_flattened();
     assert_eq!(atoms.len(), 2);
     // Raw nanoseconds (chapter times ignore TimestampScale; the

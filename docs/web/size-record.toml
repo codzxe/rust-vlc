@@ -1,0 +1,95 @@
+# docs/web/size-record.toml — the machine-readable wasm size record
+# (card 7.K1, issue #49; doc 09 §2.4's per-codec tree-shake lane).
+#
+# WHAT THIS IS: the measured sizes of the lumen-web wasm module
+# (wasm32-unknown-unknown, release profile) across codec-feature
+# configurations — the tree-shake evidence behind
+# docs/web/size-report.md (the human report; regenerate-proof below).
+#
+# WHO MAINTAINS IT: `cargo xtask web-budget` re-measures every row with
+# `rebuild = true` (the shipped floor configuration) with a real
+# `cargo build` and rewrites this file byte-stably; `cargo xtask
+# web-budget --check` re-measures and compares (budget breach or >5%
+# growth on the floor fails the gate — doc 09 §2.4). Rows with
+# `rebuild = false` are per-codec measurements from the size analysis
+# (their environment and method live in the .md report's own
+# environment section; the gate checks their budgets but does not
+# rebuild them).
+#
+# THE REBUILD CONTRACT: every `rebuild = true` row carries its build
+# spec machine-readably — `package` (the cargo package) +
+# `cargo_features` (the --features list; [] = the decoder-less floor) —
+# so the gate never hardcodes a build shape. A rebuild row without
+# both keys is a parse error, loudly.
+#
+# BUDGETS live in config, not here and not in the gate's code:
+# product.toml [web.size_budgets] (doc 09 §2.4; validated by
+# product.schema.json). Each row names its budget class; the gate maps
+# the class to the configured byte ceiling.
+#
+# DETERMINISM: no timestamps, no paths-to-nowhere — same tree, same
+# toolchain, same measurements, same bytes (the sbom gate's discipline).
+# [environment] describes the gate-maintained rows; rows citing the
+# .md report carry their environment there.
+
+schema = "lumen.web.size-record/1"
+
+[environment]
+toolchain = "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+target = "wasm32-unknown-unknown"
+profile = "cargo release (workspace default: opt-level 3, no LTO/codegen-units override)"
+compressor = "gzip -n -c (gzip 1.13, default level, no name/timestamp)"
+wasm_opt = "not run - binaryen/wasm-opt is absent from the build environment; every number below is raw rustc codegen, labeled as such in the report"
+locked = true
+
+[[config]]
+name = "floor"
+features = "none (the shipped decoder-less module)"
+budget_class = "phase2-vertical"
+rebuild = true
+package = "lumen-web"
+cargo_features = []
+measured_by = "cargo xtask web-budget"
+raw_bytes = 1294311
+gzip_bytes = 300250
+sha256 = "4a0f33831d6411dfef20b13925bb82a2f658d79c843dd1ec1ebfab78ca478d87"
+
+[[config]]
+name = "builtin-inhouse"
+features = "builtin-codecs (mjpeg + pcm + adpcm, in-house)"
+budget_class = "phase2-vertical"
+rebuild = false
+measured_by = "manual size analysis 2026-11-11 (docs/web/size-report.md)"
+raw_bytes = 1387526
+gzip_bytes = 334759
+sha256 = "d617a56c1215a3b69d1201486a09edc734c8c2ec320ae89227d83d18c702b040"
+
+[[config]]
+name = "flac"
+features = "codec-flac (claxon)"
+budget_class = "full-p0"
+rebuild = false
+measured_by = "manual size analysis 2026-11-11 (docs/web/size-report.md)"
+raw_bytes = 1429280
+gzip_bytes = 349963
+sha256 = "4d4cfa10f80e80133b1a13377597cb995d1a4cde613f7488a5fab5aa4bf9a13c"
+
+[[config]]
+name = "mp3"
+features = "codec-mp3 (symphonia-bundle-mp3; mp3 + mp2)"
+budget_class = "full-p0"
+rebuild = false
+measured_by = "manual size analysis 2026-11-11 (docs/web/size-report.md)"
+raw_bytes = 1529340
+gzip_bytes = 385300
+sha256 = "d4407b1b6577b037d496ec85c76dcd7cdc8c67901768d37fba63cf5b03f90e83"
+
+[[config]]
+name = "external-all"
+features = "builtin-codecs-external (aac, alac, dnx, flac, mp3, opus, vorbis, vp9)"
+budget_class = "full-p0"
+rebuild = false
+measured_by = "manual size analysis 2026-11-11 (docs/web/size-report.md)"
+raw_bytes = 2439192
+gzip_bytes = 704996
+sha256 = "b8f56ffbbbbc6f67b47101da42dbbb3d13907f62a4ab67de15dedb05544fe8d7"

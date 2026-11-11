@@ -72,6 +72,19 @@ pub fn bad_structure(offset: u64) -> EngineError {
     )
 }
 
+/// The codec-derived descriptor string failed the registry grammar.
+/// Unreachable from parsed data (the identification headers map to
+/// static ASCII literals); the typed error is the panic-free residue
+/// of that invariant (8.A1 parser sweep).
+pub fn bad_descriptor() -> EngineError {
+    mint(
+        ErrorKind::Corrupt {
+            detail: CorruptDetail::InvalidStructure { offset: None },
+        },
+        "demux.ogg.bad-descriptor",
+    )
+}
+
 /// A page (or its header) runs past the end of the stream — the
 /// truncated-page error path. `expected` is the page's declared end;
 /// `found` is the stream length.
@@ -162,6 +175,7 @@ mod tests {
             (bad_capture(12), "demux.ogg.bad-capture"),
             (bad_version(4, 2), "demux.ogg.bad-version"),
             (bad_structure(8), "demux.ogg.bad-structure"),
+            (bad_descriptor(), "demux.ogg.bad-descriptor"),
             (truncated_page(900, 800), "demux.ogg.truncated-page"),
             (header_overrun(100, 200), "demux.ogg.header-overrun"),
             (packet_overrun(100, 200), "demux.ogg.packet-overrun"),

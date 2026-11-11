@@ -1,0 +1,5 @@
+# Build artifacts: `lumenext package` writes the .lumenext next to
+# the sources by default; committed trees carry only the sources
+# (manifest.toml + plugin.wasm, the latter pinned by the
+# lumenext-examples --check drift gate).
+*.lumenext

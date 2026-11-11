@@ -76,6 +76,16 @@ pub mod compositing;
 pub mod model;
 pub mod srt;
 
+/// Issue #17 (G-5): the font-stack seam — font SOURCE resolution
+/// ([`font::FontStack`] + the [`font::FontProvider`] trait the bundled
+/// default and the future MKV-attachment adapter implement, with a
+/// full consultation trail per lookup) and the glyph pipeline seam
+/// ([`font::GlyphPipeline`] — [`font::MonospaceCellPipeline`] is the
+/// no-new-deps placeholder; the audited pure-Rust crate stack plugs in
+/// behind [PROPOSAL] Lead approval,
+/// `docs/dependencies/records/font-stack-0.2.10.md`).
+pub mod font;
+
 // 5.M2b (wave 6): the ASS plain-text render path — `ass/layout.rs`
 // (numpad alignment grid + margins) and `ass/render.rs` (plain-text
 // cue -> CompositedCue). The parallel 5.M2a parser half is

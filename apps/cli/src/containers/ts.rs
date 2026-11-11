@@ -610,7 +610,7 @@ mod tests {
     impl TempDir {
         fn new(tag: &str) -> TempDir {
             let dir =
-                std::env::temp_dir().join(format!("lumen-opw-ts-{tag}-{}", std::process::id()));
+                std::env::temp_dir().join(format!("lumen-opw-ts-{tag}-{}", std::process::id())); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
             std::fs::create_dir_all(&dir).must();
             TempDir(dir)
         }
@@ -834,6 +834,7 @@ mod tests {
     fn corpus_ts_lanes_through_the_open_path() {
         let Some(dir) = corpus_dir() else {
             eprintln!(
+                // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
                 "corpus(ts-cli): /tmp/my-project/corpus-v4/media absent and LUMEN_CORPUS unset \
                  — SKIP (the differential table is in the worklog)"
             );
@@ -1013,10 +1014,11 @@ mod tests {
 
     /// The corpus media dir (the corpus_ogg.rs convention).
     fn corpus_dir() -> Option<PathBuf> {
+        // lumen-allow-literal: cfg(test) corpus-gate env-var name — test harness knob, not product config
         if let Ok(dir) = std::env::var("LUMEN_CORPUS") {
             return Some(PathBuf::from(dir));
         }
-        let default = PathBuf::from("/tmp/my-project/corpus-v4/media");
+        let default = PathBuf::from("/tmp/my-project/corpus-v4/media"); // lumen-allow-literal: cfg(test) corpus default path (sandbox layout) — test-only, env-overridable
         default.is_dir().then_some(default)
     }
 }

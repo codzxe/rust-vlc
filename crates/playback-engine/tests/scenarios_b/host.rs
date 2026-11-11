@@ -2065,6 +2065,7 @@ fn event_name(kind: &EventKind) -> &'static str {
         EventKind::AudioDeviceLost { .. } => "audio.device-lost",
         EventKind::AudioDeviceChanged { .. } => "audio.device-changed",
         EventKind::VideoScreenshotSaved { .. } => "video.screenshot-saved",
+        EventKind::VideoBackendChanged { .. } => "video.backend-changed",
         EventKind::PlaylistChanged { .. } => "playlist.changed",
         EventKind::ConfigSettingChanged { .. } => "config.setting-changed",
         EventKind::PluginsLoaded { .. } => "plugins.loaded",
@@ -2072,6 +2073,8 @@ fn event_name(kind: &EventKind) -> &'static str {
         EventKind::PluginsCrashed { .. } => "plugins.crashed",
         EventKind::SystemLog { .. } => "system.log",
         EventKind::MediaInfoReady { .. } => "media.info-ready",
+        EventKind::DevicesVolumeAdded { .. } => "devices.volume-added",
+        EventKind::DevicesVolumeRemoved { .. } => "devices.volume-removed",
     }
 }
 

@@ -284,3 +284,45 @@ sweeps).**
 - Maintenance lens: 0.1.x, single author, 2,349 downloads — young;
   the `=0.1.8` pin + re-trigger rule is the mitigation if ever
   admitted.
+
+---
+
+## Addendum (2026-11-09) — wave assessment: remains BLOCKED; conformance-gated unblock plan (issue #7, W16-EE)
+
+Assessed in the issue #7 admissions wave alongside the four admitted
+codecs. Outcome: **BLOCKED stands — no admission, no Cargo.toml edit,
+no `crates/codecs` wiring.** The record's own differential evidence
+(§D/§R10) fails the house bit-exact bar twice over: (1) **no lane
+except the degenerate 1×1 is bit-exact** — 7/8 lanes at max Δ 1–3
+with 0.6–4.7 % of samples differing (the ffmpeg-idct-variant negative
+control pins this as crate-vs-ffmpeg deviation, consistent with
+MPEG-4 Part 2's implementation-defined IDCT); (2) the packed-bitstream
+lane (0117, DivX N-VOP) **double-emits — 37 output frames vs
+ffmpeg's 28** — a presentation-layer correctness bug in exactly the
+era-dominant encoding this codec would be admitted for.
+
+**Conformance-gated unblock plan [PROPOSAL — Lead] (admission stays
+Lead-gated per the wave rules):**
+
+1. **N-VOP gate (hard):** the packed-bitstream double-emission is
+   fixed upstream, OR the wrapper adopts an
+   `mpeg4_unpack_bframes`-equivalent + duplicate-frame policy, and
+   lane 0117 re-measures 28/28 (§R10 condition b). No admission
+   without this.
+2. **Tolerance gate:** the Lead ratifies a documented per-pixel
+   tolerance envelope for MPEG-4 Part 2 (proposed from this record's
+   evidence: max Δ ≤ 3, ≤ 5 % of samples, with the idct-variant
+   negative control recorded) as a deliberate doc-11 §3.x policy row
+   (§R10 condition a) — not a default.
+3. **Coverage gate:** qpel, GMC/S-VOP, interlaced, `mpeg_quant`
+   method-1, data-partitioned and RVLC lanes measured before any
+   wider claim (§R10 condition c; the crate's README documents
+   root-caused divergences in the interlaced-direct and mpeg-quant
+   paths — unmeasured by us).
+4. **Pin gate on any future admission:** `oxideav-mpeg4video =
+   "=0.1.8"` + transitive `oxideav-core`, re-verified on every bump.
+
+Mitigating fact kept on record: purity is the strongest of any codec
+candidate measured (zero unsafe, 1-dep graph, MIT) — if all four
+gates clear this is the natural ProRes-era companion candidate; the
+blocker is conformance, not supply chain.

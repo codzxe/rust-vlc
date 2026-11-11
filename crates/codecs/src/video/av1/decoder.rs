@@ -219,21 +219,26 @@ impl Rav1dHandle {
                 media_types::error::ErrorContext::new("av1.init.engine"),
             ));
         }
-        let ctx = ctx_out
-            .take()
-            .unwrap_or_else(|| unreachable!("dav1d_open success guarantees a context handle"));
+        let Some(ctx) = ctx_out else {
+            // dav1d_open returned 0 but wrote no handle — the ABI
+            // contract violation arm; typed, never a panic (8.A1).
+            return Err(EngineError::new(
+                PipelineStage::Decode,
+                ErrorKind::Decoder {
+                    cause: media_types::error::DecodeCause::BadState,
+                },
+                media_types::error::ErrorContext::new("av1.init.engine"),
+            ));
+        };
         Ok(Rav1dHandle { ctx: Some(ctx) })
     }
 
     /// The context handle for an FFI call (Copy — the C ABI treats
-    /// it as a borrowed reference for the call's duration).
-    fn get(&self) -> Dav1dContext {
-        match self.ctx {
-            Some(ctx) => ctx,
-            // Cleared only during Drop; every caller holds `&self`
-            // of a live engine.
-            None => unreachable!("context cleared only during Drop"),
-        }
+    /// it as a borrowed reference for the call's duration). `None`
+    /// only after Drop cleared it — callers surface the typed
+    /// BadState instead of panicking (8.A1 sweep).
+    fn get(&self) -> Option<Dav1dContext> {
+        self.ctx
     }
 }
 
@@ -340,8 +345,14 @@ impl Av1Decoder {
         damage: &mut u32,
     ) -> Result<usize, EngineError> {
         let ctx = match &self.engine {
-            Some(engine) => engine.get(),
-            None => unreachable!("feed only runs with an engine"),
+            Some(engine) => match engine.get() {
+                Some(ctx) => ctx,
+                None => return Err(engine_state_error("av1.engine.gone")),
+            },
+            // configure() opens the engine or refuses; the absent
+            // arm is state-machine residue — typed, never a panic
+            // (8.A1 sweep).
+            None => return Err(engine_state_error("av1.engine.absent")),
         };
         let len = bytes.len();
         let mut data = Dav1dData::default();
@@ -433,8 +444,12 @@ impl Av1Decoder {
         damage: &mut u32,
     ) -> Result<usize, EngineError> {
         let ctx = match &self.engine {
-            Some(engine) => engine.get(),
-            None => unreachable!("drain only runs with an engine"),
+            Some(engine) => match engine.get() {
+                Some(ctx) => ctx,
+                None => return Err(engine_state_error("av1.engine.gone")),
+            },
+            // As feed: configure()-guaranteed — typed residue (8.A1).
+            None => return Err(engine_state_error("av1.engine.absent")),
         };
         let mut emitted = 0usize;
         loop {
@@ -666,6 +681,19 @@ fn picture_color(pic: &Dav1dPicture) -> ColorDescription {
     }
 }
 
+/// A decoder-state-machine violation surfaced as a typed error (the
+/// 8.A1 panic-surface sweep: engine-handle absence is BadState, not a
+/// process abort).
+fn engine_state_error(site: &'static str) -> EngineError {
+    EngineError::new(
+        PipelineStage::Decode,
+        ErrorKind::Decoder {
+            cause: media_types::error::DecodeCause::BadState,
+        },
+        media_types::error::ErrorContext::new(site),
+    )
+}
+
 /// Classify a non-EAGAIN engine return from the feed path.
 fn classify_engine_error(code: c_int, site: &'static str) -> EngineError {
     if code == -ERRNO_ENOMEM {
@@ -815,9 +843,12 @@ impl Decoder for Av1Decoder {
         // dependent frames are exactly the upstream abort's trigger).
         if packet.discontinuity {
             if let Some(engine) = &self.engine {
-                // SAFETY: `engine.get()` is the live handle; the ABI
-                // only touches engine state.
-                unsafe { dav1d_flush(engine.get()) };
+                // SAFETY: `engine.get()` is the live handle (the None
+                // arm is Drop-clear residue — skip, never panic; 8.A1);
+                // the ABI only touches engine state.
+                if let Some(ctx) = engine.get() {
+                    unsafe { dav1d_flush(ctx) };
+                }
             }
             self.pending.clear();
             self.refs_valid = false;
@@ -899,7 +930,10 @@ impl Decoder for Av1Decoder {
             ));
         };
         let ctx = match &self.engine {
-            Some(engine) => engine.get(),
+            Some(engine) => match engine.get() {
+                Some(ctx) => ctx,
+                None => return Err(engine_state_error("av1.engine.gone")),
+            },
             None => {
                 return Err(EngineError::new(
                     PipelineStage::Decode,

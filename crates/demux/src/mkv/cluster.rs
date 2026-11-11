@@ -203,7 +203,10 @@ pub fn parse_block_with(
         1 => Lacing::Xiph,
         2 => Lacing::Fixed,
         3 => Lacing::Ebml,
-        _ => unreachable!(),
+        // lacing_bits is a 2-bit field (0..=3); the arm is unreachable
+        // by construction — refused as a malformed block, never a
+        // panic (dirty-world posture, 8.A1 sweep).
+        _ => return Err(bad(data.len())),
     };
     let body = &data[after_track + 3..];
     lace_frames(body, lacing, scratch).map_err(|at| bad(after_track + 3 + at))?;

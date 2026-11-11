@@ -1,0 +1,169 @@
+# Lumen CI-Full — the parked 3-OS matrix, live but NON-BLOCKING [PROPOSAL].
+#
+# Issue #5 (2026-11-09). This is the check/clippy/test x {ubuntu, windows,
+# macos} matrix from the parked .github/workflows-disabled/ci.yml (task
+# 1.A2, doc 10 §4.2), brought live with an honest runner-budget posture:
+#
+# [PROPOSAL] WHY NON-BLOCKING (issue #5 step 4, runner-budget honesty):
+#   * The repository is PRIVATE (codzxe/rust-vlc) — GitHub bills standard
+#     runners at linux 1x / windows 2x / macOS 10x against the free tier's
+#     2,000 minutes/month. A per-PR 3-OS x (check+clippy+test) run is
+#     ~80+ raw minutes ≈ ~1,000+ billed minutes; a handful of PRs would
+#     exhaust the monthly budget.
+#   * Per-PR signal is NOT lost: ci.yml's merge-blocking `gate` job (ubuntu)
+#     runs the IDENTICAL `cargo clippy --workspace --all-targets
+#     --all-features -- -D warnings` and `cargo test --workspace
+#     --all-features` strings (gate/CI parity, doc 10 §10.4) — including
+#     the scenarios_b suite (doc 10 §6.4).
+#   * What this workflow adds is the OS-specific dimension: windows/macos
+#     path, locale, float-printing and linker regressions. Nightly + manual
+#     dispatch catches those within 24 h at ~1/30th the per-PR cost.
+#   * PROMOTION PATH: (a) when the repo goes public (macOS/windows minutes
+#     are free on public repos), or (b) self-hosted/larger runners exist,
+#     move the `pull_request:`/`push:` triggers back on and wire `CI-Full`
+#     into required checks. Until then do NOT add CI-Full jobs to required
+#     checks — a skipped check cannot block (doc 10 §4.4 wiring is
+#     Lead-only either way).
+#
+# First-run status [BLOCKED on first real 3-OS run]: this file is written
+# and validated with actionlint 1.7.12 from a Linux-only sandbox; every
+# command string is proven green on Linux (ci.yml gate parity), but the
+# windows/macos lanes have NEVER executed on real runners. Record the
+# first three green runs (one per OS) in docs/gates/phase3-exit.md §4
+# gap 1 when they exist.
+#
+# Toolchain: identical pin/assert/cache posture to ci.yml (rust-toolchain
+# .toml pins 1.99.1; the dtolnay/rust-toolchain `1.99.1` branch installs
+# exactly that; the assert step fails loudly on drift). `shell: bash` on
+# windows runners uses the preinstalled Git-for-Windows bash.
+#
+# "CURRENT REALITY" RECONCILIATION (see ci.yml header for the full story):
+# the committed .cargo/config.toml hard-codes build.target-dir to the Lead
+# sandbox path /home/z/my-project/target (and lost its xtask alias) —
+# CARGO_TARGET_DIR below overrides the path so hosted runners work.
+#
+# Action pins (re-resolved via `git ls-remote` on 2026-11-09, issue #5):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8
+#   Swatinem/rust-cache     v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+
+name: CI-Full
+
+on:
+  schedule:
+    # Nightly 03:17 UTC (off-the-hour to dodge the top-of-hour runner
+    # rush). This is the only automatic trigger — by design (see header).
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # Never overlaps the merge-blocking CI workflow group; nightly runs are
+  # never cancelled (only a superseded manual dispatch of the same ref is).
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+  # Overrides the sandbox-path build.target-dir pinned in the committed
+  # .cargo/config.toml (see ci.yml "CURRENT REALITY RECONCILIATIONS").
+  CARGO_TARGET_DIR: target
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci-full.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo check (doc 10 §2.1 #2)
+        run: cargo check --workspace --all-targets --all-features
+
+  clippy:
+    name: clippy (${{ matrix.os }})
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci-full.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo clippy (doc 10 §2.1 #3)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: test (${{ matrix.os }})
+    # doc 10 §4.2 ordering rule: cheap high-signal jobs first - a failed
+    # check skips the expensive 3-OS test matrix instead of burning its
+    # minutes (fmt lives in ci.yml's lint job; it is not duplicated here).
+    needs: [check]
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci-full.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo test — incl. scenarios_b + soak (doc 10 §2.1 #4)
+        run: cargo test --workspace --all-features

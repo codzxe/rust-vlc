@@ -38,7 +38,11 @@ version = 1
 # registration backfill — the wrapper edge the skeleton always had).
 # streaming->playlists (6.B1a): both L2 app-support; the HLS session
 # consumes the playlist model — the composition edge, Lead-ratified.
-same_layer_pairs = ["plugin-api->codec-api", "desktop->lumen-cli", "streaming->playlists"]
+# control-protocol->commands (7.J1): both L1; the wire protocol
+# re-uses the ONE command layer's WireRequest/WireResponse envelopes
+# and catalog types instead of re-implementing them (ARCH-5) — the
+# same-layer composition edge, Lead-flagged in the 7.J1 worklog.
+same_layer_pairs = ["plugin-api->codec-api", "desktop->lumen-cli", "streaming->playlists", "control-protocol->commands"]
 # MP §3.7 / ARCH-7 (doc 01 §1.3, §2.8): these crates may appear ONLY in
 # [dev-dependencies] tables — never in [dependencies] or
 # [build-dependencies] of any workspace member.
@@ -131,6 +135,24 @@ layer = 1
 internal_deps = []
 dev_deps = []
 external_allowlist = ["serde", "serde_json", "schemars"]
+external_dev_allowlist = []
+
+# L1 — the versioned loopback wire protocol (card 7.J1, issue #50; doc
+# 01 §2.3 registry row "control-protocol"; doc 05 §5.4). In-tree
+# minimal RFC 6455 WebSocket server (SHA-1/base64/frame codec/HTTP
+# upgrade all std-only in-crate — ADR-011 ethos, no tungstenite/sha1/
+# base64 crates), the lumen-control/1 handshake, per-start token auth,
+# deny-by-default sensitive-op policy, request validation against the
+# ONE command layer. `commands` is the same-layer whitelisted pair
+# (see [rules].same_layer_pairs): the envelopes and catalog types are
+# re-used, never re-implemented. Externals: the Lead-admitted command
+# wire family only (doc 05 §5.1 — hand-rolled JSON would bypass the
+# layer). Transport itself is std-only.
+[crates.control-protocol]
+layer = 1
+internal_deps = ["commands"]
+dev_deps = []
+external_allowlist = ["serde", "serde_json"]
 external_dev_allowlist = []
 
 # L2 — local source access (doc 01 §2.4, card 2.A1; doc 03 §4.1).
@@ -241,6 +263,26 @@ dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L2 — services discovery (doc 01 §2.4 registry row, card 7.D1, issue
+# #42): the ServiceDiscovery port, the local-volume/removable-media
+# watcher (bounded event queue feeding the catalog's
+# devices.volume-added/-removed rows via host wiring), and the SSDP
+# lane with its recorded [VERIFY] verdict (std-only UdpSocket; the
+# ureq https client of streaming serves description/SOAP only — never
+# SSDP, which is UDP multicast). Deps exactly the registry row:
+# media-types (SourceUri/EngineError) + plugin-api (the doc 06 §1.2
+# kind-16 host contract's vocabulary home). NO platform-* edge — the
+# OS integrations implement this crate's VolumeSource seam from L5
+# (doc 01 §2.7 lists device-discovery as a dep of all three adapters;
+# edges point downward, adapter → port). Std-only by C5; testkit
+# dev-only.
+[crates.device-discovery]
+layer = 2
+internal_deps = ["media-types", "plugin-api"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — the session orchestrator (doc 01 §2.6, card 2.C2; doc 03 §4.6 +
 # §5). Owns the playback state machine, mints the two-level session
 # epochs, and wires the pipeline demux→queues→decoders→sinks at the
@@ -318,6 +360,34 @@ dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
+# L3 — the transcode graph core (doc 01 §2.5 registry row
+# `transcode`; card 7.E1, issue #43 — "recording, conversion, stream
+# output", the Phase-7 surface of MP §16). The typed job graph
+# (source/demux → decode → [filters] → encode/sink) with legal-shape
+# validation, the queued→running→progress→completed/failed/cancelled
+# lifecycle over a bounded two-thread pipeline, and the v1 sinks:
+# real RIFF/WAVE PCM encode (16/24/32-bit + float, identity and
+# lossless-widening conversions only) plus stream-copy where legal
+# (WAV-from-PCM rewrap, raw ES dump) — every other conversion is a
+# typed Unsupported, never a degraded output (honest capability; MP4
+# remux is the later 7.E2 card, codec encoders the 7.E3 seam).
+# Edges point downward: L3 → L2 (demux, for the WAV `fmt `-facts
+# vocabulary and the copy path's accepted PCM set) → L1/L0;
+# L3 → L1 (plugin-api Demuxer contract, codec-api Decoder contract)
+# → L0. The concrete decoders stay behind the DecoderFactory seam
+# (the playback-engine decoder-provider precedent — no same-layer
+# production edge). `codecs` + `input` are DEV edges (the round-trip
+# and e2e suites decode through the real decoders and open fixtures
+# through the real file access stack — the demux crate's own
+# dev-edge precedent). Std-only by C5: zero external dependencies,
+# no unsafe, bounded resources everywhere (MP §12).
+[crates.transcode]
+layer = 3
+internal_deps = ["media-types", "plugin-api", "codec-api", "demux"]
+dev_deps = ["testkit", "codecs", "input"]
+external_allowlist = []
+external_dev_allowlist = []
+
 # L4 — audio output backends (doc 01 §2.6 registry row, card 2.C3;
 # doc 03 §4.9). The AudioBackend adapter trait (extends
 # audio-engine's AudioSink with enumerate/open/pause/resume + the
@@ -361,6 +431,55 @@ external_dev_allowlist = []
 layer = 4
 internal_deps = ["media-types", "video-engine"]
 dev_deps = ["testkit", "media-clock"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# ---------------------------------------------------------------------------
+# L5 — platform adapters (doc 01 §2.7; cards 7.A1/7.A2/7.A3, issue
+# #40). The audited home of MP §9's OS-service exceptions: the only
+# `unsafe` in the workspace outside the dev tools lives here (module
+# -level allow on the FFI modules, invariants per block; ADR-005
+# records the audio-seam decision, ADR-001/003 gate the hw-decode
+# and surface halves that join with issues #41/#42). Deps per the
+# registry rows: media-types, codec-api, audio-output, renderer-wgpu,
+# device-discovery — this wave's v0 surface needs the audio-output
+# vocabulary (DeviceDesc/DeviceId) + media-types (AudioFormat) only;
+# codec-api (hw decode) is issue #41, renderer-wgpu's wgpu import is
+# Lead-gated by its admission record, device-discovery is issue #42
+# — the manifest is an allowlist, those edges join when their cards
+# land. Edges point downward: L5 → L4 (audio-output) → L0
+# (media-types). Std-only by C5: hand-rolled FFI (extern "system"
+# Windows / extern "C" macOS / dlopen'd PulseAudio), NO -sys crates.
+# ---------------------------------------------------------------------------
+
+# L5 — the Windows adapter (card 7.A1): WASAPI MMDevice enumeration
+# + IMMNotificationClient change notifications, DXGI adapter
+# enumeration, the Common Item Dialogs.
+[crates.platform-windows]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L5 — the Linux adapter (card 7.A2): PulseAudio sink enumeration +
+# subscription events (runtime dlopen — typed LibraryUnavailable on
+# hosts without it), DRM/KMS sysfs adapter scanning, the
+# xdg-desktop-portal probe + zenity/kdialog dialog chain.
+[crates.platform-linux]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
+external_allowlist = []
+external_dev_allowlist = []
+
+# L5 — the macOS adapter (card 7.A3): CoreAudio device enumeration +
+# property listeners, Metal device enumeration + CAMetalLayer glue,
+# NSOpenPanel/NSSavePanel through the Objective-C runtime.
+[crates.platform-macos]
+layer = 5
+internal_deps = ["audio-output", "media-types"]
+dev_deps = ["testkit"]
 external_allowlist = []
 external_dev_allowlist = []
 
@@ -418,6 +537,99 @@ layer = 6
 internal_deps = ["commands", "lumen-cli", "media-types", "renderer-wgpu", "video-engine"]
 dev_deps = ["testkit", "media-clock"]
 external_allowlist = []
+external_dev_allowlist = []
+
+# L6 — the sandboxed WASM extension host (doc 01 §2.8 registry row
+# `plugin-host-wasm`; cards 7.F1–7.F3 / issue #45, doc 06 §5, ADR-002).
+# Composition-root position: nothing depends on it but the apps that
+# embed it. v1 consumed exactly ONE internal edge — plugin-api (the
+# manifest/permission contract, Lead-owned shared interface). Card
+# 7.F4 (issue #46) adds the SECOND internal edge: settings-schema (L1,
+# downward) — the crash backoff/`Disabled` policy is config-driven
+# through the settings layer (`extensions.crash-*`, schemas/settings.toml
+# embedded at compile time), never re-stated in code; the toml external
+# joins for the set-setting seam's value type (preaudit-foundation
+# family, same version settings-schema/localization/plugin-api use).
+# doc 01's registry row also names media-types + commands as
+# forward-looking edges (the ui-surface command-layer protocol and the
+# packet vocabulary of future media-extension kinds); neither is wired
+# yet, so neither is listed — the manifest mirrors the Cargo.toml (the
+# checker's source of truth), and the edges join here in the same
+# change that first uses them. The 7.F4 playback-unaffected proof is a
+# TEST-ONLY edge on playback-engine (the scenario-harness pattern, dev
+# edges exempt from layer ordering by this manifest's own rules).
+# The single production external remains wasmi 2.0.0
+# (ADR-002 accepted; record docs/dependencies/records/wasmi.md),
+# pinned default-features=false + ["std", "validate"] — the audited
+# closure; the `wat` dev-feature dev-dependency the initial skeleton
+# carried was dropped when the integration suites grew an in-test
+# wasm binary emitter (no new dependency, tests/ are exempt from the
+# C1/C2 scan domain, and the production closure stays the audited
+# 8-crate graph). Everything else is std-only by house style: SHA-256
+# (provenance hashes), CRC-32 (ZIP integrity), the stored-entry ZIP
+# reader (.lumenext) — public-spec math, no crates.
+[crates.plugin-host-wasm]
+layer = 6
+internal_deps = ["plugin-api", "settings-schema"]
+# Card 7.F4 (issue #46) test-only edges: the §9.5 playback-unaffected
+# proof (tests/plugin_crash_isolation.rs) composes the REAL playback
+# engine with the faulting extension in one process — the
+# scenario-harness pattern from crates/playback-engine/tests/common
+# (SharedNow/FakeDemuxer/FakeProvider/poll-driven Engine), so the
+# proof drives the real pipeline, never a mock of it. codec-api,
+# media-clock, media-types and packet-queue are that harness's own
+# seams (the same set playback-engine's suite composes); testkit is
+# the dev-only Must/fixture kit (MP §3.7). Dev edges are exempt from
+# layer ordering by this manifest's own rules; the production
+# closure is unchanged (the audited wasmi + plugin-api +
+# settings-schema + toml graph).
+dev_deps = ["codec-api", "media-clock", "media-types", "packet-queue", "playback-engine", "testkit"]
+external_allowlist = ["wasmi", "toml"]
+# L6 — apps/web (doc 01 §2.7 registry row "apps/web — the wasm host
+# page/worker bootstrap"; card 7.H1, issue #47): the engine-in-Worker
+# wasm composition root. Drives the SAME std-only engine core the CLI
+# drives through the ONE command layer (ARCH-5): commands (catalog +
+# envelopes — the MessagePort contract's command lane), playback-engine
+# (the pump-driven Engine/Session), media-probe + demux (the open
+# path), codec-api + plugin-api (the decoder/source contracts those
+# surfaces expose), media-clock + audio-engine + audio-output (the
+# null-device counter clock — the wasm-safe time source), media-types
+# (the L0 vocabulary), codecs (NATIVE ONLY, target-gated: the first
+# vertical's MJPEG + PCM decoders; the codecs crate's external engines
+# do not build for wasm32-unknown-unknown, so the wasm module ships
+# decoder-less and says so honestly in its capability snapshot — the
+# manifest's [target.'cfg(not(target_arch = "wasm32"))'] table, read
+# by the checker as a normal internal edge). video-engine and
+# renderer-wgpu are deliberately ABSENT: v1's video path is the
+# headless counting presenter (card 7.H2 wires the canvas surface).
+# The two externals are the command layer's own serde wire family
+# (doc 05 §5.1 — the app's MessagePort contract marshals the
+# catalog's envelopes; a hand-rolled format would BYPASS the layer,
+# not honor std-only-ness), admitted exactly as lumen-cli's serde_json
+# entry was. The app adds no new external of its own.
+[crates.lumen-web]
+layer = 6
+internal_deps = ["audio-engine", "audio-output", "codec-api", "codecs", "commands", "demux", "media-clock", "media-probe", "media-types", "playback-engine", "plugin-api"]
+dev_deps = ["testkit"]
+external_allowlist = ["serde", "serde_json"]
+# L6 — apps/control-server (card 7.J1, issue #50; doc 01 §2.8 registry
+# row "control-protocol, commands, engine, contracts", the
+# [PROPOSAL]-phase app whose implementation ratifies it). The loopback
+# control surface host: operator config (control-server.toml) + the
+# product-model gate (features.control-server, doc 07 rule F2) + the
+# event loop bridging WS <-> the command layer + structured logging.
+# Edges point downward: L6 -> L1 (commands — the dispatch vocabulary;
+# control-protocol — the wire; product-config — the gate/identity).
+# The engine-embedding join is the desktop composition card's; v1
+# serves catalog introspection and answers everything else typed
+# not-ready. Externals: serde_json (the command layer's own wire
+# format) + toml (the operator config file) — both Lead-admitted via
+# the crates that own them; the app adds no new external of its own.
+[crates.control-server]
+layer = 6
+internal_deps = ["commands", "control-protocol", "product-config"]
+dev_deps = []
+external_allowlist = ["serde_json", "toml"]
 external_dev_allowlist = []
 
 # tests/integration/first-vertical (package `first-vertical`, card

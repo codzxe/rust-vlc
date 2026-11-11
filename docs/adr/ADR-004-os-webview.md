@@ -4,7 +4,10 @@
   itself has been brief policy since Phase 0, recorded as "accepted-by-brief"
   in D-008, and the engine-side seam landed with card 2.D3 and was verified at
   the 2.E2-V gate). **Per-OS webview verdicts: PENDING** — no desktop webview
-  runtime exists in the sandbox; the to-run list is
+  runtime exists in the sandbox and no tauri binary has ever been built or
+  launched on any OS; the seams the wrapper drives are landed and tested
+  (`ShellRuntime` delegation, `apps/desktop` 63/0, merge `8a56f0b` — close
+  package: `apps/desktop/tauri/INFRA-BLOCKED.md`); the to-run list is
   `docs/prototypes/video-in-webview.md` §"What is PENDING".
 - **Deciders:** Lead (per MASTER-PROMPT §2 fixed decision "React+TS UI" + §9
   exception list naming windowing; formalization dispatched by 3.HARD-AUDIT

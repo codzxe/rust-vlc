@@ -1,0 +1,177 @@
+/* /discovery — card 7.D1 (issue #42): an APP-tier screen on the calm
+ * backdrop, mirroring the network-stream sibling's composition rules
+ * (Solstice v2 brief §1/§2.5/§2.6):
+ *   * a centered anchored column (~560px) with auto block margins — the
+ *     composition centers vertically on tall viewports and stays fully
+ *     reachable when it outgrows the viewport;
+ *   * the main card is a structured opaque-ish panel; the network lane
+ *     rides a quiet glass panel below (the recents-panel treatment);
+ *   * headings and status lines use SECONDARY ink on the dark surface
+ *     (AA contrast — never tertiary on gradient);
+ *   * volume labels are untrusted OS text: `overflow-wrap: anywhere`
+ *     so hostile-long labels cannot blow the layout.
+ * Semantic tokens only. */
+
+.discovery {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(var(--space-grid) * 6) calc(var(--space-grid) * 4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tape-edge) transparent;
+}
+
+/* Auto-margin group: vertical centering that never clips the scrollable
+ * top (same reasoning as the sibling screen). */
+.discovery__group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 3);
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  margin-block: auto;
+}
+
+.discovery__card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(var(--space-inset) * 3);
+  background: color-mix(in srgb, var(--color-surface-panel) 96%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.discovery__title {
+  margin: 0 0 var(--space-grid);
+  font-size: var(--font-size-display);
+  line-height: 1.1;
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-content-bright);
+}
+
+.discovery__subtitle {
+  margin: 0 0 calc(var(--space-inset) * 2);
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+/* --- local volumes lane --- */
+
+.discovery__volumes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+}
+
+.discovery__volumes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+}
+
+.discovery__volumes-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  /* secondary ink — AA on the panel surface */
+  color: var(--color-content-secondary);
+}
+
+/* Count chip (the playlist panel's count treatment). */
+.discovery__count {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.discovery__volume-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discovery__volume {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-grid);
+  flex-wrap: wrap;
+  padding: var(--space-grid) var(--space-inset);
+  background: color-mix(in srgb, var(--color-surface-raised) 30%, transparent);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control);
+}
+
+.discovery__volume-label {
+  font-size: var(--font-size-body);
+  color: var(--color-content-primary);
+  overflow-wrap: anywhere; /* untrusted text, hostile lengths */
+  min-width: 0;
+}
+
+.discovery__volume-kind {
+  flex: none;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  padding: calc(var(--space-inset) * 0.25) calc(var(--space-inset) * 0.75);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 38%, transparent);
+  border-radius: var(--radius-control);
+}
+
+.discovery__volume-id {
+  margin-inline-start: auto;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+  overflow-wrap: anywhere; /* opaque OS ids can be long too */
+}
+
+.discovery__volumes-empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+/* --- network services lane (quiet glass panel, recents treatment) --- */
+
+.discovery__network {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid);
+  padding: calc(var(--space-inset) * 1.5);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 80%, transparent);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(var(--blur-backdrop-small));
+  box-shadow: var(--shadow-card);
+}
+
+.discovery__network-title {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  /* secondary ink — AA on the panel */
+  color: var(--color-content-secondary);
+}
+
+.discovery__network-status {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}

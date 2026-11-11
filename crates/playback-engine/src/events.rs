@@ -71,7 +71,7 @@
 //! check moves to the throttle source so "every 250 ms" stays
 //! wall-time true at 2× playback]`.
 //!
-//! # The emission audit (doc 05 §3.2 — 23 rows)
+//! # The emission audit (doc 05 §3.2 — 26 rows: the D-017 23 plus the issue #42 additive trio, doc 05 §6.2)
 //!
 //! The engine-side status of every catalog row. "Emitted" rows are
 //! proven by the contract suite (`tests/contract_suite.rs`); the
@@ -92,9 +92,10 @@
 //! | `playback.end-of-media` | **emitted** (2.C2) | `{}` — before `state-changed → ended` |
 //! | `playback.error` | **emitted** (2.C2 fatal; 3.B4 adds the non-fatal bounded-recovery class) | fatal: `{stage,code,message,details,fatal:true}`; non-fatal: same shape, `fatal:false`, coalesced count |
 //! | `playback.rate-changed` | wired-by-later 3.B1 (rate support; no `set-rate` engine input exists) | n/a |
-//! | `audio.device-lost` | wired-by-later (device observation, 2.C3/7.C1; the null device cannot be lost) | n/a |
-//! | `audio.device-changed` | wired-by-later (same) | n/a |
+//! | `audio.device-lost` | **emitted** (7.C1 hotplug hooks; `tests/hotplug.rs`) | `{deviceId}` — the loss fact leads the suspend's `state-changed → paused` (the C2 ordering) |
+//! | `audio.device-changed` | **emitted** (7.C1 same) | `{deviceId}` — the migration fact leads the resume's `state-changed → playing` |
 //! | `video.screenshot-saved` | wired-by-later (the screenshot path is renderer/host work) | n/a |
+//! | `video.backend-changed` | **emitted** (7.C1 hotplug hooks — the renderer report relay) | `{backend, reason}` — the renderer's typed capability report onto the engine's one wire stream, incl. the startup report replayed at open |
 //! | `playlist.changed` | wired-by-later (no playlist model in the engine; Phase 4) | n/a |
 //! | `config.setting-changed` | wired-by-later (settings writes are host/config-layer work) | n/a |
 //! | `plugins.loaded` | wired-by-later (plugin registry, doc 06) | n/a |
@@ -102,12 +103,15 @@
 //! | `plugins.crashed` | wired-by-later (sandboxed WASM host, Phase 5) | n/a |
 //! | `system.log` | wired-by-later (no logging bridge; the burst-bound drop refinement activates here) | n/a |
 //! | `media.info-ready` | **emitted** (3.B4) | `{info}` — the engine's open-time snapshot (source, duration, tracks), once per open, before the first `→ playing` |
+//! | `devices.volume-added` | wired-by-later 7.D1 (device-discovery emits from real mount-table diffs; the engine-side relay joins with host wiring) | n/a |
+//! | `devices.volume-removed` | wired-by-later 7.D1 (same) | n/a |
 //!
-//! 12 of 23 rows are engine-emitted today — the 12 ids above
-//! (card 3.A3 moved `tracks.changed` into the emitted bucket after
-//! the 11-row arithmetic was first written; the map below is the
+//! 15 of 26 rows are engine-emitted today — the ids above
+//! (card 3.A3 moved `tracks.changed` and card 7.C1 the hotplug trio
+//! `audio.device-lost`/`-changed` + `video.backend-changed` into the
+//! emitted bucket as their triggers landed; the map below is the
 //! machine-checked count). 11 rows are honestly owned by later
-//! cards. The catalog itself (61/23) is frozen data (decision
+//! cards. The catalog itself (64/26) is frozen data (decision
 //! D-017) — this card changes emission completeness only.
 //!
 //! The machine-checked twin of this table is [`CATALOG_EMISSIONS`]
@@ -479,20 +483,26 @@ impl DrainStaleness for EngineEvent {
         if stamp.epoch != current.epoch {
             return true; // superseded epoch: stale BY CONSTRUCTION
         }
-        // Superseded within the epoch: only the terminals survive
-        // (doc 05 §4.3 invariant 4) — the seek pair and, since card
-        // 3.A3, the track-selection terminal (a switch completed
-        // under its own generation must not be swallowed by a
-        // follow-up mint that raced the completion). Terminals are
-        // always stamped with the live epoch (`emit_terminal`), so
-        // this arm is the exemption's whole reachable domain —
-        // cross-epoch terminals exited above.
-        !matches!(
+        // Superseded within the epoch: only the terminals and the
+        // session-scoped kinds survive. The terminals (doc 05 §4.3
+        // invariant 4: exactly one terminal per completed generation
+        // — the seek pair and, since card 3.A3, the track-selection
+        // terminal) carry their own generation's completion; the
+        // session-scoped kinds (card 7.C1: the audio device rows and
+        // the renderer backend report — doc 05 §3.2's "Not
+        // pipeline-scoped") speak for the session's environment, not
+        // for a pipeline generation, so a superseding mint (a seek, a
+        // track switch) must not swallow them. Cross-epoch terminals
+        // exited above; every session-scoped event is stamped with
+        // the live epoch (`Session::emit`), so the same holds here.
+        // Everything else is stale.
+        let survives = matches!(
             self.kind,
             EngineEventKind::Seeked { .. }
                 | EngineEventKind::SeekFailed { .. }
                 | EngineEventKind::TrackSelectionChanged { .. }
-        )
+        ) || !self.kind.is_pipeline_scoped();
+        !survives
     }
 }
 
@@ -521,12 +531,60 @@ impl fmt::Debug for EventPolicy {
 
 impl EventPolicy {
     /// The doc-default policy over real monotonic time.
+    ///
+    /// The default throttle source is [`media_clock::InstantSource`] on
+    /// every real target. On `wasm32-unknown-unknown` std's
+    /// `Instant::now` **panics at runtime** ("time not implemented on
+    /// this platform"), and `SessionConfig::new` constructs this
+    /// default transiently even when the caller injects its own
+    /// source immediately after — the web host does exactly that (its
+    /// `PumpClock`, apps/web) — so every wasm `session.open` trapped
+    /// in the `unreachable` panic before the injection could happen.
+    /// Found live by card 7.I1's browser-matrix run (issue #49); the
+    /// wasm arm constructs the static zero counter instead, keeping
+    /// the constructor safe on every target.
+    ///
+    /// wasm32 hosts that read the DEFAULT (i.e. never inject) get a
+    /// frozen clock: every `now_ns()` reads 0, so throttle windows
+    /// never elapse. That is the honest placeholder — there is no
+    /// ambient monotonic time on that target at all; hosts inject
+    /// (the web host's media-time pump clock is the blessed pattern,
+    /// doc 03 §8's injection doctrine applied to the browser).
     #[must_use]
     pub fn default_policy() -> EventPolicy {
         EventPolicy {
             tick: TimeTickPolicy::default_policy(),
-            throttle: Arc::new(media_clock::InstantSource::new()),
+            throttle: Arc::new(default_throttle_source()),
         }
+    }
+}
+
+/// The default [`MonotonicSource`]: real `Instant` elapsed everywhere
+/// except wasm32 (see [`EventPolicy::default_policy`] — std panics
+/// there; the zero counter keeps the transient default construction
+/// trap-free while every real host injects its own source).
+#[cfg(not(target_arch = "wasm32"))]
+fn default_throttle_source() -> media_clock::InstantSource {
+    media_clock::InstantSource::new()
+}
+
+/// The wasm32 default: a static zero-reading counter (monotonic by
+/// constancy; windows against it never elapse — hosts must inject,
+/// and the only wasm host today always does).
+#[cfg(target_arch = "wasm32")]
+fn default_throttle_source() -> ZeroMonotonic {
+    ZeroMonotonic
+}
+
+/// The wasm32 default source (see [`default_throttle_source`]).
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Default)]
+struct ZeroMonotonic;
+
+#[cfg(target_arch = "wasm32")]
+impl media_clock::MonotonicSource for ZeroMonotonic {
+    fn now_ns(&self) -> u64 {
+        0
     }
 }
 
@@ -573,10 +631,11 @@ pub struct CatalogEmission {
     pub status: EmissionStatus,
 }
 
-/// How many rows the engine emits today (post-3.A3 arithmetic —
-/// `tracks.changed` joined the emitted bucket with the track-switch
-/// terminal; the count is asserted against the map below).
-pub const ENGINE_EMITTED_ROWS: usize = 12;
+/// How many rows the engine emits today (post-7.C1 arithmetic — the
+/// hotplug hooks moved `audio.device-lost`, `audio.device-changed`
+/// and `video.backend-changed` into the emitted bucket; the count is
+/// asserted against the map below).
+pub const ENGINE_EMITTED_ROWS: usize = 15;
 
 /// The engine-side completeness map: every doc 05 §3.2 row, in table
 /// order, classified. The unit tests assert it is a bijection onto
@@ -644,18 +703,16 @@ pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
             owner: "3.B1 (rate support; no set-rate engine input exists)",
         },
     },
-    // audio (§3.2)
+    // audio (§3.2) — emitted since card 7.C1: the engine's hotplug
+    // hooks drive the recovery guard's suspend/reopen policy onto
+    // the wire (tests/hotplug.rs proves the payloads live).
     CatalogEmission {
         id: EventId::AudioDeviceLost,
-        status: EmissionStatus::WiredLater {
-            owner: "2.C3/7.C1 (device observation; the null device cannot be lost)",
-        },
+        status: EmissionStatus::Emitted,
     },
     CatalogEmission {
         id: EventId::AudioDeviceChanged,
-        status: EmissionStatus::WiredLater {
-            owner: "2.C3/7.C1 (same)",
-        },
+        status: EmissionStatus::Emitted,
     },
     // video (§3.2)
     CatalogEmission {
@@ -663,6 +720,10 @@ pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
         status: EmissionStatus::WiredLater {
             owner: "renderer/host work (the sink seam never writes files)",
         },
+    },
+    CatalogEmission {
+        id: EventId::VideoBackendChanged,
+        status: EmissionStatus::Emitted,
     },
     // playlist (§3.2)
     CatalogEmission {
@@ -708,6 +769,20 @@ pub const CATALOG_EMISSIONS: &[CatalogEmission] = &[
     CatalogEmission {
         id: EventId::MediaInfoReady,
         status: EmissionStatus::Emitted,
+    },
+    // devices (7.D1 additive, issue #42)
+    CatalogEmission {
+        id: EventId::DevicesVolumeAdded,
+        status: EmissionStatus::WiredLater {
+            owner: "7.D1 device-discovery (crate-side emission from real mount-table diffs; \
+             the engine-side relay joins with host wiring)",
+        },
+    },
+    CatalogEmission {
+        id: EventId::DevicesVolumeRemoved,
+        status: EmissionStatus::WiredLater {
+            owner: "7.D1 device-discovery (same)",
+        },
     },
 ];
 
@@ -760,6 +835,9 @@ pub fn wire_event_id(kind: &EventKind) -> EventId {
         EventKind::PluginsCrashed { .. } => EventId::PluginsCrashed,
         EventKind::SystemLog { .. } => EventId::SystemLog,
         EventKind::MediaInfoReady { .. } => EventId::MediaInfoReady,
+        EventKind::VideoBackendChanged { .. } => EventId::VideoBackendChanged,
+        EventKind::DevicesVolumeAdded { .. } => EventId::DevicesVolumeAdded,
+        EventKind::DevicesVolumeRemoved { .. } => EventId::DevicesVolumeRemoved,
     }
 }
 
@@ -1468,6 +1546,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_default_policy_is_constructible_and_readable() {
+        // Regression shape for the wasm32 trap (issue #49, found by
+        // card 7.I1's browser matrix): `SessionConfig::new`
+        // constructs `EventPolicy::default_policy()` transiently, so
+        // the default source must be constructible AND readable on
+        // every target this crate builds for — on wasm32 that is the
+        // zero counter, not `InstantSource` (std panics there). The
+        // browser run is the full end-to-end regression evidence
+        // (docs/web/browser-matrix-*.json); this pins the contract
+        // natively: two reads, both monotonic.
+        let policy = EventPolicy::default_policy();
+        let a = policy.throttle.now_ns();
+        let b = policy.throttle.now_ns();
+        assert!(b >= a, "the default source regressed: {a} -> {b}");
+    }
+
+    #[test]
     fn the_interval_is_floored_at_50ms() {
         assert_eq!(TimeTickPolicy::from_config_ms(250).interval_ms, 250);
         assert_eq!(
@@ -1855,7 +1950,8 @@ mod tests {
 
     /// The map is a bijection onto the generated catalog (the source
     /// of truth): same count, same order, every id exactly once, and
-    /// the arithmetic is the module-doc claim (12 + 11 = 23, D-017).
+    /// the arithmetic is the module-doc claim (15 + 11 = 26 — the 23
+    /// D-017 rows + the issue #42 additive trio, doc 05 §6.2).
     #[test]
     fn the_completeness_map_partitions_the_catalog_exactly() {
         assert_eq!(
@@ -1863,7 +1959,7 @@ mod tests {
             EventId::ALL.len(),
             "the map must carry one row per catalog id"
         );
-        assert_eq!(EventId::ALL.len(), 23, "D-017: the frozen count");
+        assert_eq!(EventId::ALL.len(), 26, "D-017 + the issue #42 trio");
         // Table order mirrors the catalog's own order.
         for (row, id) in CATALOG_EMISSIONS.iter().zip(EventId::ALL) {
             assert_eq!(row.id, *id, "the map must mirror doc 05 §3.2 order");
@@ -1875,7 +1971,7 @@ mod tests {
         let later = CATALOG_EMISSIONS.len() - emitted;
         assert_eq!(emitted, ENGINE_EMITTED_ROWS, "the emitted count");
         assert_eq!(later, 11, "the honest later bucket");
-        assert_eq!(emitted + later, 23, "12 emitted + 11 later = 23");
+        assert_eq!(emitted + later, 26, "15 emitted + 11 later = 26");
         // Every later row names its owner (a trigger-less row with no
         // owner is silence, not honesty).
         for row in CATALOG_EMISSIONS {
@@ -1955,7 +2051,7 @@ mod tests {
             (
                 EventKind::SystemLog {
                     level: commands::catalog::types::LogLevel::Info,
-                    target: "lumen::engine".to_owned(),
+                    target: "lumen::engine".to_owned(), // lumen-allow-literal: tracing-target fixture value — the log target under test
                     message: "line".to_owned(),
                 },
                 EventId::SystemLog,

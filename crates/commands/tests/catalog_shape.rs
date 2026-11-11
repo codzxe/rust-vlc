@@ -2,7 +2,10 @@
 //! the id grammar, the enum ↔ spec-table coverage and the checksum.
 //!
 //! These pin the *shape* invariants doc 05 §2–§3 define: 61 command
-//! entries / 23 event entries (the §2.1 / §3.2 tables), ids of the form
+//! entries (+ the issue #32 bookmark trio = 64) / 26 event entries (23
+//! from the §3.2 tables + the issue #42 additive trio — `video.backend-changed`,
+//! `devices.volume-added`, `devices.volume-removed`; doc 05 §6.2) (the
+//! §2.1 / §3.2 tables), ids of the form
 //! `<area>.<verb-noun>`, no orphan and no missing rows between the
 //! `CommandId`/`EventId` enums, the payload enums' wire tags and the
 //! `catalog_data()` metadata table — and that the committed checksum
@@ -69,7 +72,9 @@ fn schema_event_tags(schema: &Value) -> Vec<String> {
 }
 
 /// The committed schema is valid JSON with the §5.1 document shape and
-/// the doc 05 table counts: 61 command entries, 23 event entries.
+/// the doc 05 table counts: 61 command entries (64 with the issue #32
+/// bookmark trio) + 26 event entries (23 §3.2 rows + the issue #42
+/// additive trio).
 #[test]
 fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
     let schema = committed_schema()?;
@@ -87,10 +92,21 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
             "schema root must carry the {section} envelope"
         );
     }
-    // Doc 05 §2.1 lists 61 command entries; §3.2 lists 23 events.
-    assert_eq!(schema_command_tags(&schema).len(), 61, "§2.1 count");
-    assert_eq!(schema_event_tags(&schema).len(), 23, "§3.2 count");
-    // The §2.3–§2.12 tables classify 19 commands A and 42 S (61 total).
+    // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
+    // media.*-bookmark commands (64); §3.2 lists 23 events + issue #42's
+    // additive trio (26).
+    assert_eq!(
+        schema_command_tags(&schema).len(),
+        64,
+        "§2.1 count (+3 bookmarks, issue #32)"
+    );
+    assert_eq!(
+        schema_event_tags(&schema).len(),
+        26,
+        "§3.2 count + issue #42 trio"
+    );
+    // The §2.3–§2.12 tables classify 19 commands A and 42 S; issue #32's
+    // bookmark trio is class S (64 total).
     let a = catalog_data()
         .iter()
         .filter(|spec| spec.class.as_str() == "a")
@@ -99,7 +115,11 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         .iter()
         .filter(|spec| spec.class.as_str() == "s")
         .count();
-    assert_eq!((a, s), (19, 42), "§1.5 classification counts");
+    assert_eq!(
+        (a, s),
+        (19, 45),
+        "§1.5 classification counts (+3 S bookmarks, issue #32)"
+    );
     // §3.2's "gen" column: exactly the 13 pipeline-scoped events.
     let scoped = event_catalog_data()
         .iter()
@@ -152,8 +172,12 @@ fn every_id_parses_and_follows_the_grammar() -> Result<(), Box<dyn Error>> {
         assert_eq!((*id).parse::<EventId>().ok(), Some(*variant), "{id} parse");
         check_grammar(id);
     }
-    assert_eq!(CommandId::ALL.len(), 61, "§2.1: 61 commands");
-    assert_eq!(EventId::ALL.len(), 23, "§3.2: 23 events");
+    assert_eq!(
+        CommandId::ALL.len(),
+        64,
+        "§2.1: 61 commands + issue #32 bookmark trio"
+    );
+    assert_eq!(EventId::ALL.len(), 26, "§3.2: 23 events + issue #42 trio");
     Ok(())
 }
 
@@ -212,7 +236,7 @@ fn committed_checksum_recomputes() -> Result<(), Box<dyn Error>> {
          {expected_catalog}:\n{text}"
     );
     assert!(
-        text.contains("counts: 61 commands / 23 events"),
+        text.contains("counts: 64 commands / 26 events"),
         "committed checksum counts line drifted:\n{text}"
     );
     Ok(())

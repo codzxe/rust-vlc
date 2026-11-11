@@ -700,6 +700,11 @@ pub struct AudioDeviceGuard {
     phase: DevicePhase,
     losses: u64,
     reopens: u64,
+    /// The last failed reopen attempt's typed error, shallow-copied
+    /// (card 7.C1): survives until the next loss so a time-expiry
+    /// notice that follows failed attempts can still name them —
+    /// "no failure was observed" must mean exactly that.
+    last_failure: Option<EngineError>,
 }
 
 impl AudioDeviceGuard {
@@ -713,6 +718,7 @@ impl AudioDeviceGuard {
             },
             losses: 0,
             reopens: 0,
+            last_failure: None,
         }
     }
 
@@ -733,6 +739,7 @@ impl AudioDeviceGuard {
         position_ns: i64,
     ) -> RecoveryStep {
         self.losses += 1;
+        self.last_failure = None;
         self.phase = DevicePhase::Suspended {
             device_id: device_id.to_string(),
             position_ns,
@@ -771,7 +778,12 @@ impl AudioDeviceGuard {
             DevicePhase::Active { .. } => return RecoveryStep::quiet(),
         };
         if !notified && now_ns >= window_end_ns {
-            let notice = self.mark_notified(&device_id, reopen_used, None);
+            // The time-expiry terminal names the last observed
+            // failure when one was observed (card 7.C1: a window can
+            // expire by time *after* attempts failed inside it —
+            // "None" must mean no failure was ever seen).
+            let last = self.last_failure.as_ref().map(shallow_error);
+            let notice = self.mark_notified(&device_id, reopen_used, last.as_ref());
             return RecoveryStep {
                 action: RecoveryAction::None,
                 events: vec![notice],
@@ -829,9 +841,26 @@ impl AudioDeviceGuard {
                     } => (device_id.clone(), *reopen_used, *window_end_ns),
                     DevicePhase::Active { .. } => return RecoveryStep::quiet(),
                 };
+                // The typed error the terminal notice will name (a
+                // shallow copy — the Fatal-clone doctrine; the
+                // engine-hook translation reads it back through
+                // `last_reopen_failure`, one source of truth).
+                self.last_failure = Some(shallow_error(&error));
                 let reopen_used = reopen_used + 1;
                 let next_reopen_ns = now_ns.saturating_add(self.policy.backoff_ns(reopen_used + 1));
                 if reopen_used >= self.policy.max_attempts || next_reopen_ns > window_end_ns {
+                    // The terminal count is part of the observable
+                    // truth: store it BEFORE latching the notice, so
+                    // `reopen_attempts_used()` agrees with the count
+                    // this notice embeds (the engine-hook relay and
+                    // any later reader see one number, not two —
+                    // found by tests/hotplug.rs, card 7.C1).
+                    if let DevicePhase::Suspended {
+                        reopen_used: used, ..
+                    } = &mut self.phase
+                    {
+                        *used = reopen_used;
+                    }
                     let notice = self.mark_notified(&device_id, reopen_used, Some(&error));
                     return RecoveryStep {
                         action: RecoveryAction::None,
@@ -891,6 +920,47 @@ impl AudioDeviceGuard {
         self.reopens
     }
 
+    /// The suspended device's id (`None` while active) — the
+    /// engine-hook translation's payload source (card 7.C1).
+    #[must_use]
+    pub fn suspended_device(&self) -> Option<&str> {
+        match &self.phase {
+            DevicePhase::Active { .. } => None,
+            DevicePhase::Suspended { device_id, .. } => Some(device_id.as_str()),
+        }
+    }
+
+    /// Failed reopen attempts in the current (or terminal) suspend
+    /// window — the engine-hook translation's payload source.
+    #[must_use]
+    pub fn reopen_attempts_used(&self) -> u32 {
+        match &self.phase {
+            DevicePhase::Active { .. } => 0,
+            DevicePhase::Suspended { reopen_used, .. } => *reopen_used,
+        }
+    }
+
+    /// Whether the one-time non-fatal suspension notice has been
+    /// emitted (the terminal of an unsuccessful reopen window).
+    #[must_use]
+    pub fn notified(&self) -> bool {
+        match &self.phase {
+            DevicePhase::Active { .. } => false,
+            DevicePhase::Suspended { notified, .. } => *notified,
+        }
+    }
+
+    /// The last failed reopen attempt's display-safe summary, when
+    /// a failure was observed in the current (or terminal) window
+    /// (card 7.C1 — the engine-hook translation's payload source;
+    /// reset by every fresh loss). The `Display` form, exactly what
+    /// the guard's own direct-drive notice embeds — the two
+    /// emissions stay identical by construction.
+    #[must_use]
+    pub fn last_reopen_failure(&self) -> Option<String> {
+        self.last_failure.as_ref().map(|error| error.to_string())
+    }
+
     /// Emit (and latch) the one-time non-fatal suspension notice:
     /// the terminal of an unsuccessful reopen window.
     fn mark_notified(
@@ -909,12 +979,13 @@ impl AudioDeviceGuard {
         let message = match last {
             Some(error) => format!(
                 "audio device `{device_id}` lost and re-acquisition failed \
-                 ({error}); playback is suspended at the remembered position"
+                 ({error}); playback is suspended at the remembered position \
+                 after {reopen_used} attempt(s)"
             ),
             None => format!(
                 "audio device `{device_id}` lost and the re-acquisition \
-                 window expired; playback is suspended at the remembered \
-                 position"
+                 window expired after {reopen_used} attempt(s); playback \
+                 is suspended at the remembered position"
             ),
         };
         EventKind::PlaybackError {

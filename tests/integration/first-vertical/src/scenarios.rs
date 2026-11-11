@@ -1334,10 +1334,15 @@ fn wire_session_run() -> Result<(String, String, i32), String> {
 }
 
 /// The built `lumen` binary (the shared workspace target dir; the
-/// EXE_SUFFIX keeps it correct on Windows).
+/// EXE_SUFFIX keeps it correct on Windows). Honors a relocated
+/// `CARGO_TARGET_DIR` (the wave-24 disk emergency moved the shared
+/// cache off the repo root — the same hermetic-rooting rule the
+/// rebrand reverse-control test follows, gate finding OF-4).
 fn lumen_binary_path() -> Result<PathBuf, String> {
-    Ok(crate::harness::workspace_root()
-        .join("target")
+    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| crate::harness::workspace_root().join("target"));
+    Ok(target_dir
         .join("debug")
         .join(format!("lumen{}", std::env::consts::EXE_SUFFIX)))
 }

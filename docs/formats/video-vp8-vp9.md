@@ -161,3 +161,37 @@ superframes) — C-V-family acquisition or generated lanes.
 Not applicable — no decoder is admitted by this record. See the
 admission card's record for those sections once `fuzz_codec_vp9`
 exists.
+
+---
+
+## Addendum (2026-11-10) — status front-matter is stale for VP9: the matrix row is now implemented (W24-R7 finding NEW-2)
+
+Post-review correction (append-only — everything above is the
+2026-10-24/25 authoring-date record and is left as written):
+
+- **VP9: the `status` key above ("blocked, candidate named,
+  validation pending") is superseded.** On **2026-11-09** the issue #7
+  admissions wave (W16-EE) landed the admission this record's §Plan
+  item 2 called for: `rusty_vp9 = "=0.1.3"` is pinned in
+  `crates/codecs/Cargo.toml` (card **6.M-vp9**), decode glue lives at
+  `crates/codecs/src/video/vp9/**`, and the matrix row
+  `codec-video-vp9` in `docs/feature-matrix.toml` is now
+  **implemented ×3** (windows/linux/macos `implemented`, web
+  `not_started` — wasm32 unmeasured, honest gap carried in the row's
+  notes). Current evidence: the dependency record
+  `docs/dependencies/records/rusty_vp9-0.1.3.md` **+ its 2026-11-09
+  admission addendum** (in-tree differential: `vp9_differential`
+  4/4 pass in the codecs suite, 643 tests / 624 pass / 0 fail), and
+  the matrix row's `evidence` field — not this record, which predates
+  the admission.
+- **VP8: unchanged — this record's verdict stands.** Matrix row
+  `codec-video-vp8` = blocked ×4 (2026-11-10 parse of
+  `docs/feature-matrix.toml`), `blocked_reason` still cites this
+  record. No VP8 decoder has been admitted; the §Plan item 3 recheck
+  triggers (Phase 7–8) are still open.
+- The two-row status split means the front-matter line above should
+  be read as: vp8 blocked = current; vp9 blocked = historical
+  (2026-10-24). Recorded per the reviewer's "drift, not a false
+  claim" disposition — the §1.1 records cell of
+  `docs/audit/docs-sweep-20261110.md` ("dual-row record: VP8 + VP9
+  decision state") remains accurate.

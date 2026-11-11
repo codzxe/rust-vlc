@@ -343,11 +343,54 @@ pub fn cue_layout(
     })
 }
 
+/// Project an explicit `\pos`/`\move` anchor (G-2, issue #17) onto
+/// the compositing contract: the alignment's anchor point of the cue
+/// box binds to `(x_px, y_px)` in SCRIPT coordinates — margins are
+/// overridden (the libass behaviour for explicit positions; a clamp
+/// would move the cue silently, an error would drop it — neither is
+/// honest for authored coordinates).
+///
+/// # Errors
+/// [`AssRenderError::ZeroPlayRes`]; [`AssRenderError::Cue`]
+/// defensively for rational/anchor construction (the pre-checked
+/// invariants make those unreachable).
+pub fn cue_layout_at(
+    alignment: AssAlignment,
+    play_res: (u32, u32),
+    pos: (u32, u32),
+) -> Result<CueLayout, AssRenderError> {
+    if play_res.0 == 0 || play_res.1 == 0 {
+        return Err(AssRenderError::ZeroPlayRes { play_res });
+    }
+    let horizontal = match alignment.horizontal() {
+        AssHorizontal::Left => CompHorizontal::Start,
+        AssHorizontal::Center => CompHorizontal::Center,
+        AssHorizontal::Right => CompHorizontal::End,
+    };
+    let vertical = match alignment.vertical() {
+        AssVertical::Bottom => CompVertical::Bottom,
+        AssVertical::Middle => CompVertical::Center,
+        AssVertical::Top => CompVertical::Top,
+    };
+    Ok(CueLayout {
+        anchor: Anchor::new(
+            Rational::new(pos.0, play_res.0)?,
+            Rational::new(pos.1, play_res.1)?,
+        )?,
+        alignment: CueAlignment {
+            horizontal,
+            vertical,
+        },
+        margin: SafeMargin::TitleSafe,
+        reference: Some(play_res),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         AssAlignment, AssHorizontal, AssMargins, AssVertical, DEFAULT_PLAY_RES, cue_layout,
-        model_positioning,
+        cue_layout_at, model_positioning,
     };
     use crate::ass::render::AssRenderError;
     use crate::compositing::layout::VerticalAlign as CompVertical;
@@ -456,6 +499,35 @@ mod tests {
         let without = cue_layout(AssAlignment::MIDDLE_CENTER, AssMargins::ZERO, (384, 288)).must();
         assert_eq!(with.anchor, without.anchor);
         assert_eq!((with.anchor.v.num, with.anchor.v.den), (1, 2));
+    }
+
+    #[test]
+    fn cue_layout_at_pins_the_pos_anchor_exactly() {
+        // \pos(192,144) at 384×288 → the exact midpoint, margins
+        // ignored, alignment still binding the same cue-box point.
+        let l = cue_layout_at(AssAlignment::BOTTOM_CENTER, (384, 288), (192, 144)).must();
+        assert_eq!((l.anchor.u.num, l.anchor.u.den), (1, 2));
+        assert_eq!((l.anchor.v.num, l.anchor.v.den), (1, 2));
+        assert_eq!(l.alignment.vertical, CompVertical::Bottom);
+        assert_eq!(l.reference, Some((384, 288)));
+        // Margins would have moved a non-pos layout; with pos they do
+        // not (the documented override).
+        let with_margins = cue_layout(
+            AssAlignment::BOTTOM_CENTER,
+            AssMargins {
+                left: 50,
+                right: 50,
+                vertical: 60,
+            },
+            (384, 288),
+        )
+        .must();
+        assert_ne!(with_margins.anchor, l.anchor);
+        // Zero script resolution stays typed-invalid.
+        assert_eq!(
+            cue_layout_at(AssAlignment::BOTTOM_CENTER, (0, 288), (1, 1)),
+            Err(AssRenderError::ZeroPlayRes { play_res: (0, 288) })
+        );
     }
 
     #[test]

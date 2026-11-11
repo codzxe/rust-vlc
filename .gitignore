@@ -1,5 +1,8 @@
 # Rust
 target/
+# ad-hoc CARGO_TARGET_DIR used for one-off xtask builds in worktrees
+# (the c339ee8 precedent: build dirs are never committed)
+target-xtask/
 **/*.rs.bk
 Cargo.lock.bak
 
@@ -20,6 +23,7 @@ apps/web/pkg/
 # Env & secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 secrets/
@@ -28,9 +32,24 @@ secrets/
 *.log
 !docs/gates/logs/**
 !docs/gates/logs/*.log
+# packaging-lane evidence logs are committed too (same D-d protocol;
+# task W24-C — see docs/packaging/evidence/README.md)
+!docs/packaging/evidence/**
+!docs/packaging/evidence/*.log
 /logs/
 tmp/
 .cache/
+
+# W24-C local packaging tools (issue #56): the pinned appimagetool +
+# type2 runtime downloaded into the tree by the runbook's local-lane
+# instructions (SHA-256s recorded in .github/workflows/release.yml).
+# Local tools, NEVER committed — same rule as the ignored *.deb/*.msi
+# artifacts above.
+/appimagetool.AppImage
+/type2-runtime
+# python bytecode from packaging tooling (committed by accident in r1,
+# removed in r3 — never again)
+__pycache__/
 
 # OS
 .DS_Store
@@ -81,3 +100,10 @@ tool-results/
 /corpus-big/
 /target
 corpus-v4/
+
+# stray build dir committed in 67d567d - never again
+target-w23e/
+target-w*/
+# NOTE: target-xtask/ is ignored once, at the top with the Rust target/ block
+# (lane d's ecc615e placement — W24-O r3 IN-9 fix: lane g's 56b59c1 added the
+# same pattern again here; duplicate dropped in the rehearsal union).

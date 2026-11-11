@@ -55,9 +55,11 @@ use media_types::error::{ErrorContext, FormatInfo};
 use media_types::{EngineError, ErrorKind, PipelineStage};
 
 use crate::client::UreqClient;
+use crate::clock::WallClock;
 use crate::error::NetworkError;
 use crate::fetch::{HttpFetch, Url};
 use crate::ranged::{RangedConfig, RangedResource};
+use crate::reconnect::{RetryFetch, RetryPolicy};
 
 /// The access strategy a source reference dispatches to (card 6.A3).
 ///
@@ -237,6 +239,32 @@ impl SchemeRegistry {
         SchemeRegistry { fetch }
     }
 
+    /// A registry over an injected transport **wrapped in the bounded
+    /// reconnect layer** (card 6.D2): every `open_http` fetch — the
+    /// probe, the window fetches, the linear-scan bodies — retries
+    /// retryable transport weather under `policy`'s bounded backoff,
+    /// paced by `clock` (tests inject `FakeClock`; production passes
+    /// `SystemClock::shared`). The composition is the 6.D2 adoption
+    /// point: the ranged resource and everything above it adopt
+    /// retry by receiving this registry's transport, unchanged.
+    ///
+    /// Hosts that need the generation handle (seek/reopen
+    /// invalidation) construct the [`RetryFetch`] themselves and pass
+    /// it to [`SchemeRegistry::with_fetch`] — the handle is the
+    /// wrapper's to give ([`RetryFetch::generation`]).
+    ///
+    /// # Errors
+    /// [`RetryPolicy::validate`]'s verdict, verbatim.
+    pub fn with_retrying_fetch(
+        fetch: Arc<dyn HttpFetch>,
+        policy: RetryPolicy,
+        clock: Arc<dyn WallClock>,
+    ) -> Result<SchemeRegistry, &'static str> {
+        Ok(SchemeRegistry {
+            fetch: Arc::new(RetryFetch::new_checked(fetch, policy, clock)?),
+        })
+    }
+
     /// The single scheme-dispatch point (pure, total, no I/O).
     ///
     /// # Errors
@@ -265,7 +293,21 @@ impl SchemeRegistry {
             }),
             Some((scheme, rest)) => match scheme.as_str() {
                 "file" => classify_file_uri(rest),
-                "http" | "https" => Url::parse(source)
+                "http" => Url::parse(source)
+                    .map(|url| AccessKind::Http { url })
+                    .map_err(|err| SchemeError::Malformed {
+                        detail: "the http(s) URL was refused by the fetch port",
+                        source: Some(Box::new(err)),
+                    }),
+                // ADR-011 (accepted 2026-11-09): the ureq+rustls(ring)
+                // E2-class deviation is the ratified exception, so https
+                // classifies through the same fetch-port parse as http and
+                // rides the transport's always-verifying rustls TLS. The
+                // pre-ratification seam (`HTTPS_ADR011_ADMITTED` flip
+                // point + the `HttpsNotAdmitted` refusal vocabulary) is
+                // deleted per the ADR's acceptance instructions — history:
+                // `docs/adr/ADR-011-tls-https.md` §"The seam".
+                "https" => Url::parse(source)
                     .map(|url| AccessKind::Http { url })
                     .map_err(|err| SchemeError::Malformed {
                         detail: "the http(s) URL was refused by the fetch port",
@@ -449,7 +491,8 @@ pub const FUZZ_INPUT_LIMIT: usize = 64 * 1024;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mockhttp::{MockClient, MockConfig, MockServer};
+    use crate::clock::FakeClock;
+    use crate::mockhttp::{MockClient, MockConfig, MockServer, ScriptedStatus};
     use media_types::ids::SourceUri;
     use plugin_api::SourceStream;
     use testkit::Must;
@@ -464,7 +507,7 @@ mod tests {
             "/media/corpus/a.wav",
             "media/a.wav",
             "./a.wav",
-            "c:/Users/alice/a.avi",
+            "c:/Users/alice/a.avi", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "name with spaces.wav",
         ] {
             match SchemeRegistry::classify(source) {
@@ -502,6 +545,7 @@ mod tests {
     /// back normalized (scheme folded, default ports, path defaulted).
     #[test]
     fn http_urls_classify_normalized() {
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("HTTP://Example.com") {
             Ok(AccessKind::Http { url }) => {
                 assert_eq!(url.scheme, "http");
@@ -511,6 +555,7 @@ mod tests {
             }
             other => unreachable!("http URL must classify: {other:?}"),
         }
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         match SchemeRegistry::classify("https://cdn.example.org:8443/seg/x.mp4?range=1") {
             Ok(AccessKind::Http { url }) => {
                 assert_eq!(url.scheme, "https");
@@ -518,6 +563,48 @@ mod tests {
                 assert_eq!(url.path_and_query, "/seg/x.mp4?range=1");
             }
             other => unreachable!("https URL must classify: {other:?}"),
+        }
+    }
+
+    /// ADR-011 acceptance pin (2026-11-09): https classifies exactly
+    /// like http — the same [`AccessKind::Http`] strategy, the same
+    /// fetch-port parse and scheme-default normalization — so every
+    /// https source rides the identical `open_http` composition (the
+    /// ureq transport's always-verifying rustls TLS in production).
+    /// The pre-ratification seam (`HTTPS_ADR011_ADMITTED` + the
+    /// `HttpsNotAdmitted` refusal vocabulary) is deleted per the
+    /// ADR's acceptance instructions; this pin exists so a drifted
+    /// re-introduction of scheme-specific https refusal fails loud,
+    /// not silently.
+    #[test]
+    fn https_classifies_exactly_like_http_post_adr011() {
+        for source in [
+            "https://cdn.example.org/live/master.m3u8", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "HTTPS://Example.com", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "https://cdn.example.org:8443/seg/x.mp4?range=1", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        ] {
+            match SchemeRegistry::classify(source) {
+                Ok(AccessKind::Http { url }) => {
+                    assert_eq!(url.scheme, "https");
+                }
+                other => unreachable!("admitted https must classify: {other:?}"),
+            }
+        }
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
+        match SchemeRegistry::classify("https://cdn.example.org/live/master.m3u8") {
+            Ok(AccessKind::Http { url }) => {
+                assert_eq!(url.port, 443, "the scheme default port is explicit");
+                assert_eq!(url.path_and_query, "/live/master.m3u8");
+            }
+            other => unreachable!("admitted https must classify: {other:?}"),
+        }
+        // Structurally invalid https URLs refuse through the *shared*
+        // port parse exactly as http does — no scheme-specific
+        // refusal arm remains anywhere in dispatch.
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
+        match SchemeRegistry::classify("https://") {
+            Err(SchemeError::Malformed { .. }) => {}
+            other => unreachable!("an empty authority must be malformed: {other:?}"),
         }
     }
 
@@ -565,6 +652,7 @@ mod tests {
             }
         }
         // Spaces in an http URL: the port's violation, chained.
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let err = match SchemeRegistry::classify("http://ho st/media") {
             Err(err @ SchemeError::Malformed { .. }) => err,
             other => unreachable!("spacey URL must refuse: {other:?}"),
@@ -640,7 +728,7 @@ mod tests {
         // (no credentials anywhere in the error), the unsupported arm
         // names only the scheme.
         let http = testkit::assert_err(
-            SchemeRegistry::classify("http://user:secret@example.org/a"),
+            SchemeRegistry::classify("http://user:secret@example.org/a"), // lumen-allow-literal: URL parse/redaction test vector — data under test
             "userinfo-bearing http URL refuses",
         );
         assert!(http.to_string().contains("scheme dispatch failed"));
@@ -653,8 +741,8 @@ mod tests {
         assert!(!rtsp.to_string().contains("secret"));
         // Credential-shaped queries never surface either: the
         // redacted URI form is media-types' (SourceUri::redacted).
-        let tokened = SourceUri::parse("https://cdn.example.org/x?token=secret").must();
-        assert_eq!(tokened.redacted(), "https://cdn.example.org/x?token=***");
+        let tokened = SourceUri::parse("https://cdn.example.org/x?token=secret").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert_eq!(tokened.redacted(), "https://cdn.example.org/x?token=***"); // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// The engine bridge names the scheme (the
@@ -765,6 +853,115 @@ mod tests {
         }
     }
 
+    // -- the 6.D2 adoption point ------------------------------------------
+
+    /// The reconnect layer composed into the registry's fetch path,
+    /// end-to-end over the deterministic mock testkit: a source whose
+    /// first two fetches are scripted retry weather (503, then 500)
+    /// still opens and round-trips byte-exact — the ranged resource
+    /// and every window fetch above the transport are unchanged, and
+    /// the bounded backoff is paced by the injected clock (the sleeps
+    /// advance virtual time instantly, so the schedule is asserted,
+    /// never waited).
+    #[test]
+    fn retrying_registry_opens_through_scripted_weather() {
+        let body: Vec<u8> = (0..2048u32).map(|i| (i % 249) as u8).collect();
+        let weather = ScriptedStatus::new(vec![503, 500]);
+        let server = MockServer::spawn(MockConfig {
+            body: body.clone(),
+            scripted_status: vec![("/media/sine.wav".to_owned(), weather.clone())],
+            ..MockConfig::default()
+        })
+        .must();
+        let clock = FakeClock::new();
+        let policy = RetryPolicy {
+            max_retries: 3,
+            initial_ms: 25,
+            max_ms: 100,
+        };
+        let registry = SchemeRegistry::with_retrying_fetch(
+            Arc::new(MockClient),
+            policy,
+            Arc::new(clock.clone()),
+        )
+        .must();
+        let url = match SchemeRegistry::classify(&server.url("media/sine.wav")) {
+            Ok(AccessKind::Http { url }) => url,
+            other => unreachable!("mock http URL must classify: {other:?}"),
+        };
+        let mut resource = registry.open_http(&url, RangedConfig::default()).must();
+        assert_eq!(resource.size(), Some(body.len() as u64));
+        let mut sink = Vec::new();
+        loop {
+            let chunk = resource.read(512).must();
+            if chunk.is_empty() {
+                break;
+            }
+            sink.extend_from_slice(&chunk);
+        }
+        assert_eq!(sink, body, "the payload round-trips through the weather");
+        assert_eq!(weather.served(), 2, "both weathers answered, then recovery");
+        // Full jitter can draw a zero (an instant retry, honestly a
+        // no-op sleep): the boundedness is what is provable — at
+        // most one sleep per weather, every sleep under the policy
+        // ceiling.
+        assert!(
+            clock.sleeps().len() <= 2,
+            "at most one backoff sleep per weather: {:?}",
+            clock.sleeps()
+        );
+        assert!(
+            clock.sleeps().iter().all(|ms| *ms <= 100),
+            "every sleep under the policy ceiling: {:?}",
+            clock.sleeps()
+        );
+        assert!(
+            server.requests().len() >= 3,
+            "probe + retries on the wire: {} requests",
+            server.requests().len()
+        );
+    }
+
+    /// The fail-fast boundary of the same composition: a zero-retry
+    /// policy propagates the weather typed instead of absorbing it —
+    /// the adoption point never *hides* a refusal, it only bounds the
+    /// recovery attempts.
+    #[test]
+    fn zero_retry_policy_propagates_the_weather_typed() {
+        let weather = ScriptedStatus::new(vec![503]);
+        let server = MockServer::spawn(MockConfig {
+            body: b"BODY".to_vec(),
+            scripted_status: vec![("/media/sine.wav".to_owned(), weather.clone())],
+            ..MockConfig::default()
+        })
+        .must();
+        let clock = FakeClock::new();
+        let registry = SchemeRegistry::with_retrying_fetch(
+            Arc::new(MockClient),
+            RetryPolicy {
+                max_retries: 0,
+                initial_ms: 25,
+                max_ms: 100,
+            },
+            Arc::new(clock.clone()),
+        )
+        .must();
+        let url = match SchemeRegistry::classify(&server.url("media/sine.wav")) {
+            Ok(AccessKind::Http { url }) => url,
+            other => unreachable!("mock http URL must classify: {other:?}"),
+        };
+        let err = match registry.open_http(&url, RangedConfig::default()) {
+            Ok(_) => unreachable!("fail-fast must refuse through the weather"),
+            Err(e) => e,
+        };
+        assert_eq!(err.context.code, "streaming.ranged.fetch-failed");
+        assert_eq!(weather.served(), 1, "the single weather was answered");
+        assert!(
+            clock.sleeps().is_empty(),
+            "no retries means no backoff sleeps"
+        );
+    }
+
     // -- the record cross-check ------------------------------------------
 
     /// The scheme-support record (`docs/formats/network-http.md`) and
@@ -824,12 +1021,12 @@ mod tests {
             "file:///media/a%20b.wav",
             "file://localhost/x",
             "file://nas.example.org/y",
-            "http://user:pw@example.com:8080/a?x=1",
-            "https://cdn.example.org/seg/001.ts",
+            "http://user:pw@example.com:8080/a?x=1", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "https://cdn.example.org/seg/001.ts", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             "ftp://example.com/f",
             "rtsp://cam.example.org:554/stream.sdp",
             "data:audio/wav;base64,UklGRg==",
-            "c:/Users/alice/media/a.avi",
+            "c:/Users/alice/media/a.avi", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
             "/media/plain/path.wav",
             "weird.name.tar:suffix",
             "",

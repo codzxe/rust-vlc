@@ -3,10 +3,18 @@
 Status: **implemented** (parse + cue→bitmap render path, card 5.M1).
 Feature-matrix row `subtitle-srt` was `not_started` ×4 with empty
 evidence at wave-9 open — stale vs the landed parser; backfilled by
-the 5.Q2-V records audit (this file is that evidence). Front-matter
-keys per doc 04 §6:
+the 5.Q2-V records audit (this file is that evidence). **This record
+is also the record for the sibling row `subtitle-encoding-detection`**
+(partial ×3 desktop / not_started web, `docs/feature-matrix.toml`):
+that feature is implemented BY this module's `encoding.rs` — the
+"Encoding" scope below is its landed subset, and the row's honest
+limits (BOM-less UTF-16 not sniffed; no subsdec-class charset
+heuristics) are this record's "Honest gaps". Cross-linked by the
+8.G1 records sweep (2026-11-10). Front-matter keys per doc 04 §6:
 
-- id = `subtitle-srt` (`docs/feature-matrix.toml`)
+- id = `subtitle-srt` + `subtitle-encoding-detection` (two
+  feature-matrix rows, `docs/feature-matrix.toml` — the sibling row
+  is carried by this record's Encoding scope, see header)
 - status = implemented (parse + render path); platform-independent
   code, evidence Linux-only
 - phase = 5 (landed, wave 6)
@@ -18,12 +26,17 @@ keys per doc 04 §6:
 - crates = [] — zero external deps
 - self_built = [`crates/subtitles/src/srt/**` (encoding/parser/tags/
   damage)], render via the 5.L1 compositing contract
-- last_audit = 2026-10-25 (5.Q2-V; engine evidence 5.M1)
+- last_audit = 2026-10-25 (5.Q2-V; engine evidence 5.M1); record
+  cross-linked for `subtitle-encoding-detection` by the 8.G1 sweep
+  (2026-11-10, no engine claims touched)
 
 ## Scope landed (5.M1)
 
 - **Encoding** (`encoding.rs`): BOM matrix UTF-8 / UTF-16LE /
-  UTF-16BE; BOM-less UTF-8 fallback with lossy + damage;
+  UTF-16BE; BOM-less VALID UTF-8 wins losslessly; BOM-less INVALID
+  UTF-8 falls back to Windows-1252 (issue #17: legacy-SRT 8-bit
+  fallback, ffmpeg `sub_charenc` behaviour) with typed damage —
+  one fallback event + U+FFFD for the five undefined bytes;
   unpaired-surrogate + odd-trailing-byte degradation; CRLF/CR/LF
   normalization. BOM-less UTF-16 is deliberately NOT sniffed
   (documented honesty: degrades to garbage-block damage, never

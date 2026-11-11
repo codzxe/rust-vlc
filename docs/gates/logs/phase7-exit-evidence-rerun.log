@@ -1,0 +1,23 @@
+# Phase-7 exit gate — first-vertical evidence suite, round 1 (report §2 #5)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f; source tree at run time identical to
+#   origin/main c339ee8 — this log was committed as a4e35e7 = c339ee8 + the 4 round-1 logs, nothing else)
+# Date: 2026-11-10, before 16:51:45Z (commit time of a4e35e7; exact capture time not recorded)
+# Cmd: cargo test -p first-vertical --test evidence (report §2 #5; the body compiles and
+#   runs tests/integration/first-vertical's tests/evidence.rs)
+# Exit: exit code not recorded at capture time — no exit marker in the body. The body is
+#   complete ("test result: ok. 3 passed; 0 failed; 1 ignored"), i.e. a zero-failure cargo
+#   test run (exit 0), but that is an inference from the body, not a recorded value.
+# Header retroactively annotated by W24-K (fix lane, review W24-R3 P2-1): round-1 logs were
+# committed without capture-time headers; the body below was not altered in any way.
+   Compiling first-vertical v0.1.0 (/home/z/my-project/wt/w24f/tests/integration/first-vertical)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.38s
+     Running tests/evidence.rs (/home/z/my-project/rust-vlc/target/debug/deps/evidence-2a22fc243c498b87)
+
+running 4 tests
+test final_frame_is_current ... ok
+test ledger_matches_the_artifacts ... ok
+test regen ... ignored, rewrites the committed evidence artifacts
+test committed_transcripts_match_fresh_runs ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 11.57s
+

@@ -172,6 +172,7 @@
 //! UI, device access (doc 01 §2.2 d). Std-only by C5: zero external
 //! dependencies, no unsafe.
 
+pub mod adjust;
 pub mod policy;
 pub mod queue;
 pub mod scheduler;
@@ -180,6 +181,7 @@ pub mod sink;
 #[cfg(test)]
 mod test_support;
 
+pub use adjust::{AdjustError, AdjustParams};
 pub use policy::{
     DEFAULT_MAX_PENDING, DEFAULT_MAX_REPEAT, DropPolicy, FrameDecision, SchedulerCfg,
     SchedulerCfgError, SyncPolicy,

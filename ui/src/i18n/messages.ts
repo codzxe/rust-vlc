@@ -23,6 +23,8 @@ export type MessageKey =
   | "screen.onboarding"
   | "screen.keyboard-shortcuts"
   | "screen.open-network-stream"
+  | "screen.discovery"
+  | "screen.convert"
   | "screen.not-found"
   | "screen.placeholder.body"
   | "screen.dev.tokens"
@@ -226,6 +228,7 @@ export type MessageKey =
   | "settings.nav.title"
   | "settings.search.label"
   | "settings.search.no-results"
+  | "settings.loading"
   | "settings.apply"
   | "settings.revert"
   | "settings.unsaved-changes"
@@ -461,6 +464,21 @@ export type MessageKey =
   | "settings.advanced.fold-show"
   | "settings.advanced.fold-hide"
   | "settings.advanced.intro"
+  // Effects & Tools area (issue #33 / D-012 — audio DSP + video adjust).
+  | "settings.area.effects"
+  | "settings.section.effects.audio"
+  | "settings.section.effects.video"
+  | "settings.effects.volume"
+  | "settings.effects.mute"
+  | "settings.effects.balance"
+  | "settings.effects.eq.low"
+  | "settings.effects.eq.mid"
+  | "settings.effects.eq.high"
+  | "settings.effects.brightness"
+  | "settings.effects.contrast"
+  | "settings.effects.saturation"
+  | "settings.effects.hue"
+  | "settings.effects.pending-command"
   // --- onboarding wizard (card 4.F1; privacy copy is an honest
   // [PROPOSAL] placeholder — the design package has no privacy artboard,
   // wording follows doc 07 §2.6/§5.4) ---
@@ -511,10 +529,12 @@ export type MessageKey =
   | "nav.media-info"
   | "nav.shortcuts"
   | "nav.settings"
+  | "nav.discovery"
   | "nav.open-menu"
   | "menu.file"
   | "menu.file.open-media"
   | "menu.file.open-network-stream"
+  | "menu.file.convert"
   | "menu.file.exit"
   | "menu.playback"
   | "menu.playback.play-pause"
@@ -529,6 +549,7 @@ export type MessageKey =
   | "menu.view.miniplayer"
   | "menu.view.playlist"
   | "menu.view.media-info"
+  | "menu.view.discovery"
   | "menu.view.shortcuts"
   | "menu.view.settings"
   | "menu.tools"
@@ -567,6 +588,45 @@ export type MessageKey =
   | "stream.recent.empty"
   | "stream.open"
   | "stream.invalid"
+  // --- discovery screen (card 7.D1, issue #42) ---
+  | "discovery.title"
+  | "discovery.subtitle"
+  | "discovery.volumes.title"
+  | "discovery.volumes.count-suffix"
+  | "discovery.volumes.empty"
+  | "discovery.volumes.live"
+  | "discovery.kind.fixed"
+  | "discovery.kind.removable"
+  | "discovery.kind.optical"
+  | "discovery.kind.network"
+  | "discovery.network.title"
+  | "discovery.network.status"
+  // --- convert screen (card 7.E3, issue #44) ---
+  | "convert.title"
+  | "convert.subtitle"
+  | "convert.source.label"
+  | "convert.source.placeholder"
+  | "convert.source.required"
+  | "convert.target.label"
+  | "convert.target.wav"
+  | "convert.target.wav.note"
+  | "convert.target.mp4"
+  | "convert.target.mp4.note"
+  | "convert.start"
+  | "convert.back"
+  | "convert.queue.title"
+  | "convert.queue.empty"
+  | "convert.queue.full"
+  | "convert.lane.unavailable"
+  | "convert.job.status.queued"
+  | "convert.job.status.running"
+  | "convert.job.status.completed"
+  | "convert.job.status.failed"
+  | "convert.job.status.cancelled"
+  | "convert.job.status.blocked"
+  | "convert.job.cancel"
+  | "convert.job.progress"
+  | "convert.job.blocked.reason"
   // --- keyboard shortcuts screen ---
   | "shortcuts.title"
   | "shortcuts.subtitle"
@@ -605,6 +665,8 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "screen.onboarding": "Onboarding (placeholder)",
   "screen.keyboard-shortcuts": "Keyboard shortcuts (placeholder)",
   "screen.open-network-stream": "Open network stream (placeholder)",
+  "screen.discovery": "Discovery",
+  "screen.convert": "Convert / Save (card 7.E3)",
   "screen.not-found": "Screen not found",
   "screen.placeholder.body":
     "Route skeleton only — the Figma-exact composition lands in later Phase-4 cards (doc 08 §1.6).",
@@ -807,6 +869,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.nav.title": "Settings",
   "settings.search.label": "Search settings",
   "settings.search.no-results": "No settings match your search",
+  "settings.loading": "Reading settings from the engine…",
   "settings.apply": "Apply",
   "settings.revert": "Revert",
   "settings.unsaved-changes": "Unsaved changes",
@@ -1042,6 +1105,21 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.advanced.fold-show": "Show advanced settings",
   "settings.advanced.fold-hide": "Hide advanced settings",
   "settings.advanced.intro": "Advanced options from every screen, folded by default.",
+  // Effects & Tools area (issue #33 / D-012).
+  "settings.area.effects": "Effects & Tools",
+  "settings.section.effects.audio": "Audio effects",
+  "settings.section.effects.video": "Video adjust",
+  "settings.effects.volume": "Master volume",
+  "settings.effects.mute": "Mute",
+  "settings.effects.balance": "Balance",
+  "settings.effects.eq.low": "Equalizer: bass (250 Hz)",
+  "settings.effects.eq.mid": "Equalizer: mid (1 kHz)",
+  "settings.effects.eq.high": "Equalizer: treble (4 kHz)",
+  "settings.effects.brightness": "Brightness",
+  "settings.effects.contrast": "Contrast",
+  "settings.effects.saturation": "Saturation",
+  "settings.effects.hue": "Hue",
+  "settings.effects.pending-command": "Engine stage ready — control activates with the effects command card",
   // Onboarding wizard (card 4.F1).
   "onboarding.welcome.title": "Welcome to Lumen",
   "onboarding.welcome.body":
@@ -1098,10 +1176,12 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "nav.media-info": "Media info",
   "nav.shortcuts": "Shortcuts",
   "nav.settings": "Settings",
+  "nav.discovery": "Discovery",
   "nav.open-menu": "Open menu",
   "menu.file": "File",
   "menu.file.open-media": "Open media…",
   "menu.file.open-network-stream": "Open network stream…",
+  "menu.file.convert": "Convert / Save…",
   "menu.file.exit": "Exit",
   "menu.playback": "Playback",
   "menu.playback.play-pause": "Play / pause",
@@ -1116,6 +1196,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "menu.view.miniplayer": "Miniplayer",
   "menu.view.playlist": "Playlist",
   "menu.view.media-info": "Media info",
+  "menu.view.discovery": "Discovery",
   "menu.view.shortcuts": "Keyboard shortcuts",
   "menu.view.settings": "Settings",
   "menu.tools": "Tools",
@@ -1152,6 +1233,43 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "stream.back": "Back to player",
   "stream.open": "Open stream",
   "stream.invalid": "Enter a valid http:// or https:// URL",
+  "discovery.title": "Discovery",
+  "discovery.subtitle": "Local volumes and network services appear here as the engine reports them.",
+  "discovery.volumes.title": "Local volumes",
+  "discovery.volumes.count-suffix": "volumes",
+  "discovery.volumes.empty": "No volumes reported yet — volume watching arrives with the platform integrations (issue #42).",
+  "discovery.volumes.live": "Volume changes",
+  "discovery.kind.fixed": "Fixed disk",
+  "discovery.kind.removable": "Removable",
+  "discovery.kind.optical": "Optical disc",
+  "discovery.kind.network": "Network mount",
+  "discovery.network.title": "Network services (UPnP)",
+  "discovery.network.status": "The engine's SSDP/UPnP search is implemented but not reachable from this panel yet — the command-catalog wiring is a follow-up (issue #42).",
+  "convert.title": "Convert / Save",
+  "convert.subtitle": "Two honest conversions — nothing this engine cannot do.",
+  "convert.source.label": "Source file",
+  "convert.source.placeholder": "/media/demo/big-buck-bunny.mkv",
+  "convert.source.required": "Enter a source file path",
+  "convert.target.label": "Target",
+  "convert.target.wav": "Record to WAV",
+  "convert.target.wav.note": "Decodes the audio track and writes uncompressed PCM. Sample-format changes are lossless widenings only — never a silent quality loss.",
+  "convert.target.mp4": "Remux to MP4",
+  "convert.target.mp4.note": "Re-wraps H.264 video and AAC audio without re-encoding (stream copy). Any other codec is refused, not converted.",
+  "convert.start": "Convert",
+  "convert.back": "Back to player",
+  "convert.queue.title": "Conversion queue",
+  "convert.queue.empty": "No conversions queued",
+  "convert.queue.full": "The conversion queue is full (8 jobs) — wait for one to finish.",
+  "convert.lane.unavailable": "This build exposes no conversion commands: the engine’s conversion lane is not wired into its command catalog yet. Queued jobs report this honestly instead of pretending to run.",
+  "convert.job.status.queued": "Queued",
+  "convert.job.status.running": "Converting…",
+  "convert.job.status.completed": "Completed",
+  "convert.job.status.failed": "Failed",
+  "convert.job.status.cancelled": "Cancelled",
+  "convert.job.status.blocked": "Unavailable in this build",
+  "convert.job.cancel": "Cancel",
+  "convert.job.progress": "Conversion progress",
+  "convert.job.blocked.reason": "Conversion is not exposed by this build (engine command catalog has no convert commands).",
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.subtitle": "Every key the player understands. Edit overrides in Settings.",
   "shortcuts.search.label": "Search shortcuts",

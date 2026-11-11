@@ -231,12 +231,17 @@ pub fn decode_through_ogg(data: &[u8]) -> OggDecode {
                 }
                 let decoder = decoder.as_mut().unwrap_or_else(|| unreachable!("just set"));
                 match decoder.decode(packet, &mut sink) {
-                    Ok(DecodeOutcome::Emitted { frames: 1 }) => {}
+                    // The head-hold (6.FIX-vorbis-headtrim) makes the
+                    // per-packet frame count stream-shaped: 0 while the
+                    // head is withheld, `released + 1` on the release
+                    // packet, 1 in steady state — any count is the
+                    // contract's `Emitted`.
+                    Ok(DecodeOutcome::Emitted { .. }) => {}
                     // A zero-length packet is legal Ogg (and the
                     // silence fixture carries them): consumed,
                     // nothing decodable.
                     Ok(DecodeOutcome::NeedMoreInput) => {}
-                    Ok(other) => unreachable!("one packet = one block: {other:?}"),
+                    Ok(other) => unreachable!("packet decode: {other:?}"),
                     Err(err) => unreachable!("fixture/corpus packet must decode: {err}"),
                 }
             }
@@ -273,8 +278,29 @@ pub fn concatenated(sink: &CaptureSink) -> Vec<u8> {
 /// raw emission is `frames[0..]`; the shift = `0 − pts[0_present]`
 /// adjusted by that frame's raw position.
 pub fn window_at(sink: &CaptureSink, channels: usize, head_trim: usize, samples: usize) -> Vec<u8> {
+    // 6.FIX-vorbis-headtrim: the decoder now trims the stream head
+    // itself (the withheld head is released minus the measured encoder
+    // delay, first Present pts at 0), so the harness-side trim is
+    // DERIVED from the emission: the first Present pts frames names
+    // the raw→valid shift of whatever is actually in the buffers.
+    // The `head_trim` argument remains the FALLBACK for the honestly
+    // un-trimmed streams (single-data-page encodes released by flush
+    // with an all-Missing pts series — the pinned pre-fix shape).
+    let mut raw_pos = 0usize;
+    let mut derived: Option<i64> = None;
+    for (index, ticks) in sink.pts.iter().enumerate() {
+        if *ticks != i64::MIN {
+            derived = Some(raw_pos as i64 - ticks);
+            break;
+        }
+        raw_pos += sink.buffers[index].len() / (channels * 4);
+    }
+    let trim = match derived {
+        Some(shift) => shift.max(0) as usize,
+        None => head_trim,
+    };
     let pcm = concatenated(sink);
-    let start = head_trim * channels * 4;
+    let start = trim * channels * 4;
     let end = (start + samples * channels * 4).min(pcm.len());
     pcm.get(start..end).unwrap_or(&[]).to_vec()
 }

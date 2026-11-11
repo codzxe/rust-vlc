@@ -27,6 +27,7 @@
   width: 391px;
   height: 339px;
   margin: auto; /* centered compact card while window-level placement is host-owned */
+
   /* Padding + radius belong to the .solstice-note surface (24px / note
    * radius) — same-specificity overrides here would lose the cascade to
    * theme/solstice.css, which loads after screen sheets in the dev-server
@@ -126,6 +127,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+
   /* v2 audit 2 (task composition contract): the sun+caption group anchors
    * in the UPPER THIRD of the art band (padding pushes it past the exact
    * top; centering left it hovering mid-band) — against the transparent
@@ -143,6 +145,7 @@
 
 .lumen-music__sun {
   flex: none;
+
   /* Deliberate art size (v2 audit): stage presence without a blob —
      structural, no token. */
   width: clamp(200px, 26vmin, 300px);

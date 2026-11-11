@@ -138,6 +138,7 @@ pub fn checksum_text(schema: &str, typescript: &str) -> String {
     let commands = crate::catalog::spec::catalog_data().len();
     let events = crate::catalog::spec::event_catalog_data().len();
     format!(
+        // lumen-allow-literal: generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
         "# Lumen command-catalog checksums (card 1.D4, doc 05 §2-§3) — @generated, never hand-edit.\n\
          # Regenerate with `cargo xtask codegen`. fnv1a64 over the canonical catalog text\n\
          # and over the generated output bytes.\n\
@@ -196,7 +197,7 @@ pub fn check_against(paths: &OutputPaths) -> Result<Vec<String>, std::io::Error>
 fn emit_typescript(schema: &serde_json::Value) -> String {
     let mut out = String::new();
     out.push_str(
-        "// @generated — Lumen command-catalog TypeScript types (card 1.D4, doc 05 §2-§3, §5.1).\n",
+        "// @generated — Lumen command-catalog TypeScript types (card 1.D4, doc 05 §2-§3, §5.1).\n", // lumen-allow-literal: generated-artifact header emitted by codegen — folding the generator into the rebrand surface set is the recorded follow-up
     );
     out.push_str("// Regenerate with `cargo xtask codegen` — NEVER hand-edit; the catalog\n");
     out.push_str("// checksum gate fails on drift. Source of truth: crates/commands/src/catalog\n");
@@ -472,7 +473,7 @@ mod tests {
             outputs.checksum.contains("catalog-fnv1a64: "),
             "checksum must lead with the catalog digest"
         );
-        assert!(outputs.checksum.contains("61 commands / 23 events"));
+        assert!(outputs.checksum.contains("64 commands / 26 events"));
     }
 
     /// The drift negative control at the file level: a doctored
@@ -484,7 +485,7 @@ mod tests {
             Ok(outputs) => outputs,
             Err(err) => unreachable!("generation failed: {err}"),
         };
-        let dir = std::env::temp_dir().join(format!("lumen-1d4-check-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("lumen-1d4-check-{}", std::process::id())); // lumen-allow-literal: cfg(test) scratch filename — test-only, never a shipped surface
         let _ = std::fs::remove_dir_all(&dir);
         if let Err(err) = std::fs::create_dir_all(&dir) {
             unreachable!("tempdir failed: {err}");

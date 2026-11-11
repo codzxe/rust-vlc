@@ -110,6 +110,7 @@
 pub mod buffer;
 pub mod channel_map;
 pub mod convert;
+pub mod effects;
 pub mod error;
 pub mod governor;
 pub mod mix;
@@ -119,6 +120,7 @@ pub mod volume;
 
 pub use buffer::{AudioBuffer, AudioSink};
 pub use channel_map::ChannelMap;
+pub use effects::{AudioEffect, Balance, EffectChain, Gain, MAX_EFFECTS, Mute};
 pub use governor::{DriftGovernor, DriftStats};
 pub use mix::Mixer;
 pub use pipeline::{AudioPipeline, PipelineSpec};

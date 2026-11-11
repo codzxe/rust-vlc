@@ -537,8 +537,11 @@ enum Slot {
 /// runs only once the dead population rivals the live one, its
 /// O(live) cost amortizing to O(1) per push while total slots stay
 /// ≤ ~2× the live bound.
+///
+/// Crate-visible (`pub(crate)`) for the hotplug hooks — card 7.C1;
+/// not part of the public surface.
 #[derive(Debug)]
-struct OutputHub {
+pub(crate) struct OutputHub {
     /// Live and dead slots in delivery (causal) order.
     queue: VecDeque<Slot>,
     /// The live-event bound (doc 05 §3.4's burst-bound mechanism).
@@ -590,7 +593,10 @@ impl OutputHub {
     /// events) and bounded separately by their own hard cap. A newer
     /// `timing.time-tick` replaces an undelivered older one (counted)
     /// instead of consuming capacity — doc 05 §3.4 rule 1.
-    fn push(&mut self, output: EngineOutput) {
+    ///
+    /// `pub(crate)`: the hotplug hooks (card 7.C1) push through the
+    /// same single path every executor emission takes.
+    pub(crate) fn push(&mut self, output: EngineOutput) {
         match &output {
             EngineOutput::Receipt(_) => {
                 if self.live_receipts >= self.receipts_capacity {
@@ -943,10 +949,16 @@ impl PipelineTotals {
 pub struct Engine {
     next_epoch: u64,
     seq: Arc<AtomicU64>,
-    session: Option<Session>,
-    outbox: OutputHub,
+    /// The live session (crate-visible: the hotplug hooks read its
+    /// clock and apply its rows — card 7.C1).
+    pub(crate) session: Option<Session>,
+    /// The output hub (crate-visible for the same reason).
+    pub(crate) outbox: OutputHub,
     last_pair: Option<GenerationPair>,
     pipeline_totals: PipelineTotals,
+    /// The device-hotplug state (card 7.C1): the audio suspend/
+    /// reopen guard plus the cached renderer backend report.
+    pub(crate) hotplug: crate::hotplug::HotplugState,
 }
 
 impl fmt::Debug for Engine {
@@ -981,6 +993,7 @@ impl Engine {
             outbox: OutputHub::new(capacity, RECEIPT_CAPACITY),
             last_pair: None,
             pipeline_totals: PipelineTotals::default(),
+            hotplug: crate::hotplug::HotplugState::default(),
         }
     }
 
@@ -1072,6 +1085,11 @@ impl Engine {
         }
         self.last_pair = Some(session.pair());
         self.session = Some(session);
+        // Card 7.C1: the cached renderer backend report (the startup
+        // negotiation happens before any session exists) is replayed
+        // onto the new session's stream — the catalog row's "initial
+        // auto-negotiation report".
+        self.replay_backend_report_at_open();
         Ok(SessionHandle { epoch, tx })
     }
 
@@ -1281,7 +1299,7 @@ impl SessionError {
 /// The context that travels beside an applied input (the pure table
 /// carries no payloads).
 #[derive(Default)]
-struct InputContext {
+pub(crate) struct InputContext {
     /// The request that caused this application, when attributable
     /// (doc 05 §3.1 `origin`).
     origin: Option<RequestId>,
@@ -1311,7 +1329,7 @@ pub(crate) struct Session {
     selected: Vec<bool>,
     seq: Arc<AtomicU64>,
     totals: PipelineTotals,
-    runtime: SessionRuntime,
+    pub(crate) runtime: SessionRuntime,
     /// The source the session was opened from — the `media.info-ready`
     /// snapshot's origin (card 3.B4; the URI's redacted display form is
     /// the wire-safe rendering, V8).
@@ -1381,9 +1399,11 @@ struct EmissionState {
 /// it until teardown), the source was consumed at open (access
 /// resolution is the demuxer impl's business) — everything else the
 /// executor keeps for the session's lifetime.
-struct SessionRuntime {
+pub(crate) struct SessionRuntime {
     decoders: Arc<dyn DecoderProvider>,
-    clock: Arc<MediaClock>,
+    /// The session's media clock (crate-visible: the hotplug hooks
+    /// read the loss-time position — card 7.C1).
+    pub(crate) clock: Arc<MediaClock>,
     queues: QueuePlan,
     budget: TickBudget,
     /// The container name the opening host declared (defect G1's
@@ -1451,6 +1471,12 @@ impl Session {
         Self::emit_raw(&self.seq, self.pair(), kind, origin)
     }
 
+    /// Emit one session-stamped engine event — the crate-internal
+    /// form the hotplug hooks (card 7.C1) share with the executor.
+    pub(crate) fn emit_hook(&self, kind: EngineEventKind) -> EngineOutput {
+        self.emit(kind, None)
+    }
+
     /// The emission core, free of `&self` — the borrow-splitting form
     /// the end-of-track path needs (it iterates the pipeline's reused
     /// scratch while emitting; field-disjoint borrows only).
@@ -1511,7 +1537,11 @@ impl Session {
     /// receipt before them for commands). The context travels **by
     /// value** — the `Failed` payload (a typed [`EngineError`], not
     /// `Clone`) is consumed by its effect, never duplicated.
-    fn apply(
+    ///
+    /// `pub(crate)`: the hotplug hooks (card 7.C1) apply the
+    /// suspend/resume rows through the same single-writer path the
+    /// inbox commands travel.
+    pub(crate) fn apply(
         &mut self,
         input: SessionInput,
         mut context: InputContext,
@@ -2112,8 +2142,18 @@ impl Session {
             return;
         };
         // S2.3f — the audio switch freezes the clock at the old
-        // position now (the video switch does not touch it).
-        if kind == WiredKind::Audio {
+        // position now (the video switch does not touch it), so the
+        // completion's re-anchor lands on the new track's first-frame
+        // truth instead of a position extrapolated across the switch
+        // window. A **deselect** never re-anchors — no limb is coming,
+        // so `complete_switch` only publishes the generation — and it
+        // must not freeze either: retiring the last audio limb leaves
+        // a video-only session whose end-of-media is play-out gated
+        // on the clock (F5, issue #16), and a clock frozen here would
+        // wedge that gate shut forever (the audio-deselect drain
+        // regression: state stuck Playing with the script, queues and
+        // decoders long exhausted).
+        if kind == WiredKind::Audio && !matches!(resolved, ResolvedSelection::Deselect) {
             self.runtime.clock.pause();
         }
         let generation = self.pair().pipeline.as_queue_generation();
@@ -2567,7 +2607,7 @@ impl Session {
         // self row from becoming an event storm).
         let signal = if report.fatal.is_some() {
             Some(PipelineSignal::Fatal)
-        } else if report.drained {
+        } else if report.drained && self.video_played_out() {
             Some(PipelineSignal::Drained)
         } else if report.eof_reached {
             Some(PipelineSignal::EofReached)
@@ -2684,6 +2724,30 @@ impl Session {
         }
     }
 
+    /// F5 (issue #16) — the end-of-media play-out gate: a session
+    /// with **no audio limb** has no render-driven clock, so the
+    /// pipeline's drain condition (demux EOF + queues empty +
+    /// decoders flushed) can complete long before the clock has
+    /// presented the decoded frames — the measured defect (mp4
+    /// fps-extremes, corpus 0115: end-of-media at 0.111043 s of a
+    /// 4.0 s media, 2.8%). The `Drained` signal translates only
+    /// once the clock has reached the greatest delivered video
+    /// pts. Sessions with an audio limb are exempt: their clock is
+    /// render-driven and their device-ring drain gate already
+    /// paces end-of-media honestly (the CLI host's
+    /// `DrainGatedDecoder` seam); a session that delivered no
+    /// video frame yet has nothing withheld — the gate stays open.
+    fn video_played_out(&self) -> bool {
+        match self.pipeline.as_ref() {
+            None => true,
+            Some(pipeline) if pipeline.has_audio_limb() => true,
+            Some(pipeline) => match pipeline.last_video_end_ns() {
+                None => true,
+                Some(end) => clock_position_ns(&self.runtime.clock) >= end,
+            },
+        }
+    }
+
     /// The in-flight switch slot of `kind`, by shared reference.
     fn inflight_switch_of(&self, kind: MediaKind) -> &Option<InFlightTrackSwitch> {
         match kind {
@@ -2750,7 +2814,7 @@ impl Session {
 /// The clock answers in the nanosecond base, so the `Err` arm is the
 /// i64-exhaustion corner only; 0 is the honest floor there, never a
 /// guess presented as truth.
-fn clock_position_ns(clock: &MediaClock) -> i64 {
+pub(crate) fn clock_position_ns(clock: &MediaClock) -> i64 {
     match clock.now().as_nanos() {
         Ok(ns) => nanos_i64(ns),
         Err(_) => 0,

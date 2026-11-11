@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { Seekbar, formatSeekTime } from "./Seekbar";
+import { Seekbar } from "./Seekbar";
+import { formatSeekTime } from "./formatTime";
 import type { SeekbarBufferRange } from "./Seekbar";
 
 const pinRect = (el: Element, width: number, height: number): void => {

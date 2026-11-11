@@ -59,6 +59,14 @@ pub enum NetworkError {
         /// Redirects followed before the refused hop.
         hops: u32,
     },
+    /// A redirect tried to weaken the transport — an `https` hop
+    /// pointing at `http` (`cross-scheme-redirect`), same host or
+    /// not. Refused unconditionally: a TLS downgrade is the classic
+    /// MITM vector (security review 6.H1 F1, wave 19 fix).
+    CrossSchemeRedirect {
+        /// Redirects followed before the refused hop.
+        hops: u32,
+    },
     /// A non-success HTTP status surfaced as an error (`http-status`).
     HttpStatus {
         /// The status code (e.g. 404).
@@ -67,6 +75,14 @@ pub enum NetworkError {
         is_client_error: bool,
         /// `code` is in 500..=599.
         is_server_error: bool,
+    },
+    /// The server rejected the presented credentials after the auth
+    /// layer answered its challenge — the typed wrong-password shape
+    /// (`auth-failed`, card 6.E1).
+    AuthFailed {
+        /// The scheme that was rejected (static vocabulary, never
+        /// server-controlled text — MP §12).
+        scheme: AuthSchemeKind,
     },
     /// The server rejected the requested byte range — HTTP 416
     /// (`range-not-satisfiable`).
@@ -96,6 +112,14 @@ pub enum NetworkError {
         /// The advertised or observed size in bytes.
         actual: u64,
     },
+    /// The fetch completed, but the session's generation moved
+    /// while it was in flight — the late response is discarded,
+    /// never delivered as fresh data (generation-safe cancellation,
+    /// card 6.D2).
+    Cancelled {
+        /// The generation the abandoned fetch was issued under.
+        generation: u64,
+    },
     /// The peer spoke something that is not HTTP/1.x framing — a
     /// malformed status line, header, or `Location` reference.
     ProtocolViolation {
@@ -108,6 +132,27 @@ pub enum NetworkError {
         /// The underlying error, preserved.
         source: io::Error,
     },
+}
+
+/// The authentication scheme vocabulary [`NetworkError::AuthFailed`]
+/// carries — static strings only (never server-controlled text,
+/// MP §12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthSchemeKind {
+    /// RFC 7617 `Basic`.
+    Basic,
+    /// RFC 7616 `Digest` (MD5).
+    Digest,
+}
+
+impl AuthSchemeKind {
+    /// The scheme token as it appears in a challenge.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AuthSchemeKind::Basic => "basic",
+            AuthSchemeKind::Digest => "digest",
+        }
+    }
 }
 
 impl NetworkError {
@@ -123,12 +168,15 @@ impl NetworkError {
             NetworkError::TooManyRedirects { .. } => "streaming.net.too-many-redirects",
             NetworkError::RedirectLoop { .. } => "streaming.net.redirect-loop",
             NetworkError::CrossHostRedirect { .. } => "streaming.net.cross-host-redirect",
+            NetworkError::CrossSchemeRedirect { .. } => "streaming.net.cross-scheme-redirect",
             NetworkError::HttpStatus { .. } => "streaming.net.http-status",
+            NetworkError::AuthFailed { .. } => "streaming.net.auth-failed",
             NetworkError::RangeNotSatisfiable => "streaming.net.range-not-satisfiable",
             NetworkError::BodyTruncated { .. } => "streaming.net.body-truncated",
             NetworkError::InvalidContentRange => "streaming.net.invalid-content-range",
             NetworkError::UnsupportedScheme { .. } => "streaming.net.unsupported-scheme",
             NetworkError::ResponseTooLarge { .. } => "streaming.net.response-too-large",
+            NetworkError::Cancelled { .. } => "streaming.net.cancelled",
             NetworkError::ProtocolViolation { .. } => "streaming.net.protocol-violation",
             NetworkError::Io { .. } => "streaming.net.io-failure",
         }
@@ -150,6 +198,55 @@ impl NetworkError {
             self,
             NetworkError::ConnectTimeout | NetworkError::ReadTimeout | NetworkError::WriteTimeout
         )
+    }
+
+    /// Whether a bounded-retry layer (card 6.D2's [`RetryFetch`])
+    /// should re-issue the request after this failure — the retryable
+    /// weather table:
+    ///
+    /// - **Yes**: timeouts (all three), DNS, connection refused, raw
+    ///   socket I/O (resets, aborts), mid-body truncation (the
+    ///   connection died mid-delivery), and the retryable status
+    ///   classes 408 (request timeout), 429 (too many requests — what
+    ///   backoff exists for) and 500/502/503/504 (transient server
+    ///   weather). GET is idempotent, which is what makes re-issue
+    ///   correct at all (the port carries no other method, v0).
+    /// - **No**: TLS verification (retried on a weaker path it would
+    ///   be a downgrade — the vocabulary's own rule), redirect
+    ///   budget/loop/policy (deterministic configuration), 416 and
+    ///   `Content-Range` framing (deterministic), every other 4xx
+    ///   (the server's answer will not change), unsupported scheme,
+    ///   response-over-budget (a budget, not weather), protocol
+    ///   violations, and [`Cancelled`](NetworkError::Cancelled) — a
+    ///   superseded fetch is never retried under its own stale
+    ///   generation; the fresh generation's owner re-issues.
+    ///
+    /// [`RetryFetch`]: crate::reconnect::RetryFetch
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            NetworkError::DnsFailure
+            | NetworkError::ConnectTimeout
+            | NetworkError::ReadTimeout
+            | NetworkError::WriteTimeout
+            | NetworkError::ConnectRefused
+            | NetworkError::BodyTruncated { .. }
+            | NetworkError::Io { .. } => true,
+            NetworkError::HttpStatus { code, .. } => {
+                matches!(code, 408 | 429 | 500 | 502 | 503 | 504)
+            }
+            NetworkError::AuthFailed { .. } => false,
+            NetworkError::TlsFailure
+            | NetworkError::TooManyRedirects { .. }
+            | NetworkError::RedirectLoop { .. }
+            | NetworkError::CrossHostRedirect { .. }
+            | NetworkError::CrossSchemeRedirect { .. }
+            | NetworkError::RangeNotSatisfiable
+            | NetworkError::InvalidContentRange
+            | NetworkError::UnsupportedScheme { .. }
+            | NetworkError::ResponseTooLarge { .. }
+            | NetworkError::Cancelled { .. }
+            | NetworkError::ProtocolViolation { .. } => false,
+        }
     }
 
     /// The HTTP status code when this error carries one (416 folds into
@@ -181,6 +278,9 @@ impl fmt::Display for NetworkError {
             NetworkError::CrossHostRedirect { hops } => {
                 format!("cross-host redirect refused by policy after {hops} hops")
             }
+            NetworkError::CrossSchemeRedirect { hops } => {
+                format!("https-to-http redirect refused after {hops} hops (transport downgrade)")
+            }
             NetworkError::HttpStatus {
                 code,
                 is_client_error,
@@ -195,6 +295,12 @@ impl fmt::Display for NetworkError {
                 };
                 format!("HTTP status {code} ({class})")
             }
+            NetworkError::AuthFailed { scheme } => {
+                format!(
+                    "server rejected the presented {} credentials (401)",
+                    scheme.as_str()
+                )
+            }
             NetworkError::RangeNotSatisfiable => {
                 "server rejected the requested byte range (416)".to_string()
             }
@@ -208,6 +314,9 @@ impl fmt::Display for NetworkError {
             NetworkError::ResponseTooLarge { limit, actual } => format!(
                 "response exceeds the memory budget (limit {limit} bytes, advertised {actual})"
             ),
+            NetworkError::Cancelled { generation } => {
+                format!("fetch superseded: generation {generation} was invalidated")
+            }
             NetworkError::ProtocolViolation { detail } => {
                 format!("protocol violation: {detail}")
             }
@@ -247,7 +356,11 @@ mod tests {
             },
             NetworkError::RedirectLoop { hops: 4 },
             NetworkError::CrossHostRedirect { hops: 1 },
+            NetworkError::CrossSchemeRedirect { hops: 1 },
             NetworkError::http_status(404),
+            NetworkError::AuthFailed {
+                scheme: AuthSchemeKind::Basic,
+            },
             NetworkError::RangeNotSatisfiable,
             NetworkError::BodyTruncated {
                 expected: 100,
@@ -261,6 +374,7 @@ mod tests {
                 limit: 8,
                 actual: 64,
             },
+            NetworkError::Cancelled { generation: 7 },
             NetworkError::ProtocolViolation {
                 detail: "malformed status line",
             },

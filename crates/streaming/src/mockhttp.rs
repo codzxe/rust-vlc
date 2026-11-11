@@ -35,8 +35,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use crate::auth::{base64_decode, digest_response, parse_auth_params};
 use crate::error::NetworkError;
-use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, Url};
+use crate::fetch::{HttpFetch, HttpRequest, HttpResponse, RedirectMode, Url};
 
 /// How long a handler thread waits for a request head before giving up
 /// (keeps dropped-test threads bounded).
@@ -124,6 +125,214 @@ impl ScriptedRoute {
     }
 }
 
+/// A per-fetch **status** script (card 6.D2, additive testkit
+/// extension for retry determinism): fetch `i` of the route is
+/// answered with `codes[i]` and an empty body; once the script is
+/// exhausted the route's normal behavior applies — the
+/// "server has a bad moment, then recovers" shape a bounded-retry
+/// wrapper needs, over a real socket. Like [`ScriptedRoute`] the
+/// state is shared behind the handle.
+#[derive(Debug, Clone, Default)]
+pub struct ScriptedStatus {
+    state: Arc<Mutex<ScriptedStatusState>>,
+}
+
+/// The advancing cursor over the scripted codes.
+#[derive(Debug, Default)]
+struct ScriptedStatusState {
+    codes: Vec<u16>,
+    next: usize,
+}
+
+impl ScriptedStatus {
+    /// A script answering `codes` in order, then behaving normally.
+    #[must_use]
+    pub fn new(codes: Vec<u16>) -> ScriptedStatus {
+        ScriptedStatus {
+            state: Arc::new(Mutex::new(ScriptedStatusState { codes, next: 0 })),
+        }
+    }
+
+    /// Take the next scripted code, if the script still has one.
+    /// Lock poisoning degrades to "script exhausted" — never a panic.
+    fn take(&self) -> Option<u16> {
+        let mut state = match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let code = state.codes.get(state.next).copied();
+        if code.is_some() {
+            state.next += 1;
+        }
+        code
+    }
+
+    /// How many scripted answers this route has served (test
+    /// assertions).
+    pub fn served(&self) -> usize {
+        match self.state.lock() {
+            Ok(guard) => guard.next,
+            Err(poisoned) => poisoned.into_inner().next,
+        }
+    }
+}
+
+/// Required credentials + challenge scheme (card 6.E1, additive
+/// testkit extension): when a [`MockConfig`] carries one, every
+/// request without a valid `Authorization` header is answered `401`
+/// with the scheme's `WWW-Authenticate` challenge (fixed realm and
+/// nonce — deterministic digest vectors); a valid header is served
+/// the route's normal behavior. Basic headers are verified by
+/// decode-and-compare; Digest headers are verified by recomputing
+/// the response over the stored secret and the client's own
+/// `nc`/`cnonce`/`qop` — a real verifier, not a string match.
+#[derive(Clone)]
+pub struct MockAuth {
+    /// The challenge scheme the server offers.
+    pub scheme: MockAuthScheme,
+    /// The required username.
+    pub username: String,
+    /// The required password.
+    pub password: String,
+    /// The challenge realm.
+    pub realm: String,
+    /// The fixed digest nonce (deterministic known-vector tests).
+    pub nonce: String,
+    /// The digest opaque token, echoed in challenges when present.
+    pub opaque: Option<String>,
+    /// Whether the digest challenge advertises `qop="auth"`.
+    pub qop_auth: bool,
+}
+
+/// The challenge scheme a [`MockAuth`] server offers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MockAuthScheme {
+    /// `WWW-Authenticate: Basic realm="…"` (RFC 7617).
+    Basic,
+    /// `WWW-Authenticate: Digest …` (RFC 7616, MD5).
+    Digest,
+}
+
+impl MockAuth {
+    /// A Basic-auth server for `username`/`password` in `realm`.
+    #[must_use]
+    pub fn basic(username: &str, password: &str, realm: &str) -> MockAuth {
+        MockAuth {
+            scheme: MockAuthScheme::Basic,
+            username: username.to_string(),
+            password: password.to_string(),
+            realm: realm.to_string(),
+            nonce: String::new(),
+            opaque: None,
+            qop_auth: false,
+        }
+    }
+
+    /// A Digest-auth server for `username`/`password` in `realm`,
+    /// offering the fixed `nonce` (and `qop="auth"`).
+    #[must_use]
+    pub fn digest(username: &str, password: &str, realm: &str, nonce: &str) -> MockAuth {
+        MockAuth {
+            scheme: MockAuthScheme::Digest,
+            username: username.to_string(),
+            password: password.to_string(),
+            realm: realm.to_string(),
+            nonce: nonce.to_string(),
+            opaque: Some("5ccc069c403ebaf9f0171e9517f40e41".to_string()),
+            qop_auth: true,
+        }
+    }
+
+    /// The `WWW-Authenticate` challenge value for a rejected request.
+    fn challenge_value(&self) -> String {
+        match self.scheme {
+            MockAuthScheme::Basic => format!("Basic realm=\"{}\"", self.realm),
+            MockAuthScheme::Digest => {
+                let mut challenge =
+                    format!("Digest realm=\"{}\", nonce=\"{}\"", self.realm, self.nonce);
+                if self.qop_auth {
+                    challenge.push_str(", qop=\"auth\"");
+                }
+                if let Some(opaque) = &self.opaque {
+                    challenge.push_str(&format!(", opaque=\"{opaque}\""));
+                }
+                challenge
+            }
+        }
+    }
+
+    /// Whether the request's `Authorization` header satisfies this
+    /// server (the 6.E1 verifier: real digest recomputation, never
+    /// a string match against a fixture).
+    fn authorize(&self, request: &LoggedRequest) -> bool {
+        let Some(value) = request.header("authorization") else {
+            return false;
+        };
+        let Some((scheme, rest)) = value.split_once(' ') else {
+            return false;
+        };
+        if scheme.eq_ignore_ascii_case("basic") {
+            let Some(decoded) = base64_decode(rest.trim()) else {
+                return false;
+            };
+            let Ok(text) = String::from_utf8(decoded) else {
+                return false;
+            };
+            return text == format!("{}:{}", self.username, self.password);
+        }
+        if scheme.eq_ignore_ascii_case("digest") {
+            let params = parse_auth_params(rest);
+            let get = |name: &str| {
+                params
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, v)| v.clone())
+            };
+            let (username, nonce, uri, response) =
+                match (get("username"), get("nonce"), get("uri"), get("response")) {
+                    (Some(username), Some(nonce), Some(uri), Some(response)) => {
+                        (username, nonce, uri, response)
+                    }
+                    _ => return false,
+                };
+            if username != self.username || nonce != self.nonce || uri != request.path {
+                return false;
+            }
+            let nc = get("nc").unwrap_or_default();
+            let cnonce = get("cnonce").unwrap_or_default();
+            let qop = get("qop");
+            let expected = digest_response(&crate::auth::DigestInputs {
+                username: &self.username,
+                password: &self.password,
+                realm: &self.realm,
+                method: &request.method,
+                uri: &uri,
+                nonce: &nonce,
+                nc: &nc,
+                cnonce: &cnonce,
+                qop: qop.as_deref(),
+            });
+            return expected == response;
+        }
+        false
+    }
+}
+
+/// Redacted by construction: the mock's `Debug` (it rides inside
+/// [`MockConfig`], which test output formats) never prints the
+/// password — same redaction discipline as the production side.
+impl std::fmt::Debug for MockAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MockAuth")
+            .field("scheme", &self.scheme)
+            .field("username", &self.username)
+            .field("password", &"[redacted]")
+            .field("realm", &self.realm)
+            .field("nonce", &self.nonce)
+            .finish()
+    }
+}
+
 /// One mock server's behavior (card 6.A1a scope).
 ///
 /// A server serves **one** scripted behavior for every request — tests
@@ -181,6 +390,20 @@ pub struct MockConfig {
     /// operates on the selected body exactly as with `routes`.
     /// Empty (the default) changes nothing.
     pub scripted_routes: Vec<(String, ScriptedRoute)>,
+    /// Per-fetch **scripted statuses** (card 6.D2, additive): a path
+    /// matching a [`ScriptedStatus`] here is answered with that
+    /// script's next code and an empty body (the retry-weather shape
+    /// — 503, 500, …), then the route's normal behavior once the
+    /// script is exhausted. Takes precedence over everything except
+    /// the redirect/garbage behaviors. Empty (the default) changes
+    /// nothing.
+    pub scripted_status: Vec<(String, ScriptedStatus)>,
+    /// Required credentials (card 6.E1, additive): when present,
+    /// requests without a valid `Authorization` header are answered
+    /// `401` + the scheme's `WWW-Authenticate` challenge before any
+    /// other body-serving behavior; valid requests are served
+    /// normally. `None` (the default) never challenges.
+    pub auth: Option<MockAuth>,
 }
 
 impl Default for MockConfig {
@@ -197,6 +420,8 @@ impl Default for MockConfig {
             garbage_first_line: false,
             routes: Vec::new(),
             scripted_routes: Vec::new(),
+            scripted_status: Vec::new(),
+            auth: None,
         }
     }
 }
@@ -249,7 +474,7 @@ impl MockServer {
 
     /// An absolute URL for `path` on this server.
     pub fn url(&self, path: &str) -> String {
-        format!("http://{}/{}", self.addr, path.trim_start_matches('/'))
+        format!("http://{}/{}", self.addr, path.trim_start_matches('/')) // lumen-allow-literal: test-double HTTP server URL builder — test infrastructure, never shipped
     }
 
     /// A [`MockClient`] pointed at this server.
@@ -410,12 +635,42 @@ fn write_response(
             _ => return stream.write_all(redirect_head("/r1").as_bytes()),
         }
     }
+    // Authentication gate (card 6.E1): an invalid or missing
+    // Authorization header is a 401 carrying the challenge — before
+    // any body-serving behavior, so every route is protectable.
+    if let Some(auth) = &config.auth
+        && !auth.authorize(request)
+    {
+        write!(
+            stream,
+            "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            auth.challenge_value()
+        )?;
+        return stream.flush();
+    }
+    // Retry weather first (card 6.D2's scripted statuses): a script
+    // that still has codes answers with the next one and an empty
+    // body; an exhausted script falls through to normal behavior.
+    let path_only = request.path.split('?').next().unwrap_or("");
+    if let Some((_, scripted)) = config
+        .scripted_status
+        .iter()
+        .find(|(route, _)| route == path_only)
+        && let Some(code) = scripted.take()
+    {
+        write!(
+            stream,
+            "HTTP/1.1 {} {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            code,
+            reason_phrase(code)
+        )?;
+        return stream.flush();
+    }
     // Body selection (query stripped from the path): a scripted
     // (per-fetch) route wins, then the static per-path routes, then
     // the single body. An unmatched path in either routed mode is a
     // 404; with no routes configured at all the single-body behavior
     // is unchanged (6.A1a's contract).
-    let path_only = request.path.split('?').next().unwrap_or("");
     let body: Vec<u8> = {
         let scripted = config
             .scripted_routes
@@ -511,6 +766,7 @@ fn serve_body(
 fn reason_phrase(code: u16) -> &'static str {
     match code {
         200 => "OK",
+        401 => "Unauthorized",
         404 => "Not Found",
         500 => "Internal Server Error",
         503 => "Service Unavailable",
@@ -635,12 +891,48 @@ impl MockClient {
 
 impl HttpFetch for MockClient {
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, false)
+    }
+
+    /// Challenge surfacing (card 6.E1): the 401 (with its
+    /// `WWW-Authenticate`) is handed back as `Ok` so the auth layer
+    /// can answer it.
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch_inner(request, true)
+    }
+}
+
+impl MockClient {
+    /// The shared fetch loop: redirect following under the request's
+    /// policy, revisit detection, and (challenge mode) 401 surfacing.
+    /// A followed hop never re-sends `Authorization` — parity with
+    /// the real client's `RedirectAuthHeaders::Never` (client.rs,
+    /// 6.A1c; credential-leak posture of 6.H1).
+    fn fetch_inner(
+        &self,
+        request: HttpRequest,
+        surface_challenge: bool,
+    ) -> Result<HttpResponse, NetworkError> {
         let mut url = Url::parse(&request.url)?;
         let mut visited: Vec<String> = vec![url.to_string()];
         let mut followed: u32 = 0;
+        let mut drop_authorization = false;
         loop {
-            let response = self.exchange(&url, &request)?;
+            let hop_request;
+            let request_ref = if drop_authorization {
+                hop_request = strip_authorization(&request);
+                &hop_request
+            } else {
+                &request
+            };
+            let response = self.exchange(&url, request_ref)?;
             if is_redirect(response.status) {
+                // Manual mode: the 3xx (with its Location header) is
+                // the answer — the port's documented contract
+                // (remote playlists 6.E2 resolve it themselves).
+                if request.redirects.mode == RedirectMode::Manual {
+                    return Ok(response);
+                }
                 let Some(location) = response.header("location").map(str::to_string) else {
                     return Err(NetworkError::ProtocolViolation {
                         detail: "redirect status without a Location header",
@@ -653,6 +945,13 @@ impl HttpFetch for MockClient {
                     });
                 }
                 let next = url.join(&location)?;
+                // Scheme-downgrade refusal — parity with the real
+                // client's gate (security review 6.H1 F1, wave 19):
+                // an https hop never follows a redirect down to
+                // http, same host or not.
+                if url.scheme == "https" && next.scheme == "http" {
+                    return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
+                }
                 let canonical = next.to_string();
                 if visited.contains(&canonical) {
                     return Err(NetworkError::RedirectLoop {
@@ -662,11 +961,25 @@ impl HttpFetch for MockClient {
                 visited.push(canonical);
                 url = next;
                 followed += 1;
+                drop_authorization = true;
                 continue;
+            }
+            if surface_challenge && response.status == 401 {
+                return Ok(response);
             }
             return classify(response, &request);
         }
     }
+}
+
+/// A copy of `request` with every `Authorization` header removed
+/// (followed-hop credential hygiene).
+fn strip_authorization(request: &HttpRequest) -> HttpRequest {
+    let mut stripped = request.clone();
+    stripped
+        .headers
+        .retain(|(name, _)| !name.eq_ignore_ascii_case("authorization"));
+    stripped
 }
 
 /// The mock's simplified status policy (documented in the module docs;
@@ -713,6 +1026,19 @@ fn read_response_head(stream: &mut TcpStream) -> Result<ResponseHead, NetworkErr
         }
     };
     let (head_text, rest) = head;
+    let mut parsed = parse_response_head_text(&head_text)?;
+    parsed.body_prefix = rest;
+    Ok(parsed)
+}
+
+/// Parse an already-delivered response head *text* (the lines before
+/// the blank line) into status/reason/headers — the pure parsing half
+/// of [`read_response_head`], split out additively (issue #14 M2, the
+/// ownership note's "minimal mockhttp additive extension") so the
+/// HTTP-header fuzz harness can drive hostile head bytes straight
+/// through the same grammar. Socket behavior is unchanged: the same
+/// verdicts, the same lossy decode upstream.
+fn parse_response_head_text(head_text: &str) -> Result<ResponseHead, NetworkError> {
     let mut lines = head_text.split("\r\n");
     let status_line = lines.next().unwrap_or_default();
     let mut parts = status_line.splitn(3, ' ');
@@ -738,8 +1064,38 @@ fn read_response_head(stream: &mut TcpStream) -> Result<ResponseHead, NetworkErr
         status: code,
         reason,
         headers,
-        body_prefix: rest,
+        body_prefix: Vec::new(),
     })
+}
+
+/// The fuzz entry's parsed head — `(status, reason, headers)` — kept
+/// behind an alias so the signature stays readable ([`ResponseHead`]
+/// itself is crate-private).
+pub type FuzzResponseHead = (u16, String, Vec<(String, String)>);
+
+/// The HTTP-header fuzz entry (issue #14 M2, card 6.F3): one hostile
+/// response-head byte slice → one **bounded, typed** parse through
+/// the mock's response-head grammar (status line + `Name: value`
+/// lines). `pub` for the crate-external fuzz harness
+/// (`crates/streaming/tests/netfuzz/fuzz.rs`, `#[path]`-included by
+/// `fuzz/fuzz_targets/fuzz_http_header.rs`); test-support only — no
+/// production path calls it.
+///
+/// Bounds: input is capped at [`HEAD_LIMIT`] (64 KiB, the socket
+/// path's own head budget) — over-limit answers the same typed
+/// [`NetworkError::ProtocolViolation`] the wire path does, never an
+/// unbounded parse.
+pub fn fuzz_response_head(data: &[u8]) -> Result<FuzzResponseHead, NetworkError> {
+    if data.len() > HEAD_LIMIT {
+        return Err(NetworkError::ProtocolViolation {
+            detail: "response head over limit",
+        });
+    }
+    // The same lossy decode read_head feeds the parser: hostile bytes
+    // become U+FFFD, they never panic the grammar.
+    let text = String::from_utf8_lossy(data).into_owned();
+    let head = parse_response_head_text(&text)?;
+    Ok((head.status, head.reason, head.headers))
 }
 
 fn content_length(headers: &[(String, String)]) -> Option<u64> {
@@ -1076,6 +1432,7 @@ mod tests {
         let listener = TcpListener::bind(("127.0.0.1", 0)).must();
         let addr = listener.local_addr().must();
         drop(listener);
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let err = match fetcher().fetch(HttpRequest::get(format!("http://{addr}/x"))) {
             Err(e) => e,
             Ok(response) => unreachable!("closed port must refuse, got {}", response.status),
@@ -1147,5 +1504,48 @@ mod tests {
             Ok(response) => unreachable!("unmatched path is a 404, got {}", response.status),
         };
         assert!(matches!(err, NetworkError::HttpStatus { code: 404, .. }));
+    }
+
+    /// The 6.D2 scripted status: codes answer per fetch with empty
+    /// bodies, the script exhausts into normal behavior, and the
+    /// handle counts the served weathers — the retry-proof server
+    /// shape.
+    #[test]
+    fn scripted_status_answers_then_recovers() {
+        let scripted = ScriptedStatus::new(vec![503, 500]);
+        let shared = scripted.clone();
+        let server = spawn(MockConfig {
+            body: b"BODY".to_vec(),
+            scripted_status: vec![("/media.bin".to_owned(), scripted)],
+            ..MockConfig::default()
+        });
+        let fetch = fetcher();
+        let err = |path: &str| match fetch.fetch(HttpRequest::get(server.url(path))) {
+            Ok(response) => unreachable!("scripted weather, got {}", response.status),
+            Err(e) => e,
+        };
+        assert!(matches!(
+            err("media.bin"),
+            NetworkError::HttpStatus { code: 503, .. }
+        ));
+        assert!(matches!(
+            err("media.bin"),
+            NetworkError::HttpStatus { code: 500, .. }
+        ));
+        assert_eq!(shared.served(), 2, "the handle counts the weathers");
+        // Script exhausted: the route's normal behavior answers.
+        let response = fetch
+            .fetch(HttpRequest::get(server.url("media.bin")))
+            .must();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, b"BODY");
+        // Other paths are untouched by the script.
+        assert_eq!(
+            fetch
+                .fetch(HttpRequest::get(server.url("other")))
+                .must()
+                .body,
+            b"BODY"
+        );
     }
 }

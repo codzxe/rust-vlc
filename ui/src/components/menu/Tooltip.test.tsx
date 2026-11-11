@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Tooltip } from "./Tooltip";
-import { TOOLTIP_HIDE_DELAY_MS, TOOLTIP_SHOW_DELAY_MS } from "./Tooltip";
+import { TOOLTIP_HIDE_DELAY_MS, TOOLTIP_SHOW_DELAY_MS } from "./timings";
 
 /**
  * Card 4.B3 — Tooltip tests: hover-intent show/hide delays (fake timers),

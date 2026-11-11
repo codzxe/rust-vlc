@@ -1,0 +1,46 @@
+# crates/platform-linux — the Linux platform adapter (card 7.A2,
+# issue #40; doc 01 §2.7 L5 registry row).
+#
+# Registry: doc 01 §2.7 `platform-linux` (layer L5, deps per the
+# platform-windows template: media-types, codec-api, audio-output,
+# renderer-wgpu, device-discovery). This card's v0 surface uses the
+# audio-output vocabulary (DeviceDesc/DeviceId — the seam the L4 trait
+# layer minted) + media-types (AudioFormat); codec-api (hw decode) is
+# issue #41, renderer-wgpu (wgpu import) is Lead-gated by its
+# admission record, device-discovery is issue #42 — the manifest is an
+# allowlist, those edges join when their cards land. Edges point
+# downward: L5 → L4 (audio-output) → L0 (media-types).
+#
+# Std-only by C5: NO external dependencies. The PulseAudio client is
+# hand-rolled `extern "C"` + runtime dlopen (no libpulse link-time
+# dependency — the typed Unavailable path is the honest fallback when
+# the library/server is absent). DRM adapter enumeration is pure std
+# sysfs walking. Dialogs probe the D-Bus session bus (std UnixStream)
+# and fall back to zenity/kdialog commands.
+#
+# Unsafe posture (MP §9, doc 01 §2.7): the workspace denies
+# `unsafe_code`; this crate carries the audited OS-service exception
+# via module-level `#[allow(unsafe_code)]` on the FFI modules only
+# (the tools/mem-audit precedent), every block safety-commented, ADR
+# references per module (ADR-005 for the audio seam). Runtime-tested
+# on Linux: capability negotiation, fallback chains, event-queue
+# plumbing, dlopen probe + absent-server typed errors.
+
+[package]
+name = "platform-linux"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen Linux platform adapter: PulseAudio device enumeration + change notifications (runtime dlopen, typed Unavailable fallback), DRM GPU adapter enumeration, xdg dialog fallback chain (issue #40, cards 7.A2)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+audio-output = { path = "../audio-output" }
+media-types = { path = "../media-types" }
+
+[dev-dependencies]
+# testkit is dev-only by contract (MP §3.7): Must/assert_err for the
+# seam + fallback-chain acceptance tests.
+testkit = { path = "../testkit" }

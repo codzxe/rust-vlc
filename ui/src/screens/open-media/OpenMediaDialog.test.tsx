@@ -5,7 +5,8 @@
 //     SourceSpec) and closes the dialog (the old double-click trap is gone);
 //   * the dialog carries a visible Close affordance; Escape closes;
 //   * the subtitle's "or paste a path" is REAL — the path/URL input opens
-//     through the same session.open seam, with honest validation;
+//     through the same seam, with honest validation; a PLAYLIST path
+//     loads the list instead (playlist.load — the 4.D1 handoff, issue #3);
 //   * source locations render in full (never ellipsized away).
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -142,6 +143,25 @@ describe("OpenMediaDialog — v2 §4.1 single-click open flow", () => {
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("a pasted PLAYLIST path loads the list (playlist.load, append: false) and routes to /playlist — the 4.D1 handoff through the ONE funnel (issue #3)", async () => {
+    const transport = new RecordingTransport();
+    const onClose = vi.fn();
+    renderDialog(true, onClose, transport);
+    const input = screen.getByLabelText("File path or URL");
+    fireEvent.change(input, { target: { value: "/media/queues/chill.m3u" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() => {
+      const load = transport.sent.find((r) => r.cmd === "playlist.load");
+      expect(load?.args).toEqual({ path: "/media/queues/chill.m3u", append: false });
+    });
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(currentPath).toBe("/playlist");
+    });
+    // One funnel, one kind: a playlist open never opens a session too.
+    expect(transport.sent.filter((r) => r.cmd === "session.open")).toHaveLength(0);
   });
 
   it("blank path input is honestly invalid — no fabricated source, no close", () => {

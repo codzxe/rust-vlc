@@ -114,6 +114,72 @@ impl WindowConfig {
     pub fn idle_title_key(&self) -> &str {
         &self.title_idle_key
     }
+
+    /// Render the title template with media open (the `{product_name}`
+    /// / `{media_title}` variables — the only two [`validate`]
+    /// admits). The wrapper calls this on `media.info-ready`-class
+    /// updates and sets the window title to the result.
+    #[must_use = "pure reporter"]
+    pub fn render_media_title(&self, product_name: &str, media_title: &str) -> String {
+        self.title_template
+            .replace("{product_name}", product_name)
+            .replace("{media_title}", media_title)
+    }
+
+    /// The build spec for window construction — the exact parameter
+    /// set the ADR-004 wrapper feeds `WebviewWindowBuilder` (issue #3,
+    /// 4.H1 handoff c: the `[window]` table is CONSUMED at window
+    /// build, not just parsed). `remember_geometry` rides along so the
+    /// wrapper branches on config (restore persisted geometry vs
+    /// apply `inner_size`), never on a guess.
+    #[must_use = "pure reporter — the wrapper applies this verbatim"]
+    pub fn build_spec(&self) -> WindowBuildSpec {
+        WindowBuildSpec {
+            inner_size: (self.width, self.height),
+            min_inner_size: (self.min_width, self.min_height),
+            maximized: self.start_maximized,
+            remember_geometry: self.remember_geometry,
+            title: WindowTitle::Idle {
+                key: self.title_idle_key.clone(),
+            },
+        }
+    }
+}
+
+/// The window-title source at build time: the idle localization key
+/// until media opens (the webview's i18n layer resolves the key), the
+/// rendered template once one has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WindowTitle {
+    /// No media: resolve this localization key.
+    Idle {
+        /// The key (e.g. `window.title.idle`).
+        key: String,
+    },
+    /// Media open: the rendered template, verbatim.
+    Media {
+        /// The rendered title string.
+        rendered: String,
+    },
+}
+
+/// What the shell hands the window builder (one struct, no config
+/// knowledge leaks into the wrapper — the tauri-side code applies
+/// this and nothing else).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowBuildSpec {
+    /// Initial inner size (`inner_size`).
+    pub inner_size: (u32, u32),
+    /// Minimum inner size (`min_inner_size`).
+    pub min_inner_size: (u32, u32),
+    /// Start maximized (`maximized`).
+    pub maximized: bool,
+    /// Restore persisted geometry when true (the geometry store is
+    /// the settings-backed persistence card's follow-up; the flag is
+    /// consumed here either way).
+    pub remember_geometry: bool,
+    /// The title source at build time.
+    pub title: WindowTitle,
 }
 
 /// Parse the `[window]` table out of product.toml text.
@@ -357,6 +423,7 @@ mod tests {
     /// (the `[brand]` section that follows carries its own keys).
     #[test]
     fn other_sections_and_comments_do_not_leak() {
+        // lumen-allow-literal: test fixture TOML mirroring product.toml [brand] — parse-target data
         let text = "# leading comment\n[window]\nwidth = 960 # inline comment\nheight = 540\n\
                     min_width = 480\nmin_height = 320\nstart_maximized = true\n\
                     remember_geometry = false\ntitle_template = \"{product_name}\"\n\
@@ -366,5 +433,41 @@ mod tests {
         assert!(config.start_maximized);
         assert!(!config.remember_geometry);
         assert_eq!(config.title_template, "{product_name}");
+    }
+
+    /// 4.H1 handoff c (issue #3): the shipped product.toml's [window]
+    /// table is CONSUMED as a build spec — the exact parameter set
+    /// the ADR-004 wrapper feeds the window builder, derived from the
+    /// REAL file (drift is loud here).
+    #[test]
+    fn the_shipped_product_toml_yields_the_build_spec() {
+        let product = include_str!("../../../product.toml");
+        let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
+        let spec = config.build_spec();
+        assert_eq!(spec.inner_size, (1280, 720));
+        assert_eq!(spec.min_inner_size, (480, 320));
+        assert!(!spec.maximized);
+        assert!(spec.remember_geometry);
+        assert_eq!(
+            spec.title,
+            WindowTitle::Idle {
+                key: "window.title.idle".to_string()
+            }
+        );
+    }
+
+    /// The media title renders through the template's variables
+    /// (both directions), and the idle key stands in until one does.
+    #[test]
+    fn media_titles_render_through_the_template() {
+        let product = include_str!("../../../product.toml");
+        let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
+        assert_eq!(
+            config.render_media_title("Lumen", "Big Buck Bunny"), // lumen-allow-literal: test fixture value — round-trip data, not display identity
+            "Big Buck Bunny — Lumen" // lumen-allow-literal: test fixture value — round-trip data, not display identity
+        );
+        assert_eq!(config.render_media_title("Nova", "Sintel"), "Sintel — Nova");
+        // No media open: the idle key (resolved by the i18n layer).
+        assert_eq!(config.idle_title_key(), "window.title.idle");
     }
 }

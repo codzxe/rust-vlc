@@ -58,6 +58,7 @@
   display: flex;
   align-items: center;
   gap: calc(var(--space-inset) + 2px);
+
   /* v2: the seek row dominates the bar — it takes all the free width and
    * never collapses below a usable scrub track (wraps below that instead). */
   flex: 1 1 280px;
@@ -164,6 +165,7 @@
   border-radius: var(--radius-ring);
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- the volume fill override is grouped with the volume cluster; the seek-empty rule targets a disjoint subtree (.lumen-controls__seek), never a volume slider */
 .lumen-controls__volume-slider .lumen-slider__fill {
   background: var(--color-accent);
   border-radius: var(--radius-ring);

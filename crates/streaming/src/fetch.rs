@@ -182,6 +182,30 @@ impl Url {
     /// (missing `://`, empty host, bad port, spaces, control bytes,
     /// IPv6 literals, userinfo).
     pub fn parse(text: &str) -> Result<Url, NetworkError> {
+        Self::parse_options(text, false).map(|(url, _)| url)
+    }
+
+    /// Parse a URL, **accepting and stripping userinfo**
+    /// (`http://user:pass@host/path`) — the auth layer's surface
+    /// (card 6.E1). [`Url::parse`] keeps rejecting userinfo (v0
+    /// behavior, pinned); this constructor returns the canonical
+    /// credential-free URL plus the userinfo as a [`Userinfo`] pair
+    /// when present, so [`Display`](Url::fmt) can never leak a
+    /// password that arrived by URL.
+    ///
+    /// # Errors
+    /// As [`Url::parse`], except userinfo is accepted instead of
+    /// rejected.
+    pub fn parse_with_userinfo(text: &str) -> Result<(Url, Option<Userinfo>), NetworkError> {
+        Self::parse_options(text, true)
+    }
+
+    /// Shared parser: `accept_userinfo` selects between the v0
+    /// strict surface and the auth layer's userinfo-accepting one.
+    fn parse_options(
+        text: &str,
+        accept_userinfo: bool,
+    ) -> Result<(Url, Option<Userinfo>), NetworkError> {
         if text.chars().any(|c| c.is_ascii_control() || c == ' ') {
             return Err(NetworkError::ProtocolViolation {
                 detail: "URL contains spaces or control bytes",
@@ -200,11 +224,32 @@ impl Url {
             Some((authority, tail)) => (authority, format!("/{tail}")),
             None => (rest, "/".to_string()),
         };
-        if authority.contains('@') {
-            return Err(NetworkError::ProtocolViolation {
-                detail: "userinfo in URL is not supported in v0",
-            });
-        }
+        let mut userinfo = None;
+        let authority = if let Some((userinfo_part, host_part)) = authority.rsplit_once('@') {
+            if !accept_userinfo {
+                return Err(NetworkError::ProtocolViolation {
+                    detail: "userinfo in URL is not supported in v0",
+                });
+            }
+            if host_part.is_empty() {
+                return Err(NetworkError::ProtocolViolation {
+                    detail: "URL has an empty host",
+                });
+            }
+            let (username, password) = match userinfo_part.split_once(':') {
+                Some((user, pass)) => (user.to_string(), pass.to_string()),
+                None => (userinfo_part.to_string(), String::new()),
+            };
+            if username.is_empty() {
+                return Err(NetworkError::ProtocolViolation {
+                    detail: "URL userinfo has an empty username",
+                });
+            }
+            userinfo = Some(Userinfo { username, password });
+            host_part
+        } else {
+            authority
+        };
         if authority.contains('[') || authority.contains(']') {
             return Err(NetworkError::ProtocolViolation {
                 detail: "IPv6 URL literals are not supported in v0",
@@ -226,12 +271,15 @@ impl Url {
                 detail: "URL has an empty host",
             });
         }
-        Ok(Url {
-            scheme,
-            host: host.to_string(),
-            port,
-            path_and_query,
-        })
+        Ok((
+            Url {
+                scheme,
+                host: host.to_string(),
+                port,
+                path_and_query,
+            },
+            userinfo,
+        ))
     }
 
     /// `host:port` as sent in the `Host:` header.
@@ -249,6 +297,7 @@ impl Url {
     /// [`NetworkError::ProtocolViolation`] for unsupported reference
     /// shapes; [`Url::parse`]'s errors for absolute references.
     pub fn join(&self, location: &str) -> Result<Url, NetworkError> {
+        // lumen-allow-literal: scheme-prefix dispatch — protocol vocabulary, not an endpoint
         if location.starts_with("http://") || location.starts_with("https://") {
             return Url::parse(location);
         }
@@ -277,6 +326,29 @@ impl std::fmt::Display for Url {
             self.authority(),
             self.path_and_query
         )
+    }
+}
+
+/// `user[:password]` userinfo extracted from a URL (card 6.E1,
+/// [`Url::parse_with_userinfo`]).
+///
+/// Carries a secret: [`Debug`](std::fmt::Debug) is hand-written and
+/// redacts the password — a userinfo logged by accident never leaks
+/// the credential (MP §12).
+#[derive(Clone, PartialEq, Eq)]
+pub struct Userinfo {
+    /// The username (never empty — the parser rejects that shape).
+    pub username: String,
+    /// The password (may be empty: `http://user@host/`).
+    pub password: String,
+}
+
+impl std::fmt::Debug for Userinfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Userinfo")
+            .field("username", &self.username)
+            .field("password", &"[redacted]")
+            .finish()
     }
 }
 
@@ -405,6 +477,28 @@ pub trait HttpFetch: Send + Sync {
     /// [`NetworkError`] — DNS, deadlines, TLS, redirects, framing,
     /// bounds, or I/O (the OS error preserved in the `source` chain).
     fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError>;
+
+    /// Fetch with authentication challenges surfaced (card 6.E1): a
+    /// `401` response is returned as `Ok` — `WWW-Authenticate`
+    /// header intact — instead of the typed
+    /// [`NetworkError::HttpStatus`] error, so the auth layer
+    /// ([`crate::auth`]) can answer the challenge. Every other status
+    /// keeps `fetch`'s classification.
+    ///
+    /// The default delegates to `fetch` (the classified shape):
+    /// transports that do not override it simply never hand the auth
+    /// layer a challenge body, and the auth layer degrades to its
+    /// conservative basic-auth fallback — documented, never a panic.
+    /// Wrapping order matters: compose `RetryFetch` **around**
+    /// `AuthFetch`, not inside it, or challenges stop surfacing.
+    ///
+    /// # Errors
+    /// Transport-level failures only (DNS, deadlines, TLS, framing,
+    /// redirect budget); any complete response — 401 included — is
+    /// `Ok`.
+    fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+        self.fetch(request)
+    }
 }
 
 #[cfg(test)]
@@ -446,7 +540,7 @@ mod tests {
     /// URL parsing: the accepted shapes and their defaults.
     #[test]
     fn url_parse_accepts_http_and_https() {
-        let plain = Url::parse("http://example.com/media/song.flac?x=1").must();
+        let plain = Url::parse("http://example.com/media/song.flac?x=1").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(plain.scheme, "http");
         assert_eq!(plain.host, "example.com");
         assert_eq!(plain.port, 80);
@@ -454,14 +548,14 @@ mod tests {
         assert_eq!(plain.authority(), "example.com:80");
         assert_eq!(
             plain.to_string(),
-            "http://example.com:80/media/song.flac?x=1"
+            "http://example.com:80/media/song.flac?x=1" // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         );
 
-        let tls = Url::parse("https://cdn.example.org:8443/seg001.ts").must();
+        let tls = Url::parse("https://cdn.example.org:8443/seg001.ts").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(tls.port, 8443);
         assert_eq!(tls.path_and_query, "/seg001.ts");
 
-        let bare = Url::parse("https://host").must();
+        let bare = Url::parse("https://host").must(); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(bare.path_and_query, "/");
         assert_eq!(bare.port, 443);
     }
@@ -477,12 +571,12 @@ mod tests {
         ));
         for bad in [
             "example.com/file",
-            "http:///path",
-            "http://host:notaport/",
-            "http://[::1]:8080/",
-            "http://user:pw@host/",
-            "http://ho st/",
-            "http://host/\u{0}",
+            "http:///path", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://host:notaport/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://[::1]:8080/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://user:pw@host/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://ho st/", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "http://host/\u{0}", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         ] {
             assert!(
                 matches!(Url::parse(bad), Err(NetworkError::ProtocolViolation { .. })),
@@ -500,7 +594,7 @@ mod tests {
         assert_eq!(root_relative.path_and_query, "/media/seg001.ts");
         assert_eq!(root_relative.host, base.host);
 
-        let absolute = base.join("https://other.example.net:9/x?y=2").must();
+        let absolute = base.join("https://other.example.net:9/x?y=2").must(); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
         assert_eq!(absolute.scheme, "https");
         assert_eq!(absolute.path_and_query, "/x?y=2");
 
@@ -518,7 +612,7 @@ mod tests {
     /// Builder defaults: deadlines, redirect budget, response limit.
     #[test]
     fn request_defaults_are_bounded() {
-        let req = HttpRequest::get("http://example.com/a");
+        let req = HttpRequest::get("http://example.com/a"); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(req.method, HttpMethod::Get);
         assert_eq!(req.timeouts, TimeoutConfig::default());
         assert_eq!(req.timeouts.read, Duration::from_secs(5));
@@ -526,7 +620,7 @@ mod tests {
         assert!(req.redirects.cross_host);
         assert_eq!(req.redirects.mode, RedirectMode::Follow);
         let manual =
-            HttpRequest::get("http://example.com/a").with_redirect_mode(RedirectMode::Manual);
+            HttpRequest::get("http://example.com/a").with_redirect_mode(RedirectMode::Manual); // lumen-allow-literal: URL parse/redaction test vector — data under test
         assert_eq!(manual.redirects.mode, RedirectMode::Manual);
         assert_eq!(manual.redirects.max_redirects, DEFAULT_MAX_REDIRECTS);
         assert_eq!(req.response_limit, DEFAULT_RESPONSE_LIMIT);

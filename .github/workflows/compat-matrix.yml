@@ -1,0 +1,161 @@
+# Lumen Compat-Matrix — the 3-OS full-corpus compatibility matrix runs
+# (issue #53, cards 8.B1–8.B2; docs/plans/phase8-cards.md P8-2).
+#
+# WHAT THIS JOB IS: the "compat-matrix CI job" the 2026-11-10 report's
+# blocked lanes cite as their next step (docs/corpus/
+# compat-matrix-20261110.md §2). It runs the SAME standalone runner the
+# committed evidence came from (tests/compat — schema
+# compat-matrix/config/2) on each of the three OS, one native sweep per
+# OS, so the Windows/macOS blocked-by-external cells can be replaced
+# with REAL runs once the blockers lift.
+#
+# PARKED-BY-DESIGN POSTURE (same honesty as ci-full.yml, doc 10 §4.2):
+#   * Trigger is MANUAL DISPATCH ONLY. The two external blockers
+#     (docs/plans/phase8-cards.md §1, rows 3–4: 3-OS runner machines +
+#     CI billing — owner: user) are OPEN: the repo is private, macOS
+#     runners bill at 10x, and one full-corpus sweep per OS (engine
+#     build + ffmpeg corpus regen + 166-file decode + wasm lane) costs
+#     far more than the lean merge-blocking gate. A scheduled trigger
+#     would burn the budget the blockers already gate.
+#   * PROMOTION PATH: when the user provisions the runner machines and
+#     unblocks billing (the same lift ci-full.yml waits for), dispatch
+#     this workflow once per OS and record the first three green runs;
+#     a cadence (or PR trigger) is a Lead decision after that, and this
+#     job must NEVER join required checks before it has one green run
+#     per OS (a skipped check cannot block — doc 10 §4.4).
+#   * First-run status [BLOCKED on first real 3-OS run]: every command
+#     string here is proven green on Linux in the development sandbox
+#     (the derived-config + full-run flow was executed end-to-end,
+#     2026-11-10, 166 rows + wasm lane steps exit 0), but the
+#     windows/macos lanes have NEVER executed on real runners.
+#
+# HONESTY RULES THIS JOB KEEPS (issue #53's whole point):
+#   * Attribution is EXPLICIT: each matrix lane names its platform
+#     (config/2); the per-OS config is derived by
+#     tests/compat/ci/derive_config.py, which refreshes the claims
+#     snapshot from the LIVE docs/feature-matrix.toml (never a stale
+#     snapshot) and re-attributes the native lane to this job's OS.
+#   * The pinned Debian VLC 3.0.23 oracle tree does NOT exist on CI
+#     hosts: the runner records that absence verbatim and cites the
+#     committed 2026-11-09 record (labeled committed-record, never
+#     inferred). A present-but-mismatched oracle stays a hard refusal.
+#   * This job NEVER edits docs/feature-matrix.toml. Its transitions
+#     outbox lands in the uploaded artifact; proposals flow through
+#     `cargo xtask compat-matrix apply-transitions` (the parity tool,
+#     the ONLY status writer) which re-checks every from-status — CI
+#     proposes, the tool disposes.
+#   * Reports go to the ephemeral ci-out/ artifact dir — the committed
+#     docs/corpus evidence files are never touched by a CI run.
+#
+# Toolchain: identical pin/assert/cache posture to ci.yml + ci-full.yml
+# (rust-toolchain.toml pins 1.99.1). `shell: bash` on the windows runner
+# is the preinstalled Git-for-Windows bash. CARGO_TARGET_DIR=target
+# overrides the sandbox-path build.target-dir pinned in the committed
+# .cargo/config.toml (the ci.yml "CURRENT REALITY" reconciliation).
+#
+# Action pins (same refs as ci-full.yml / soak-nightly.yml,
+# re-resolved via `git ls-remote` on 2026-11-09, issue #5):
+#   actions/checkout        v7.0.1  3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dtolnay/rust-toolchain  1.99.1  d124f86f28ff42855784ff3319f48ac182c248f8
+#   Swatinem/rust-cache     v2.9.2  6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+#   actions/upload-artifact v7.0.2  cf430e030ddbb5b0abf93d22962f4752f3646cd9
+
+name: Compat-Matrix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  # Manual dispatches of the same ref supersede each other; a running
+  # sweep is never auto-cancelled mid-corpus (partial evidence confuses
+  # nobody — the artifact is either complete or absent).
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+  # Overrides the sandbox-path build.target-dir pinned in the committed
+  # .cargo/config.toml (see ci.yml "CURRENT REALITY RECONCILIATIONS").
+  CARGO_TARGET_DIR: target
+
+jobs:
+  compat-matrix:
+    name: compat-matrix (${{ matrix.os }})
+    strategy:
+      # doc 10 §4.2: one OS failing must not hide the other two.
+      fail-fast: false
+      matrix:
+        # The platform column is EXPLICIT per lane (config/2's rule:
+        # attribution is never inferred from the host) — the derive
+        # script refuses anything outside windows/linux/macos.
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/compat-matrix.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - name: Add the wasm32 target (the web-wasm lane's build step needs it)
+        run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: ffmpeg (the regenerable corpus needs it — check first, install only if absent)
+        run: |
+          case "${RUNNER_OS}" in
+            Linux)
+              command -v ffmpeg >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y ffmpeg; }
+              ;;
+            Windows)
+              command -v ffmpeg >/dev/null 2>&1 || choco install -y --no-progress ffmpeg
+              ;;
+            macOS)
+              command -v ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+              ;;
+            *)
+              echo "::error::unknown RUNNER_OS '${RUNNER_OS}'"
+              exit 1
+              ;;
+          esac
+          ffmpeg -version | head -n 1
+      - name: Derive the per-OS CI config (claims refreshed from the live feature-matrix)
+        run: |
+          # python3 is the runner default on Linux/macOS; the Windows
+          # bash shell exposes the preinstalled CPython as `python`.
+          PY=python3
+          command -v python3 >/dev/null 2>&1 || PY=python
+          "$PY" tests/compat/ci/derive_config.py "${{ matrix.platform }}" \
+            ci-out/compat-matrix-ci.json ci-out
+      - name: compat-matrix run (full corpus through the real open/decode path)
+        run: cargo run --manifest-path tests/compat/Cargo.toml --locked -- run --config ci-out/compat-matrix-ci.json
+      - name: Upload the CI matrix reports + transitions outbox (evidence-<job>-<os>-<run_id>; a failed run uploads for triage too)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-compat-matrix-${{ matrix.os }}-${{ github.run_id }}
+          path: ci-out/
+          if-no-files-found: warn # a crash before the report write still uploads nothing — the job log is the evidence then

@@ -5,6 +5,20 @@ import { defineConfig } from "@playwright/test";
 // still run `npx playwright install chromium` once before `npm run test:e2e`.
 export default defineConfig({
   testDir: "./e2e",
+  // snapshotDir trap (4.H1 handoff, docs/gates/phase4-exit.md §4 item 6):
+  // without this, the plain `npx playwright test` (npm run test:e2e) also
+  // picks up e2e/visual/visual.spec.ts and runs its PR cases against
+  // Playwright's DEFAULT snapshot location (…-snapshots/ under e2e/visual/)
+  // instead of the committed baselines/linux/ set — "snapshot doesn't exist,
+  // writing actual" x30, spurious red + stray snapshot dirs. The visual
+  // harness is owned by playwright.visual.config.ts and driven exclusively
+  // via npm run visual / scripts/visual-run.mjs; exclude it here so the
+  // plain command cannot mislead.
+  // e2e/web/** is excluded for the same reason (card 7.I1): the browser
+  // matrix needs its own harness server (engine wasm + Range endpoints +
+  // per-mode COOP/COEP), started only by npm run webmatrix —
+  // playwright.web.config.ts owns that lane.
+  testIgnore: ["**/visual/**", "**/web/**"],
   timeout: 30_000,
   fullyParallel: true,
   // Explicit reporters: list for terminal, HTML (never auto-open) for the

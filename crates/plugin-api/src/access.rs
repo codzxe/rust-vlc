@@ -230,6 +230,7 @@ mod tests {
 
     #[test]
     fn mem_source_reads_seeks_and_errors() {
+        // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         let uri = match SourceUri::parse("file:///tmp/a.mkv") {
             Ok(u) => u,
             Err(e) => unreachable!("{e}"),
@@ -276,6 +277,7 @@ mod tests {
 
     #[test]
     fn scheme_mismatch_is_a_typed_error() {
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
         let uri = match SourceUri::parse("https://example.com/a") {
             Ok(u) => u,
             Err(e) => unreachable!("{e}"),
@@ -298,6 +300,7 @@ mod tests {
     /// and a zero-length buffer is a zero-length success.
     #[test]
     fn default_read_into_reconstructs_and_tracks_position() {
+        // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
         let uri = match SourceUri::parse("file:///tmp/a.mkv") {
             Ok(u) => u,
             Err(e) => unreachable!("{e}"),

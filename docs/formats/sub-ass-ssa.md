@@ -32,10 +32,22 @@ doc 04 §6:
 - **Times**: `H:MM:SS.CC` → µs exact (1 cs = 10 000 µs); fractions
   1–6 digits; lenient M/S>59 (libass-style linear); overflow/
   garbage → typed BadTime skip. 0:01:02.75 → 62 750 000 µs pinned.
-- **Plain text**: `{\...}` stripped with per-tag-name drop counters
+- **Plain text**: `{\...}` stripped with per-tag-name counters
   (the R-09 conformance artifact); `{}` preserved (VSFilter quirk);
   unterminated `{` literal (libass); `\N`/`\n` → newline, `\h` →
   space; UTF-8 scalar walk.
+- **Override-tag minimum (G-2, issue #17, `ass/tags.rs`)**:
+  `\b \i \u \s \fs \fn \c \1c \alpha \1a \pos \move`
+  interpreted NATIVELY — style-state machine seeded from the
+  referenced style, styled runs emitted into `CueText::Styled`
+  (tag-free cues stay `Plain`, D-1); `\pos`/`\move` → cue
+  `Positioning` percents of PlayRes + render-path exact-rational
+  anchor (`layout::cue_layout_at`, margins overridden, `\move`
+  frozen at its start point, counted); longest-known-tag-name
+  scanning (`\fnComic Sans` is `fn` + arg); per-run colour + font
+  size rendering (`render_styled_cue`); new stats:
+  applied_override_tags / unmapped_colour_tags / move_tags_frozen /
+  position_overrides_{applied,unmappable}.
 - **Render** (5.M2b): 1–9 numpad grid → compositor `CueLayout` with
   EXACT rationals (margins = anchor fractions of PlayRes 384×288,
   libass-style scaling); TitleSafe clamp on top of explicit margins
@@ -65,15 +77,21 @@ doc 04 §6:
 
 ## Deferred (honest, per doc 04 §5 / feasibility §5 §2.2)
 
-ALL override-tag interpretation (fonts, colors beyond primary,
-karaoke, `\pos`/`\move`, rotation, borders, fades, drawing — dropped
-+ counted); Layer z-order, Name/Effect, margin overrides counted
-unmapped; WrapStyle reflow; PlayRes-aware margin math → the Phase-5+
-styling card. libass cross-differential IMPOSSIBLE (C — forbidden by
-§9); no real fansub-grade corpus lane exists. Placeholder glyphs
-under-estimate CJK wide-width (one cell per scalar). libass mid-
-alignment (4–6) MarginV policy unverified (conservative center,
-test-pinned).
+Beyond-minimum override tags (karaoke `\k`/`\K`/`\kf`/`\ko`,
+rotation `\fr*`, animation `\t`, `\fad`/`\fade`, drawing `\p`,
+border/shadow `\bord`/`\shad`/`\be`/`\blur`, scale `\fscx`/`\fscy`,
+alignment override `\an`/`\a`, `\r` reset, `\clip`/`\iclip` —
+dropped + counted by name); secondary/outline/shadow colour slots
+(`\2c`/`\3c`/`\4c`/`\2a`/`\3a`/`\4a` — parsed, validated, counted
+unmapped: the model is single-colour); Layer z-order, Name/Effect,
+margin overrides counted unmapped; WrapStyle reflow. libass
+cross-differential IMPOSSIBLE (C — forbidden by §9); no real
+fansub-grade corpus lane exists. Placeholder glyphs under-estimate
+CJK wide-width (one cell per scalar). libass mid-alignment (4–6)
+MarginV policy unverified (conservative center, test-pinned).
+`\move` interpolation and `\pos`-vs-libass pixel parity
+[VERIFY] once the real font stack lands. `\b` weights collapse to
+on/off (any nonzero = bold).
 
 ## Next steps
 

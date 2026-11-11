@@ -69,6 +69,28 @@ the OS-ABI surface, not forbidden third-party engines. Proposal: a
 recorded once with an audit, rather than per-use ADRs. Lead decision
 requested (§10 Q4).
 
+**Admission register — rustls TLS crypto provider `[RATIFIED —
+E2-class exception; ADR-011 accepted 2026-11-09]`:** the streaming
+transport's crypto core
+(ureq 3.5.0 + rustls; record `deps/records/ureq-3.5.0.md` R10 — *admitted
+conditionally on the Lead accepting the recorded ring deviation* —
+**condition discharged by the Lead's 2026-11-09 ratification**). Audit
+2026-11-09, real cargo data (ADR-011 §"The audit"): `rustls =
+"0.23"` resolves **rustls 0.23.46, 35 packages locked, 19-crate build
+graph**; the **default provider is aws-lc-rs 1.19.0** → aws-lc-sys 0.47.0
+(a C/C++ build chain: cc 1.11.1, cmake 0.1.58, pkg-config 0.3.34,
+fs_extra, dunce), while the alternate — **activated in our tree via ureq's
+`rustls` feature — is ring 0.17.14**: 135 C/asm files, cc-only build, 230
+unsafe tokens, all inside the crypto core (record R1/R8). No production
+pure-Rust provider exists; native-tls is platform linkage (E-ineligible
+and card-banned). Outcome: ring is registered as the **E2-class
+audited-native-crypto-core exception** (the rav1d-asm posture, §2.4) —
+**ratified by the Lead 2026-11-09** (ADR-011 accepted; decision ratified
+by the orchestrator, activating issue #39). The acceptance deleted the
+seam (`HTTPS_ADR011_ADMITTED` const + the `SchemeError::HttpsNotAdmitted`
+vocabulary) from `crates/streaming/src/schemes.rs`; re-audit re-triggers
+per §3.7 on any ureq/rustls version or feature change.
+
 ### 1.3 The intake procedure (what an agent does)
 
 1. Check the crate against F1–F7 using the §4.1 method *before* proposing it.
@@ -469,7 +491,7 @@ merged]`.
 | SEC-04 | **Safe integer conversions** — `[PROPOSAL: try_from discipline]`: `u32::try_from`, checked arithmetic in all parser/codec crates; no numeric `as` casts in `demux/ codecs/ media-probe/ subtitles/ playlists/` (clippy `cast_possible_truncation` denied there, audited by grep elsewhere) | lint G5 + review checklist; property tests on time-base math (doc 03 §7) |
 | SEC-05 | **Deadlines + cancellation on all I/O**: every source/track/hw call carries a deadline; seek/stop/track-switch cancel stale work via generation IDs (MP §8, §12; doc 05 §4.2) | interrupted-network suite, stale-generation races (doc 10 G11) |
 | SEC-06 | **Safe path handling**: no traversal from playlists/subtitles — canonicalize + sandbox-prefix check; relative refs resolve only within the playlist's directory tree (or a user-granted root); UNC/file-URL/network paths require explicit opt-in `[PROPOSAL]`; subtitle sidecar lookup restricted to the media file's directory | `sec_path_traversal` vector suite (§9.1) |
-| SEC-07 | **TLS verification always on** for `https` sources: no disable option in product config. Dev-only override via `LUMEN_DEV_INSECURE_TLS=1`, refused in release builds (`debug_assertions`-gated compile-out) `[PROPOSAL]`; rustls + webpki roots `[VERIFY: crate choice Phase 0]` | `sec_tls_*`: expired/self-signed/wrong-host rejected in release; env override no-ops in release |
+| SEC-07 | **TLS verification always on** for `https` sources: no disable option in product config. Dev-only override via `LUMEN_DEV_INSECURE_TLS=1`, refused in release builds (`debug_assertions`-gated compile-out) `[PROPOSAL]`; rustls + webpki roots — crate choice landed in-tree: ureq 3.5.0 + rustls, ring 0.17.14 provider, **ratified E2-class exception** (ADR-011 accepted 2026-11-09, Lead ratification recorded in `docs/adr/ADR-011-tls-https.md`; record `deps/records/ureq-3.5.0.md` R10's conditional admission discharged; verification never off — `crates/streaming/src/client.rs::tls_config`); the pre-ratification typed seam `streaming.scheme.https-not-admitted` is **deleted** — https classifies like http at scheme dispatch (`crates/streaming/src/schemes.rs`; the networked TLS round-trip is [VERIFY: needs a networked CI lane]) | `sec_tls_*`: expired/self-signed/wrong-host rejected in release; env override no-ops in release |
 | SEC-08 | **Explicit redirect + credential policy**: max 10 redirects (no loops); `Authorization`/`Cookie`/basic-auth **never re-sent cross-origin** (scheme+host+port equality); credentials in URLs never logged (→ SEC-09) | `sec_redirect_creds`: MITM-style fixture redirects assert header dropped |
 | SEC-09 | **Secret redaction at the source trait**: credentials live in a `SecretString`/redacting URL type whose `Display`/`Debug` redact; log macro layer double-checks; tokens (control server) never logged (doc 05 §5.4) | `sec_redaction`: seeded URLs with userinfo → grep log sink, zero leaks |
 | SEC-10 | **No default telemetry / no unexplained egress**: engine network activity = user-initiated media fetches only; update checks off by default (MP §5) | `sec_no_egress`: sandboxed run, assert zero connections beyond the test server |
@@ -585,31 +607,48 @@ extension-boundary reading, patent-clause preference, fork/rebrand policy.
 
 ### 8.3 Codec patent risk register (ADR-010 input, MP §14)
 
+> **ADR-010 status (2026-11-09, issue #24):** the decision record is now
+> drafted — `docs/adr/ADR-010-codec-patent-shipping.md` — with the full
+> implementation inventory, the per-codec posture table below re-based on
+> current code, four shipping options, a recommended posture **[PROPOSAL]**
+> and a 24-item counsel question ledger. **Decisions remain PENDING COUNSEL**
+> (its Q1–Q24); the ADR stays *proposed* until the user+counsel sign-off gate
+> passes, and R-03's rule stands: no public binary distribution of any build
+> before that. This register remains the input layer; the ADR is the
+> decision layer.
+
 Source licenses ≠ patent licenses. A permissively licensed decoder can
 still embody patented techniques; distributing a decoder can trigger pool
 licensing. Register (best-effort facts — **every pool/status line is
 `[VERIFY: current pool membership, rates, and jurisdiction reading with
-counsel]`; this is a flag-for-legal-review, not a legal opinion**):
+counsel]`; this is a flag-for-legal-review, not a legal opinion**).
+Exposure column refreshed 2026-11-09 to the implementation reality
+(ADR-010 §1 is the file-evidence authority):
 
-| Family | Patent posture (to verify) | Lumen exposure | Mitigation options |
+| Family | Patent posture (to verify) | Lumen exposure (2026-11-09) | Mitigation options |
 |---|---|---|---|
-| H.264/AVC | multiple pools (Via LA successor to MPEG LA's AVC pool; Access Advance; individual holders) cover *implementers/distributors* of decoders | direct if we ship a software decoder (none exists yet — doc 04 §4.2); using OS decoders (Apple/Microsoft license their stacks) may shift exposure to the OS vendor, but distributor liability is jurisdiction-dependent | ADR-010 shipping matrix: hw-only builds, regional builds, source-build path |
-| HEVC | notoriously fragmented (3+ pools + individual licensors) | worse than AVC; same hw-only reality (doc 04 §4.3) | same |
-| MPEG-2 / MPEG-4 ASP | MPEG-2 pool largely expired (2019+) `[VERIFY]`; ASP pool status varies | future self-build phases (6+) | re-verify at build time |
-| AAC | active pools (Via Licensing AAC) covering decoders | Symphonia AAC-LC ships in Phase 2 — **flag before first public binary release** | ADR-010 gate: audio-codec feature split |
-| MP3 | principal patents expired (~2017) `[VERIFY: tail patents]` | low | none expected |
-| Opus | royalty-free: IETF RFC 6716; contributors granted royalty-free licenses; Cisco/MS patent commitments `[VERIFY]` | none expected | none |
-| VP8/VP9 | Google's irrevocable royalty-free patent pledge `[VERIFY: scope]` | none expected | none |
-| AV1 | AOMedia member royalty-free grant with defensive-termination clause `[VERIFY]` | rav1d no-asm path | none |
-| FLAC / Vorbis | no known patent claims (Xiph's stated position) `[VERIFY]` | none expected | none |
-| AC-3/E-AC-3, DTS, TrueHD | Dolby/DTS licensing regimes `[VERIFY]` | decoders are `missing` today (doc 04 §3.1) | register before any self-build lands |
+| H.264/AVC | multiple pools (Via LA successor to MPEG LA's AVC pool; Access Advance; individual holders) cover *implementers/distributors* of decoders | software decoder still absent (parser + hw seam only — `crates/codecs/src/video/h264/**`, doc 04 §4.2); using OS decoders (Apple/Microsoft license their stacks) may shift exposure to the OS vendor, but distributor liability is jurisdiction-dependent (ADR-010 Q3) | ADR-010 shipping matrix: hw-only builds, regional builds, source-build path |
+| HEVC | notoriously fragmented (3+ pools + individual licensors) | worse than AVC; same hw-only reality (doc 04 §4.3; `crates/codecs/src/video/hevc/**` — parser + hw seam, no software decode; ADR-010 Q2) | same |
+| MPEG-2 / MPEG-4 ASP | MPEG-2 pool largely expired (2019+) `[VERIFY]`; ASP pool status varies | no decoders: MPEG-2 is parser/facts-only (5.H1), ASP candidate oxideav-mpeg4video BLOCKED at the differential gate (ADR-010 Q4/Q5) | re-verify at build time |
+| AAC | active pools (Via Licensing AAC) covering decoders | **AAC-LC decoder implemented** (`crates/codecs/src/audio/aac/**`, card 5.C2a, symphonia-codec-aac =0.6.1) — the one implemented Tier-B codec; **flag before first public binary release stands** (ADR-010 Q6) | ADR-010 gate: audio-codec feature split |
+| MP3 | principal patents expired (~2017) `[VERIFY: tail patents]` | MP3/MP2 decoders implemented (cards 5.A3/5.J3b) — proposed default-build included (ADR-010 Q7) | none expected |
+| Opus | royalty-free: IETF RFC 6716; contributors granted royalty-free licenses; Cisco/MS patent commitments `[VERIFY]` | decoder implemented (card 6.M-opus, ruopus =0.1.2) — proposed default-build included (ADR-010 Q8) | none |
+| VP8/VP9 | Google's irrevocable royalty-free patent pledge `[VERIFY: scope]` | VP9 decoder implemented (card 6.M-vp9, rusty_vp9 =0.1.3; matrix row drift noted in ADR-010 §1) — proposed default-build included (ADR-010 Q9) | none |
+| AV1 | AOMedia member royalty-free grant with defensive-termination clause `[VERIFY]` | rav1d no-asm decoder implemented (card 5.E1) — proposed default-build included (ADR-010 Q10) | none |
+| FLAC / Vorbis | no known patent claims (Xiph's stated position) `[VERIFY]` | decoders implemented (cards 5.A1/5.B2) — proposed default-build included (ADR-010 Q11) | none |
+| AC-3/E-AC-3, DTS, TrueHD | Dolby/DTS licensing regimes `[VERIFY]` | decoders still unadmitted: oxideav-ac3 and truehd both BLOCKED at their admission gates, DTS has no candidate (ADR-010 Q12–Q14) | register before any self-build/admission lands (precondition already written into the records) |
+| DNxHD/HR (VC-3) | **repo silent — ADR-010 Q15** `[VERIFY: counsel]` | decoder implemented (card 6.M-dnx, filmcraft-dnx =0.9.0 — record covers license/purity only) | tier decision pending counsel |
+| MJPEG, ADPCM, ALAC, PCM | repo silent on patents — ADR-010 Q16–Q19 `[VERIFY: counsel]` | all implemented in-house (2.B4/5.J2/5.J3a/2.B5) | tier decision pending counsel |
 | Fonts/subtitle rendering | not codec patents, but font licenses (OFL…) when bundling | doc 08 interim-font decision | ledger row required |
 
 **Jurisdiction variance:** patent exhaustion, offering-for-sale doctrines
 (e.g. Germany) and utility-model regimes differ; a "safe in the US" read is
 not a global read. ADR-010 outputs a **shipping matrix**: which codecs are
 compiled into which distributed binaries, with regional variance recorded
-and the honest-parity rule applied (blocked where undistributable).
+and the honest-parity rule applied (blocked where undistributable). The
+drafted ADR (above) proposes option (a) — default build = patent-clean tier,
+encumbered codecs behind optional/plugin builds per doc 06 §4.1 — **pending
+user+counsel sign-off**; the jurisdiction question itself is its Q22.
 
 ### 8.4 Third-party asset licensing
 
@@ -685,6 +724,11 @@ postinstall-script packages without review `[PROPOSAL]`).
   oxisynth LGPL case and the cargo-deny license allowlist.
 - **Q2 (ADR-010):** codec patent shipping matrix posture (§8.3) — hw-only
   distributed builds? regional binaries? source-only for encumbered codecs?
+  **Status: decision record drafted 2026-11-09
+  (`docs/adr/ADR-010-codec-patent-shipping.md`; issue #24) — evidence
+  complete, options a–d, recommendation (a) `[PROPOSAL]`; awaiting user +
+  counsel on its Q1–Q24 ledger. Decision still pending; no binary
+  distribution until it passes (R-03).**
 - **Q3:** fixture-license allowlist (§8.4) — confirm CC-BY-SA exclusion and
   the four allowed classes.
 - **Q4:** platform-ABI crate class (§1.2 note): pre-approve `libc`/`rustix`

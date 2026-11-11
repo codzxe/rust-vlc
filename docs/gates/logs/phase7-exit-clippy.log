@@ -1,0 +1,20 @@
+# Phase-7 exit gate — cargo clippy (r2 confirmation with recorded command)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T17:11:12Z
+# Cmd: cargo clippy --workspace --all-targets -- -D warnings
+# (Round-1 run of the same battery: body preserved below in phase7-exit-clippy-r1.log)
+    Checking input v0.1.0 (/home/z/my-project/wt/w24f/crates/input)
+    Checking media-probe v0.1.0 (/home/z/my-project/wt/w24f/crates/media-probe)
+    Checking transcode v0.1.0 (/home/z/my-project/wt/w24f/crates/transcode)
+    Checking lumen-cli v0.1.0 (/home/z/my-project/wt/w24f/apps/cli)
+    Checking lumen-web v0.1.0 (/home/z/my-project/wt/w24f/apps/web)
+    Checking first-vertical v0.1.0 (/home/z/my-project/wt/w24f/tests/integration/first-vertical)
+    Checking desktop v0.1.0 (/home/z/my-project/wt/w24f/apps/desktop)
+    Checking lumen-mem-audit v0.1.0 (/home/z/my-project/wt/w24f/tools/mem-audit)
+    Checking lumen-sweep v0.1.0 (/home/z/my-project/wt/w24f/tools/sweep)
+    Checking streaming v0.1.0 (/home/z/my-project/wt/w24f/crates/streaming)
+    Checking codecs v0.1.0 (/home/z/my-project/wt/w24f/crates/codecs)
+    Checking demux v0.1.0 (/home/z/my-project/wt/w24f/crates/demux)
+    Checking playback-engine v0.1.0 (/home/z/my-project/wt/w24f/crates/playback-engine)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.80s
+CLIPPY_EXIT=0

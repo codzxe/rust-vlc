@@ -46,5 +46,40 @@ else
   echo "fuzz-registry: FAILED"; cat /tmp/fuzzreg.log; fail=1
 fi
 
+echo "=== 7. lint-literals (doc 07 §9 C1 — config-plane literal scan, card 7.w21a) ==="
+if cargo xtask lint-literals > /tmp/litlit.log 2>&1; then
+  tail -1 /tmp/litlit.log; echo "lint-literals: PASS"
+else
+  echo "lint-literals: FAILED"; rg 'FAIL' -A 15 /tmp/litlit.log | head -20; fail=1
+fi
+
+echo "=== 8. check-identity (doc 07 §9 C2 — no-hardcoded-identity scan, card 7.w21a) ==="
+if cargo xtask check-identity > /tmp/chkident.log 2>&1; then
+  tail -1 /tmp/chkident.log; echo "check-identity: PASS"
+else
+  echo "check-identity: FAILED"; rg 'FAIL' -A 15 /tmp/chkident.log | head -20; fail=1
+fi
+
+echo "=== 9. sbom --check (issue #52 / doc 11 §3.4 — CycloneDX 1.5 SBOM drift gate) ==="
+if cargo xtask sbom --check > /tmp/sbom.log 2>&1; then
+  tail -1 /tmp/sbom.log; echo "sbom: PASS"
+else
+  echo "sbom: FAILED"; tail -5 /tmp/sbom.log; fail=1
+fi
+
+echo "=== 10. web-budget --check (issue #49 / doc 09 §2.4 — wasm size-budget + growth gate, card 7.K1) ==="
+if cargo xtask web-budget --check > /tmp/webbudget.log 2>&1; then
+  tail -1 /tmp/webbudget.log; echo "web-budget: PASS"
+else
+  echo "web-budget: FAILED"; tail -8 /tmp/webbudget.log; fail=1
+fi
+
+echo "=== 11. packaging gate (issue #56 / cards 8.E1–8.E3 — packaging.toml schema + packaging script syntax + payload stagers + unsigned-fallback contracts) ==="
+if bash scripts/packaging/gate.sh > /tmp/packaging-gate.log 2>&1; then
+  tail -1 /tmp/packaging-gate.log; echo "packaging: PASS"
+else
+  echo "packaging: FAILED"; tail -25 /tmp/packaging-gate.log; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail

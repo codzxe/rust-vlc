@@ -1,0 +1,303 @@
+# Phase-7 exit gate — UI battery (typecheck / lint / test / l10n)
+# Worktree: /home/z/my-project/wt/w24f (branch w24/f @ a4e35e7)
+# Date: 2026-11-10T16:58:12Z
+# node v24.22.2, npm 11.19.1
+
+## Cmd: npm run --silent typecheck
+src/App.tsx(15,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(19,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(24,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(99,80): error TS1005: '</' expected.
+src/App.tsx(100,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(101,9): error TS2657: JSX expressions must have one parent element.
+src/App.tsx(102,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(104,1): error TS1185: Merge conflict marker encountered.
+src/App.tsx(106,7): error TS1128: Declaration or statement expected.
+src/App.tsx(113,11): error TS1136: Property assignment expected.
+src/App.tsx(113,21): error TS1005: ';' expected.
+src/App.tsx(113,39): error TS1005: ';' expected.
+src/App.tsx(113,57): error TS1005: ':' expected.
+src/App.tsx(115,11): error TS1128: Declaration or statement expected.
+src/App.tsx(116,9): error TS1109: Expression expected.
+src/App.tsx(117,7): error TS1109: Expression expected.
+src/App.tsx(118,9): error TS2657: JSX expressions must have one parent element.
+src/App.tsx(122,7): error TS1128: Declaration or statement expected.
+src/App.tsx(123,5): error TS1109: Expression expected.
+src/App.tsx(124,3): error TS1109: Expression expected.
+src/App.tsx(125,1): error TS1128: Declaration or statement expected.
+UI_EXIT[typecheck]=2
+
+## Cmd: npm run --silent lint
+
+/home/z/my-project/wt/w24f/ui/src/App.tsx
+  15:0  error  Parsing error: Merge conflict marker encountered
+
+/home/z/my-project/wt/w24f/ui/src/client/ClientProvider.tsx
+  20:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/discovery/DiscoveryScreen.tsx
+  59:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/media-info/MediaInfoProvider.tsx
+  84:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/network-stream/NetworkStreamScreen.tsx
+  36:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/open-media/OpenMediaDialog.tsx
+  39:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  54:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/player/context.tsx
+  119:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  402:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  416:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  428:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/player/dialogs/BookmarksDialog.tsx
+  36:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/player/dialogs/GotoTimeDialog.tsx
+  35:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/player/states/StateRouter.tsx
+  26:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/playlist/PlaylistProvider.tsx
+  276:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/settings/SettingsProvider.tsx
+  155:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/settings/areas/advanced.tsx
+  22:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/settings/areas/index.tsx
+  29:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  34:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  37:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  40:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  43:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  46:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+  50:10  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file. If all exports are HOCs, add them to the `extraHOCs` option  react-refresh/only-export-components
+
+/home/z/my-project/wt/w24f/ui/src/screens/shortcuts/ShortcutsScreen.tsx
+  168:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  173:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  215:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  240:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  261:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 29 problems (1 error, 28 warnings)
+
+UI_EXIT[lint]=1
+
+## Cmd: npm run --silent test
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - JSON import "./package.json" without import attributes (vite.config.ts:2:17). Add `with { type: 'json' }`
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.5 /home/z/my-project/wt/w24f/ui
+
+ ✓ src/screens/player/controls/ControlBar.test.tsx (30 tests) 668ms
+ ✓ src/screens/settings/SettingsScreen.test.tsx (16 tests) 692ms
+ ✓ src/screens/shortcuts/ShortcutsScreen.test.tsx (6 tests) 443ms
+ ✓ src/screens/playlist/PlaylistPanel.test.tsx (12 tests) 519ms
+ ✓ src/screens/player/customize/CustomizePanels.test.tsx (17 tests) 396ms
+ ✓ src/screens/media-info/MediaInfoPanel.test.tsx (12 tests) 413ms
+ ✓ src/screens/settings/areas/areas.test.tsx (8 tests) 356ms
+ ✓ src/screens/open-media/OpenMediaDialog.test.tsx (13 tests) 271ms
+ ✓ src/screens/convert/ConvertScreen.test.tsx (8 tests) 358ms
+ ✓ src/screens/player/PlayerScreen.test.tsx (20 tests) 408ms
+ ✓ src/screens/settings/areas/effects.test.tsx (7 tests) 305ms
+ ✓ src/screens/player/variants/variants.test.tsx (18 tests) 368ms
+ ✓ src/screens/onboarding/OnboardingScreen.test.tsx (15 tests) 361ms
+ ✓ src/components/surface/Surface.test.tsx (11 tests) 217ms
+ ✓ src/screens/settings/areas/hotkeys/HotkeysEditor.test.tsx (8 tests) 260ms
+ ❯ src/App.test.tsx (0 test)
+ ✓ src/components/menu/Dropdown.test.tsx (10 tests) 403ms
+ ✓ src/screens/playlist/PlaylistProvider.test.tsx (13 tests) 459ms
+ ✓ src/components/list/List.test.tsx (18 tests) 263ms
+ ✓ src/screens/player/states/StateRouter.test.tsx (28 tests) 220ms
+ ✓ src/screens/player/dialogs/GotoTimeDialog.test.tsx (8 tests) 214ms
+ ✓ src/components/menu/MenuBar.test.tsx (16 tests) 404ms
+ ✓ src/components/menu/ContextMenu.test.tsx (6 tests) 221ms
+ ✓ src/screens/player/dialogs/BookmarksDialog.test.tsx (5 tests) 270ms
+ ✓ src/screens/settings/areas/audio.test.tsx (10 tests) 233ms
+ ✓ src/screens/settings/areas/privacy-network.test.tsx (6 tests) 181ms
+ ❯ src/i18n/pseudo.render.test.tsx (0 test)
+ ✓ src/components/menu/Tooltip.test.tsx (6 tests) 153ms
+ ✓ src/screens/settings/areas/codecs.test.tsx (8 tests) 195ms
+ ✓ src/screens/network-stream/NetworkStreamScreen.test.tsx (8 tests) 193ms
+ ✓ src/components/icon/Icon.test.tsx (15 tests) 168ms
+ ✓ src/components/slider/Slider.test.tsx (14 tests) 167ms
+ ✓ src/components/slider/Volume.test.tsx (6 tests) 138ms
+ ✓ src/components/slider/Seekbar.test.tsx (11 tests) 150ms
+ ✓ src/screens/not-found/NotFoundScreen.test.tsx (4 tests) 144ms
+ ✓ src/screens/playlist/PlaylistScreen.test.tsx (5 tests) 153ms
+ ❯ src/screens/settings/generated.test.ts (10 tests | 1 failed) 171ms
+   ❯ generated settings screens detect schema drift (4.E1 AC) (4)
+     × passes settings:check against the committed generated files 45ms
+     ✓ FAILS settings:check when a schema default changes (mutated copy) 37ms
+     ✓ FAILS settings:check when a field's restart flag changes (mutated copy) 43ms
+     ✓ FAILS settings:check when a [[setting]] entry is removed (mutated copy) 41ms
+   ✓ generated schema data (committed snapshot sanity) (6)
+     ✓ covers the 5 ui areas with the 21 ui entries of schemas/settings.toml 1ms
+     ✓ has globally unique keys with in-range defaults (D2 + range rules) 1ms
+     ✓ resolves default_ref through product.toml (D1) 0ms
+     ✓ marks feature-gated entries unexposed per product.toml [features] (F1/F2) 0ms
+     ✓ carries schema-flagged restart-required fields 0ms
+     ✓ resolves every ui schema label msgid in the message catalog (i18n coverage) 1ms
+ ✓ src/screens/settings/areas/language/LocalePicker.test.tsx (4 tests) 127ms
+ ✓ src/screens/media-info/MediaInfoScreen.test.tsx (2 tests) 142ms
+ ✓ src/components/form/RadioGroup.test.tsx (8 tests) 142ms
+ ✓ src/screens/settings/areas/updates-about.test.tsx (5 tests) 135ms
+ ✓ src/components/button/Button.test.tsx (16 tests) 134ms
+ ✓ src/components/button/Toggle.test.tsx (14 tests) 136ms
+ ✓ src/screens/settings/areas/video.test.tsx (3 tests) 110ms
+ ✓ src/screens/settings/areas/subtitles.test.tsx (3 tests) 110ms
+ ✓ src/screens/player/KeyHintStrip.test.tsx (4 tests) 122ms
+ ✓ src/screens/settings/areas/playlist-services.test.tsx (3 tests) 128ms
+ ✓ src/components/form/Switch.test.tsx (3 tests) 119ms
+ ✓ src/components/button/IconButton.test.tsx (6 tests) 132ms
+ ✓ src/client/config-settings.test.ts (11 tests) 163ms
+ ✓ src/screens/settings/areas/advanced.test.tsx (5 tests) 97ms
+ ✓ src/screens/discovery/DiscoveryScreen.test.tsx (8 tests) 76ms
+ ✓ tools/eslint-plugin-local/rules/i18n-no-literals.test.js (2 tests) 84ms
+ ✓ tools/eslint-plugin-local/rules/semantic-tokens-only.test.js (1 test) 78ms
+ ✓ src/components/form/TextField.test.tsx (8 tests) 68ms
+ ✓ src/components/form/NumberField.test.tsx (6 tests) 63ms
+ ✓ tools/eslint-plugin-local/rules/boundary-imports.test.js (1 test) 65ms
+ ✓ src/theme/settingsThemeSync.test.tsx (5 tests) 52ms
+ ✓ src/theme/ThemeProvider.test.tsx (6 tests) 53ms
+ ✓ src/screens/player/useFullscreen.test.tsx (5 tests) 51ms
+ ✓ src/screens/settings/SettingsProvider.test.tsx (14 tests) 42ms
+ ✓ src/screens/player/useChromeAutoHide.test.tsx (6 tests) 30ms
+ ✓ src/screens/settings/areas/updates-about.nova.test.tsx (1 test) 30ms
+ ✓ src/screens/settings/areas/hotkeys/hotkeysData.test.ts (2 tests) 53ms
+ ✓ src/components/form/Checkbox.test.tsx (5 tests) 47ms
+ ✓ src/client/app-transport.test.ts (6 tests) 9ms
+ ✓ src/i18n/messages.test.ts (6 tests) 44ms
+ ✓ src/tokens/tokens.test.ts (5 tests) 9ms
+ ✓ src/client/tauri-transport.test.ts (10 tests) 9ms
+ ✓ src/screens/player/layout.test.ts (12 tests) 8ms
+ ✓ src/screens/player/keymap.test.ts (16 tests) 8ms
+ ✓ src/screens/convert/convertQueue.test.ts (13 tests) 8ms
+ ✓ src/screens/player/controls/state-mapping.test.ts (24 tests) 7ms
+ ✓ src/client/demo-bookmarks.test.ts (5 tests) 6ms
+ ✓ src/client/open-path.test.ts (9 tests) 5ms
+ ✓ src/screens/playlist/queue.test.ts (12 tests) 5ms
+ ✓ src/screens/settings/search.test.ts (5 tests) 5ms
+ ✓ src/screens/player/dialogs/parseTimeInput.test.ts (7 tests) 4ms
+ ✓ src/screens/settings/areas/hotkeys/conflicts.test.ts (7 tests) 8ms
+ ✓ src/client/transport.test.ts (4 tests) 4ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/App.test.tsx [ src/App.test.tsx ]
+Error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mEncountered diff marker
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/App.tsx:15:1 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m15 │[0m <<<<<<<[38;5;249m [0m[38;5;249mH[0m[38;5;249mE[0m[38;5;249mA[0m[38;5;249mD[0m
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── between this marker and `=======` is the code that we're merging into
+ [38;5;240m   │[0m 
+ [38;5;246m19 │[0m =======
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── between this marker and `>>>>>>>` is the incoming code
+ [38;5;240m   │[0m 
+ [38;5;246m24 │[0m >>>>>>>[38;5;249m [0m[38;5;249mw[0m[38;5;249m2[0m[38;5;249m3[0m[38;5;249m/[0m[38;5;249mc[0m
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── this marker concludes the conflict region
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: Conflict markers indicate that a merge was started but could not be completed due to merge conflicts.
+ [38;5;240m   │[0m       To resolve a conflict, keep only the code you want and then delete the lines containing conflict markers.
+ [38;5;240m   │[0m       If you're having merge conflicts after pulling new code, the top section is the code you already had and the bottom section is the remote code.
+ [38;5;240m   │[0m       If you're in the middle of a rebase, the top section is the code being rebased onto and the bottom section is the code coming from the current commit being rebased.
+ [38;5;240m   │[0m       If you have nested conflicts, resolve the outermost conflict first.
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: /home/z/my-project/wt/w24f/ui/src/App.tsx
+ ❯ transformWithOxc ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:7618:19
+ ❯ TransformPluginContext.transform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:7690:26
+ ❯ EnvironmentPluginContainer.transform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:8582:51
+ ❯ loadAndTransform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:20155:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/i18n/pseudo.render.test.tsx [ src/i18n/pseudo.render.test.tsx ]
+Error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mEncountered diff marker
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/App.tsx:15:1 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m15 │[0m <<<<<<<[38;5;249m [0m[38;5;249mH[0m[38;5;249mE[0m[38;5;249mA[0m[38;5;249mD[0m
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── between this marker and `=======` is the code that we're merging into
+ [38;5;240m   │[0m 
+ [38;5;246m19 │[0m =======
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── between this marker and `>>>>>>>` is the incoming code
+ [38;5;240m   │[0m 
+ [38;5;246m24 │[0m >>>>>>>[38;5;249m [0m[38;5;249mw[0m[38;5;249m2[0m[38;5;249m3[0m[38;5;249m/[0m[38;5;249mc[0m
+ [38;5;240m   │[0m ───┬───  
+ [38;5;240m   │[0m    ╰───── this marker concludes the conflict region
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: Conflict markers indicate that a merge was started but could not be completed due to merge conflicts.
+ [38;5;240m   │[0m       To resolve a conflict, keep only the code you want and then delete the lines containing conflict markers.
+ [38;5;240m   │[0m       If you're having merge conflicts after pulling new code, the top section is the code you already had and the bottom section is the remote code.
+ [38;5;240m   │[0m       If you're in the middle of a rebase, the top section is the code being rebased onto and the bottom section is the code coming from the current commit being rebased.
+ [38;5;240m   │[0m       If you have nested conflicts, resolve the outermost conflict first.
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: /home/z/my-project/wt/w24f/ui/src/App.tsx
+ ❯ transformWithOxc ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:7618:19
+ ❯ TransformPluginContext.transform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:7690:26
+ ❯ EnvironmentPluginContainer.transform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:8582:51
+ ❯ loadAndTransform ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:20155:26
+ ❯ fetchModule ../../../rust-vlc/ui/node_modules/vite/dist/node/chunks/node.js:36298:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/screens/settings/generated.test.ts > generated settings screens detect schema drift (4.E1 AC) > passes settings:check against the committed generated files
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ src/screens/settings/generated.test.ts:80:45
+     78| describe("generated settings screens detect schema drift (4.E1 AC)", (…
+     79|   it("passes settings:check against the committed generated files", as…
+     80|     expect(await runGenerator(["--check"])).toBe(0);
+       |                                             ^
+     81|   });
+     82|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+  Snapshots  9 written
+ Test Files  3 failed | 77 passed (80)
+      Tests  1 failed | 705 passed (706)
+   Start at  16:58:19
+   Duration  75.37s (environment 63%, tests 20%, setup 11%, import 3%, transform 2%, worker 1%)
+
+Environment  jsdom was created 80 times · 42.30s total, 63% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+UI_EXIT[test]=1
+
+## Cmd: npm run --silent l10n:check
+PASS l10n:check — 611 MessageKeys, 611 en-US strings: missing 0, duplicates 0, orphans 0, key-grammar ok, placeholders 0 ok, allowlist 8 entries
+UI_EXIT[l10n:check]=0

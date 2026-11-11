@@ -1,0 +1,571 @@
+{
+ "schema": "corpus/vlc-oracle-run/1",
+ "issue": 19,
+ "generated": "2026-11-09T20:20:00+0000",
+ "oracle": {
+  "kind": "vlc",
+  "version_line": "VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd)",
+  "debian": "3.0.23-0+deb13u1 (deb.debian.org/debian trixie/main, apt-get download + dpkg-deb -x into /tmp, LD_LIBRARY_PATH/VLC_PLUGIN_PATH run)",
+  "invocation": "vlc -I dummy --play-and-exit --vout none --aout afile --no-audiofile-wav --audiofile-format {u8|s16|float32} --audiofile-file OUT INPUT"
+ },
+ "inputs": {
+  "note": "corpus-big absent on this machine; 35 fixtures regenerated from corpus-big-manifest-20261022.json argvs with ffmpeg 7.1.5-0+deb13u1",
+  "sha256_identical_to_manifest": 16,
+  "rebased_fresh_realization": 19,
+  "random_sources": "anoisesrc (no seed) / life; double-run sha256 6b7a4f3a86d6077c87bb40d861f3714b7e857dca11dcee958faeb282f75fd8d7 vs aee4767e4e78df9c40807eb2267d072e4fad99fa993f1f894108957c20cf939a"
+ },
+ "lumen_side": {
+  "runner": "tools/bench-vs-vlc cargo test --test lumen_pcm -- --ignored via LUMEN_DIFF_FIXTURES/LUMEN_DIFF_OUT",
+  "decoded_ok": 35,
+  "equals_ffmpeg_7.1.5_decode": 35,
+  "fresh_equals_committed_20261023": 20
+ },
+ "rows": [
+  {
+   "rel": "media/0022-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "c5f5a2856f4d1ee42a999fd9b4ace0dd",
+   "lumen_fresh_bytes": 557336,
+   "vlc_md5": "78df10d1a4cbbd79da51c7f024da8f63",
+   "vlc_bytes": 556976,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": null,
+   "rms_dev": 0.01252049830383012,
+   "peak_dev": 0.024954646825790405
+  },
+  {
+   "rel": "media/0040-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "87be0fb5b8e4582584c42c80198f14b7",
+   "lumen_fresh_bytes": 350976,
+   "vlc_md5": "84690c1a8635bd4ae49d6486b66271b6",
+   "vlc_bytes": 350400,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 576
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0041-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "094340d045306c8ea23fb43e523c26fc",
+   "lumen_fresh_bytes": 2112384,
+   "vlc_md5": "e69260d694dda534d3f3801bc94eaf01",
+   "vlc_bytes": 2112000,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 384
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0096-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "44cec9ebf7e457140edb971c3e962c96",
+   "lumen_fresh_bytes": 94208,
+   "vlc_md5": "a9e08d88b494a601d5d83dd97997be06",
+   "vlc_bytes": 93712,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 496
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0116-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "d3da0ad8060de10204959d9b3f612b3d",
+   "lumen_fresh_bytes": 51728,
+   "vlc_md5": "fe17982880a51bdc53e4f6d20790bfcf",
+   "vlc_bytes": 51600,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 128
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0121-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "36355267afc2774cddb8f81535afd281",
+   "lumen_fresh_bytes": 216096,
+   "vlc_md5": "910fe36f8723e5ada5cf850f2078db9d",
+   "vlc_bytes": 216000,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 96
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0134-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "9d62cb4522aeb10247308e0d6dd97c24",
+   "lumen_fresh_bytes": 178176,
+   "vlc_md5": "2d22ce916d4ff72d5fa6ec20a13df819",
+   "vlc_bytes": 177600,
+   "regen_sha256_match": false,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 576
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0155-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "e6bb46494f3c1d3678571324a22f7a55",
+   "lumen_fresh_bytes": 1175880,
+   "vlc_md5": "da214c472362d68b75e1ee4bb8d4cbf6",
+   "vlc_bytes": 1174158,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 1722
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0156-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "66958319ced9c6cdb9eb0c8130559bff",
+   "lumen_fresh_bytes": 261984,
+   "vlc_md5": "a3c8e3633e1fe17d4453bbb7f1353bd5",
+   "vlc_bytes": 261600,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 384
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0161-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "7d7ad50a3f50e59a1fab63eb4a175f87",
+   "lumen_fresh_bytes": 3022848,
+   "vlc_md5": "b96286a26cb1ae55956888176fe7766a",
+   "vlc_bytes": 3018752,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 4096
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0177-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "e9764dea64e89e8e6730de7208088d46",
+   "lumen_fresh_bytes": 340808,
+   "vlc_md5": "35ecb9bc606f0a06a7d51818d20d9d78",
+   "vlc_bytes": 339568,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 1240
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0180-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "89a1a90ca55e84bfd19a8814d94f20e6",
+   "lumen_fresh_bytes": 331776,
+   "vlc_md5": "1f16348f09100deb72bbedcb3262cd70",
+   "vlc_bytes": 331200,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 576
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0187-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "34bcf94ce5308bc76b02f751d3fcad4a",
+   "lumen_fresh_bytes": 547720,
+   "vlc_md5": "bc76bdf18701de20fc6a729e8ff463b9",
+   "vlc_bytes": 546840,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 880
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0194-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "fbf9a9b3a9861350fc1007194e629d3d",
+   "lumen_fresh_bytes": 2998272,
+   "vlc_md5": "838928ee4447bb5eeecd8842e8dbfbed",
+   "vlc_bytes": 2981888,
+   "regen_sha256_match": false,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 16384
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0201-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "9a2d0119de231d475d4ef4481902ddaf",
+   "lumen_fresh_bytes": 1970176,
+   "vlc_md5": "0babcb9330a2d5e217bdae7326a87d42",
+   "vlc_bytes": 1968000,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 2176
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0214-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "f54afc5510fc828db4883f610531f515",
+   "lumen_fresh_bytes": 1144306,
+   "vlc_md5": "c6a99a39c62286b6a1978be79f6a7f7f",
+   "vlc_bytes": 1142784,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 1522
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0227-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "b48163da74a73d446389986dd31d3b7a",
+   "lumen_fresh_bytes": 472032,
+   "vlc_md5": "d93f66cfe531153842b2fb2e2d2ea841",
+   "vlc_bytes": 471040,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 992
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0233-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "649d0232dba068c25d89617e9ef3fba1",
+   "lumen_fresh_bytes": 870400,
+   "vlc_md5": "c8db9843ba6a5326b6f98b08980978f3",
+   "vlc_bytes": 868770,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 1630
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0236-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "2fa047d2f34c9029f056237ca8079f5f",
+   "lumen_fresh_bytes": 137216,
+   "vlc_md5": "d96aab94f910dbafb8978d0a72052c09",
+   "vlc_bytes": 136710,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 506
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0247-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "2e8a354f4d58e3c5a452f9a35a055ded",
+   "lumen_fresh_bytes": 745728,
+   "vlc_md5": "57087e90270983d6966542dd1d8cd0d4",
+   "vlc_bytes": 745392,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": null,
+   "rms_dev": 0.012334713009793335,
+   "peak_dev": 0.04608782846480608
+  },
+  {
+   "rel": "media/0278-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "28a9e2652675dccd5cee316150fe0d46",
+   "lumen_fresh_bytes": 356858,
+   "vlc_md5": "9763ff8dcdb59ff2c34ced3f83dfccbe",
+   "vlc_bytes": 356352,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 506
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0280-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "a21a95e1e7dfd7ad43dda987f3a6c7f6",
+   "lumen_fresh_bytes": 935976,
+   "vlc_md5": "364bec8187b1a692751cd0a91379d618",
+   "vlc_bytes": 934760,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": null,
+   "rms_dev": 0.008746726959763723,
+   "peak_dev": 0.033995844423770905
+  },
+  {
+   "rel": "media/0297-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "0f368aaa880d22f7c48caf67db304276",
+   "lumen_fresh_bytes": 3520224,
+   "vlc_md5": "1796324a7db6a7aa3d5b9ef3895360c0",
+   "vlc_bytes": 3518528,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": null,
+   "rms_dev": 8.215050255268216e-05,
+   "peak_dev": 0.04626615718007088
+  },
+  {
+   "rel": "media/0305-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "02f69412eb50f59b5ad8edecf388cc10",
+   "lumen_fresh_bytes": 885440,
+   "vlc_md5": "c6b3e08bcc3cbec3355857da06a6b31b",
+   "vlc_bytes": 884656,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": null,
+   "rms_dev": 0.11884395660642048,
+   "peak_dev": 0.4616542086005211
+  },
+  {
+   "rel": "media/0307-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "e2bce5d5744e374d59ffd1dbb565314c",
+   "lumen_fresh_bytes": 450560,
+   "vlc_md5": "d785c2f3859818577337295a8e94594e",
+   "vlc_bytes": 448000,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 2560
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0308-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "01269e9f433bd2f4496054180b3b9639",
+   "lumen_fresh_bytes": 4096000,
+   "vlc_md5": "a436890a0b7bbe418b1c630d997c8167",
+   "vlc_bytes": 4089600,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 6400
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0318-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "48718b7749195fdd2020f71e36cbcc37",
+   "lumen_fresh_bytes": 1331712,
+   "vlc_md5": "2620b150f73bf91cdaa907a9c4024489",
+   "vlc_bytes": 1331200,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 512
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0324-avi-av.avi",
+   "fmt": "u8",
+   "lumen_fresh_md5": "1767da988df20a761eea5b3be593b233",
+   "lumen_fresh_bytes": 822908,
+   "vlc_md5": "2c669806afcb5e5f15ad4d4e81dd621c",
+   "vlc_bytes": 820260,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 2648
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0330-avi-av.avi",
+   "fmt": "float32",
+   "lumen_fresh_md5": "bb76a78b3c77421b3e41c0155dc8d8d1",
+   "lumen_fresh_bytes": 410880,
+   "vlc_md5": "c0e894718e500b5ec3b1c496c4559beb",
+   "vlc_bytes": 409520,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": null,
+   "rms_dev": 6.425152069055904e-06,
+   "peak_dev": 0.0011998071568086743
+  },
+  {
+   "rel": "media/0335-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "4fd79102bcb2c878d8a5eb197be5755c",
+   "lumen_fresh_bytes": 97216,
+   "vlc_md5": "daac1d6a101167bbdc031a1c58fa978c",
+   "vlc_bytes": 96800,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 416
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0336-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "ca97c302d2e1d6ec0e27063076b56dd9",
+   "lumen_fresh_bytes": 425984,
+   "vlc_md5": "c06837c134cdadf0e7ae88eec959cca7",
+   "vlc_bytes": 425600,
+   "regen_sha256_match": false,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 384
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0342-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "0d1d39cbb0401e1e9303081446c2652b",
+   "lumen_fresh_bytes": 1846464,
+   "vlc_md5": "ce235467c545e6a815373b0377208363",
+   "vlc_bytes": 1843200,
+   "regen_sha256_match": false,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 3264
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0367-multivideo-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "a92ecd89b89a133a8068337d84971a08",
+   "lumen_fresh_bytes": 4030464,
+   "vlc_md5": "cdb1d60f5a13eab036127b1c72dcc6e6",
+   "vlc_bytes": 4018176,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 12288
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0386-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "37e3ad34ab0d716cc5da69a2317c3305",
+   "lumen_fresh_bytes": 187292,
+   "vlc_md5": "6cfd15ca4347f470ada1509b8fee5cef",
+   "vlc_bytes": 186368,
+   "regen_sha256_match": true,
+   "lumen_half_current": true,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 924
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  },
+  {
+   "rel": "media/0394-avi-av.avi",
+   "fmt": "s16",
+   "lumen_fresh_md5": "e79410cbf8e8cbf49d2f94aa95662ee4",
+   "lumen_fresh_bytes": 1092096,
+   "vlc_md5": "db0b17e061a9b7009608736d195605b6",
+   "vlc_bytes": 1084800,
+   "regen_sha256_match": false,
+   "lumen_half_current": false,
+   "window": {
+    "head_bytes": 0,
+    "tail_bytes": 7296
+   },
+   "rms_dev": null,
+   "peak_dev": null
+  }
+ ],
+ "findings": [
+  "29/35 (all pcm_u8 + pcm_s16le): VLC dump is a bit-exact prefix of the payload; shortfall is an unflushed aout tail (96-16384 B) at play-and-exit",
+  "6/35 (all pcm_f32le): dump not a sub-window of the payload; per-sample RMS/peak recorded; doc 10 SS6.6 deviation path (thresholds open, Lead decision)"
+ ]
+}
