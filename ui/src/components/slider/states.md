@@ -25,7 +25,7 @@ Hit areas are ≥16px on the interaction axis (roots 20–24px tall/wide over
 
 | Component | Track | Fill | Thumb |
 |---|---|---|---|
-| `Slider` (base, horizontal) | 14px r7 pill, `surface` (#090909 on the frames' #1b1b1b panels; frame: Audio - Equalizer.svg) | full-height pill, amber gradient `accent-tinted`→eq-fill-end (fallback end = 30% lift toward `accent-strong`; frames render flat #371f06), width = value | 8×20 r4 `accent-strong`, overhangs track |
+| `Slider` (base, horizontal) | 14px r7 pill, `surface` (#090909 on the frames' #1b1b1b panels; frame: Audio - Equalizer.svg) | full-height pill, amber gradient `accent-tinted`→`accent-strong` (== frame #371f06→#a5621a to Δ≤6/255 per channel; SVG rects are flat #371f06 — gradient per W25 spec §2/brief VLM measurement), width = value | 8×20 r4 `accent-strong`, overhangs track |
 | `Slider` vertical | 14px-wide pill | bottom-anchored, gradient to-top | 20×8 r4 |
 | `EQSlider` (additive) | base pill, full width | base gradient | base handle |
 | `Seekbar` | 4px pill-ended, `surface-deep` (brief/W25 §1 recessed well) | `accent`, pill ends, width = engine position | circular 12px `accent`, opacity 0 at rest |
@@ -63,11 +63,12 @@ slider role to the bar itself). The component never invents buffer data.
 ## Token gaps logged for the token lane (do not hand-code in consumers)
 
 - `--color-eq-fill-start` / `--color-eq-fill-end` — EQ amber gradient stops
-  (spec/brief: `#371f06` → `#a5621a`; the frames' fills are FLAT `#371f06`
-  with an `#ab6314` handle — pixel-sampled EQ.png / Audio - Equalizer.png;
-  the gradient reading is a W25-spec VLM measurement). slider.css falls back
-  to `--color-accent-tinted` → a 30% lift toward `--color-accent-strong`
-  (frame-credible muted amber) until they land.
+  (spec/brief: `#371f06` → `#a5621a`; the SVG rect fills are FLAT `#371F06`
+  with an `#AB6314` handle — EQ.svg / Audio - Equalizer.svg source rects; the
+  gradient reading is the W25-spec/brief VLM measurement of the renders).
+  slider.css falls back to `--color-accent-tinted` → `--color-accent-strong`
+  (#371f06 exactly; #ab6314 is Δ≤6/255 per channel from #a5621a) — visually
+  equivalent, tokens only.
 - `--gradient-volume-level` — the volume signal gradient
   (`#95D318 → #B2A918 → #D37918 → #FF3737`, revealed to the level;
   Player.svg/volume.svg). slider.css falls back to `--color-accent`.

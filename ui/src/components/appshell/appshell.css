@@ -4,7 +4,7 @@
  *
  * Reference frames: design/figma/Player.svg (+ Player-1..6), sidebar.svg,
  * Miniplayer.svg. Measurements (1920×1080 frames → our 1440×900 viewport):
- *   title bar 40px → 32 (W25 spec §2 band 24–32) · rail 50px → 52 (spec
+ *   title bar 40px → 30 (W25 spec §2 band 24–32) · rail 50px → 52 (spec
  *   48–56, ≥44px hits) · sidebar 377px → 208 (spec pins the compact
  *   200–220 band) · playlist row pitch 42px → 36 · rail icon pitch ~45 → 44
  *   (IconWrapper lg hit) · window-control pitch 36 → 30.
@@ -38,8 +38,9 @@ body {
 
 /* ---- title bar (banner; Player.svg "topbar") --------------------------- */
 
-/* 32px chrome strip, --color-surface-chrome fill, 1px stroke-border
- * hairline on its block-end edge (Player.svg topbar 40px @1920 → 32). */
+/* 30px chrome strip (Player.svg topbar 40px @1920 → 30 at our 1440 scale,
+ * inside the W25 spec §2 24–32 band), --color-surface-chrome fill, 1px
+ * stroke-border hairline on its block-end edge. */
 .app-shell__banner {
   position: relative; /* the wordmark centers on the bar, not the flex row */
   display: flex;
@@ -47,7 +48,7 @@ body {
   justify-content: space-between;
   gap: var(--space-inset);
   flex: none;
-  height: 32px; /* frame: Player.svg topbar (structural) */
+  height: 30px; /* frame: Player.svg topbar 40px @1920 (structural) */
   padding: 0 var(--space-grid);
   background: var(--color-surface-chrome);
   border-block-end: 1px solid var(--color-stroke-border);
@@ -179,7 +180,11 @@ body {
   color: var(--color-content-bright);
 }
 
-/* Pinned foot stop (Player.svg rail bottom "+" — add media). */
+/* Pinned foot stop (Player.svg rail bottom "+" — add media). The hit must
+ * match the rail stops' ≥44px contract: the IconButton base is 32px, so it
+ * is grown here — a 44px IconWrapper `lg` inside a 32px host spilled 6px
+ * top/bottom and put the rail 2px past the viewport bottom (w26.a13
+ * measurement: scrollHeight 902 > 900). */
 .app-shell__rail-foot {
   margin-block-start: auto;
   display: flex;
@@ -188,7 +193,11 @@ body {
 }
 
 .app-shell__rail-add {
+  flex: none;
+  width: 44px; /* ≥44px hit (W26 contract; same frame as the rail links) */
+  height: 44px;
   color: var(--color-content-secondary);
+  border-radius: 4px; /* frame: Icon Wrapper.svg rx=4 (matches the rail hits) */
 }
 
 /* ---- playlists sidebar (sidebar.svg · <Panel tone="deep" edges="end">) - */
@@ -281,6 +290,13 @@ body {
   margin-inline-start: auto;
 }
 
+/* The pressed view mode is the frame's one orange meta glyph (sidebar.svg:
+ * the active list/queue icon carries the accent). Same in-subtree token
+ * remap the icon system uses for disabled buttons. */
+.app-shell__sidebar-modes .lumen-icon-button[aria-pressed="true"] {
+  --color-stroke-icon: var(--color-accent-icon);
+}
+
 /* "+ Create playlist" row (sidebar.svg: plus glyph + label, tertiary ink —
  * disabled-honest until the engine grows a create-playlist command). */
 .app-shell__create {
@@ -290,6 +306,10 @@ body {
   height: 36px;
   padding-inline-start: var(--space-inset);
   border-radius: 0; /* full-bleed sidebar row, not a chip */
+}
+
+.app-shell__create-label {
+  font-size: var(--font-size-caption); /* frame: row-scale label */
 }
 
 /* Rows region (windowed list / grid via the list primitives' own API). */
@@ -312,7 +332,9 @@ body {
 }
 
 /* Playlist row (sidebar.svg: playlist glyph + label, 42px pitch @1920 →
- * 36px; rendered through VirtualList's windowed rows). */
+ * 36px; rendered through VirtualList's windowed rows). Labels sit at the
+ * frame's quiet #8F8F8F (content-secondary) and lift to bright on hover —
+ * the frame rows are gray, not white. */
 .app-shell__plrow {
   display: flex;
   align-items: center;
@@ -321,15 +343,17 @@ body {
   width: 100%;
   height: 100%;
   padding: 0 var(--space-inset) 0 calc(var(--space-inset) + 2px);
-  color: var(--color-content-primary);
+  color: var(--color-content-secondary);
   text-decoration: none;
 }
 
 .app-shell__plrow:hover {
+  color: var(--color-content-bright);
   background: var(--color-surface-hover);
 }
 
 .app-shell__plrow:focus-visible {
+  color: var(--color-content-bright);
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
@@ -338,7 +362,10 @@ body {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--font-size-body);
+
+  /* frame rows sit at the compact meta scale (Player.png sidebar: row
+   * labels ≈ "2 items" size, not heading size) */
+  font-size: var(--font-size-caption);
 }
 
 .app-shell__sidebar-scroll {

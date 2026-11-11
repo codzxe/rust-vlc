@@ -87,9 +87,12 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
   it("does not duplicate the window title bar (the app shell owns it, W26)", () => {
     renderWithClient(<PlayerScreen />);
     // The default W26 layout declares no top region: no player top strip, no
-    // screen-title h1 (the window title bar is the app shell's banner).
+    // VISIBLE screen title (the window title bar is the app shell's banner).
     expect(document.querySelector(".lumen-player__topbar")).toBeNull();
-    expect(screen.queryByRole("heading", { level: 1, name: "Player" })).toBeNull();
+    // The level-1 heading exists but ONLY as a screen-reader-only element
+    // (a11y + the App first-run-gate tests rely on it) — never visible.
+    const srTitle = screen.getByRole("heading", { level: 1, name: "Player" });
+    expect(srTitle.className).toContain("lumen-player__sr-title");
     // No banner the PLAYER renders. The only <header> elements on screen are
     // the sibling panels' internal headers scoped inside complementary
     // landmarks — generic (NOT banner) in real accessibility trees per

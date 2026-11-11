@@ -1,24 +1,29 @@
-// w26.a14 — the bottom control bar, rebuilt to the W26 Figma frames
-// (design/figma/Player.svg "Controls" group, the Controls.svg variant sheet,
-// and the component frames play.svg / "Current Time.svg" / "Duration.svg" /
-// volume.svg / Button.png; W25 figma-fidelity-spec §2 "Player" family).
-// THREE groups across the ~44px chrome strip (player.css owns the strip):
+// w26.a14 — the bottom control bar, composed to the W26 Figma frames.
+// Authorities: design/figma/Player.svg "Controls" group (the 1920×54 strip
+// → the app's ~44px chrome strip), the component frames play.svg /
+// "Current Time.svg" / "Duration.svg" / volume.svg, and the measured anatomy
+// in docs/waves/w26/analysis/menus-control-parts.md §B1/§B6–§B9 (values
+// cited per rule in controls.css). ONE row, three groups:
 //
-//   LEFT    stop · ORANGE PLAY PILL (dark on-accent glyph — the hero
-//           control; play.svg 54×28 r6 accent pill, the frame's muted
-//           type=pause pill for the pause glyph) · next (a real
-//           `playlist.next` through the playlist context PlayerScreen
-//           mounts around this bar)
-//   CENTER  current timecode (tabular, 12px tertiary) · slim seekbar (the
-//           w26.a04 slider API: 4px pill track, accent fill, honest
-//           pending/buffer) · remaining timecode
-//   RIGHT   total duration · volume icon + mini level slider (the frame's
-//           green→amber→red signal gradient revealed to the level — the
-//           "level pill" the spec calls out) · video/audio/subtitle track
-//           menus (icon faces, honest engine-reported options) ·
-//           fullscreen (Fullscreen API on the player host) · cast
-//           (honestly not-available — no surface yet) · gear (Settings
-//           route) · app menu (real navigation + the shell open-media seam)
+//   LEFT    stop · ORANGE PLAY PILL 54×28 r6 (dark on-accent glyph — the
+//           hero; play.svg's pause type grays the pill — accent is the
+//           "play" affordance) · next (a real playlist.next through the
+//           playlist context PlayerScreen mounts around this bar)
+//   CENTER  current timecode (≈15px tabular) · seekbar — the w26.a04
+//           slider API with the frame-measured anatomy: 28px r6 surface
+//           track, played fill r4 accent-tinted inset 2, and the playhead
+//           as an 8×24 r4 accent BAR (never a circular thumb) · remaining
+//           timecode (Duration.svg's "-00:23:30" click face)
+//   RIGHT   total duration · volume icon + the 89px level wedge
+//           (volume.svg: green→yellow→orange→red gradient anchored to the
+//           FULL track, revealed to the level — the spec §2 "small green
+//           level pill") · fullscreen (Fullscreen API on the player host) ·
+//           cast (honestly not-available — no surface yet) · app menu
+//           (real navigation + the shell open-media seam + the
+//           Video/Audio/Subtitle track SUBMENUS — the track-selector
+//           dropdowns moved off the row into the menu per the w26.a13
+//           controls-strip finding; types.ts "dynamic submenus (tracks…)
+//           arrive as data at runtime") · gear (Settings route)
 //
 // Behavior contract UNCHANGED (state-mapping.ts is the doc 08 §5 mapping —
 // play/pause/stop/seek/volume/mute/track wiring below is a restyle of the
@@ -26,20 +31,13 @@
 // on the same honest pattern: disabled-with-reason, never fabricated state.
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Button,
-  Dropdown,
-  IconButton,
-  Icon,
-  Seekbar,
-  VolumeSlider,
-  formatSeekTime,
-} from "../../../components";
+import type { ReactNode } from "react";
+import { useInRouterContext, useNavigate } from "react-router-dom";
+import { Button, IconButton, Icon, Seekbar, VolumeSlider } from "../../../components";
 import { MenuPopup } from "../../../components/menu/MenuPopup";
-import type { DropdownOption, IconName, MenuEntry } from "../../../components";
+import { identityResolveLabel } from "../../../components/menu/types";
+import type { IconName, MenuEntry } from "../../../components";
 import { useMsg } from "../../../i18n/messages";
-import type { MessageKey } from "../../../i18n/messages";
 import {
   selectedTrackId,
   trackDisplayName,
@@ -66,27 +64,81 @@ const CONTROLS_COPY = {
   exitFullscreen: "Exit fullscreen",
   /** Remote playback; no surface exists yet (honest disable). */
   cast: "Cast",
-  /** aria name of the output cluster (fullscreen/cast/gear/menu). */
+  /** aria name of the output cluster (fullscreen/cast/menu/gear). */
   groupOutput: "Player controls",
 } as const;
 
-/** Track-menu icon faces (Player.svg right cluster: audio bars + cc card;
- * the video kind has no bar glyph in the frames — `pip`'s screen-with-video
- * geometry is the closest honest glyph from the shared Icon.svg catalog). */
-const TRACK_ICONS: Record<"video" | "audio" | "subtitle", IconName> = {
-  video: "pip",
-  audio: "audio",
-  subtitle: "subtitles",
-};
+/** Track-submenu faces (Player.svg right cluster glyphs: the cc card reads
+ * "subtitles"; the audio bars read "audio"; the video kind has no bar glyph
+ * in the frames — `pip`'s screen-with-video geometry is the closest honest
+ * glyph from the shared Icon.svg catalog). */
+const TRACK_KINDS: ReadonlyArray<{
+  readonly kind: "video" | "audio" | "subtitle";
+  readonly labelKey: "player.track.video" | "player.track.audio" | "player.track.subtitle";
+  readonly icon: IconName;
+}> = [
+  { kind: "video", labelKey: "player.track.video", icon: "pip" },
+  { kind: "audio", labelKey: "player.track.audio", icon: "audio" },
+  { kind: "subtitle", labelKey: "player.track.subtitle", icon: "subtitles" },
+];
 
 /** Live document fullscreen truth (never cached — doc 08 §4 honest state). */
 const fullscreenActive = (): boolean => (document.fullscreenElement ?? null) !== null;
+
+/**
+ * Frame timecode format — "Current Time.svg"/"Duration.svg" read
+ * "00:02:10"/"00:25:40": zero-padded HH:MM:SS on tabular figures (the CSS
+ * sets font-variant-numeric). The shared slider's formatSeekTime (compact
+ * m:ss) stays the scrub aria formatter — the bar's visible readouts use the
+ * frame format. Negative inputs clamp (the remaining readout handles its
+ * own minus sign).
+ */
+const formatTimecode = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+};
+
+/** Bar icon sizes (Player.svg "Controls" group, measured): the transport
+ * glyphs are small and quiet (~10px tall bodies), the right-cluster glyphs
+ * larger (~17–18px). */
+const TRANSPORT_ICON_SIZE = 14;
+const OUTPUT_ICON_SIZE = 18;
 
 /** Host capability (jsdom and embedded hosts expose no Fullscreen API). */
 const fullscreenSupported = (): boolean =>
   typeof document !== "undefined" &&
   typeof document.documentElement.requestFullscreen === "function" &&
   typeof document.exitFullscreen === "function";
+
+/**
+ * Router-presence seam for the bar's links (gear → Settings, the app menu's
+ * route entries). The app mounts /player inside <App/>'s Router, so the
+ * real bar navigates in-app; bare mounts — embedded hosts and jsdom test
+ * trees without a Router, where `useNavigate` throws — fall back to
+ * document navigation instead of crashing the bar. The component split
+ * keeps every hook call unconditional (rules-of-hooks).
+ */
+function NavigationSeam({
+  children,
+}: {
+  children: (navigate: (to: string) => void) => ReactNode;
+}): ReactNode {
+  return useInRouterContext() ? (
+    <RoutedNavigation>{children}</RoutedNavigation>
+  ) : (
+    <>{children((to) => window.location.assign(to))}</>
+  );
+}
+
+function RoutedNavigation({
+  children,
+}: {
+  children: (navigate: (to: string) => void) => ReactNode;
+}): ReactNode {
+  const navigate = useNavigate();
+  return <>{children((to) => navigate(to))}</>;
+}
 
 export interface ControlBarProps {
   /** Host label context (reserved; the bar is engine-state driven). */
@@ -148,7 +200,7 @@ function TransportCluster() {
         disabled={mapped.stop.disabled}
         onClick={actions.stop}
       >
-        <Icon name="stop" />
+        <Icon name="stop" size={TRANSPORT_ICON_SIZE} />
       </IconButton>
       <IconButton
         className="lumen-controls__play"
@@ -168,13 +220,13 @@ function TransportCluster() {
         disabled={nextDisabled}
         onClick={() => playlist.next()}
       >
-        <Icon name="next" />
+        <Icon name="next" size={TRANSPORT_ICON_SIZE} />
       </IconButton>
     </div>
   );
 }
 
-/** current timecode · slim seekbar · remaining (doc 08 §5.2/§5.3 honest). */
+/** current timecode · seekbar · remaining (doc 08 §5.2/§5.3 honest). */
 function SeekCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
@@ -182,21 +234,22 @@ function SeekCluster() {
   const reason = seekDisableReason(state);
 
   // Remaining is honest arithmetic over engine truth only: duration known →
-  // duration − position; unknown → the same "--:--" unknown as the total.
+  // duration − position; unknown → the same "--:--" unknown as the total
+  // (Duration.svg's click face is the minus-prefixed remaining reading).
   const remaining =
     state.durationSeconds === null || state.durationSeconds <= 0
       ? m("player.controls.duration-unknown")
-      : `−${formatSeekTime(state.durationSeconds - state.position)}`;
+      : `−${formatTimecode(state.durationSeconds - state.position)}`;
 
   return (
     <div className="lumen-controls__seek">
       <span className="lumen-controls__time" data-time="position">
-        {formatSeekTime(state.position)}
+        {formatTimecode(state.position)}
       </span>
       <Seekbar
         data-control="seekbar"
         /* A duration-less seekbar is an unplayed track — data-empty lets the
-         * slider CSS hide the phantom zero-position thumb (calm track). */
+         * slider CSS hide the phantom zero-position playhead (calm track). */
         data-empty={
           state.durationSeconds === null || state.durationSeconds <= 0 ? "" : undefined
         }
@@ -220,7 +273,7 @@ function SeekCluster() {
   );
 }
 
-/** The right group: total duration · volume · track menus · output controls. */
+/** The right group: total duration · volume · output controls. */
 function RightCluster() {
   const { state } = usePlayerControls();
   const m = useMsg();
@@ -229,16 +282,15 @@ function RightCluster() {
       <span className="lumen-controls__time" data-time="duration">
         {state.durationSeconds === null
           ? m("player.controls.duration-unknown")
-          : formatSeekTime(state.durationSeconds)}
+          : formatTimecode(state.durationSeconds)}
       </span>
       <VolumeCluster />
-      <TrackCluster />
       <OutputCluster />
     </div>
   );
 }
 
-/** Volume slider + mute toggle (engine-reported, never optimistic). */
+/** Volume icon + the 89px level wedge (engine-reported, never optimistic). */
 function VolumeCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
@@ -264,7 +316,7 @@ function VolumeCluster() {
         disabled={state.muted === null}
         onClick={() => actions.setMute(!muted)}
       >
-        <Icon name={iconName} />
+        <Icon name={iconName} size={OUTPUT_ICON_SIZE} />
       </IconButton>
       <VolumeSlider
         data-control="volume"
@@ -278,90 +330,7 @@ function VolumeCluster() {
   );
 }
 
-/** Track menus (A/V/S) from the real tracks.list result — real ids/labels. */
-function TrackCluster() {
-  const { state, actions } = usePlayerControls();
-  const m = useMsg();
-
-  // v2 brief §4.3 — the honest no-media trigger. With no media open (or
-  // while the engine is still opening / has reported nothing) the trigger
-  // shows the track kind plus an em-dash (visually its icon face — the
-  // value text is available to assistive tech) and carries the no-media
-  // reason in its accessible name. The honest menu options (Automatic /
-  // Disabled-off / real track ids) exist only once media is open — tracks
-  // are NEVER fabricated.
-  const menus: ReadonlyArray<{
-    readonly kind: "video" | "audio" | "subtitle";
-    readonly labelKey: "player.track.video" | "player.track.audio" | "player.track.subtitle";
-  }> = [
-    { kind: "video", labelKey: "player.track.video" },
-    { kind: "audio", labelKey: "player.track.audio" },
-    { kind: "subtitle", labelKey: "player.track.subtitle" },
-  ];
-
-  return (
-    <div
-      className="lumen-controls__tracks"
-      role="group"
-      aria-label={m("player.controls.group-tracks")}
-    >
-      {menus.map(({ kind, labelKey }) => {
-        const tracks = tracksOfKind(state.tracks, kind);
-        const selected = selectedTrackId(state.tracks, state.selections, kind);
-        // No honest track data to show: no media open, still opening, or the
-        // engine has not reported any track list at all (doc §5.5
-        // disabled-while-loading — never a fabricated list).
-        const unreported = !state.engineReported && tracks.length === 0;
-        const noMedia =
-          state.playbackState === "idle" || state.playbackState === "opening" || unreported;
-        const options: DropdownOption[] = noMedia
-          ? [{ value: "unavailable", labelKey: `${m(labelKey)} —` }]
-          : [
-              { value: "auto", labelKey: m("player.track.auto") },
-              { value: "none", labelKey: m("player.track.disable") },
-              ...tracks.map((track, index) => ({
-                value: `id:${track.id}`,
-                labelKey: trackDisplayName(track, m("player.track.unknown"), index),
-              })),
-            ];
-        const value = noMedia ? "unavailable" : selected === null ? "none" : `id:${selected}`;
-        return (
-          <div
-            key={kind}
-            className="lumen-controls__track"
-            data-track-kind={kind}
-            data-empty={noMedia ? "" : undefined}
-          >
-            {/* The frame's icon face (audio bars / cc card); the dropdown
-                value span stays in the DOM for assistive tech + tests. */}
-            <Icon name={TRACK_ICONS[kind]} className="lumen-controls__track-icon" />
-            <Dropdown
-              label={
-                noMedia
-                  ? `${m(labelKey)} — ${m("player.controls.reason.no-media")}`
-                  : m(labelKey)
-              }
-              options={options}
-              value={value}
-              disabled={noMedia}
-              onChange={(next: string) => {
-                if (next === "auto") {
-                  actions.selectTrack(kind, { kind: "auto" });
-                } else if (next === "none") {
-                  actions.selectTrack(kind, { kind: "none" });
-                } else if (next.startsWith("id:")) {
-                  actions.selectTrack(kind, { kind: "id", id: Number(next.slice(3)) });
-                }
-              }}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** fullscreen · cast · gear (Settings) · app menu. */
+/** fullscreen · cast · app menu (+ track submenus) · gear (Settings). */
 function OutputCluster() {
   const m = useMsg();
   return (
@@ -378,16 +347,22 @@ function OutputCluster() {
         label={`${CONTROLS_COPY.cast} — ${m("player.controls.reason.unknown")}`}
         disabled
       >
-        <Icon name="tv" />
+        <Icon name="tv" size={OUTPUT_ICON_SIZE} />
       </IconButton>
-      <IconButton
-        data-control="settings"
-        label={m("menu.view.settings")}
-        onClick={useNavigateToSettings()}
-      >
-        <Icon name="settings" />
-      </IconButton>
-      <AppMenuButton />
+      <NavigationSeam>
+        {(navigate) => (
+          <>
+            <AppMenuButton navigate={navigate} />
+            <IconButton
+              data-control="settings"
+              label={m("menu.view.settings")}
+              onClick={() => navigate("/settings")}
+            >
+              <Icon name="settings" size={OUTPUT_ICON_SIZE} />
+            </IconButton>
+          </>
+        )}
+      </NavigationSeam>
     </div>
   );
 }
@@ -427,23 +402,24 @@ function FullscreenButton() {
           });
         }}
       >
-        <Icon name={active ? "minimize" : "fullscreen"} />
+        <Icon name={active ? "minimize" : "fullscreen"} size={OUTPUT_ICON_SIZE} />
       </IconButton>
     </div>
   );
 }
 
-/** The Settings gear — a real navigation into the Settings screen. */
-function useNavigateToSettings(): () => void {
-  const navigate = useNavigate();
-  return () => navigate("/settings");
-}
-
-/** The app menu (layout.v1 [[menu]] id="app"): real actions only — the
- * shell-wide open-media event and route navigations. Compact menu grammar. */
-function AppMenuButton() {
+/**
+ * The app menu (layout.v1 [[menu]] id="app"): real actions only — the
+ * shell-wide open-media event, route navigations, and the three engine-truth
+ * track submenus (Video/Audio/Subtitle; types.ts "dynamic submenus (tracks,
+ * devices, chapters) arrive as data at runtime"). Labels are pre-resolved
+ * through useMsg (dynamic track names arrive as already-resolved strings —
+ * the Dropdown identity pattern), so the popup resolves with the identity
+ * seam.
+ */
+function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }) {
   const m = useMsg();
-  const navigate = useNavigate();
+  const { state, actions } = usePlayerControls();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -460,29 +436,88 @@ function AppMenuButton() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
-  const entries: MenuEntry<MessageKey>[] = [
+  const trackMenus: MenuEntry<string>[] = TRACK_KINDS.map(({ kind, labelKey, icon }): MenuEntry<string> => {
+    const tracks = tracksOfKind(state.tracks, kind);
+    const selected = selectedTrackId(state.tracks, state.selections, kind);
+    // No honest track data to show: no media open, still opening, or the
+    // engine has not reported any track list at all (doc §5.5 — never a
+    // fabricated list). The submenu still opens — onto its single disabled
+    // no-media reason row (v2 §4.3's honest-unknown pattern, restated as a
+    // menu: discoverable, labeled, inert).
+    const unreported = !state.engineReported && tracks.length === 0;
+    const noMedia =
+      state.playbackState === "idle" || state.playbackState === "opening" || unreported;
+    if (noMedia) {
+      return {
+        id: `track-${kind}`,
+        labelKey: m(labelKey),
+        icon,
+        submenu: [
+          {
+            id: `track-${kind}-no-media`,
+            labelKey: m("player.controls.reason.no-media"),
+            disabled: true,
+          },
+        ],
+      };
+    }
+    return {
+      id: `track-${kind}`,
+      labelKey: m(labelKey),
+      icon,
+      submenu: [
+        {
+          id: `track-${kind}-auto`,
+          labelKey: m("player.track.auto"),
+          kind: "radio",
+          /* Mirrors the pre-W26 dropdown truth: "Automatic" is an action,
+           * never the engine-reported selection (selections arrive as ids). */
+          checked: false,
+          onSelect: () => actions.selectTrack(kind, { kind: "auto" }),
+        },
+        {
+          id: `track-${kind}-none`,
+          labelKey: m("player.track.disable"),
+          kind: "radio",
+          checked: selected === null,
+          onSelect: () => actions.selectTrack(kind, { kind: "none" }),
+        },
+        ...tracks.map((track, index): MenuEntry<string> => ({
+          id: `track-${kind}-id-${track.id}`,
+          labelKey: trackDisplayName(track, m("player.track.unknown"), index),
+          kind: "radio",
+          checked: selected === track.id,
+          onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
+        })),
+      ],
+    };
+  });
+
+  const entries: MenuEntry<string>[] = [
     {
       id: "open-media",
-      labelKey: "player.empty.open",
+      labelKey: m("player.empty.open"),
       icon: "open-file",
       onSelect: () => window.dispatchEvent(new CustomEvent("lumen:open-media")),
     },
     {
       id: "open-network-stream",
-      labelKey: "menu.file.open-network-stream",
+      labelKey: m("menu.file.open-network-stream"),
       icon: "network-stream",
       onSelect: () => navigate("/open-network-stream"),
     },
+    { id: "sep-tracks", kind: "separator" },
+    ...trackMenus,
     { id: "sep-navigation", kind: "separator" },
     {
       id: "keyboard-shortcuts",
-      labelKey: "menu.help.keyboard-shortcuts",
+      labelKey: m("menu.help.keyboard-shortcuts"),
       icon: "keyboard-shortcuts",
       onSelect: () => navigate("/keyboard-shortcuts"),
     },
     {
       id: "settings",
-      labelKey: "menu.view.settings",
+      labelKey: m("menu.view.settings"),
       icon: "settings",
       onSelect: () => navigate("/settings"),
     },
@@ -500,12 +535,12 @@ function AppMenuButton() {
         className={open ? "lumen-icon-host--open" : undefined}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <Icon name="menu" />
+        <Icon name="menu" size={OUTPUT_ICON_SIZE} />
       </IconButton>
       {open ? (
         <MenuPopup
           entries={entries}
-          resolveLabel={m}
+          resolveLabel={identityResolveLabel}
           idPrefix="lumen-controls-menu"
           density="compact"
           className="lumen-controls__menu-popup"
@@ -519,7 +554,7 @@ function AppMenuButton() {
 }
 
 /** Typed-error surface (doc 08 §5.4): stage-named, dismissible, honest.
- * W26 restyle: a compact r10 panel chip (surface-panel + hairline border)
+ * W26 restyle: a compact r12 panel chip (surface-panel + hairline border)
  * floating above the bar's right edge — never a wide strip. */
 function ErrorSurface() {
   const { state, actions } = usePlayerControls();

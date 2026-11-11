@@ -13,9 +13,10 @@
  *   · Onboarding-1.svg / -3..10 — theme cards 100×100 r12 (+120×120 rx21
  *     4px selected ring), 9 accent dots r20 at 80px pitch (+60×60 rx30
  *     ring on the selected), Back 100×32 r6 panel + Next accent.
- *   · Onboarding-2.svg — shortcuts tour: two columns × six rows, label left
- *     · keycap chips right (42px r12 #1B1B1B with a #373737 inset stroke),
- *     "/" separators between pairs, tertiary 12px footer note.
+ *   · Onboarding-2.svg — shortcuts tour: two columns × six rows (82px
+ *     pitch), label left · keycap chips right (42px r12 #1B1B1B with a
+ *     #373737 inset stroke, combo caps 4px apart with NO joiner glyph),
+ *     "/" separators between pair bindings, tertiary 12px footer note.
  *
  * Colors/fonts/radii strictly via semantic tokens (contract §4.4); raw px
  * only for frame-measured structural values, each marked `frame:`, plus
@@ -39,11 +40,9 @@
 
   /* ≥24px safe padding on every edge. */
   padding: 24px;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
   background: var(--color-surface);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
@@ -60,8 +59,19 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
-  width: min(960px, 100%);
-  padding: 32px 48px 28px;
+
+  /* frame: Onboarding.svg window 1090 wide on its 1440 stage */
+  width: min(1092px, 100%);
+
+  /* frame: window aspect 1090×759 — the card must read as the frame's
+   * wizard WINDOW, not a banner; steps center in the extra air and the
+   * footer rides the bottom edge exactly like the frames. (76vw tracks the
+   * window width at narrow stages; the vh term always leaves stage air.) */
+  min-height: min(766px, 76vw, calc(100vh - 96px));
+
+  /* frame: 63px side margins, 72px top / 56px bottom air (the dot step
+   * indicator — added furniture — spends the top difference). */
+  padding: 32px 64px;
   background: var(--color-surface-chrome); /* frame: Onboarding.svg window fill #161616-class */
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-window); /* r-xl */
@@ -103,26 +113,43 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 
-  /* Stable geometry across the lighter hero steps. */
+  /* Frame heading→content air: appearance 86px, shortcuts 74px, hero
+   * cone→heading 45px — 48px keeps the family rhythm. */
+  gap: 48px;
+
+  /* Floor for stages too small for the window-aspect min-height (narrow
+   * one-column tour, long settings rows) — the window then grows and the
+   * stage scrolls honestly. */
   min-height: 296px;
 }
 
-.onboarding__step--center {
-  align-items: center;
+/* Working steps center vertically in the window's air — the frames hold
+ * their step content mid-window (Onboarding-1.svg: heading y≈185 of 759). */
+.onboarding__step:not(.onboarding__step--center) {
   justify-content: center;
+}
+
+.onboarding__step--center {
+  /* Frame rhythm (Onboarding.svg): the hero block is TOP-weighted — cone
+   * top at y=122 of the 759 window (~16%), not vertically centered. */
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 72px;
   text-align: center;
 }
 
 /* Hero titles are bright (frame: Onboarding.svg #EAEAEA); working-step
- * titles sit a notch quieter (frame: Onboarding-1/-2.svg #969696). */
+ * titles sit a notch quieter (frame: Onboarding-1/-2.svg #969696). Every
+ * frame centers its step heading (Onboarding-1 x 331–758, -2 x 343–747 —
+ * both centered on the 545 window axis). */
 .onboarding__title {
   margin: 0;
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-regular);
   line-height: 1.2;
   letter-spacing: -0.01em;
+  text-align: center;
   color: var(--color-content-secondary);
 }
 
@@ -132,23 +159,30 @@
 
 .onboarding__body {
   margin: 0;
-  max-width: 592px; /* frame: Onboarding.svg body column 590px */
+
+  /* Fixed measure (frame: Onboarding.svg body column 590px) so the
+   * justified paragraph actually stretches its lines — a fit-content
+   * flex item would never justify. Centered column (frame grammar) on
+   * every step — hero and working. */
+  width: 592px;
+  max-width: 100%;
+  margin-inline: auto;
   font-size: var(--font-size-body);
   line-height: 1.6;
   color: var(--color-content-secondary);
 }
 
 .onboarding__step--center .onboarding__body {
-  /* Frame 0's paragraph is justified inside its centered column. */
+  /* Frame 0's paragraph: a justified 590px column centered in the window —
+   * full-width lines, ragged LAST line hugging the column's left edge
+   * (Onboarding.svg line starts all x≈250, last line ends x≈398). */
   text-align: justify;
-  text-align-last: center;
 }
 
-/* The cone mark (frame: Onboarding.svg Icon/Frame 4 — accent ink). */
+/* The cone mark (frame: Onboarding.svg Icon/Frame 4 — accent ink, 107×126). */
 .onboarding__cone {
-  width: 104px;
+  width: 107px; /* frame: 107px */
   height: auto;
-  margin-bottom: 4px;
   color: var(--color-accent);
 }
 
@@ -192,16 +226,19 @@
 
 /* --- shortcuts tour (frame: Onboarding-2.svg) --------------------------- */
 
+/* Frame columns: label-left / caps-right pairs, ~375px wide each with a
+ * wide gutter between (left caps end x≈420, right labels start x≈606). */
 .onboarding__shortcut-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px 48px;
+  grid-template-columns: repeat(2, minmax(0, 430px));
+  justify-content: space-between;
+  column-gap: 48px;
 }
 
 .onboarding__shortcut-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 32px; /* frame: 82px row pitch − 42px cap */
   margin: 0;
   padding: 0;
   list-style: none;
@@ -216,45 +253,47 @@
 }
 
 .onboarding__shortcut-label {
-  font-size: var(--font-size-body);
+  min-width: 0;
+  font-size: var(--font-size-label); /* frame: ~16px row labels */
   color: var(--color-content-secondary); /* frame: #969696 labels */
 }
 
 .onboarding__shortcut-keys {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px; /* frame: combo caps sit 4px apart, no joiner glyph */
   flex: none;
 }
 
 .onboarding__shortcut-pair {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .onboarding__shortcut-sep {
-  font-size: var(--font-size-caption);
+  margin-inline: 8px; /* frame: pair caps ~26px apart with the "/" between */
+  font-size: var(--font-size-label);
   color: var(--color-content-secondary); /* frame: "/" separators #969696 */
 }
 
 /* Keycap chips — frame: Onboarding-2.svg 42px r12 #1B1B1B caps with the
- * #373737 inset stroke, #EAEAEA glyphs; scaled to the card (36px, r12). */
+ * #373737 inset stroke, #EAEAEA glyphs. */
 .onboarding__key {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
+  min-width: 46px; /* frame: single-glyph cap width */
+  height: 42px; /* frame: cap height */
+  padding: 0 22px; /* frame: "SHIFT" cap 92px for a 44px glyph */
   font-family: var(--font-family-sans);
-  font-size: 13px; /* frame: cap glyph height */
+  font-size: var(--font-size-label); /* frame: cap glyph ~16px */
   font-weight: var(--font-weight-medium);
   line-height: 1;
   color: var(--color-content-bright); /* frame: #EAEAEA glyphs */
-  background: var(--color-surface-panel);
-  border: 1px solid var(--color-stroke-border);
+  background: var(--color-surface-panel); /* frame: #1B1B1B */
+  border: 1px solid var(--color-stroke-border); /* frame: #373737 inset stroke */
   border-radius: var(--radius-menu); /* frame: r12 */
 }
 
@@ -272,7 +311,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px; /* frame: label sits 33px under the card */
+  gap: 32px; /* frame: label sits 33px under the card */
   padding: 0;
   border: none;
   background: none;
@@ -305,12 +344,12 @@
 }
 
 .onboarding__theme-label {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-label); /* frame: ~16px labels */
   color: var(--color-content-secondary); /* frame: #8F8F8F labels */
 }
 
 /* Theme depictions — frame-measured art (Onboarding-1.svg): Light #AFAFAF,
- * Dark #222222, System a hard diagonal split of the two. No depiction
+ * Dark #222, System a hard diagonal split of the two. No depiction
  * tokens exist (the form lane ships the same pattern in form.css). */
 /* stylelint-disable color-no-hex -- frame: Onboarding-1.svg theme depictions (frame-measured) */
 .onboarding__theme-card--light .onboarding__theme-swatch {
@@ -318,11 +357,11 @@
 }
 
 .onboarding__theme-card--dark .onboarding__theme-swatch {
-  background: #222222;
+  background: #222;
 }
 
 .onboarding__theme-card--system .onboarding__theme-swatch {
-  background: linear-gradient(225deg, #afafaf 50%, #222222 50%);
+  background: linear-gradient(225deg, #afafaf 50%, #222 50%);
 }
 /* stylelint-enable color-no-hex */
 
@@ -470,18 +509,20 @@
   visibility: hidden; /* keeps footer geometry stable across steps */
 }
 
-/* --- accent dots (frame: Onboarding-1.svg footer row) -------------------- */
+/* --- accent dots (frame: Onboarding-1.svg footer row: r20 dots at 80px
+ * pitch, the selected one carrying a 60×60 rx30 4px ring at 30% accent) --- */
 
 .onboarding__accents {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px; /* frame pitch 80 → card scale */
+  gap: 32px; /* frame pitch 80 − dot 40 */
 }
 
 .onboarding__accent {
   position: relative;
-  width: 36px; /* frame: r20 dots, card-scaled */
-  height: 36px;
+  width: 40px; /* frame: r20 dots */
+  height: 40px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -494,13 +535,14 @@
   cursor: default;
 }
 
-/* Selected dot: the frame's 60×60 rx30 4px accent ring. */
+/* Selected dot: the frame's 60×60 rx30 4px accent ring at 30% opacity. */
 .onboarding__accent[aria-pressed="true"]::after {
   content: "";
   position: absolute;
-  inset: -9px; /* frame: 1.5× the dot */
+  inset: -10px; /* frame: 60×60 ring on a 40px dot */
   border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
   border-radius: 50%; /* frame: rx30 on a 60×60 ring */
+  opacity: 0.3; /* frame: stroke-opacity 0.3 */
 }
 
 /* The 9 dot primaries — frame-measured (Onboarding-1.svg footer, ids 1–9;
@@ -554,7 +596,7 @@
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -573,6 +615,11 @@
 
   .onboarding__step {
     min-height: 264px;
+    gap: 32px;
+  }
+
+  .onboarding__step--center {
+    padding-top: 48px;
   }
 
   .onboarding__theme-cards {
@@ -580,11 +627,27 @@
   }
 
   .onboarding__shortcut-grid {
-    gap: 10px 32px;
+    column-gap: 32px;
   }
 
   .onboarding__shortcut-column {
-    gap: 10px;
+    gap: 14px;
+  }
+
+  .onboarding__key {
+    height: 36px;
+    min-width: 40px;
+    padding: 0 16px;
+    font-size: var(--font-size-body);
+  }
+
+  .onboarding__shortcut-sep {
+    margin-inline: 5px;
+    font-size: var(--font-size-body);
+  }
+
+  .onboarding__accents {
+    gap: 20px;
   }
 }
 
@@ -599,6 +662,15 @@
     gap: 24px;
   }
 
+  .onboarding__theme-card {
+    gap: 16px;
+  }
+
+  .onboarding__theme-swatch {
+    width: 84px;
+    height: 84px;
+  }
+
   .onboarding__footer {
     flex-direction: column;
     align-items: stretch;
@@ -609,8 +681,7 @@
   }
 
   .onboarding__accents {
-    flex-wrap: wrap;
-    gap: 12px;
+    gap: 14px;
   }
 }
 

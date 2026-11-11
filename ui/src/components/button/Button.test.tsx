@@ -182,6 +182,20 @@ describe("Button state styling consumes semantic tokens (doc 08 §3.2; W26 frame
     expect(cssRule(".lumen-button--ghost:hover")).toContain("background: var(--color-surface-hover)");
   });
 
+  it("nested .lumen-icon glyphs follow the button label token at every state (play.svg dark glyph on accent)", () => {
+    // icon.css paints .lumen-icon from --color-stroke-icon, so the button must
+    // remap that token in-subtree or primary pills render GRAY glyphs.
+    expect(cssRule(".lumen-button")).toContain("--color-stroke-icon: var(--color-content-secondary)");
+    expect(cssRule(".lumen-button:hover")).toContain("--color-stroke-icon: var(--color-content-bright)");
+    expect(cssRule(".lumen-button:focus-visible")).toContain("--color-stroke-icon: var(--color-content-bright)");
+    expect(cssRule(".lumen-button--primary")).toContain("--color-stroke-icon: var(--color-content-on-accent)");
+    expect(buttonCss).toContain(
+      ".lumen-button--primary:hover,\n.lumen-button--primary:active,\n.lumen-button--primary:focus-visible",
+    );
+    expect(cssRule(".lumen-button--tinted")).toContain("--color-stroke-icon: var(--color-accent)");
+    expect(cssRule(".lumen-button:disabled")).toContain("--color-stroke-icon: var(--color-content-tertiary)");
+  });
+
   it("contains no raw colors (semantic tokens only)", () => {
     const code = buttonCss.replace(/\/\*[\s\S]*?\*\//g, ""); // strip provenance comments
     expect(code).not.toMatch(/#[0-9a-f]{3,8}\b/i);

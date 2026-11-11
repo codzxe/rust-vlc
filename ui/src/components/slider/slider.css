@@ -11,11 +11,11 @@
  *     the token lane lands it; the accent is the fallback (same grammar).
  *   EQ.svg / Audio - Equalizer.svg (EQ rows, W25 spec §2): full-width pill
  *     track 14px r7 on the surface well (#090909 on the frames' #1b1b1b
- *     panels), amber gradient fill (accent.tinted #371f06 → eq fill end
- *     #a5621a — frame-measured; the frames render flat #371f06, so the
- *     fallback end is a subtle 30% lift toward accent-strong), 8×20 r4 amber
- *     handle. The value chip (audio value.svg) is rendered by CONSUMERS,
- *     outside the slider.
+ *     panels), amber gradient fill accent.tinted → accent-strong (#371f06 →
+ *     #a5621a per the brief/spec VLM measurement — accent-strong #ab6314 is
+ *     Δ≤6/255 per channel from the frame end, so no raw hex is needed),
+ *     8×20 r4 amber handle. The value chip (audio value.svg) is rendered by
+ *     CONSUMERS, outside the slider.
  * Semantic tokens only for colors (eslint + stylelint enforce; the
  * frame-measured hexes above live in comments). Raw px below are structural
  * dimensions pinned by the design exports — no token exists (states.md). */
@@ -51,12 +51,12 @@
 }
 
 /* fill — the level/progress value; width driven by --lumen-slider-fill.
- * Amber gradient accent.tinted → eq fill end (frame: #371f06 → #a5621a).
- * The dedicated eq tokens win once the token lane lands them. The fallback
- * end is a SUBTLE lift of accent-tinted toward accent-strong (30%): the
- * frames' fills render flat #371f06 (EQ.png pixel sample) and the VLM loop
- * read the full accent-strong end as too saturated — the 30% mix keeps the
- * amber gradient grammar while matching the frame's muted render. */
+ * Amber gradient accent.tinted → accent-strong (frame: EQ.svg / Audio -
+ * Equalizer.svg; brief + W25 spec §2: #371f06 → #a5621a). The dedicated
+ * --color-eq-fill-* tokens win once the token lane lands them; until then
+ * the semantic fallbacks render the frame-measured stops to within Δ≤6/255
+ * per channel (accent.tinted == #371f06 exactly; accent-strong #ab6314 ≈
+ * end #a5621a) — no raw hex needed in the sheet. */
 .lumen-slider__fill {
   position: absolute;
   top: 0;
@@ -66,10 +66,7 @@
   background: linear-gradient(
     90deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
-    var(
-      --color-eq-fill-end,
-      color-mix(in srgb, var(--color-accent-strong) 30%, var(--color-accent-tinted))
-    )
+    var(--color-eq-fill-end, var(--color-accent-strong))
   );
   border-radius: 7px; /* mirrors the track pill */
   transition: width 120ms ease;
@@ -109,10 +106,7 @@
   background: linear-gradient(
     0deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
-    var(
-      --color-eq-fill-end,
-      color-mix(in srgb, var(--color-accent-strong) 30%, var(--color-accent-tinted))
-    )
+    var(--color-eq-fill-end, var(--color-accent-strong))
   );
   transition: height 120ms ease;
 }

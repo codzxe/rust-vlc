@@ -23,7 +23,7 @@
 //     keeps exactly one main landmark per page and valid HTML).
 //
 // W26 shell facts (Player.svg at 1920×1080 → our 1440×900 viewport):
-//   title bar 40 → 32px (W25 spec §2 allows 24–32) · rail 50 → 52px wide
+//   title bar 40 → 30px (W25 spec §2 allows 24–32) · rail 50 → 52px wide
 //   (spec: 48–56; 44px+ hits) · sidebar 377 → 208px (spec pins 200–220) ·
 //   playlist rows 42px pitch → 36px · active nav icon = THE orange accent.
 //
@@ -33,6 +33,17 @@
 // IN-APP actions (miniplayer / document fullscreen / stop + home) — the
 // web shell has no OS chrome to drive, and none of the buttons pretend
 // otherwise (labels say what they do).
+//
+// ONE-SIDEBAR COMPOSITION (Player.png, Lead decision w26): the frame shows
+// rail + ONE sidebar — the shell's playlists library sidebar (sidebar.svg
+// anatomy). The player's docked QUEUE panel (PlayerScreen, lane w26.a13) is
+// the player's own surface; the shell never renders a second docked panel.
+// The title-bar sidebar toggle keeps the composition at one column: while
+// the player's dock is open it also dispatches PLAYER_TOGGLE_SIDEBAR_EVENT
+// (the player's tested window-event seam) so the dock collapses together
+// with — or instead of — the shell sidebar. The player publishes its dock
+// state as `data-sidebar` on `.lumen-player`; the shell READS it, it never
+// guesses.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -49,6 +60,7 @@ import { keys as laneKeys } from "../../i18n/keys/w26.a10";
 import { useClient } from "../../client/ClientProvider";
 import type { CommandRequest } from "../../client/transport";
 import { OpenMediaDialog, OPEN_MEDIA_EVENT } from "../../screens/open-media";
+import { PLAYER_TOGGLE_SIDEBAR_EVENT } from "../../screens/player";
 import {
   GlyphChevronLeft,
   GlyphClose,
@@ -259,6 +271,13 @@ export function AppShell({
       persistSidebarOpen(!open);
       return !open;
     });
+    // One-sidebar composition (see the file header): if the player's docked
+    // queue sidebar is open, collapse it in the same toggle — the dock never
+    // stacks a second sidebar column next to the shell's (or the canvas).
+    // Plain `Event`, the exact shape the player's tested seam listens for.
+    if (document.querySelector(".lumen-player[data-sidebar='open']") !== null) {
+      window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
+    }
   }, []);
 
   useEffect(() => {

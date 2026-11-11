@@ -42,6 +42,16 @@
   font-weight: var(--font-weight-medium);
   line-height: 1;
   white-space: nowrap;
+
+  /* Nested `.lumen-icon` glyphs set their own color from --color-stroke-icon
+   * (icon.css), so the button-level label color cannot reach them — remap the
+   * token in-subtree (same technique as IconButton disabled). Glyphs follow
+   * the label token at every state; the variants below override for their
+   * label colors. This is what makes the play pill's glyph DARK on orange
+   * (play.svg / Controls.svg: #161616 triangle on #D37918) instead of the gray
+   * default icon stroke. */
+  --color-stroke-icon: var(--color-content-secondary);
+
   color: var(--color-content-secondary);
   background: var(--color-surface-raised);
   border: 1px solid var(--color-stroke-border);
@@ -56,15 +66,21 @@
 .lumen-button:hover {
   background: var(--color-surface-hover);
   color: var(--color-content-bright);
+
+  --color-stroke-icon: var(--color-content-bright);
 }
 
 .lumen-button:active {
   background: var(--color-surface-selected);
+
+  --color-stroke-icon: var(--color-content-bright);
 }
 
 .lumen-button:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+
+  --color-stroke-icon: var(--color-content-bright);
 }
 
 /* variant: primary — onboarding CTA / play pill (accent fill, r6, dark glyph).
@@ -73,6 +89,9 @@
   color: var(--color-content-on-accent);
   background: var(--color-accent);
   border-color: transparent;
+
+  /* dark on-accent glyph at every state (hover walks the fill, not the ink) */
+  --color-stroke-icon: var(--color-content-on-accent);
 }
 
 .lumen-button--primary:hover {
@@ -86,6 +105,15 @@
   border-color: transparent;
 }
 
+/* primary keeps the dark on-accent glyph under :hover/:active/:focus-visible —
+ * those pseudo-classes on the base rule out-rank the variant selector, so the
+ * remap is restated at equal (0,2,0) specificity, later in the cascade. */
+.lumen-button--primary:hover,
+.lumen-button--primary:active,
+.lumen-button--primary:focus-visible {
+  --color-stroke-icon: var(--color-content-on-accent);
+}
+
 /* variant: tinted — dialog confirm ("Save"): accent-tinted fill + accent
  * label per Open network stream.svg / Keyboard Shortcuts.svg / new
  * playlist.svg. Hover/pressed walk the label accent, fill stays tinted. */
@@ -93,16 +121,28 @@
   color: var(--color-accent);
   background: var(--color-accent-tinted);
   border-color: transparent;
+
+  --color-stroke-icon: var(--color-accent);
 }
 
 .lumen-button--tinted:hover {
   color: var(--color-accent-bright);
   border-color: transparent;
+
+  --color-stroke-icon: var(--color-accent-bright);
 }
 
 .lumen-button--tinted:active {
   color: var(--color-accent-strong);
   border-color: transparent;
+
+  --color-stroke-icon: var(--color-accent-strong);
+}
+
+/* tinted focus ring: label stays accent, so does the glyph (base
+ * :focus-visible remap is (0,2,0) and would out-rank the variant). */
+.lumen-button--tinted:focus-visible {
+  --color-stroke-icon: var(--color-accent);
 }
 
 /* variant: ghost — transparent rest, 1px transparent border so swapping
@@ -143,6 +183,8 @@
   border-color: var(--color-stroke-border);
   cursor: default;
   pointer-events: none;
+
+  --color-stroke-icon: var(--color-content-tertiary);
 }
 
 /* pending/loading (doc 08 §4.4): 0.7 opacity + spinner glyph */

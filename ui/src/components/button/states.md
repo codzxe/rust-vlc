@@ -36,6 +36,15 @@ Sizes: 28 / 32 / 36 (`sm`/`md`/`lg`) — compact desktop heights per frames
 (play pill 28, dialog buttons 32, segmented/footer 36–38). The old 48px `lg`
 is retired; 48 survives only as the IconButton `lg` hit wrapper.
 
+Nested icon glyphs: icon.css paints `.lumen-icon` from `--color-stroke-icon`,
+so the button-level label color cannot reach a nested glyph. `button.css`
+remaps the token in-subtree so glyphs follow the label token at every state
+(rest secondary → hover/active/focus bright; primary = on-accent DARK at every
+state per play.svg/Controls.svg `#161616` triangle on `#D37918`; tinted =
+accent→bright→strong; disabled = tertiary). Without the remap a primary play
+pill renders a GRAY glyph (caught in the w26.a03 relaunch vision loop, fixed
+2026-11-11; regression-tested in Button.test.tsx).
+
 ## IconButton — ghost icon action
 
 Transparent rest + 1px transparent border, `--radius-control`; glyph

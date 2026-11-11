@@ -1,6 +1,15 @@
 // Card 4.C2 — control bar integration: command dispatch per control (spy
 // assertions via a fake transport), truthful pending-seek, track menus from
 // real TrackInfo fixtures, honest error surfacing (doc 08 §5.4).
+//
+// w26.a14 — updated to the W26 single-row anatomy (Player.svg "Controls"):
+// stop · play pill · next | timecodes · seekbar | total · volume wedge ·
+// fullscreen · cast · app menu · gear. The Video/Audio/Subtitle track
+// selectors moved OFF the row INTO the app menu as dynamic submenus
+// (menu/types.ts data seam; the w26.a13 controls-strip finding) — the
+// track tests below drive the same honest fixtures through that menu.
+// Behavior contracts unchanged: every dispatch assertion is the same
+// command + args as the pre-W26 bar.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
@@ -13,6 +22,7 @@ import type {
   TrackInfo,
 } from "../../../client/transport";
 import { PlayerControlsProvider } from "../context";
+import { PlaylistProvider } from "../../playlist";
 import { ControlBar } from "./ControlBar";
 
 class FakeTransport {
@@ -88,12 +98,16 @@ const snapshotResult = (
   },
 } as unknown as CommandResponse["result"]);
 
+// PlayerScreen mounts the same provider chain around the bar — the playlist
+// context is what `next` dispatches through (playlist.next).
 function renderBar(transport: FakeTransport | MockTransport) {
   return render(
     <ClientProvider transport={transport}>
-      <PlayerControlsProvider>
-        <ControlBar />
-      </PlayerControlsProvider>
+      <PlaylistProvider>
+        <PlayerControlsProvider>
+          <ControlBar />
+        </PlayerControlsProvider>
+      </PlaylistProvider>
     </ClientProvider>,
   );
 }
@@ -101,6 +115,13 @@ function renderBar(transport: FakeTransport | MockTransport) {
 const playPauseButton = (): HTMLElement => screen.getByRole("button", { name: /play|pause/i });
 
 const click = (el: Element): boolean => fireEvent.click(el);
+
+/** Opens the app menu and a track submenu; returns the submenu popup. */
+const openTrackMenu = (kindName: string): HTMLElement => {
+  click(screen.getByRole("button", { name: "Application menu" }));
+  click(screen.getByRole("menuitem", { name: kindName }));
+  return screen.getByRole("menu", { name: kindName });
+};
 
 /** Flush pending async command completions (act-wrapped microtask drain). */
 const flush = async (): Promise<void> => {
@@ -356,7 +377,7 @@ describe("volume/mute — engine-reported, never optimistic", () => {
   });
 });
 
-describe("track menus — real ids, real labels, honest unknowns", () => {
+describe("track menus (app-menu submenus) — real ids, real labels, honest unknowns", () => {
   const FIXTURE: TrackInfo[] = [
     track(1, "audio", "English 5.1", "en"),
     track(2, "audio", "Commentaire", "fr", true),
@@ -376,23 +397,27 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     return fake;
   };
 
-  it("v2 §4.3 — no media open: triggers read 'Kind —' (never 'Disabled'), disabled, aria carries the no-media reason", async () => {
-    // Solstice v2 audit defect: with no media the three triggers rendered
-    // the "Disabled" OPTION label as their face — reading like debug
-    // scaffolding. The honest no-media trigger shows the track kind plus an
-    // em-dash with the reason in the accessible name, disabled, and NO
-    // fabricated options.
+  it("v2 §4.3 — no media open: each submenu holds ONLY the disabled no-media reason (never fabricated options)", async () => {
+    // The pre-W26 bar showed the no-media truth on disabled dropdown
+    // triggers; the W26 anatomy carries the same honesty into the app
+    // menu: the Video/Audio/Subtitle submenus exist and open, but their
+    // single option is the inert "no media open" reason — no "Automatic",
+    // no "Disabled", no invented track names anywhere.
     const fake = new FakeTransport();
     fake.respond = () => snapshotResult("idle");
     renderBar(fake);
     await flush();
+    click(screen.getByRole("button", { name: "Application menu" }));
     for (const name of ["Video track", "Audio track", "Subtitle track"]) {
-      const trigger = screen.getByRole("button", {
-        name: new RegExp(`^${name} — no media open$`),
-      });
-      expect(trigger).toBeDisabled();
-      expect(trigger.textContent).not.toContain("Disabled");
-      expect(trigger.querySelector(".lumen-dropdown__value")?.textContent).toBe(`${name} —`);
+      const parent = screen.getByRole("menuitem", { name });
+      expect(parent).toHaveAttribute("aria-haspopup", "true");
+      click(parent);
+      const submenu = screen.getByRole("menu", { name });
+      const options = within(submenu).getAllByRole("menuitem");
+      expect(options).toHaveLength(1);
+      expect(options[0]).toHaveAttribute("aria-disabled", "true");
+      expect(options[0]?.textContent).toBe("no media open");
+      expect(within(submenu).queryByRole("menuitemradio")).toBeNull();
     }
   });
 
@@ -400,56 +425,68 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     const fake = tracksSetup();
     renderBar(fake);
     await flush();
-    const trigger = screen.getByRole("button", { name: "Audio track" });
-    expect(trigger).toBeEnabled();
-    expect(trigger.textContent).not.toContain("—");
-    click(trigger);
-    const list = screen.getByRole("listbox", { name: "Audio track" });
-    expect(within(list).getAllByRole("option")).toHaveLength(5); // auto + disable + 3 audio
+    const submenu = openTrackMenu("Audio track");
+    expect(within(submenu).getAllByRole("menuitemradio")).toHaveLength(5); // auto + disable + 3 audio
+    expect(
+      within(submenu).getByRole("menuitemradio", { name: "Automatic" }),
+    ).toBeInTheDocument();
+    expect(within(submenu).getByRole("menuitemradio", { name: "Disabled" })).toBeInTheDocument();
   });
 
   it("lists real tracks per kind from the tracks.list result", async () => {
-    renderBar(tracksSetup());
+    const fake = tracksSetup();
+    renderBar(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Audio track" }));
-    const list = screen.getByRole("listbox", { name: "Audio track" });
-    expect(within(list).getByRole("option", { name: "Commentaire" })).toBeInTheDocument();
-    expect(within(list).getAllByRole("option")).toHaveLength(5); // auto + disable + 3 audio
+    // One open menu; hovering/clicking between the track parents swaps the
+    // submenu in place (MenuPopup's openSubmenu switch).
+    click(screen.getByRole("button", { name: "Application menu" }));
+    click(screen.getByRole("menuitem", { name: "Audio track" }));
+    const audio = screen.getByRole("menu", { name: "Audio track" });
+    expect(within(audio).getByRole("menuitemradio", { name: "English 5.1" })).toBeInTheDocument();
+    expect(within(audio).getByRole("menuitemradio", { name: "Commentaire" })).toBeInTheDocument();
+    expect(within(audio).getAllByRole("menuitemradio")).toHaveLength(5); // auto + disable + 3 audio
+    // The video menu lists the video track, never the audio ones.
+    click(screen.getByRole("menuitem", { name: "Video track" }));
+    const video = screen.getByRole("menu", { name: "Video track" });
+    expect(within(video).getByRole("menuitemradio", { name: "1080p" })).toBeInTheDocument();
+    expect(within(video).getAllByRole("menuitemradio")).toHaveLength(3); // auto + disable + 1 video
+    expect(within(video).queryByRole("menuitemradio", { name: "English 5.1" })).toBeNull();
   });
 
   it("subtitle menu only lists subtitle tracks", async () => {
     renderBar(tracksSetup());
     await flush();
-    click(screen.getByRole("button", { name: "Subtitle track" }));
-    const list = screen.getByRole("listbox", { name: "Subtitle track" });
-    expect(within(list).getAllByRole("option")).toHaveLength(3); // auto + disable + 1 subtitle
-    expect(within(list).getByRole("option", { name: "English SDH" })).toBeInTheDocument();
+    const submenu = openTrackMenu("Subtitle track");
+    expect(within(submenu).getAllByRole("menuitemradio")).toHaveLength(3); // auto + disable + 1 subtitle
+    expect(within(submenu).getByRole("menuitemradio", { name: "English SDH" })).toBeInTheDocument();
+    expect(within(submenu).queryByRole("menuitemradio", { name: "English 5.1" })).toBeNull();
   });
 
   it("renders an honest 'Unknown' label — never an invented title", async () => {
     renderBar(tracksSetup());
     await flush();
-    click(screen.getByRole("button", { name: "Audio track" }));
-    const list = screen.getByRole("listbox", { name: "Audio track" });
-    expect(within(list).getByRole("option", { name: /Unknown 3/ })).toBeInTheDocument();
+    const submenu = openTrackMenu("Audio track");
+    expect(within(submenu).getByRole("menuitemradio", { name: /Unknown 3/ })).toBeInTheDocument();
   });
 
-  it("marks the engine-selected track (aria-selected)", async () => {
+  it("marks the engine-selected track (aria-checked radio)", async () => {
     renderBar(tracksSetup());
     await flush();
-    click(screen.getByRole("button", { name: "Audio track" }));
-    const list = screen.getByRole("listbox", { name: "Audio track" });
+    const submenu = openTrackMenu("Audio track");
     expect(
-      within(list).getByRole("option", { name: "Commentaire" }).getAttribute("aria-selected"),
+      within(submenu).getByRole("menuitemradio", { name: "Commentaire" }).getAttribute("aria-checked"),
     ).toBe("true");
+    expect(
+      within(submenu).getByRole("menuitemradio", { name: "English 5.1" }).getAttribute("aria-checked"),
+    ).toBe("false");
   });
 
   it("switching dispatches tracks.set-audio-track with the real id", async () => {
     const fake = tracksSetup();
     renderBar(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Audio track" }));
-    click(screen.getByRole("option", { name: "English 5.1" }));
+    const submenu = openTrackMenu("Audio track");
+    click(within(submenu).getByRole("menuitemradio", { name: "English 5.1" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-audio-track");
     expect(select?.args).toEqual({ selector: { kind: "id", id: 1 } });
   });
@@ -458,8 +495,8 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     const fake = tracksSetup();
     renderBar(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Subtitle track" }));
-    click(screen.getByRole("option", { name: "Disabled" }));
+    const submenu = openTrackMenu("Subtitle track");
+    click(within(submenu).getByRole("menuitemradio", { name: "Disabled" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-subtitle-track");
     expect(select?.args).toEqual({ selector: { kind: "none" } });
   });
@@ -468,8 +505,8 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     const fake = tracksSetup();
     renderBar(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Video track" }));
-    click(screen.getByRole("option", { name: "Automatic" }));
+    const submenu = openTrackMenu("Video track");
+    click(within(submenu).getByRole("menuitemradio", { name: "Automatic" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-video-track");
     expect(select?.args).toEqual({ selector: { kind: "auto" } });
   });
@@ -481,10 +518,9 @@ describe("track menus — real ids, real labels, honest unknowns", () => {
     act(() => {
       fake.emit({ kind: "tracks.changed", selected: 1, trackKind: "audio", seq: 5 });
     });
-    click(screen.getByRole("button", { name: "Audio track" }));
-    const list = screen.getByRole("listbox", { name: "Audio track" });
+    const submenu = openTrackMenu("Audio track");
     expect(
-      within(list).getByRole("option", { name: "English 5.1" }).getAttribute("aria-selected"),
+      within(submenu).getByRole("menuitemradio", { name: "English 5.1" }).getAttribute("aria-checked"),
     ).toBe("true");
   });
 });

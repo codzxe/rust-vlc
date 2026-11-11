@@ -48,7 +48,7 @@ import {
 import { SettingsProvider, useSettings } from "../settings/SettingsProvider";
 import { ThemeContext } from "../../theme/ThemeProvider";
 import type { ThemeModeSetting } from "../../theme/ThemeProvider";
-import { ACCENTS, type AccentId } from "../../tokens/generated/tokens";
+import { type AccentId } from "../../tokens/generated/tokens";
 import { useOnboardingActions, useOnboardingState } from "./onboardingState";
 import type { OnboardingChoiceKey } from "./onboardingState";
 import "./onboarding.css";
@@ -164,6 +164,21 @@ const ACCENT_LABEL_KEYS: Record<AccentId, MessageKey> = {
   yellow: "onboarding.accent.yellow",
 };
 
+/** The footer dot row's order — frame: Onboarding-1.svg (orange first, the
+ * default accent, then the design-language band set; the generated ACCENTS
+ * array is alphabetical, the frame is not). */
+const ACCENT_ORDER: readonly AccentId[] = [
+  "orange",
+  "red",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "violet",
+  "pink",
+  "gray",
+];
+
 // ---------------------------------------------------------------------------
 // The shortcut tour (frame: Onboarding-2.svg — two columns × six rows)
 // ---------------------------------------------------------------------------
@@ -178,7 +193,9 @@ const binding = (id: string): HotkeyBinding | undefined => BINDING_BY_ID.get(id)
 /**
  * Keymap spellings → keycap glyphs. Arrow-key spellings render as arrow
  * symbols on the caps (artwork, not copy); everything else shows the
- * keymap's own data, split on "+" into one cap per key.
+ * keymap's own data, one cap per key — the frame renders combos as
+ * ADJACENT caps with no joiner glyph (Onboarding-2.svg: "SHIFT" chip +
+ * "S" chip, 4px apart), so no "+" is drawn between them.
  */
 const KEYCAP_GLYPHS: Readonly<Record<string, string>> = {
   Down: "↓",
@@ -636,25 +653,21 @@ export function OnboardingScreen(): ReactElement {
                         {row.bindingIds.map((id, index) => {
                           const b = binding(id);
                           if (!b) return null;
-                          const parts = keycapParts(b);
                           return (
-                            <span className="onboarding__shortcut-pair" key={id}>
+                            <Fragment key={id}>
                               {index > 0 && (
                                 <span className="onboarding__shortcut-sep" aria-hidden="true">
                                   /
                                 </span>
                               )}
-                              {parts.map((part, partIndex) => (
-                                <Fragment key={`${id}-${part}`}>
-                                  {partIndex > 0 && (
-                                    <span className="onboarding__shortcut-sep" aria-hidden="true">
-                                      +
-                                    </span>
-                                  )}
-                                  <kbd className="onboarding__key">{part}</kbd>
-                                </Fragment>
-                              ))}
-                            </span>
+                              <span className="onboarding__shortcut-pair">
+                                {keycapParts(b).map((part) => (
+                                  <kbd className="onboarding__key" key={`${id}-${part}`}>
+                                    {part}
+                                  </kbd>
+                                ))}
+                              </span>
+                            </Fragment>
                           );
                         })}
                       </span>
@@ -683,7 +696,7 @@ export function OnboardingScreen(): ReactElement {
                  * redefine --color-accent), so the dot primaries are the
                  * frame-measured set (see onboarding.css) and the LIVE
                  * accent token ring is the selected-state preview. */}
-                {ACCENTS.map((accent) => (
+                {ACCENT_ORDER.map((accent) => (
                   <button
                     type="button"
                     key={accent}

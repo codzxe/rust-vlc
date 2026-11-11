@@ -112,6 +112,21 @@
   color: var(--color-content-primary);
 }
 
+/* Screen-reader-only level-1 heading (W26): always present for a11y and the
+ * App first-run-gate tests; never visible — the shell owns the title bar. */
+.lumen-player__sr-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---- video canvas (Player.svg x=427..1920, y=40..1026) ------------------
  * Near-black in BOTH themes — the picture-frame rule (W25 spec §1: light
  * mode keeps the canvas #2b2b2b–#333). Stays a labelled region div until

@@ -1,123 +1,140 @@
-/* Card 4.C2 — control bar composition (doc 08 §1.6 bottom bar, §4.3
- * unobtrusive controls, §5 truthful states).
+/* w26.a14 — the player control bar (ControlBar.tsx), composed to the W26
+ * Figma frames. ONE ~44px row (the chrome strip itself is player.css's
+ * .lumen-player__controls; this sheet styles the bar's contents).
  *
- * SOLSTICE RESTYLE (2026-11-08): the bar floats as a .solstice-glass card
- * (class composed in ControlBar.tsx — translucent warm panel + blur +
- * --radius-card rounding, no longer edge-to-edge; the shell footer provides
- * the float margins). Spacing sits on the 4px grid; the play toggle is the
- * ONE gold primary action (40px accent circle); the seekbar reads gold on a
- * warm track; track-selector dropdowns get min-widths so labels never
- * truncate; the volume slider is horizontal and grouped right; the error
- * surface is a compact note chip above the bar.
+ * Provenance — design/figma/Player.svg "Controls" group (1920×54 strip),
+ * Controls.svg default state, play.svg, "Current Time.svg", Duration.svg,
+ * volume.svg; measured anatomy in
+ * docs/waves/w26/analysis/menus-control-parts.md §B1/§B6–§B9:
+ *   · play pill 54×28 r6 accent + dark glyph (play.svg type=play; the
+ *     pause type grays the pill — accent is the play affordance)
+ *   · timecodes ≈15px tabular content-secondary (#8F8F8F)
+ *   · seekbar track 28px r6 on surface (#090909), played fill r4
+ *     accent-tinted inset 2 (#371F06), playhead an 8×24 r4 accent BAR —
+ *     no circular thumb in the main bar
+ *   · volume = icon + 89px wedge track whose level fill is the measured
+ *     green→yellow→orange→red gradient anchored to the FULL track
+ *     (50% level = 33px; 100% ends in the orange zone ≈71% of the track)
+ *   · right-cluster icon buttons: bare #8F8F8F 1.5-stroke glyphs, the
+ *     Icon Wrapper.svg hover chip (IconButton base, button.css)
  *
- * SOLSTICE v2 (2026-11-09, audit pass): the seekbar DOMINATES the bar
- * (flex-grow with a wide basis; the volume slider is a fixed ~120px accent,
- * never a peer of the seek row); the empty seekbar is a calm unplayed track
- * (no phantom zero-position thumb — hidden via [data-empty] from
- * ControlBar.tsx); the time displays share the seek row's baseline grid
- * (fixed track-height line box + tabular figures); a DISABLED play toggle
- * steps back to a quiet surface so the gold accent reads as "active"
- * exactly when playback is possible.
- *
- * Semantic tokens only (§3.2); raw px appears solely for structural
- * dimensions with no token (the 40px primary circle, dropdown min-widths). */
+ * Semantic tokens only (CONTRACT §4.4); raw px below are structural
+ * frame-measured dimensions with no token (states.md pattern). The ONE raw
+ * color stop set (the volume signal gradient) carries an inline
+ * stylelint disable + frame citation — token-lane handoff recorded in the
+ * w26.a14 lane log. */
+
+/* ------------------------------------------------------------------ row */
 
 .lumen-controls {
-  position: relative; /* anchors the floating error chip */
+  position: relative; /* anchors the floating error chip + menu popup */
   display: flex;
-  flex-wrap: wrap; /* narrow windows wrap clusters, never overflow the card */
   align-items: center;
-  gap: var(--space-inset);
+  gap: calc(var(--space-inset) + var(--space-grid));
   width: 100%;
+  min-height: 44px; /* structural: the mission's single-row ~44px bar */
   box-sizing: border-box;
-  padding: var(--space-grid) calc(var(--space-inset) + 2px);
+  padding: 0 calc(var(--space-inset) * 2);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label);
 }
 
-.lumen-controls__transport,
-.lumen-controls__tracks {
+/* ------------------------------------------------------------ clusters */
+
+.lumen-controls__transport {
   display: flex;
   align-items: center;
-  gap: var(--space-grid);
+  gap: calc(var(--space-inset) + var(--space-grid)); /* Player.svg pill pitch */
   flex: none;
 }
 
-/* Volume cluster — grouped on the right behind a hairline warm divider. */
-.lumen-controls__volume {
+.lumen-controls__right,
+.lumen-controls__volume,
+.lumen-controls__output {
   display: flex;
   align-items: center;
-  gap: var(--space-grid);
+  gap: var(--space-inset);
   flex: none;
-  padding-left: var(--space-inset);
-  border-left: 1px solid color-mix(in srgb, var(--color-stroke-border) 70%, transparent);
-}
-
-.lumen-controls__seek {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space-inset) + 2px);
-
-  /* v2: the seek row dominates the bar — it takes all the free width and
-   * never collapses below a usable scrub track (wraps below that instead). */
-  flex: 1 1 280px;
   min-width: 0;
 }
 
-/* Time displays — a shared baseline grid with the 28px seek track: fixed
- * line box + tabular figures, so 0:00 / --:-- / 1:23:45 keep their columns
- * and vertically center on the track the seekbar paints. */
+/* The seek row takes all free width; at narrow widths it compresses to the
+ * 48px scrub floor — the bar never wraps (single-row invariant). */
+.lumen-controls__seek {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  flex: 1 1 48px;
+  min-width: 0;
+}
+
+/* -------------------------------------------------- timecodes (B6/B7) */
+
 .lumen-controls__time {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 4.5ch; /* "--:--" column floor (structural, mono tabular) */
-  height: 28px; /* the seek track height (§1.4) */
+  flex: none;
+  min-width: 4.5ch; /* "--:--" column floor (structural, tabular figures) */
+  height: 28px; /* the seek track band — shared vertical rhythm */
   font-family: var(--font-family-time);
-  font-size: var(--font-size-time);
+  font-size: var(--font-size-time); /* ≈15px (cap 11.2 measured) */
   color: var(--color-content-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* The play toggle — the gold primary action: 40px accent circle, on-accent
- * glyph, hover lift (structural 40px: no token; recorded like the 4.B1
- * 28/32/48 control heights). v2: a DISABLED toggle (idle/buffering) steps
- * back to the quiet control surface — the accent stays reserved for
- * "playback possible" so it never reads as a dark-olive blob that is
- * somehow both lit and inert. Disabled keeps the token opacity floor. */
-.lumen-controls__transport .lumen-icon-button[data-control="play-pause"] {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%; /* functional circle, not a design radius */
+/* ------------------------------------------------- play pill (B9) */
+
+/* play.svg type=play: 54×28 r6 accent pill, dark on-accent glyph — the
+ * hero control. Structural 54×28: no size token exists (states.md). */
+.lumen-controls__play {
+  width: 54px;
+  height: 28px;
+  border-radius: var(--radius-control);
   color: var(--color-content-on-accent);
   background: var(--color-accent);
-  box-shadow: 0 var(--space-grid) calc(var(--space-inset) * 2)
-    color-mix(in srgb, var(--color-accent) 32%, transparent);
-  transition: background-color 120ms ease, translate 120ms ease, box-shadow 120ms ease;
+
+  /* the glyph is an .lumen-icon (colors from --color-stroke-icon, not
+   * currentColor) — remap it to the on-accent ink in-subtree */
+  --color-stroke-icon: var(--color-content-on-accent);
+
+  transition: background-color var(--motion-duration-fast) ease;
 }
 
-.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:hover {
-  color: var(--color-content-on-accent);
+/* play.svg type=pause: while the pause glyph is up the pill grays — the
+ * accent belongs to the "play" affordance (B9: pause state #6B6B6B). */
+.lumen-controls__play[data-glyph="pause"] {
+  background: var(--color-content-tertiary);
+}
+
+.lumen-controls__play[data-glyph="play"]:hover {
+  background: var(--color-accent-bright);
+}
+
+.lumen-controls__play[data-glyph="play"]:active {
   background: var(--color-accent-strong);
-  translate: 0 -2px;
-  box-shadow: 0 calc(var(--space-inset)) calc(var(--space-inset) * 2.5)
-    color-mix(in srgb, var(--color-accent) 42%, transparent);
 }
 
-.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:active {
-  color: var(--color-content-on-accent);
-  background: var(--color-accent-strong);
-  translate: 0 0;
+.lumen-controls__play[data-glyph="pause"]:hover {
+  background: var(--color-content-secondary);
 }
 
-/* Disabled play toggle: quiet surface, warm-border ring, muted glyph — the
- * gold circle appears exactly when the command behind it can run. */
-.lumen-controls__transport .lumen-icon-button[data-control="play-pause"]:disabled {
-  color: var(--color-content-secondary);
-  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-stroke-border) 90%, transparent);
+.lumen-controls__play[data-glyph="pause"]:active {
+  background: var(--color-content-primary);
+}
+
+/* Disabled (idle/buffering): the pill keeps its glyph state and simply
+ * fades — inertness is the opacity, not a third color story. */
+.lumen-controls__play:disabled {
+  --color-stroke-icon: var(--color-content-on-accent);
+
+  background: var(--color-accent);
+  opacity: var(--opacity-disabled);
+}
+
+.lumen-controls__play:disabled[data-glyph="pause"] {
+  background: var(--color-content-tertiary);
 }
 
 /* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
@@ -125,96 +142,127 @@
   opacity: var(--opacity-emphasis);
 }
 
-/* Seekbar — gold fill + warm translucent track; the honest buffer overlay
- * (.lumen-seekbar__buffer, engine data) reads as the warm band ahead.
- * The track must stay VISIBLE on the glass bar (surface-deep vanished on
- * it — Solstice polish pass, 2026-11-08). */
+/* ------------------------------------------------- seekbar (B1 notes) */
+
+/* The frame's main-bar anatomy, restyled over the a04 slider API:
+ * 28px-tall r6 surface track (the "slim" bar's actual measured body —
+ * Player.svg Frame 21: 1238×28 r6 #090909), played fill r4 accent-tinted
+ * inset 2, playhead an 8×24 r4 accent BAR. No circular thumb. */
+.lumen-controls__seek .lumen-seekbar {
+  flex: 1 1 48px;
+  min-width: 48px; /* structural: scrub floor at 1024×768 */
+  height: 28px;
+}
+
 .lumen-controls__seek .lumen-slider__track {
-  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+  top: 0;
+  height: 100%;
+  background: var(--color-surface); /* frame #090909 */
+  border-radius: var(--radius-control);
 }
 
-.lumen-controls__seek .lumen-slider__fill,
+.lumen-controls__seek .lumen-slider__fill {
+  top: var(--space-track-inset);
+  bottom: var(--space-track-inset);
+  left: var(--space-track-inset);
+  width: calc((100% - var(--space-track-inset) * 2) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame #371F06 */
+  border-radius: var(--radius-inset);
+}
+
+/* The playhead BAR — 8×24 r4 accent (Player.svg Rectangle 10), always
+ * visible at rest; pending seeks still read accent-strong (slider.css). */
 .lumen-controls__seek .lumen-slider__thumb {
+  top: var(--space-track-inset);
+  width: 8px;
+  height: 24px;
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
   background: var(--color-accent);
+  border-radius: var(--radius-inset);
+  opacity: 1;
 }
 
+/* Engine-reported buffer sub-regions — honest overlay (doc 08 §4.3), quiet
+ * inside the fill's inset band so the played/read state stays legible. */
 .lumen-controls__seek .lumen-seekbar__buffer {
-  background: color-mix(in srgb, var(--color-surface-muted) 82%, transparent);
+  top: var(--space-track-inset);
+  bottom: var(--space-track-inset);
+  background: color-mix(in srgb, var(--color-content-secondary) 16%, transparent);
+  border-radius: var(--radius-inset);
 }
 
-/* v2 audit — the calm unplayed track: with no duration to map a position
- * onto (data-empty from ControlBar.tsx), the accent thumb and fill vanish;
- * the warm track alone reads as "nothing played yet". No phantom tick. */
-.lumen-controls__seek .lumen-seekbar[data-empty] .lumen-slider__thumb,
-.lumen-controls__seek .lumen-seekbar[data-empty] .lumen-slider__fill {
-  opacity: 0;
-}
+/* -------------------------------------------------- volume wedge (B8) */
 
-/* Volume — horizontal stroke slider grouped with the mute toggle (the
- * .lumen-volume vertical flyout geometry is replaced via the className
- * seam in ControlBar.tsx; base Slider anatomy stays). v2: fixed ~120px —
- * a quiet satellite of the seek row, never its peer. */
+/* volume.svg: 89px wedge track (left cap ≈11px tall → right cap ≈28px) on
+ * surface; the level fill is the measured signal gradient anchored to the
+ * FULL track, revealed to the level — no thumb, hard fill edge. */
 .lumen-controls__volume-slider {
-  width: 120px;
-  height: 16px;
+  width: 89px; /* frame-measured (structural) */
+  height: 28px;
   flex: none;
 }
 
 .lumen-controls__volume-slider .lumen-slider__track {
-  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
-  border-radius: var(--radius-ring);
+  top: 0;
+  height: 100%;
+  background: var(--color-surface);
+  border-radius: 2px; /* frame cap r≈2.5 (structural) */
+
+  /* the wedge silhouette: 11px left cap → 28px right cap */
+  clip-path: polygon(0 calc(50% - 5.5px), 100% 0, 100% 100%, 0 calc(50% + 5.5px));
 }
 
-/* stylelint-disable-next-line no-descending-specificity -- the volume fill override is grouped with the volume cluster; the seek-empty rule targets a disjoint subtree (.lumen-controls__seek), never a volume slider */
+/* The level fill — a full-track gradient layer clipped to the level. A
+ * width-scaled fill would compress the ramp (wrong at every level); the
+ * frame anchors the stops to the 89px track and reveals them. */
+.lumen-controls__volume-slider .lumen-slider__track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  /* stylelint-disable-next-line color-no-hex -- frame: volume.svg — the measured signal gradient #95D318→#B2A918(57.9%)→#D37918(79.2%)→#FF3737(100%). Green/red are volume/EQ-only signal colors (NOT theme accents — analysis §B8 note), so they deliberately do not map to accent tokens; handoff: --gradient-volume-level (slider.css seam, token lane). */
+  background: linear-gradient(90deg, #95d318 0%, #b2a918 57.9%, #d37918 79.2%, #ff3737 100%);
+
+  /* 100% volume ends at ≈71% of the track (measured: 50% = 33px of 89px,
+   * 100% = 63px) — the level never reaches the red zone in the 0–1 range */
+  clip-path: inset(0 calc(100% - var(--lumen-slider-fill, 0) * 0.71%) 0 0);
+}
+
+/* The base fill/thumb are replaced by the clipped gradient layer above. */
 .lumen-controls__volume-slider .lumen-slider__fill {
-  background: var(--color-accent);
-  border-radius: var(--radius-ring);
+  display: none;
 }
 
-/* Track selectors — compact warm triggers with a min-width so labels render
- * whole ("Automatic", "English 5.1"…): the trigger never collapses below the
- * comfortable label width; longer names ellipsize honestly instead of
- * clipping mid-word. v2: the no-media "—" trigger narrows to a chip — an
- * honest unknown does not need the full label column (kind label stays in
- * the accessible name). */
-.lumen-controls__track {
-  flex: none;
-  min-width: 148px; /* structural: honest-label floor, no token exists */
+.lumen-controls__volume-slider .lumen-slider__thumb {
+  display: none;
 }
 
-.lumen-controls__track[data-empty] {
-  /* v2 §4.3: the empty face is "Kind —" (visible), not a bare dash — it
-   * needs the same floor as a real label so it never ellipsizes. */
-  min-width: 160px;
+/* -------------------------------------------------- app menu popup */
+
+.lumen-controls__menu {
+  position: relative; /* anchors the popup (portal-free absolute) */
 }
 
-.lumen-controls__track .lumen-dropdown {
-  display: flex;
+/* Opens UP from the bar's right end (the menu button sits at the row's
+ * right edge; downward would fall off-window). */
+.lumen-controls__menu-popup {
+  inset: auto 0 calc(var(--space-inset) + var(--space-grid)) auto;
 }
 
-.lumen-controls__track .lumen-dropdown__trigger {
-  height: 36px; /* compact trigger inside the glass bar (structural) */
-  background: color-mix(in srgb, var(--color-surface-deep) 60%, transparent);
+/* Submenus open LEFT — the base rightward offset would push them off the
+ * window edge (menu.css assumes left-anchored menubar menus). */
+.lumen-controls__menu-popup .lumen-menu--submenu {
+  left: auto;
+  right: 100%;
+  margin-right: var(--space-grid);
+  margin-left: 0;
 }
 
-/* Re-establish the component's hover/expanded states above the compact
- * base override (equal specificity, later sheet — kept explicit). */
-.lumen-controls__track .lumen-dropdown__trigger:hover {
-  background: var(--color-surface-hover);
-}
+/* ------------------------------------------------- error chip (§5.4) */
 
-.lumen-controls__track .lumen-dropdown__trigger[aria-expanded="true"] {
-  background: var(--color-surface-selected);
-}
-
-.lumen-controls__track .lumen-dropdown__trigger > span {
-  height: 30px; /* inner surface (structural, 2px padding like doc 08 §116) */
-  padding-right: var(--space-grid);
-}
-
-/* Error surface — compact note chip floating above the bar's right edge:
- * icon + short message + Dismiss. Stage/code detail stays in the DOM
- * (single line, honest); the chip never grows into a wide strip. */
+/* Compact r12 panel chip floating above the bar's right edge: icon + short
+ * message + Dismiss. Stage/code detail stays in the DOM (single line,
+ * honest); the chip never grows into a wide strip. */
 .lumen-controls__error {
   position: absolute;
   bottom: calc(100% + var(--space-grid));
@@ -226,11 +274,10 @@
   max-width: min(480px, 100%);
   box-sizing: border-box;
   padding: var(--space-grid) var(--space-inset);
-  border: 1px solid color-mix(in srgb, var(--color-tape) 40%, transparent);
-  border-radius: var(--radius-ring);
-  background: var(--color-note);
-  color: var(--color-note-ink);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-menu);
+  background: var(--color-surface-panel);
+  box-shadow: var(--shadow-overlay);
 }
 
 .lumen-controls__error-icon {
@@ -240,11 +287,12 @@
 
 .lumen-controls__error-title {
   font-weight: var(--font-weight-semibold);
+  color: var(--color-content-bright);
 }
 
 .lumen-controls__error-title::after {
   content: " — ";
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .lumen-controls__error-detail {
@@ -252,12 +300,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
+/* ---------------------------------------------------------------- motion */
+
 @media (prefers-reduced-motion: reduce) {
-  .lumen-controls__transport .lumen-icon-button[data-control="play-pause"] {
+  .lumen-controls__play {
     transition: none;
-    translate: none;
   }
 }

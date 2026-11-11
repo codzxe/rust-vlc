@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
 import { OPEN_MEDIA_EVENT } from "../../screens/open-media";
+import { PLAYER_TOGGLE_SIDEBAR_EVENT } from "../../screens/player";
 import { AppShell } from "./AppShell";
 
 /** The shell needs a client (open-media + window-close command seam). */
@@ -227,6 +228,53 @@ describe("AppShell — playlists sidebar (sidebar.svg)", () => {
     // and back to the windowed list
     fireEvent.click(within(sidebar).getByRole("button", { name: "List view" }));
     expect(within(sidebar).getByRole("listbox", { name: "Playlists" })).toBeInTheDocument();
+  });
+});
+
+describe("AppShell — one-sidebar composition seam (lumen:toggle-sidebar)", () => {
+  /** Listens on the player's window-event seam and records dispatches. */
+  function recordToggleEvents(): { seen: string[]; stop: () => void } {
+    const seen: string[] = [];
+    const listener = (event: Event): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(PLAYER_TOGGLE_SIDEBAR_EVENT, listener);
+    return { seen, stop: () => window.removeEventListener(PLAYER_TOGGLE_SIDEBAR_EVENT, listener) };
+  }
+
+  it("dispatches lumen:toggle-sidebar when the player's docked sidebar is open (Player.png one-column rule)", () => {
+    // The player publishes its dock state as data-sidebar on .lumen-player
+    // (PlayerScreen.tsx); the shell reads it, never guesses.
+    renderShell(
+      <AppShell>
+        <div className="lumen-player" data-sidebar="open" />
+      </AppShell>,
+    );
+    const recorder = recordToggleEvents();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
+    recorder.stop();
+    expect(recorder.seen).toEqual([PLAYER_TOGGLE_SIDEBAR_EVENT]);
+    // the shell sidebar still toggled (both sides of the composition)
+    expect(getSidebar()).toHaveAttribute("hidden");
+  });
+
+  it("stays silent when the player's dock is closed or no player is mounted", () => {
+    const docked = renderShell(
+      <AppShell>
+        <div className="lumen-player" data-sidebar="closed" />
+      </AppShell>,
+    );
+    const recorder = recordToggleEvents();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
+    expect(recorder.seen).toEqual([]);
+    recorder.stop();
+    // and on screens with no player at all (no listener, no dispatch source)
+    docked.unmount();
+    renderShell();
+    const quiet = recordToggleEvents();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
+    quiet.stop();
+    expect(quiet.seen).toEqual([]);
   });
 });
 

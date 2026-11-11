@@ -391,6 +391,10 @@ function PlayerScreenInner({
       ))}
 
       <div className="lumen-player__main">
+        {/* Level-1 heading is ALWAYS present for a11y (App gate tests +
+            screen readers); visually hidden — the window title bar is the
+            app shell's (W26). */}
+        <h1 className="lumen-player__sr-title">{m("screen.player")}</h1>
         {/* Top regions render only when a layout declares one — the default
             W26 layout does not (the window title bar is the app shell's). */}
         {regionsOf("top").map((region) => (
@@ -400,7 +404,7 @@ function PlayerScreenInner({
             data-chrome-part=""
             className="lumen-player__topbar"
           >
-            <h1 className="lumen-player__title">{m("screen.player")}</h1>
+            <span className="lumen-player__title">{m("screen.player")}</span>
           </header>
         ))}
 

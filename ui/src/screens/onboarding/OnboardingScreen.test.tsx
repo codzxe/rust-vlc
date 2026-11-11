@@ -235,6 +235,20 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
       </ThemeProvider>,
     );
     goToStep(2); // welcome → library → appearance
+    // Dot row order is the frame's (Onboarding-1.svg: orange first — the
+    // default accent — then the band set), not the generated alphabetical one.
+    const accents = screen.getByTestId("onboarding-accents");
+    expect([...accents.children].map((dot) => (dot as HTMLElement).dataset.accent)).toEqual([
+      "orange",
+      "red",
+      "yellow",
+      "green",
+      "cyan",
+      "blue",
+      "violet",
+      "pink",
+      "gray",
+    ]);
     fireEvent.click(screen.getByRole("button", { name: "Light" }));
     expect(document.documentElement.dataset.theme).toBe("light");
     fireEvent.click(screen.getByTestId("onboarding-accent-cyan"));
