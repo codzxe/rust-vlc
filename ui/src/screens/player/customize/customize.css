@@ -17,6 +17,7 @@
 .lumen-customize {
   display: flex;
   flex-direction: column;
+
   /* Fill the host panel's height (the media-info sibling's pattern): the
    * footer's `margin-top: auto` pins it to the panel bottom like the
    * frame's footer, and short content never leaves a dead zone below. */

@@ -25,7 +25,7 @@ const cssRaw = TOKENS_CSS;
 // (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
 // default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
 // Solstice groups removed; eq band accents added.)
-const PINNED_SHA256 = "98c24a36671843cb36c1e666bd1946190240ae8ab49f6b58b37f8606eb4c824a";
+const PINNED_SHA256 = "2b226ab844a20b677bd7607119c13f947bab5e0e6f221cc56d17348104a50d82";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -104,7 +104,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     const cssNames = [...rootBlock.matchAll(/--[A-Za-z0-9-]+(?=\s*:)/g)].map((m) => m[0]);
     expect(new Set(cssNames)).toEqual(new Set(SEMANTIC_TOKEN_NAMES));
-    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(78);
+    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(80);
     expect(tokenVar("--color-surface-raised")).toBe("var(--color-surface-raised)");
   });
 

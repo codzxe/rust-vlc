@@ -9,6 +9,7 @@
   min-height: 100vh;
   padding: 24px;
   box-sizing: border-box;
+
   /* The Folder overlays' #0E0E0E tone — the fragment rows' #090909 selected
    * bands read against it (frame: overlay fill #0E0E0E @95%). */
   background: var(--color-surface-deep);

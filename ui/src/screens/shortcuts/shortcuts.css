@@ -230,6 +230,7 @@
   top: 0;
   z-index: 1;
   margin-top: 28px; /* frame: header caps y124 (28 below the top bar) */
+
   /* Opaque composite of the window fill (panel @95% over the surface stage)
      so the stuck header matches the body tone exactly — no tint seam, and
      rows stay hidden while scrolling under it. */

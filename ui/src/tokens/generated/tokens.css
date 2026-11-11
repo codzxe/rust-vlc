@@ -5,14 +5,6 @@
  * idempotent; the committed copy is diff-tested by
  * crates/theme-tokens/tests/diff.rs.
  *
- * W25 Figma redesign (2026-11-11, design/figma-fidelity-spec.md §1):
- * neutral near-black surfaces, orange default accent, Inter face;
- * sunset/note/tape/keycap Solstice groups removed; eq band accents
- * added. NOTE: this revision of the bridge was hand-maintained in an
- * environment without cargo (documented in docs/waves/w26/logs/w26.a01.md);
- * `cargo xtask tokens` must reproduce it when the Rust toolchain
- * returns — diff.rs will verify.
- *
  * Components consume SEMANTIC tokens only, via `var(--<name>)`
  * (doc 08 §3.2). The primitive and alias layers are never emitted
  * here; they exist for re-derivation from the Figma variables.
@@ -29,7 +21,7 @@
  *
  * Modes (2): dark (default), light.
  * Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
- * Tokens: 104 primitive / 78 alias / 78 semantic (source:
+ * Tokens: 106 primitive / 80 alias / 80 semantic (source:
  * themes/tokens.json).
  */
 
@@ -71,6 +63,8 @@
   --font-size-display: 32px;
   --font-size-label: 16px;
   --font-size-micro: 6px;
+  --font-size-section: 15px;
+  --font-size-sidebar: 13px;
   --font-size-time: 15px;
   --font-size-title: 18px;
   --font-weight-bold: 700;
