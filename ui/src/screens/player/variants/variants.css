@@ -10,7 +10,8 @@
  * Miniplayer (all five artboards): floating card r16 (#191919 + 1px
  * #404040 + the frame's card shadow), video area r12 + 1px border, slim
  * progress with orange fill + circular thumb, title row, meta row (folder
- * chip + queue toggle), collapsible Queue panel above the video (r10,
+ * chip + queue toggle), the overlay transport on the video (playing
+ * artboards), collapsible Queue panel above the video (r10,
  * drag-handle rows, tabular durations). The miniplayer card is a
  * fixed-size compact surface [PROPOSAL: window-level always-on-top is
  * host-owned; the DOM renders the compact frame inside the player root].
@@ -37,9 +38,9 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Video area — the mini canvas seam. Dark in BOTH themes (the
- * picture-frame rule, W25 spec §1 — same override pattern as the full
- * canvas in player.css). */
+/* Video area — the mini canvas seam, and the overlay transport's stage.
+ * Dark in BOTH themes (the picture-frame rule, W25 spec §1 — same override
+ * pattern as the full canvas in player.css). */
 .lumen-mini__video {
   position: relative;
   flex: none;
@@ -55,14 +56,14 @@
   background: #2b2b2b;
 }
 
-/* Compact controls region — the whole lower card in the frame's vertical
- * order (progress · title · meta · transport); the compact transport row
- * is the always-available cluster the frame reveals as video overlays in
- * its expanded state. */
+/* Compact controls region — the card content below the queue panel in the
+ * frame's vertical order (video · progress · title · meta); the compact
+ * transport cluster rides as a video overlay (frame playing artboards)
+ * rather than a row the default card does not carry. */
 .lumen-mini__controls {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -90,26 +91,55 @@
   opacity: 0;
 }
 
-/* Compact transport row — play pill · expand · close. */
+/* Overlay transport on the video area (frame playing artboards: close and
+ * expand as TOP-CORNER buttons, play centered mid-video). Dimmed while the
+ * card rests — the frame's idle card carries no controls — and lit on hover
+ * or keyboard focus; opacity never removes the buttons from the a11y tree.
+ * The frame's centered |◀ ▶ ▶| row maps to the single C2 play command (the
+ * compact matrix has no prev/stop — variantLayout.ts design matrix). */
 .lumen-mini__transport {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 28px; /* structural: compact transport row */
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  opacity: 0.6;
+  transition: opacity var(--motion-duration-fast) ease;
 }
 
-.lumen-mini__transport .lumen-icon-button {
-  flex: none;
+.lumen-mini__transport:focus-within,
+.lumen-mini:hover .lumen-mini__transport {
+  opacity: 1;
+}
+
+/* The centered play pill — dead-center on the video like the frame's
+ * centered transport glyph. */
+.lumen-mini__transport .lumen-mini__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
 }
 
 /* The orange play pill — the same primary-action language as the full
- * bar, scaled to the mini geometry. The quiet-surface-when-inert rule
- * keeps gold reading as "playback possible" exactly when the command
- * behind it can run (mirrors controls.css). */
+ * bar, scaled to the mini geometry, riding the video overlay. The
+ * quiet-surface-when-inert rule keeps orange reading as "playback
+ * possible" exactly when the command behind it can run (mirrors
+ * controls.css). */
 .lumen-mini__controls .lumen-mini__play {
   color: var(--color-content-on-accent);
   background: var(--color-accent);
   border-radius: 50%; /* functional circle, not a design radius */
+  box-shadow: var(--shadow-card);
+}
+
+/* Corner buttons (close/expand) — quiet icon tone over the dark canvas. */
+.lumen-mini__transport .lumen-icon-button {
+  flex: none;
 }
 
 .lumen-mini__controls .lumen-mini__play:hover {
@@ -266,22 +296,23 @@
   gap: 16px;
   box-sizing: border-box;
   width: 100%;
-  padding: 24px 24px 12px;
+  padding: 24px 24px 8px;
   overflow: hidden;
   background: var(--color-surface);
 }
 
 /* Ambient tint — the frame's full-bleed art backdrop, reduced to a quiet
  * accent-tinted radial glow (the ONE theatrical allowance; purely
- * decorative, pointer-transparent). */
+ * decorative, pointer-transparent). Single-hue accent tint only: the
+ * multi-stop sunset gradients are dead (W25 spec §0). */
 .lumen-music__art::before {
   content: "";
   position: absolute;
   inset: 0;
   background: radial-gradient(
     62% 50% at 50% 38%,
-    color-mix(in srgb, var(--color-accent-tinted) 32%, transparent),
-    transparent 72%
+    color-mix(in srgb, var(--color-accent-tinted) 45%, transparent),
+    transparent 74%
   );
   pointer-events: none;
 }
@@ -309,7 +340,7 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: min(56vmin, 520px); /* structural: theatrical hero scale (frame art ≈ ½ the stage) */
+  width: min(60vmin, 540px); /* structural: theatrical hero scale (frame art 738px @1920 ≈ 38% of window) */
   max-width: 100%;
   aspect-ratio: 1 / 1;
   margin: 0;
@@ -350,30 +381,34 @@
   color: var(--color-content-secondary);
 }
 
-/* Waveform tick strip (frame bottom bar: 2px ticks, unplayed #404040,
- * played orange). Static decorative silhouette — engine audio levels do
- * not exist yet; the played clip is engine truth (position/duration). Two
- * stacked rows: base (stroke-border ticks) + a played copy clipped to the
- * progress. */
+/* Waveform tick strip (frame Player - Music.svg controls bar: the seek
+ * well 1246×28 rx6 #090909 is a dense tick field — 2px ticks at 5px pitch,
+ * heights 2–14px on the 28px well, unplayed #404040, played #AB6314
+ * accent-strong, 4×24 rx2 #D37918 playhead). This shell cannot restyle
+ * C2's ControlBar (frozen seam), so the strip renders in the stage just
+ * above the bar in the same grammar: static decorative silhouette (engine
+ * audio levels do not exist yet) + an engine-truth played clip + an
+ * engine-truth playhead. Two stacked rows: base (stroke-border ticks) + a
+ * played copy clipped to the progress. */
 .lumen-music__waveform {
   position: relative;
   display: grid;
   flex: none;
-  width: min(560px, 90%);
-  height: 32px; /* structural placeholder strip height */
+  width: min(860px, 84%); /* structural: aligns with the C2 seek extent */
+  height: 24px; /* structural: frame well 28px @1920, mini-weighted */
 }
 
 .lumen-music__waveform-row {
   grid-area: 1 / 1;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  justify-content: space-between; /* structural: frame pitch 2px ticks / 5px */
   height: 100%;
 }
 
 .lumen-music__waveform-row span {
-  flex: 1;
-  min-width: 2px; /* structural bar floor — frame: 2px ticks */
+  flex: none;
+  width: 2px; /* frame: 2px hairline ticks */
   border-radius: 1px; /* frame: tick rx1 */
   background: var(--color-stroke-border);
 }
@@ -383,6 +418,20 @@
 }
 
 .lumen-music__waveform-row--played span {
+  background: var(--color-accent-strong); /* frame: played ticks #AB6314 */
+}
+
+/* Playhead — the frame's 4×24 rx2 orange marker, engine-truth positioned
+ * (position/duration); purely decorative repetition of the C2 seekbar's
+ * real thumb, which stays the interactive surface. */
+.lumen-music__waveform::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: calc(var(--lumen-wave-progress, 0%) - 1px);
+  width: 3px; /* structural: frame playhead 4px @1920, mini-weighted */
+  border-radius: 1px;
   background: var(--color-accent);
 }
 

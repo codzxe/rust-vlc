@@ -17,6 +17,10 @@
 .lumen-customize {
   display: flex;
   flex-direction: column;
+  /* Fill the host panel's height (the media-info sibling's pattern): the
+   * footer's `margin-top: auto` pins it to the panel bottom like the
+   * frame's footer, and short content never leaves a dead zone below. */
+  flex: 1;
   min-height: 0;
   font-family: var(--font-family-sans);
 }
@@ -34,8 +38,8 @@
 }
 
 .lumen-customize__title {
-  margin: 0;
   /* Frame title measures 15px semibold (#8F8F8F quiet ink). */
+  margin: 0;
   font-size: var(--font-size-time);
   font-weight: var(--font-weight-semibold);
   color: var(--color-content-secondary);
@@ -93,7 +97,9 @@
   cursor: grabbing;
 }
 
-/* The dashed drop-box well (frame: 29×31 rect, 1px #6B6B6B, dash 4 4). */
+/* The dashed drop-box well (frame: 29×31 rect, 1px #6B6B6B, dash 4 4).
+ * Corners are SQUARE — the frame rects carry no rx (measured on
+ * "Player - customize.svg" tile wells). */
 .lumen-customize__tile-well {
   display: flex;
   align-items: center;
@@ -102,7 +108,6 @@
   width: calc(var(--space-grid) * 7);
   height: calc(var(--space-grid) * 8);
   border: 1px dashed var(--color-content-tertiary);
-  border-radius: var(--radius-inset);
   color: var(--color-stroke-icon);
 }
 
@@ -210,56 +215,34 @@
   gap: var(--space-grid);
   margin-top: auto;
   padding: var(--space-inset);
-  background: var(--color-surface);
   border-top: 1px solid var(--color-stroke-border);
+
+  /* frame: the buttons sit directly on the modal body — no darker band */
+  background: var(--color-surface-panel);
 }
 
+/* Footer buttons are the SHARED Button components (button.css owns the
+ * variants + hover/pressed/focus states): Cancel = default (frame
+ * #1B1B1B fill + #8F8F8F label), Save = tinted (frame #371F06 fill +
+ * #D37918 label). Only the frame's fixed 100px width rides here. */
 .lumen-customize__cancel,
 .lumen-customize__save {
-  box-sizing: border-box;
   min-width: calc(var(--space-grid) * 25); /* frame 100px */
-  height: calc(var(--space-grid) * 8); /* frame 32px */
-  padding: 0 var(--space-inset);
-  border-radius: var(--radius-control); /* r6 buttons (spec §1) */
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
 }
 
-/* Cancel — quiet raised button (frame: #1B1B1B fill, #8F8F8F text). */
-.lumen-customize__cancel {
-  border: 1px solid var(--color-stroke-border);
-  background: var(--color-surface-raised);
-  color: var(--color-content-secondary);
-}
-
-.lumen-customize__cancel:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-content-primary);
-}
-
-/* Save — accent-tinted fill with accent ink (frame: #371F06 / #D37918);
- * dimmed at --opacity-disabled until the box has edits (frame 0 vs -1…-6). */
-.lumen-customize__save {
-  border: 1px solid var(--color-accent-tinted);
-  background: var(--color-accent-tinted);
+/* Frame 0 ("Player - customize.svg"): the CLEAN state dims Save — the tinted
+ * button at 50% group opacity (footer group "Frame 141" carries
+ * opacity 0.5 + mix-blend luminosity), NOT the shared gray disabled look;
+ * frames -1…-6 (edits pending) lift it. The (0,3,0) selector out-ranks
+ * button.css's `.lumen-button:disabled` regardless of sheet order. */
+.lumen-customize__footer .lumen-customize__save:disabled {
   color: var(--color-accent);
-}
+  background: var(--color-accent-tinted);
+  border-color: transparent;
 
-.lumen-customize__save:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  color: var(--color-accent-bright);
-}
+  --color-stroke-icon: var(--color-accent);
 
-.lumen-customize__save:disabled {
   opacity: var(--opacity-disabled);
-  cursor: default;
-}
-
-.lumen-customize__cancel:focus-visible,
-.lumen-customize__save:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 /* All fields unsupported → panels hidden; honest screen-reader note only. */

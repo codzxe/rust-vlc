@@ -5,10 +5,14 @@
 //     Solstice note,
 //   * video area r12 + 1px border, 16:9, dark in both themes,
 //   * slim 4–6px progress with orange fill + circular thumb (the shared
-//     Seekbar grammar, mini-weighted) riding the compact transport row,
+//     Seekbar grammar, mini-weighted) directly under the video,
 //   * title row + meta row (folder chip from the REAL file path + the queue
 //     toggle; the frame's person/artist chip stays hidden until the engine
 //     reports artist data — honesty rule doc 05 §1 C4),
+//   * the compact transport cluster rides as an OVERLAY on the video area
+//     (Miniplayer.svg playing artboards: close top-left, play centered,
+//     expand top-right) — dimmed at rest, lit on hover/focus, never fake:
+//     the buttons keep C2's honest engine-state mapping,
 //   * collapsible Queue panel ABOVE the video (frame artboards 2/4):
 //     centered "Queue" header, "N items · H:MM:SS" summary, drag-handle
 //     rows with tabular durations, collapse + add affordances, the quiet
@@ -119,30 +123,65 @@ export function MiniPlayer({
         />
       ) : null}
 
-      <div
-        data-region-id={thumbnailRegion.id}
-        role="region"
-        aria-label={m(thumbnailRegion.labelKey)}
-        className="lumen-mini__video"
-        data-placeholder="engine-wiring-4.H1"
-      >
-        {/* Honest placeholder: the thumbnail is the video-canvas seam; no
-            media element until card 4.H1 (same contract as the full shell). */}
-        <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
-      </div>
-
-      {/* The controls region wraps the whole lower card in the frame's
-          vertical order — progress row · title row · meta row · compact
-          transport (Miniplayer.svg Default: video → progress → title →
-          meta; the transport row is this shell's honest always-available
-          cluster — the frame's expanded state reveals the same controls as
-          video overlays). */}
+      {/* The controls region wraps the card content below the queue panel
+          in the frame's vertical order — video (with the overlay transport)
+          → progress row → title row → meta row (Miniplayer.svg Default).
+          The transport cluster overlays the VIDEO (playing artboards: close
+          left · play centered · expand right) instead of occupying a row the
+          frame's default card does not carry. */}
       <footer
         data-region-id={controlsRegion.id}
         role="region"
         aria-label={m(controlsRegion.labelKey)}
         className="lumen-mini__controls"
       >
+        <div
+          data-region-id={thumbnailRegion.id}
+          role="region"
+          aria-label={m(thumbnailRegion.labelKey)}
+          className="lumen-mini__video"
+          data-placeholder="engine-wiring-4.H1"
+        >
+          {/* Honest placeholder: the thumbnail is the video-canvas seam; no
+              media element until card 4.H1 (same contract as the full shell). */}
+          <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
+
+          {/* Overlay transport (frame playing artboards). Real commands
+              only — play is honestly disabled while the engine is idle. */}
+          <div className="lumen-mini__transport">
+            {onClose === undefined ? null : (
+              <IconButton
+                data-control="close"
+                label={m("player.variant.miniplayer.close")}
+                title={m("player.variant.miniplayer.close")}
+                onClick={onClose}
+              >
+                <Icon name="close" size={16} />
+              </IconButton>
+            )}
+            <IconButton
+              data-control="play-pause"
+              data-glyph={mapped.play.glyph}
+              label={playLabel}
+              title={playLabel}
+              loading={mapped.play.pending}
+              disabled={mapped.play.disabled}
+              onClick={actions.togglePlayPause}
+              className="lumen-mini__play"
+            >
+              <Icon name={mapped.play.glyph} size={16} />
+            </IconButton>
+            <IconButton
+              data-control="expand"
+              label={m("player.variant.miniplayer.expand")}
+              title={m("player.variant.miniplayer.expand")}
+              onClick={onExpand}
+            >
+              <Icon name="fullscreen" size={16} />
+            </IconButton>
+          </div>
+        </div>
+
         <Seekbar
           data-control="seekbar"
           data-variant="mini"
@@ -196,39 +235,6 @@ export function MiniPlayer({
           >
             <Icon name="list" size={16} />
           </IconButton>
-        </div>
-
-        <div className="lumen-mini__transport">
-          <IconButton
-            data-control="play-pause"
-            data-glyph={mapped.play.glyph}
-            label={playLabel}
-            title={playLabel}
-            loading={mapped.play.pending}
-            disabled={mapped.play.disabled}
-            onClick={actions.togglePlayPause}
-            className="lumen-mini__play"
-          >
-            <Icon name={mapped.play.glyph} size={16} />
-          </IconButton>
-          <IconButton
-            data-control="expand"
-            label={m("player.variant.miniplayer.expand")}
-            title={m("player.variant.miniplayer.expand")}
-            onClick={onExpand}
-          >
-            <Icon name="fullscreen" size={16} />
-          </IconButton>
-          {onClose === undefined ? null : (
-            <IconButton
-              data-control="close"
-              label={m("player.variant.miniplayer.close")}
-              title={m("player.variant.miniplayer.close")}
-              onClick={onClose}
-            >
-              <Icon name="close" size={16} />
-            </IconButton>
-          )}
         </div>
       </footer>
     </section>

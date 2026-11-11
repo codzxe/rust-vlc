@@ -32,6 +32,7 @@ import type {
 } from "../../../client/transport";
 import { Icon } from "../../../components/icon/Icon";
 import { IconButton } from "../../../components/button/IconButton";
+import { Button } from "../../../components/button";
 import { Dropdown } from "../../../components/menu/Dropdown";
 import { Slider } from "../../../components/slider";
 import { ValueChip } from "../../../components/form/ValueChip";
@@ -494,8 +495,10 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
 
       {tileFields.length > 0 ? (
         <footer className="lumen-customize__footer">
-          <button
-            type="button"
+          {/* Footer buttons are the shared Button grammar (frame: Cancel =
+              default variant #1B1B1B/#8F8F8F, Save = tinted variant
+              #371F06/#D37918, both 100×32 r6 — button.css owns the states). */}
+          <Button
             className="lumen-customize__cancel"
             onClick={() => {
               // Discard the session's edits — back to the saved baseline.
@@ -503,9 +506,9 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
             }}
           >
             {m("open.cancel")}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="tinted"
             className="lumen-customize__save"
             disabled={!dirty}
             onClick={() => {
@@ -515,7 +518,7 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
             }}
           >
             {t("customize.save")}
-          </button>
+          </Button>
         </footer>
       ) : null}
     </div>

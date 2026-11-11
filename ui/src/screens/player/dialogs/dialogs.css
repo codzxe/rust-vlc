@@ -5,8 +5,10 @@
  * dialog footer grammar — secondary Cancel / tinted confirm).
  *
  * Figma dialog grammar (design/figma/Open network stream.svg +
- * Keyboard Shortcuts.svg, both 1048-wide windows, rx14 #191919 @ 0.95,
- * 1px border, overlay shadow):
+ * Keyboard Shortcuts.svg, both 1048-wide windows, rx14 #191919, 1px
+ * hairline border, overlay shadow — chrome OWNED by the surface
+ * primitive's .lumen-dialog since w26.a08; this sheet layers only
+ * structure on top):
  *   * scrim — the shared .lumen-scrim paint (rgb(0 0 0 /
  *     --opacity-scrim-strong)) + click-to-close; NOTHING is patched here
  *     — the primitive owns the modal layer since w26.a08;
@@ -25,21 +27,19 @@
  * carries its frame citation. */
 
 /* --------------------------------------------------------------------------
- * Panel — the dialog card (frame: rx14 @ #191919 0.95 on BOTH dialog
- * frames — the shared --radius-window token, same as the surface
- * primitive's own .lumen-dialog chrome). */
+ * Panel — sizing + strip bleed ONLY (w26.a18 verify pass). The chrome
+ * (#191919 panel fill, 1px stroke-border hairline, --radius-window r14,
+ * --shadow-overlay) is the surface primitive's own .lumen-dialog since
+ * w26.a08 — this sheet's former re-spec, incl. a 95%-alpha fill patch,
+ * was retired so the dialogs ride the primitive like every other host
+ * (frame: rx14 #191919 on BOTH dialog frames; the primitive's solid token
+ * fill renders ≤1/255 off the frame's 0.95-alpha fill over the dark
+ * scrim — imperceptible, and cross-dialog coherence wins). */
 .lumen-dialog.player-dialog__surface {
-  box-sizing: border-box;
   width: min(440px, 92vw);
   max-width: 92vw;
   padding: 0; /* gutters live on header/body/footer so the strip bleeds */
   overflow: hidden; /* the title bar + footer pin while the body scrolls */
-  font-family: var(--font-family-sans);
-  color: var(--color-content-primary);
-  background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
-  border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-window);
-  box-shadow: var(--shadow-overlay);
 }
 
 .player-dialog {
@@ -181,7 +181,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-grid);
-  padding: calc(var(--space-grid) / 2) var(--space-grid);
+
+  /* 6px 8px → a ~40px row band (w26.a18 polish pass, vision-flagged
+   * cramped): compact density, but the r6 hover band needs breathing room
+   * (grammar: menu rows run 48–60px with icons; a 440px dialog without
+   * row icons lands proportionally at ~40px). */
+  padding: calc(var(--space-inset) * 0.75) var(--space-inset);
 
   /* r6 hover band (mission pin; menu-row grammar — buttons/menu items r6) */
   border-radius: var(--radius-control);
