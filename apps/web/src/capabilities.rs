@@ -146,12 +146,82 @@ pub fn build_profile() -> TargetProfile {
 /// The registry descriptors the linked decoders answer for (the
 /// provider's dispatch table, kept in one place so the snapshot and
 /// the provider cannot drift).
-#[must_use]
+///
+/// Native builds always report the first vertical's rows (the native
+/// codecs edge is unconditional). The wasm32 profile reports the
+/// SHIPPED module's honest answer — none — unless the build opted
+/// into the `builtin-codecs*` features (card 7.K1's doc 09 §2.4
+/// tree-shake lane), in which case it reports exactly the
+/// feature-selected set the dispatch table wires.
 pub fn decoder_descriptors(profile: TargetProfile) -> Vec<String> {
     match profile {
         TargetProfile::Native => vec!["mjpeg".to_string(), "pcm_s16le".to_string()],
-        TargetProfile::Wasm32 => Vec::new(),
+        TargetProfile::Wasm32 => wasm32_builtin_descriptors(),
     }
+}
+
+/// The feature-selected builtin set for a wasm32 build (empty for the
+/// shipped decoder-less module; grown per opt-in feature — one list,
+/// one truth, mirrored by host.rs's dispatch table).
+///
+/// Every `codec-*` feature implies `builtin-codecs` (this crate's own
+/// feature table), so all mutation lives inside the one gated block —
+/// which keeps the `mut` meaningful under EVERY feature combination
+/// (the no-features decoder-less floor compiles warning-free; clippy
+/// runs with `-D warnings`).
+fn wasm32_builtin_descriptors() -> Vec<String> {
+    #[cfg(feature = "builtin-codecs")]
+    {
+        // The vec! macro carries the unconditional in-house trio (the
+        // `builtin-codecs` floor); every external engine appends under
+        // its own gate. `mut` is only live when at least one external
+        // gate is on — the cfg_attr keeps every feature combination
+        // warning-free under clippy -D warnings.
+        #[cfg_attr(
+            not(any(
+                feature = "codec-flac",
+                feature = "codec-mp3",
+                feature = "codec-vorbis",
+                feature = "codec-aac",
+                feature = "codec-alac",
+                feature = "codec-opus",
+                feature = "codec-vp9",
+                feature = "codec-dnx",
+            )),
+            allow(unused_mut)
+        )]
+        let mut set = vec![
+            "mjpeg".to_string(),
+            "pcm_s16le".to_string(),
+            "adpcm_*".to_string(),
+        ];
+        #[cfg(feature = "codec-flac")]
+        set.push("flac".to_string());
+        #[cfg(feature = "codec-mp3")]
+        {
+            set.push("mp3".to_string());
+            set.push("mp1".to_string());
+            set.push("mp2".to_string());
+        }
+        #[cfg(feature = "codec-vorbis")]
+        set.push("vorbis".to_string());
+        #[cfg(feature = "codec-aac")]
+        {
+            set.push("aac".to_string());
+            set.push("aac-lc".to_string());
+        }
+        #[cfg(feature = "codec-alac")]
+        set.push("alac".to_string());
+        #[cfg(feature = "codec-opus")]
+        set.push("opus".to_string());
+        #[cfg(feature = "codec-vp9")]
+        set.push("vp9".to_string());
+        #[cfg(feature = "codec-dnx")]
+        set.push("dnxhd".to_string());
+        set
+    }
+    #[cfg(not(feature = "builtin-codecs"))]
+    Vec::new()
 }
 
 /// Build the honest snapshot for `profile` (doc 09 §3.3/§4.4/§10).
@@ -233,10 +303,19 @@ pub fn capabilities(profile: TargetProfile) -> HostCapabilities {
         blocked.push(BlockedCapability {
             capability: "builtin-software-decoders".to_string(),
             status: CapabilityStatus::Blocked,
+            #[cfg(not(feature = "builtin-codecs"))]
             reason: "the codecs crate's external engines do not build for \
                      wasm32-unknown-unknown (rav1d); the wasm module ships \
                      the engine core decoder-less — session decode refuses \
                      typed until the crate splits (Lead decision)"
+                .to_string(),
+            #[cfg(feature = "builtin-codecs")]
+            reason: "opt-in `builtin-codecs` build (card 7.K1's doc 09 §2.4 \
+                     tree-shake lane): this module carries the feature-\
+                     selected decoder set above, NOT the shipped posture — \
+                     the default module is decoder-less, rav1d/AV1 is not \
+                     wasm32-buildable, and the AVI open path harvests no \
+                     codec blobs yet (blob-consuming decoders refuse typed)"
                 .to_string(),
         });
     }
@@ -271,22 +350,45 @@ mod tests {
     }
 
     /// The native profile carries the first vertical's real decoders;
-    /// the wasm32 profile honestly ships none (the codecs/target
-    /// split — the snapshot must not claim decoders the module
-    /// cannot construct).
+    /// the wasm32 profile's claim is the FEATURE-selected set — none
+    /// for the shipped decoder-less module (the codecs/target split),
+    /// the in-house set for a `builtin-codecs` build (the snapshot
+    /// must not claim decoders the module cannot construct, nor hide
+    /// decoders an opt-in build really carries).
     #[test]
     fn decoder_claims_match_the_profile() {
         let native = capabilities(TargetProfile::Native);
         assert_eq!(native.decoders, vec!["mjpeg", "pcm_s16le"]);
         let wasm = capabilities(TargetProfile::Wasm32);
-        assert!(wasm.decoders.is_empty());
+        #[cfg(not(feature = "builtin-codecs"))]
+        {
+            assert!(wasm.decoders.is_empty());
+        }
+        #[cfg(feature = "builtin-codecs")]
+        {
+            assert_eq!(
+                wasm.decoders.first().map(String::as_str),
+                Some("mjpeg"),
+                "a builtin-codecs build reports the in-house set it wires"
+            );
+        }
         // And the wasm gap is a TYPED blocked row, not silence.
         let row = wasm.blocked_row("builtin-software-decoders");
         assert_eq!(row.map(|row| row.status), Some(CapabilityStatus::Blocked));
-        assert!(
-            row.is_some_and(|row| row.reason.contains("rav1d")),
-            "the reason names the actual blocker"
-        );
+        #[cfg(not(feature = "builtin-codecs"))]
+        {
+            assert!(
+                row.is_some_and(|row| row.reason.contains("rav1d")),
+                "the reason names the actual blocker"
+            );
+        }
+        #[cfg(feature = "builtin-codecs")]
+        {
+            assert!(
+                row.is_some_and(|row| row.reason.contains("opt-in")),
+                "the reason names the opt-in tree-shake posture"
+            );
+        }
         assert!(native.blocked_row("builtin-software-decoders").is_none());
     }
 

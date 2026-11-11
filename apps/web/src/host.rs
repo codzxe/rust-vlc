@@ -75,9 +75,9 @@ use audio_engine::{AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
 use audio_output::{NullBackend, NullConfig, NullStream};
 use codec_api::{Decoder, DecoderConfig};
-// The drain-gate's trait surface (native only, with its sole
-// constructor — see DrainGatedDecoder's cfg note).
-#[cfg(not(target_arch = "wasm32"))]
+// The drain-gate's trait surface (compiled wherever its sole
+// constructor is — see DrainGatedDecoder's cfg note).
+#[cfg(any(not(target_arch = "wasm32"), feature = "builtin-codecs"))]
 use codec_api::{DecodeOutcome, FrameSink};
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
@@ -412,6 +412,9 @@ impl FrameConsumer for WebFrameConsumer {
 
 /// The typed error for the wasm32 profile's decoder seam (the
 /// capability snapshot's own blocked row, as an engine error).
+/// Compiled only in decoder-less builds — the sole call sites are the
+/// `not(feature = "builtin-codecs")` halves of the dispatch cfgs.
+#[cfg(not(feature = "builtin-codecs"))]
 fn decoders_absent_error() -> EngineError {
     crate::open::host_error(
         PipelineStage::Decode,
@@ -465,8 +468,25 @@ impl DecoderProvider for WebDecoderProvider {
         config: &DecoderConfig,
     ) -> Result<Box<dyn Decoder>, EngineError> {
         match self.profile {
-            TargetProfile::Wasm32 => Err(decoders_absent_error()),
-            TargetProfile::Native => native_decoder_for(track, config, &self.facts, &self.probe),
+            // The shipped wasm32 module: the honest typed refusal
+            // (decoder-less, the capability snapshot's own row).
+            // Opt-in `builtin-codecs` feature builds dispatch the
+            // same table as native — doc 09 §2.4's per-codec
+            // tree-shake lane; the table's cfg keeps both sides of
+            // this arm compiling under every feature combination.
+            TargetProfile::Wasm32 => {
+                #[cfg(feature = "builtin-codecs")]
+                {
+                    builtin_decoder_for(self.profile, track, config, &self.facts, &self.probe)
+                }
+                #[cfg(not(feature = "builtin-codecs"))]
+                {
+                    Err(decoders_absent_error())
+                }
+            }
+            TargetProfile::Native => {
+                builtin_decoder_for(self.profile, track, config, &self.facts, &self.probe)
+            }
         }
     }
 }
@@ -478,16 +498,17 @@ impl DecoderProvider for WebDecoderProvider {
 /// media end; demanding `backlog == 0` would strand every media
 /// whose frame count is not a multiple of the quantum.
 ///
-/// Native only (the same gate as [`native_decoder_for`], its sole
-/// constructor): the wasm32 build wires no builtin decoders — the
-/// typed refusal — so the wrapper would be dead code there.
-#[cfg(not(target_arch = "wasm32"))]
+/// Native always; wasm32 only in `builtin-codecs` feature builds
+/// (the same gate as [`builtin_decoder_for`], its sole constructor):
+/// the shipped wasm32 module wires no builtin decoders — the typed
+/// refusal — so the wrapper would be dead code there.
+#[cfg(any(not(target_arch = "wasm32"), feature = "builtin-codecs"))]
 struct DrainGatedDecoder {
     inner: Box<dyn Decoder>,
     probe: Option<Arc<WebFrameConsumer>>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "builtin-codecs"))]
 impl DrainGatedDecoder {
     fn audio_backlog(&self) -> usize {
         self.probe
@@ -496,7 +517,7 @@ impl DrainGatedDecoder {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "builtin-codecs"))]
 impl Decoder for DrainGatedDecoder {
     fn configure(&mut self, config: &DecoderConfig) -> Result<(), EngineError> {
         self.inner.configure(config)
@@ -522,17 +543,50 @@ impl Decoder for DrainGatedDecoder {
     }
 }
 
-/// The native decoder table: the first vertical's MJPEG + PCM rows,
-/// dispatched on the track's registry descriptor (the CLI host's
-/// own rows, mirrored — every other descriptor is the honest typed
-/// refusal below).
-#[cfg(not(target_arch = "wasm32"))]
-fn native_decoder_for(
+/// The builtin decoder table: the first vertical's MJPEG + PCM rows
+/// plus the per-codec opt-in rows, dispatched on the track's registry
+/// descriptor (the CLI host's own rows, mirrored — every other
+/// descriptor is the honest typed refusal below).
+///
+/// # Which builds compile this table
+///
+/// Native builds: always (the codecs edge is unconditional there).
+/// Wasm32 builds: only behind the `builtin-codecs` feature — the
+/// doc 09 §2.4 per-codec tree-shake lane (card 7.K1). The SHIPPED
+/// wasm32 module compiles the stub below instead (decoder-less, the
+/// honest capability snapshot); a feature build is an explicitly
+/// labeled opt-in/measurement configuration whose size is recorded
+/// in docs/web/size-report.md.
+///
+/// # The opt-in rows' honest runtime posture
+///
+/// The web open path (AVI, card 7.H4) harvests PCM geometry facts
+/// only — [`TrackFact`](crate::open::TrackFact) has no codec-blob
+/// seam yet — so the `extra_data`-consuming decoders (flac, vorbis,
+/// opus, aac, alac, adpcm) configure with whatever the engine passed
+/// and their own configure gates refuse typed on fact-less lanes,
+/// exactly like a fact-less native lane (the CLI host's own rule:
+/// "the configure gate stays the codec's own honest authority").
+/// The rows are still the REAL decoders — symbols, dispatch,
+/// decode — not stubs; that is what the tree-shake measurement
+/// measures. The AVI blob-harvest seam is later work [PROPOSAL].
+#[cfg(any(not(target_arch = "wasm32"), feature = "builtin-codecs"))]
+fn builtin_decoder_for(
+    profile: TargetProfile,
     track: &Track,
     config: &DecoderConfig,
     facts: &MediaFacts,
     probe: &Option<Arc<WebFrameConsumer>>,
 ) -> Result<Box<dyn Decoder>, EngineError> {
+    // The audio rows wrap in the drain-gate (the pcm row's own rule:
+    // a `Drained` answer waits on the device ring actually emptying,
+    // so end-of-media fires when the media has PLAYED).
+    fn gated(decoder: Box<dyn Decoder>, probe: &Option<Arc<WebFrameConsumer>>) -> Box<dyn Decoder> {
+        Box::new(DrainGatedDecoder {
+            inner: decoder,
+            probe: probe.clone(),
+        })
+    }
     match track.codec.as_str() {
         "mjpeg" => {
             let mut decoder = codecs::video::mjpeg::MjpegDecoder::new();
@@ -551,28 +605,97 @@ fn native_decoder_for(
             };
             let mut decoder = codecs::audio::pcm::PcmDecoder::with_format(channels, rate)?;
             decoder.configure(config)?;
-            Ok(Box::new(DrainGatedDecoder {
-                inner: Box::new(decoder),
-                probe: probe.clone(),
-            }))
+            Ok(gated(Box::new(decoder), probe))
+        }
+        // The in-house ADPCM family (card 5.J2, in-house — rides the
+        // `builtin-codecs` in-house set). WAVEFORMAT-blob consumer:
+        // refuses typed on fact-less lanes (the module docs above).
+        #[cfg(feature = "builtin-codecs")]
+        codec if codec.starts_with("adpcm_") => {
+            let mut decoder = codecs::audio::adpcm::AdpcmDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        // The per-codec external-engine rows (card 7.K1's tree-shake
+        // lane — one row per opt-in feature; each mirrors the CLI
+        // host's own row for the same codec).
+        #[cfg(feature = "codec-flac")]
+        "flac" => {
+            let mut decoder = codecs::audio::flac::FlacDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        #[cfg(feature = "codec-mp3")]
+        "mp3" | "mp1" | "mp2" => {
+            // In-band frame headers both layers — no extra_data seam.
+            let mut decoder = if track.codec.as_str() == "mp2" {
+                Box::new(codecs::audio::mp2::Mp2Decoder::new()) as Box<dyn Decoder>
+            } else {
+                Box::new(codecs::audio::mp3::Mp3Decoder::new())
+            };
+            decoder.configure(config)?;
+            Ok(gated(decoder, probe))
+        }
+        #[cfg(feature = "codec-vorbis")]
+        "vorbis" => {
+            let mut decoder = codecs::audio::vorbis::VorbisDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        #[cfg(feature = "codec-opus")]
+        "opus" => {
+            let mut decoder = codecs::audio::opus::OpusDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        // The ADTS/MP4 descriptor family for the AAC-LC decoder —
+        // Main/SSR/LTP descriptors stay unmatched and refuse typed
+        // below (the decoder is LC-only by card 5.C2a, honestly).
+        #[cfg(feature = "codec-aac")]
+        "aac" | "aac-lc" => {
+            let mut decoder = codecs::audio::aac::AacDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        #[cfg(feature = "codec-alac")]
+        "alac" => {
+            let mut decoder = codecs::audio::alac::AlacDecoder::new();
+            decoder.configure(config)?;
+            Ok(gated(Box::new(decoder), probe))
+        }
+        #[cfg(feature = "codec-vp9")]
+        "vp9" => {
+            // In-band uncompressed frame headers — no extra_data seam.
+            let mut decoder = codecs::video::vp9::Vp9Decoder::new();
+            decoder.configure(config)?;
+            Ok(Box::new(decoder))
+        }
+        #[cfg(feature = "codec-dnx")]
+        "dnxhd" => {
+            // Raw VC-3 ES decodes statelessly — no extra_data seam.
+            let mut decoder = codecs::video::dnx::DnxDecoder::new();
+            decoder.configure(config)?;
+            Ok(Box::new(decoder))
         }
         other => Err(crate::open::host_error(
             PipelineStage::Decode,
             "web.codec_unavailable",
             format!(
-                "no decoder for `{other}` in this build (landed: mjpeg, pcm_s16le — the \
-                 wasm32 web host wires the first vertical only)"
+                "no decoder for `{other}` in this build (landed: {} — this \
+                 build's builtin-codecs feature set, see the capability snapshot)",
+                capabilities::decoder_descriptors(profile).join(", ")
             ),
         )),
     }
 }
 
-/// The wasm32 stub of the native table: the profile is always
-/// [`TargetProfile::Wasm32`] on that target (`build_profile`'s cfg),
-/// so the arm above is unreachable — but it must still compile, and
-/// the honest answer is the same typed refusal.
-#[cfg(target_arch = "wasm32")]
-fn native_decoder_for(
+/// The wasm32 stub of the builtin table (the shipped, decoder-less
+/// module): the profile is always [`TargetProfile::Wasm32`] on that
+/// target (`build_profile`'s cfg), so the arm above is compiled out
+/// — and the honest answer is the same typed refusal.
+#[cfg(all(target_arch = "wasm32", not(feature = "builtin-codecs")))]
+fn builtin_decoder_for(
+    _profile: TargetProfile,
     _track: &Track,
     _config: &DecoderConfig,
     _facts: &MediaFacts,
