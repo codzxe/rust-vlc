@@ -1222,6 +1222,25 @@ Stage Summary:
 
 ---
 
+Task ID: W24-R14
+Agent: W24-R14 (wave 24 review scout — final-state audit of lane P, compat-matrix issue #53).
+Task: Audit origin/w24/p @ c48dc76 (the pushed final tip, 11 commits on origin/w24/d) — the 8 commits R10 did not see (022d679..c48dc76); findings in docs/reviews/w24-p-final-findings.md (this worktree/branch w24/r14).
+
+Work Log:
+- Worktree wt/w24r14 at c48dc76; remote ref confirmed via git ls-remote (local w24/p identical). Diff w24/d...w24/p: 9 files +1,114/−55; unaudited sub-range 74bda46..c48dc76: 7 files +710/−29, none touching worklog.md (verified per-commit).
+- IN-8 (R10-1) verified closed: b5aff90 — two idempotence limbs in edit_row's evidence append (distinct-citation dedupe within a coalesced group; never re-append a citation already a "; "-segment of the row's current unescaped value, via the new string_value_of), + 2 unit tests (coalesced_evidence_is_deduped, recited_evidence_is_not_reappended — both run green here); 6a1677c — the aac-lc duplicate removed with a 7-line provenance comment; my independent full-file segment scan: zero duplicated evidence segments on any of the 252 rows.
+- R10-2 (P3-2) verified closed: 74bda46 — 10 oracle tests (prefix_verdict ×4, f32_verdict ×3 with power-of-two offsets for exact RMS/peak asserts, committed_record_applies, compare_row_committed ×2) + 5 config tests; asserted messages match the implementation's real error strings; the applicability refactor (closure → oracle::committed_record_applies) is semantics-preserving (compared verbatim).
+- R10-3 verified closed: c48dc76 — steps_cell's decode-refusal clause is a 4th parameter; both call sites pass their own wording (format_cell's byte-identical to the old text); new test proves a non-web steps lane never renders "wasm32".
+- P3-7 (cd7d5c5): honest documented next-step, not a fix — manifest purpose + report §7 name the permanent 0385 gap and the re-authoring path, argvs/sha256/deterministic untouched, manifest parses (67 entries). Deferred to the corpus owner, as the entry itself states.
+- FINDING R14-1 (P1): no W24-P worklog entry exists on the final pushed state (only a776c24's W24-D entry touches worklog.md); the fixed-vs-deferred list R10 asked for is absent, and P3-1/P3-6/P3-8/P3-9 are deferred with the deferral recorded nowhere (each re-verified untouched at the tip — P3-1's notes-insertion-vs-verify_diff conflict still present at compat_matrix.rs:671-682/793-798). Same §4-violation shape as L's P1-1. FINDING R14-2 (P3): the IN-8 re-cite guard matches exact "; "-segments only (theoretical over-append edge; no data loss).
+- Verification battery (all run in this worktree): tests/compat cargo clippy --all-targets --locked -- -D warnings CLEAN; cargo test 27/27 (0 ignored). xtask clippy CLEAN; compat_matrix tests 12/12. fmt clean (both workspaces). lint-literals PASS (0 violations, 452 allowlisted).
+- No-regression checks: JSON counts block byte-identical to w24/d — 166 files; 84 decoded / 22 partial / 6 refused (2 probe + 4 demux) / 0 demux-fatal / 54 malformed; oracle 29 bit-exact + 6 tolerance-fail (recounted from oracle.rows; all 35 rows live_run). raw-rows.jsonl blob 469f246… identical both refs; no .jsonl in the diff. Tests additions-only (no deleted asserts/#[test], no #[ignore]/should_panic anywhere; sha256 4 vectors intact; test counts d→p: oracle 0→10, config 0→5, report 0→8, xtask 10→12). Scope: findings-named files + worklog only.
+
+Stage Summary:
+- Verdict on lane P's final pushed state: 1 P1 / 0 P2 / 1 P3. All technical asks CLOSED and verified (IN-8 both halves, R10-2, R10-3, P3-3/P3-4/P3-5 fixed, P3-7 closed-as-documented-debt); counts/raw-rows/tests/scope all clean. The P1: the mandatory W24-P worklog entry never landed — the branch's only accounting is the W24-D entry's now-unreconcilable "P3s being fixed by W24-P" closing line. Remediation is one append-only commit (the fixed-vs-deferred tables in docs/reviews/w24-p-final-findings.md are ready-made content). R14-2 is a theoretical robustness note on the new guard. READ-ONLY audit honored: only docs/reviews/w24-p-final-findings.md + this entry written; pushed as branch w24/r14.
+
+---
+
 Task ID: W24-S (wave 24 lane S — small integration fixer)
 Agent: w24-s
 Task: Fix integration audit W24-R9 finding IN-6 — dangling browser-matrix deliverable name in the Phase-7 exit gate report (docs/gates/phase7-exit.md, §4 row 7.I1); docs-only lane.
