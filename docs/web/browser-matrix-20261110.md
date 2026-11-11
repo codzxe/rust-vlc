@@ -7,12 +7,14 @@ This report is RENDERED from that record by `ui/scripts/web-matrix-run.mjs`
 ## Honesty note — read this first
 
 - **The chromium lane is a real Playwright run** (evidence tier `playwright-run`):
-  captured 2026-11-10T22:14:59.907Z against commit `9a13c3974591749e75903f257c1d4b90c3dffcbe` on branch `w24/a`,
+  captured 2026-11-11T03:13:30.976Z against commit `3755dc350213f71b2031f50225841ece9f773a81` on branch `w24/a`,
   driving 157.0.8103.50 with Playwright 1.64.1.
-- **This report is capture-based, not live**: the sandbox's Chromium binary was deleted
-  after the capture (only ffmpeg remains under the Playwright cache; re-download is
-  forbidden), so the matrix is NOT re-runnable in this sandbox. Everything below reads
-  the committed record; nothing here was re-executed to produce it.
+- **Re-runnability**: the run drives a pinned Chromium executable via the
+  `WEB_MATRIX_CHROMIUM` env override (browser downloads are forbidden here), so the
+  matrix re-runs whenever that executable exists; when it does not, this report is
+  read from the committed record via `--restamp` (capture facts preserved verbatim,
+  never re-simulated). The Playwright-managed browsers cache is NOT the source of the
+  sandbox binary — the agent-browser install is.
 - **Firefox / WebKit / Safari / Safari-iOS never executed** — no binaries exist in this
   sandbox and downloading is forbidden. Their lanes carry BCD-cited expectations and the
   next step (real machines / CI runners), never a fabricated result (AGENTS §3.4).
@@ -25,12 +27,11 @@ This report is RENDERED from that record by `ui/scripts/web-matrix-run.mjs`
 | Field | Value |
 |---|---|
 | Record schema | `lumen.web.browser-matrix/1` |
-| Capture | 2026-11-10T22:14:59.907Z @ `9a13c3974591749e75903f257c1d4b90c3dffcbe` (branch `w24/a`) |
-| Record stamp | regenerated 2026-11-10T23:18:51.068Z @ `389bfccfb97e797b09152477ffa4779566e51f71` |
-| Regen reason | stamp-only regeneration (W24-R8 P2-1): align the record's git block with the current committed state. NO browser re-run, NO lane data touched — the capture facts live in .capture. |
-| Record git block | `389bfccfb97e797b09152477ffa4779566e51f71` on `w24/a` (the tree this record was last maintained against; the record's own containing commit is its child — see git log) |
-| wasm artifact | `../../../../../tmp/my-project/target/wasm32-unknown-unknown/release/lumen_web.wasm` — release profile, 1294311 bytes |
-| artifact sha256 | `aa70ec5920d80149450dc040f82ef0063ed403ac8655b51b56d738b5134a19e2` |
+| Capture | 2026-11-11T03:13:30.976Z @ `3755dc350213f71b2031f50225841ece9f773a81` (branch `w24/a`) |
+| Capture tree | DIRTY (uncommitted changes present — see the honesty note) |
+| Record git block | `3755dc350213f71b2031f50225841ece9f773a81` on `w24/a` (the tree this record was last maintained against; the record's own containing commit is its child — see git log) |
+| wasm artifact | `target/wasm32-unknown-unknown/release/lumen_web.wasm` — release profile, 1294311 bytes |
+| artifact sha256 | `4a0f33831d6411dfef20b13925bb82a2f658d79c843dd1ec1ebfab78ca478d87` |
 | Fixture | `tests/fixtures/generated/valid/avi_mjpeg_pcm.avi` (425516 bytes) |
 | Node | v24.22.2 |
 | Harness | ui/e2e/web (card 7.I1) |
@@ -41,7 +42,7 @@ This report is RENDERED from that record by `ui/scripts/web-matrix-run.mjs`
 
 | Browser | Evidence | Result |
 |---|---|---|
-| chromium | playwright-run (REAL) | 9/17 (isolation-off), 9/17 (isolation-coop-coep) scenarios passed |
+| chromium | playwright-run (REAL) | 10/17 (isolation-off), 10/17 (isolation-coop-coep) scenarios passed |
 | firefox | not-runnable-in-sandbox | NOT RUN — BCD-cited expectations only |
 | webkit | not-runnable-in-sandbox | NOT RUN — BCD-cited expectations only |
 | safari | not-runnable-in-sandbox | NOT RUN — BCD-cited expectations only |
@@ -57,53 +58,53 @@ engine-in-Worker module (real wasm instantiation, real fetch, real postMessage o
 
 Browser 157.0.8103.50; wasm lane: 14 fetches — status 200, content-type application/wasm, content-length 1294311.
 
-**9/17 scenarios passed.**
+**10/17 scenarios passed.**
 
 | Scenario | Category | Status | ms | Evidence / error (clipped; full text in the JSON) |
 |---|---|---|---|---|
-| boot-handshake | capability | ✅ pass | 83 | {"engineVersion":"0.1.0","catalogVersion":"1","features":["first-vertical:avi-mjpeg-pcm","audio.null-device","video.headless-counter-presenter","scheduler.cooperative-pump"],"threading":"single","renderer":"webgl2","audi… |
-| renderer-ladder-consistency | capability | ✅ pass | 37 | {"probed":{"webgpuApi":true,"webgpuAdapter":false,"webgl2Context":true},"activeBackend":"webgl2"} |
-| open-play-pause-stop | happy-path | ❌ fail | 171 | open must be class-A accepted, got {"error":{"stage":"decode","code":"unsupported","message":"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's ex… |
-| play-to-end | happy-path | ❌ fail | 30162 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| media-info-and-tracks | happy-path | ❌ fail | 30147 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| open-rtsp-refused | error-path | ✅ pass | 38 | {"stage":"input","code":"unsupported-for-host","capability":"rtsp-rtp-udp-access"} |
-| open-file-refused | error-path | ✅ pass | 29 | {"stage":"input","code":"unsupported-for-host","capability":"local-filesystem"} |
-| open-http-pending-lane | error-path | ✅ pass | 36 | {"stage":"input","code":"unsupported-for-host","capability":"http-streaming"} |
-| open-garbage-blob-refused | error-path | ✅ pass | 32 | {"stage":"probe","code":"unsupported"} |
-| seek-not-served | error-path | ❌ fail | 30196 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| unserved-config-command | error-path | ✅ pass | 41 | {"stage":"control","code":"unsupported-for-host"} |
-| event-envelope-invariants | invariants | ❌ fail | 30146 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| idempotent-pause-echo | invariants | ❌ fail | 30159 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| autoplay-gate-parks-and-resumes | autoplay | ❌ fail | 30168 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| boot-handshake | capability | ✅ pass | 57 | {"engineVersion":"0.1.0","catalogVersion":"1","features":["first-vertical:avi-mjpeg-pcm","audio.null-device","video.headless-counter-presenter","scheduler.cooperative-pump"],"threading":"single","renderer":"webgl2","audi… |
+| renderer-ladder-consistency | capability | ✅ pass | 29 | {"probed":{"webgpuApi":true,"webgpuAdapter":false,"webgl2Context":true},"activeBackend":"webgl2"} |
+| open-play-pause-stop | happy-path | ❌ fail | 149 | open must be class-A accepted, got {"error":{"stage":"decode","code":"unsupported","message":"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's ex… |
+| play-to-end | happy-path | ❌ fail | 30135 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| media-info-and-tracks | happy-path | ❌ fail | 30163 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| open-rtsp-refused | error-path | ✅ pass | 42 | {"stage":"input","code":"unsupported-for-host","capability":"rtsp-rtp-udp-access"} |
+| open-file-refused | error-path | ✅ pass | 30 | {"stage":"input","code":"unsupported-for-host","capability":"local-filesystem"} |
+| open-http-pending-lane | error-path | ✅ pass | 40 | {"stage":"input","code":"unsupported-for-host","capability":"http-streaming"} |
+| open-garbage-blob-refused | error-path | ✅ pass | 36 | {"stage":"probe","code":"unsupported"} |
+| seek-not-served | error-path | ❌ fail | 30150 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| unserved-config-command | error-path | ✅ pass | 36 | {"stage":"control","code":"unsupported-for-host"} |
+| event-envelope-invariants | invariants | ❌ fail | 30138 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| idempotent-pause-echo | invariants | ❌ fail | 30149 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| autoplay-gate-parks-and-resumes | autoplay | ❌ fail | 30173 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
 | fetch-range-supported-server | transport | ✅ pass | 7 | {"status":206,"contentRange":"bytes 0-1023/425516","acceptRanges":"bytes"} |
-| fetch-range-blind-server | transport | ❌ fail | 4 | a range-blind server ignores the window (200): expected 200, got 404 |
-| audio-context-and-worklet | transport | ✅ pass | 48 | {"contextConstructible":true,"workletModuleLoaded":true,"contextState":"running","sampleRate":44100} |
+| fetch-range-blind-server | transport | ✅ pass | 16 | {"status":200,"bodyBytes":425516} |
+| audio-context-and-worklet | transport | ✅ pass | 47 | {"contextConstructible":true,"workletModuleLoaded":true,"contextState":"running","sampleRate":44100} |
 
 ### Mode `isolation-coop-coep` (COOP/COEP ON, crossOriginIsolated=true)
 
 Browser 157.0.8103.50; wasm lane: 14 fetches — status 200, content-type application/wasm, content-length 1294311.
 
-**9/17 scenarios passed.**
+**10/17 scenarios passed.**
 
 | Scenario | Category | Status | ms | Evidence / error (clipped; full text in the JSON) |
 |---|---|---|---|---|
-| boot-handshake | capability | ✅ pass | 43 | {"engineVersion":"0.1.0","catalogVersion":"1","features":["first-vertical:avi-mjpeg-pcm","audio.null-device","video.headless-counter-presenter","scheduler.cooperative-pump"],"threading":"single","renderer":"webgl2","audi… |
-| renderer-ladder-consistency | capability | ✅ pass | 52 | {"probed":{"webgpuApi":true,"webgpuAdapter":false,"webgl2Context":true},"activeBackend":"webgl2"} |
-| open-play-pause-stop | happy-path | ❌ fail | 139 | open must be class-A accepted, got {"error":{"stage":"decode","code":"unsupported","message":"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's ex… |
-| play-to-end | happy-path | ❌ fail | 30140 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| media-info-and-tracks | happy-path | ❌ fail | 30154 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| open-rtsp-refused | error-path | ✅ pass | 38 | {"stage":"input","code":"unsupported-for-host","capability":"rtsp-rtp-udp-access"} |
-| open-file-refused | error-path | ✅ pass | 35 | {"stage":"input","code":"unsupported-for-host","capability":"local-filesystem"} |
-| open-http-pending-lane | error-path | ✅ pass | 28 | {"stage":"input","code":"unsupported-for-host","capability":"http-streaming"} |
-| open-garbage-blob-refused | error-path | ✅ pass | 33 | {"stage":"probe","code":"unsupported"} |
-| seek-not-served | error-path | ❌ fail | 30175 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| unserved-config-command | error-path | ✅ pass | 42 | {"stage":"control","code":"unsupported-for-host"} |
+| boot-handshake | capability | ✅ pass | 71 | {"engineVersion":"0.1.0","catalogVersion":"1","features":["first-vertical:avi-mjpeg-pcm","audio.null-device","video.headless-counter-presenter","scheduler.cooperative-pump"],"threading":"single","renderer":"webgl2","audi… |
+| renderer-ladder-consistency | capability | ✅ pass | 29 | {"probed":{"webgpuApi":true,"webgpuAdapter":false,"webgl2Context":true},"activeBackend":"webgl2"} |
+| open-play-pause-stop | happy-path | ❌ fail | 159 | open must be class-A accepted, got {"error":{"stage":"decode","code":"unsupported","message":"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's ex… |
+| play-to-end | happy-path | ❌ fail | 30135 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| media-info-and-tracks | happy-path | ❌ fail | 30140 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| open-rtsp-refused | error-path | ✅ pass | 35 | {"stage":"input","code":"unsupported-for-host","capability":"rtsp-rtp-udp-access"} |
+| open-file-refused | error-path | ✅ pass | 28 | {"stage":"input","code":"unsupported-for-host","capability":"local-filesystem"} |
+| open-http-pending-lane | error-path | ✅ pass | 40 | {"stage":"input","code":"unsupported-for-host","capability":"http-streaming"} |
+| open-garbage-blob-refused | error-path | ✅ pass | 46 | {"stage":"probe","code":"unsupported"} |
+| seek-not-served | error-path | ❌ fail | 30164 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| unserved-config-command | error-path | ✅ pass | 36 | {"stage":"control","code":"unsupported-for-host"} |
 | event-envelope-invariants | invariants | ❌ fail | 30155 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| idempotent-pause-echo | invariants | ❌ fail | 30159 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| autoplay-gate-parks-and-resumes | autoplay | ❌ fail | 30157 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
-| fetch-range-supported-server | transport | ✅ pass | 6 | {"status":206,"contentRange":"bytes 0-1023/425516","acceptRanges":"bytes"} |
-| fetch-range-blind-server | transport | ❌ fail | 3 | a range-blind server ignores the window (200): expected 200, got 404 |
-| audio-context-and-worklet | transport | ✅ pass | 49 | {"contextConstructible":true,"workletModuleLoaded":true,"contextState":"running","sampleRate":44100} |
+| idempotent-pause-echo | invariants | ❌ fail | 30175 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| autoplay-gate-parks-and-resumes | autoplay | ❌ fail | 30158 | pump loop exceeded 30000ms; last report: {"type":"pumped","report":{"state":"idle","positionUs":0,"busy":false,"eventsFlushed":0}} |
+| fetch-range-supported-server | transport | ✅ pass | 7 | {"status":206,"contentRange":"bytes 0-1023/425516","acceptRanges":"bytes"} |
+| fetch-range-blind-server | transport | ✅ pass | 6 | {"status":200,"bodyBytes":425516} |
+| audio-context-and-worklet | transport | ✅ pass | 51 | {"contextConstructible":true,"workletModuleLoaded":true,"contextState":"running","sampleRate":44100} |
 
 ### Fail shapes in this capture (interpretation)
 
@@ -116,11 +117,6 @@ Browser 157.0.8103.50; wasm lane: 14 fetches — status 200, content-type applic
   requires an OPEN session first, and open is refused by `web.decoders_absent` above — the
   suite waits out its pump budget on an engine that correctly stays idle. The failure
   cluster is downstream of the decoder-less posture, not an independent defect.
-- `fetch-range-blind-server` fails with `expected 200, got 404` — a **harness staging
-  defect, not an engine defect**: the range-blind route was never staged as a file, so the
-  server 404s before the range-blind behavior could be exercised. Diagnosed from this
-  capture, fixed on w24/a after it (the fixture is now staged under the range-blind name
-  too); the fix awaits a browser re-run on a machine that has one.
 
 ## Lanes not runnable in this sandbox
 
@@ -168,7 +164,7 @@ BCD-cited expectations:
 ## Method
 
 - Harness: `ui/e2e/web/` (card 7.I1) — the in-page conformance suite (`site/harness.js`,
-  735 lines) drives the REAL engine Worker; the driver `ui/scripts/web-matrix-run.mjs`
+  751 lines) drives the REAL engine Worker; the driver `ui/scripts/web-matrix-run.mjs`
   stages the site (page + wasm artifact + worker/audio-worklet glue + first-vertical
   fixture), serves one static server per isolation mode (Range-aware + range-blind +
   per-mode COOP/COEP) and runs `playwright.web.config.ts`.
@@ -177,8 +173,8 @@ BCD-cited expectations:
   (doc 07 §9).
 - Playwright 1.64.1; Chromium 157.0.8103.50
   (`/home/z/.agent-browser/browsers/chrome-157.0.8103.50/chrome`), launch args --no-sandbox --disable-dev-shm-usage.
-- The wasm artifact under test: `../../../../../tmp/my-project/target/wasm32-unknown-unknown/release/lumen_web.wasm`, 1294311 bytes,
-  sha256 `aa70ec5920d80149450dc040f82ef0063ed403ac8655b51b56d738b5134a19e2` (release profile).
+- The wasm artifact under test: `target/wasm32-unknown-unknown/release/lumen_web.wasm`, 1294311 bytes,
+  sha256 `4a0f33831d6411dfef20b13925bb82a2f658d79c843dd1ec1ebfab78ca478d87` (release profile).
 - Capture date: 2026-11-10. The record you are reading is that capture (see the honesty
   note); it was NOT re-run to produce this report.
 

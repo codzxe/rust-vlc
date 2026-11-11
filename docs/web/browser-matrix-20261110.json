@@ -1,9 +1,16 @@
 {
   "schema": "lumen.web.browser-matrix/1",
-  "generated": "2026-11-10T22:14:59.907Z",
+  "generated": "2026-11-11T03:13:30.976Z",
   "git": {
-    "commit": "389bfccfb97e797b09152477ffa4779566e51f71",
-    "branch": "w24/a"
+    "commit": "3755dc350213f71b2031f50225841ece9f773a81",
+    "branch": "w24/a",
+    "dirty": true
+  },
+  "capture": {
+    "commit": "3755dc350213f71b2031f50225841ece9f773a81",
+    "branch": "w24/a",
+    "recorded": "2026-11-11T03:13:30.976Z",
+    "note": "Filled below from this run's own generated/git values, so the capture facts survive any later --restamp provenance regeneration."
   },
   "tooling": {
     "node": "v24.22.2",
@@ -15,10 +22,10 @@
     ]
   },
   "artifact": {
-    "path": "../../../../../tmp/my-project/target/wasm32-unknown-unknown/release/lumen_web.wasm",
+    "path": "target/wasm32-unknown-unknown/release/lumen_web.wasm",
     "profile": "release",
     "bytes": 1294311,
-    "sha256": "aa70ec5920d80149450dc040f82ef0063ed403ac8655b51b56d738b5134a19e2"
+    "sha256": "4a0f33831d6411dfef20b13925bb82a2f658d79c843dd1ec1ebfab78ca478d87"
   },
   "fixture": {
     "path": "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi",
@@ -130,7 +137,7 @@
                 "name": "boot-handshake",
                 "category": "capability",
                 "status": "pass",
-                "ms": 83,
+                "ms": 57,
                 "evidence": {
                   "engineVersion": "0.1.0",
                   "catalogVersion": "1",
@@ -162,7 +169,7 @@
                 "name": "renderer-ladder-consistency",
                 "category": "capability",
                 "status": "pass",
-                "ms": 37,
+                "ms": 29,
                 "evidence": {
                   "probed": {
                     "webgpuApi": true,
@@ -176,28 +183,28 @@
                 "name": "open-play-pause-stop",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 171,
+                "ms": 149,
                 "error": "open must be class-A accepted, got {\"error\":{\"stage\":\"decode\",\"code\":\"unsupported\",\"message\":\"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's external engines do not build for wasm32-unknown-unknown) — the typed refusal until the crate splits (Lead decision, see the capability snapshot's builtin-software-decoders row)\",\"details\":{\"code\":\"web.decoders_absent\"}}}"
               },
               {
                 "name": "play-to-end",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 30162,
+                "ms": 30135,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "media-info-and-tracks",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 30147,
+                "ms": 30163,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "open-rtsp-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 38,
+                "ms": 42,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -208,7 +215,7 @@
                 "name": "open-file-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 29,
+                "ms": 30,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -219,7 +226,7 @@
                 "name": "open-http-pending-lane",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 36,
+                "ms": 40,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -230,7 +237,7 @@
                 "name": "open-garbage-blob-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 32,
+                "ms": 36,
                 "evidence": {
                   "stage": "probe",
                   "code": "unsupported"
@@ -240,14 +247,14 @@
                 "name": "seek-not-served",
                 "category": "error-path",
                 "status": "fail",
-                "ms": 30196,
+                "ms": 30150,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "unserved-config-command",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 41,
+                "ms": 36,
                 "evidence": {
                   "stage": "control",
                   "code": "unsupported-for-host"
@@ -257,21 +264,21 @@
                 "name": "event-envelope-invariants",
                 "category": "invariants",
                 "status": "fail",
-                "ms": 30146,
+                "ms": 30138,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "idempotent-pause-echo",
                 "category": "invariants",
                 "status": "fail",
-                "ms": 30159,
+                "ms": 30149,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "autoplay-gate-parks-and-resumes",
                 "category": "autoplay",
                 "status": "fail",
-                "ms": 30168,
+                "ms": 30173,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
@@ -288,15 +295,18 @@
               {
                 "name": "fetch-range-blind-server",
                 "category": "transport",
-                "status": "fail",
-                "ms": 4,
-                "error": "a range-blind server ignores the window (200): expected 200, got 404"
+                "status": "pass",
+                "ms": 16,
+                "evidence": {
+                  "status": 200,
+                  "bodyBytes": 425516
+                }
               },
               {
                 "name": "audio-context-and-worklet",
                 "category": "transport",
                 "status": "pass",
-                "ms": 48,
+                "ms": 47,
                 "evidence": {
                   "contextConstructible": true,
                   "workletModuleLoaded": true,
@@ -411,7 +421,7 @@
                 "name": "boot-handshake",
                 "category": "capability",
                 "status": "pass",
-                "ms": 43,
+                "ms": 71,
                 "evidence": {
                   "engineVersion": "0.1.0",
                   "catalogVersion": "1",
@@ -443,7 +453,7 @@
                 "name": "renderer-ladder-consistency",
                 "category": "capability",
                 "status": "pass",
-                "ms": 52,
+                "ms": 29,
                 "evidence": {
                   "probed": {
                     "webgpuApi": true,
@@ -457,28 +467,28 @@
                 "name": "open-play-pause-stop",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 139,
+                "ms": 159,
                 "error": "open must be class-A accepted, got {\"error\":{\"stage\":\"decode\",\"code\":\"unsupported\",\"message\":\"unsupported (web.decoders_absent): the wasm32 module ships the engine core without the builtin decoders (the codecs crate's external engines do not build for wasm32-unknown-unknown) — the typed refusal until the crate splits (Lead decision, see the capability snapshot's builtin-software-decoders row)\",\"details\":{\"code\":\"web.decoders_absent\"}}}"
               },
               {
                 "name": "play-to-end",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 30140,
+                "ms": 30135,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "media-info-and-tracks",
                 "category": "happy-path",
                 "status": "fail",
-                "ms": 30154,
+                "ms": 30140,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "open-rtsp-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 38,
+                "ms": 35,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -489,7 +499,7 @@
                 "name": "open-file-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 35,
+                "ms": 28,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -500,7 +510,7 @@
                 "name": "open-http-pending-lane",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 28,
+                "ms": 40,
                 "evidence": {
                   "stage": "input",
                   "code": "unsupported-for-host",
@@ -511,7 +521,7 @@
                 "name": "open-garbage-blob-refused",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 33,
+                "ms": 46,
                 "evidence": {
                   "stage": "probe",
                   "code": "unsupported"
@@ -521,14 +531,14 @@
                 "name": "seek-not-served",
                 "category": "error-path",
                 "status": "fail",
-                "ms": 30175,
+                "ms": 30164,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "unserved-config-command",
                 "category": "error-path",
                 "status": "pass",
-                "ms": 42,
+                "ms": 36,
                 "evidence": {
                   "stage": "control",
                   "code": "unsupported-for-host"
@@ -545,21 +555,21 @@
                 "name": "idempotent-pause-echo",
                 "category": "invariants",
                 "status": "fail",
-                "ms": 30159,
+                "ms": 30175,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "autoplay-gate-parks-and-resumes",
                 "category": "autoplay",
                 "status": "fail",
-                "ms": 30157,
+                "ms": 30158,
                 "error": "pump loop exceeded 30000ms; last report: {\"type\":\"pumped\",\"report\":{\"state\":\"idle\",\"positionUs\":0,\"busy\":false,\"eventsFlushed\":0}}"
               },
               {
                 "name": "fetch-range-supported-server",
                 "category": "transport",
                 "status": "pass",
-                "ms": 6,
+                "ms": 7,
                 "evidence": {
                   "status": 206,
                   "contentRange": "bytes 0-1023/425516",
@@ -569,15 +579,18 @@
               {
                 "name": "fetch-range-blind-server",
                 "category": "transport",
-                "status": "fail",
-                "ms": 3,
-                "error": "a range-blind server ignores the window (200): expected 200, got 404"
+                "status": "pass",
+                "ms": 6,
+                "evidence": {
+                  "status": 200,
+                  "bodyBytes": 425516
+                }
               },
               {
                 "name": "audio-context-and-worklet",
                 "category": "transport",
                 "status": "pass",
-                "ms": 49,
+                "ms": 51,
                 "evidence": {
                   "contextConstructible": true,
                   "workletModuleLoaded": true,
@@ -635,16 +648,5 @@
       ],
       "nextStep": "Physical iOS device run per release (doc 09 §8.2 manual protocol); no simulator substitute for the memory-pressure + background-throttling rows."
     }
-  ],
-  "capture": {
-    "commit": "9a13c3974591749e75903f257c1d4b90c3dffcbe",
-    "branch": "w24/a",
-    "recorded": "2026-11-10T22:14:59.907Z",
-    "note": "The tree the browser lanes executed against and the moment their fragments were merged — the run's own facts, preserved verbatim when the git stamp below was later regenerated (no re-run happened)."
-  },
-  "recordRegenerated": {
-    "date": "2026-11-10T23:18:51.068Z",
-    "commit": "389bfccfb97e797b09152477ffa4779566e51f71",
-    "reason": "stamp-only regeneration (W24-R8 P2-1): align the record's git block with the current committed state. NO browser re-run, NO lane data touched — the capture facts live in .capture."
-  }
+  ]
 }
