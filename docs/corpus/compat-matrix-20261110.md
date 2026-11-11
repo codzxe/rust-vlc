@@ -9,6 +9,17 @@
 | Oracle | live run: the pinned VLC VLC version 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) (version-asserted before use; invocation record in the config + docs/corpus/vlc-diff-report-20261023.md §Oracle run 2026-11-09) |
 | Method | real decode through the player's open path (`lumen_cli::demux_host::open_source` → container registry → `HostDecoderProvider` → `codec_api::Decoder`); MD5-prefix + ratified f32 tolerance vs the pinned VLC 3.0.23 (see notes) |
 
+> **Provenance:** §1–§5 and §7 are the runner's machine rendering of the
+> 2026-11-10 run (commit `3dfe1c0`). §6 and the final note were hand-updated
+> after the transitions were applied (`3fdbf6d` — the tool, outbox, addendum
+> and ledger are cited in §6 itself). The file has since had surgical
+> post-run edits by the W24-P review-fix lane (branch `w24/p`, per the W24-L
+> audit `docs/reviews/w24-d-compat-findings.md`): the native cells for
+> `avi`/`wav` and §6.2 now surface the four in-row codec-level refusals
+> (finding P2-1). The machine JSON alongside and the raw rows (`.jsonl`,
+> immutable evidence) are the canonical records; the raw rows were never
+> edited.
+
 ## 1. Headline counts (the native lane)
 
 - Corpus files: **166** (84 decoded, 22 decoded-partial, 6 refused, 0 demux-fatal; 54 malformed all-typed / zero crashes)
@@ -62,14 +73,14 @@
 
 Cell details (native lane):
 
-- `avi`: decoded — 41/41 files open+demux (41 fully decoded, 0 with a codec-side NoDecoder track); error-contract: 9 malformed variants, all typed (zero crashes)
+- `avi`: decoded — 41/43 files open+demux (41 fully decoded, 0 with a codec-side NoDecoder track); 2 extension-matched corpus files REFUSED at the open path — unsupported in avi (demux.avi.no-supported-streams) ×2; error-contract: 9 malformed variants, all typed (zero crashes)
 - `matroska`: decoded — 11/11 files open+demux (5 fully decoded, 6 with a codec-side NoDecoder track); error-contract: 9 malformed variants, all typed (zero crashes)
 - `mp4`: decoded — 14/14 files open+demux (4 fully decoded, 10 with a codec-side NoDecoder track); error-contract: 14 malformed variants, all typed (zero crashes)
 - `ogg`: decoded — 6/6 files open+demux (5 fully decoded, 1 with a codec-side NoDecoder track)
 - `mpegts`: decoded — 10/10 files open+demux (9 fully decoded, 1 with a codec-side NoDecoder track)
 - `mpegps`: decoded — 1/1 files open+demux (0 fully decoded, 1 with a codec-side NoDecoder track)
 - `asf`: refused — 1/1 corpus files REFUSED at the open path — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329
-- `wav`: decoded — 8/8 files open+demux (8 fully decoded, 0 with a codec-side NoDecoder track)
+- `wav`: decoded — 8/10 files open+demux (8 fully decoded, 0 with a codec-side NoDecoder track); 2 extension-matched corpus files REFUSED at the open path — unsupported in wav (demux.wav.unsupported-format) ×2
 - `flac`: refused — 1/1 corpus files REFUSED at the open path — format `flac` probes (the fLaC marker) but the raw-FLAC elementary-stream demuxer has not landed: crates/demux/src/es covers h264/hevc/mp3/aac (card 5.I3a's slice) — the landing card harvests the 34-byte STREAMINFO body as extra_data for the already-wired FLAC decoder and flips this one registry arm
 - `aiff`: decoded — 4/4 files open+demux (4 fully decoded, 0 with a codec-side NoDecoder track)
 - `adts`: decoded — 5/5 files open+demux (4 fully decoded, 1 with a codec-side NoDecoder track)
@@ -227,7 +238,7 @@ None of the five was **fixed** in this round: each fix is card-sized work (a wir
 
 ### 6.2 Claimed-supported, no gap (run evidence supports the claim — still not `verified`: CI billing blocked)
 
-- Containers, all decoded through the real open path with typed error-contracts on every malformed variant (zero crashes): `container-avi` (43 files), `container-matroska-webm` (11), `container-mp4-mov-3gp` (14), `container-ogg` (6), `container-mpegts` (10), `container-mpegps` (1), `container-wav` (10), `container-aiff` (4), `container-adts-aac` (5), `container-mp3-raw` (2), `container-h264-annexb` (1), `container-hevc-annexb` (1), `container-ivf` (2).
+- Containers, decoded through the real open path with typed error-contracts on every malformed variant (zero crashes): `container-avi` (41/43 open+demux), `container-matroska-webm` (11/11), `container-mp4-mov-3gp` (14/14), `container-ogg` (6/6), `container-mpegts` (10/10), `container-mpegps` (1/1), `container-wav` (8/10 open+demux), `container-aiff` (4/4), `container-adts-aac` (5/5), `container-mp3-raw` (2/2), `container-h264-annexb` (1/1), `container-hevc-annexb` (1/1), `container-ivf` (2/2). The four shortfalls are in-row codec-level refusals, not container-open gaps, so no container status flip is required: `container-avi` — `0257-avi-video.avi` (MPEG-4 ASP, a blocked codec) and `0146-avi-video.avi` (WMV2, a blocked codec) refused `demux.avi.no-supported-streams` ×2 (the AVI demuxer enumerates no supported stream for these payloads; the blocked-codec video rows own them — §6.3); `container-wav` — `0370-audio-only.wav` (FLAC-in-WAV) and `0241-audio-only.wav` (MP3-in-WAV) refused `demux.wav.unsupported-format` ×2 (payload forms outside the fmt-chunk parser's accepted set — PCM, the IMA/MS ADPCM tags, the WAVEFORMATEXTENSIBLE FLAC GUID; `crates/demux/src/wav/format.rs`). The §3 cells and the raw rows carry the counts.
 - Codecs, clean decode (0 concealed packets): `codec-video-mjpeg` (33 tracks), `codec-audio-flac` (3, bit-exact family), `codec-audio-mp3` (1), `codec-audio-mp2` (1), `codec-audio-vorbis` (4), `codec-audio-opus` (4), `codec-audio-adpcm` (2), `codec-video-av1` (2) — plus `codec-audio-pcm`'s integer lanes (29/29 oracle bit-exact; the f32 lane is §6.1's flip).
 
 ### 6.3 Partial / blocked claims — outcomes consistent with the claim, nothing to flip

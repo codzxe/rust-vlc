@@ -818,6 +818,26 @@ Stage Summary:
 
 ---
 
+Task ID: W24-D
+Agent: W24-D (compat-matrix lane, issue #53, cards 8.B1–8.B2, branch w24/d). Entry appended 2026-11-10 by W24-P (the wave-24 review-fix lane) per W24-L finding P1-1 — the lane's 9 commits shipped without the mandatory §4 append; content below is reconstructed from the commit messages and cross-checked against W24-L's r2 audit (docs/reviews/w24-d-compat-findings.md, every number re-verified there against the raw rows).
+Task: The full-corpus compatibility matrix (issue #53, cards 8.B1–8.B2): the standalone runner (tests/compat), the real 166-file run, the parity-tool transitions writer + its application, the gap triage, and the CI job.
+
+Work Log:
+- 08eee64: round-1 skeleton (recovery commit) — config/corpus/decode/oracle/proc/sha256 modules, standalone-workspace wiring per the bench-vs-vlc precedent; report.rs, the config JSON and the regen manifest still TODO at that point.
+- 3dfe1c0: runner finished — compiles and clippy-clean under the mirrored deny lints (no unwrap/expect/panic/dbg, unsafe forbidden); config schema, regen-corpus manifest, version-asserted live-oracle wiring.
+- 7223106: THE REAL RUN — 166 corpus files (46 committed + 54 malformed + 66 regenerable, manifest-anchored) decoded through the player's real open path (open_source → container registry → HostDecoderProvider → codec_api::Decoder): 84 decoded / 22 decoded-partial / 6 refused / 0 demux-fatal / 54 malformed all-typed (zero crashes). Lanes: linux-native live; web-wasm via recorded build+test steps (both exit 0); windows/macos blocked-by-external citations. Oracle differential over the lossless-comparable family: 29 bit-exact (MD5-prefix) + 6 f32 tolerance-FAIL. Reports + raw rows + transitions outbox committed under docs/corpus/compat-*.
+- 932d461: the parity tool's transitions writer — cargo xtask compat-matrix apply-transitions (tools/xtask/src/cmd/compat_matrix.rs): re-checks every from-status against the live feature-matrix, rejects verified/stale/unknown rows, coalesces same-row+platform proposals, appends the machine-written ledger; 10 unit tests.
+- 3fdbf6d: applied the 5 run-emitted transitions + 1 triage-authored addendum (the f32 oracle-tolerance family, which the decode-level rules do not cover) through the tool — 6 machine-written ledger lines, zero hand-edited statuses; §6 of the md re-rendered post-apply as the gap triage; post-apply cargo xtask feature-audit PASS (252 rows, implemented 192→187 / partial 142→147 — the five linux cells; no inference for platforms that did not run).
+- 3d90424: a configured-but-absent VLC binary is a recorded absence (rows cite the committed 2026-11-09 record, labeled), never a tool error — CI-wiring prep for hosts without the pinned Debian build.
+- ecc615e: gitignore target-xtask/ (the ad-hoc xtask build dir in worktrees; the c339ee8 precedent).
+- 4c3f6b8: config/2 — the native-decode lane's platform is REQUIRED and explicit, never host-inferred (a windows CI sweep must attribute its evidence to the windows column; old configs refused, not defaulted).
+- 2e01a2c: the CI job — .github/workflows/compat-matrix.yml (workflow_dispatch only, permissions: read, fail-fast: false, 3-OS matrix, SHA-pinned actions) + tests/compat/ci/derive_config.py (the per-OS config deriver: re-attributes the native lane, drops this-OS blocked lanes, rewrites sibling-lane citations, refreshes claims from the live matrix, redirects reports).
+
+Stage Summary:
+- Issue #53 cards 8.B1–8.B2 delivered on w24/d (9 commits, 25 files +14,485/−15): the honest evidence engine, its first real run, and the closed transitions loop (runner → outbox → rule-checked apply → feature-audit). Verification, per W24-L's r2 audit re-run on a fresh worktree: matrix counts cross-checked md↔json↔jsonl — all green; the dev's three smoke re-runs (committed-config linux, windows-config, CI-derived linux) reproduce the 166 raw rows with zero non-timing differences, and the CI-derived re-run with refreshed claims emits 0 transitions (the loop closes); 10/10 xtask compat-matrix tests; cargo fmt clean (both workspaces); clippy --all-targets clean under the mirrored deny lints; lint-literals PASS (0 violations). Residuals the audit flagged (P2: in-row refusal surfacing, wasm-cell derivation; P3: unit-test coverage, wording/labeling) are being fixed by W24-P on w24/p.
+
+---
+
 Task ID: W24-E (r4 closeout — issue #58, cards 8.G1+8.G2, wave 24 lane E)
 Agent: w24-e
 Task: Docs completeness sweep + release checklist + RC smoke (issue #58). Rounds 1–3 landed the record/ADR/guides/README work (commits 492db70, d915188, 3a7fd06, 559b897, 9a0a380, ff001e5, 9cd090f); this round: the audit report, the executable release checklist, the release-notes skeleton, the RELEASE.md reality fix, and push.
@@ -1129,6 +1149,23 @@ Work Log:
 Stage Summary:
 - Verdict: NOT READY at 286bacd (UI un-compilable OF-1; step-10 hole; lanes B/D/G worklog gaps; w24/m + w24/p unmerged); live tip 3f2b96c closes OF-1 and adds the a/d review reports + 4 more worklog entries, but still misses w24/m, w24/p, lane-A tip 389bfcc, step 10, and the web-column/budget-gate deliverables (which exist on no branch — wave-plan vs reality mismatch flagged to the Lead). Merge machinery itself introduced zero regressions: every defect is inherited from a lane's own state or from lanes still outside the rehearsal.
 - D-10: MEASURE — tomllib/yaml parses, per-merge worklog add/del counts, diff decomposition d(32)+g(4)=integrated(34), live gate.sh run (exit 0), 238-path resolution sweep, marker/TODO greps with main-baseline comparison. NOT TESTED — full UI typecheck/vitest on the snapshot (markers = guaranteed TS parse failure, per gate log), actionlint, 3-OS runners. WHO HITS IT FIRST — the Lead at wave-24 merge: run the phase7-exit §8 battery + UI suite on the post-m/p/389bfcc rehearsal.
+
+---
+
+Task ID: W24-R10
+Agent: W24-R10 (wave 24 review scout, round 10 — audit of the compat-fix lane W24-P)
+Task: Read-only audit of lane P's fixes for W24-L's findings on the compat-matrix lane (w24/d, issue #53) — findings doc docs/reviews/w24-p-fixes-findings.md.
+
+Work Log:
+- Branch state: `origin/w24/p` does NOT exist (fetch fails; lane unpushed at audit time) — audited the LOCAL ref `w24/p` @ 022d679 (3 commits on origin/w24/d: a776c24 worklog/P1-1, 16d64b0 refusals/P2-1, 022d679 wasm cells/P2-2) via a fresh worktree wt/w24r10 (branch w24/r10); never entered lane P's live worktree wt/w24p (snapshot audit of the committed state only).
+- P1-1 VERIFIED FIXED: the appended W24-D worklog entry matches AGENTS.md §4 exactly, is append-only, discloses the W24-P reconstruction, and is truthful — all 9 commit hashes/descriptions match git log, and every cited verification result matches W24-L's green list item-by-item.
+- P2-1 VERIFIED FIXED: mixed native rows now render valid/(valid+refused) denominators + a typed-refusal clause (41/43 avi, 8/10 wav — string-identical to the new renderer, re-derived from the raw rows); §6.2's "all decoded (43 files)" corrected to 41/43 + 8/10 with all four files (0257/0146/0370/0241) named and attributed (facts cross-checked against the regen manifest, §6.3 and crates/demux/src/wav/format.rs); JSON cells + editorial note aligned; unit test mixed_row_surfaces_its_refusals genuinely exercises the path (read it, ran it).
+- P2-2 VERIFIED FIXED: Steps-lane cells derive from the recorded StepRecords via steps_cell/lane_steps (failure/timeout → steps-failed quoting the step; pass → byte-identical old text, asserted); reachability confirmed (run_bounded records nonzero/timeout outcomes as Ok); tests cover failed/timeout/pass/no-records for both row kinds.
+- No regressions: raw .jsonl blob identical (469f246…); JSON counts + md headline + §3 table byte-identical (166 rows; 84/22/6/0/54; oracle 29/6) — reporting-only confirmed; tests additions-only (11/11 pass, 0 ignored, no deleted asserts); clippy --all-targets 0 warnings under the mirrored deny lints; fmt clean; scope = 4 findings-named files + worklog.
+- Scout findings on the fix lane: 1×P2 (IN-8 aac-lc evidence double-append not addressed at this tip + no fixed-vs-deferred accounting anywhere on the branch; the W24-D entry's "P3 … are being fixed" sentence now overstates the tip) and 2×P3 (P3-2 oracle vectors still the sharpest gap; steps_cell failure detail hard-codes wasm prose). Snapshot caveat recorded: lane P may still be running.
+
+Stage Summary:
+- docs/reviews/w24-p-fixes-findings.md committed on w24/r10 and pushed: verdict 0 P0 / 0 P1 / 1 P2 / 2 P3 on the fix lane; per-L-finding table: P1-1 FIXED, P2-1 FIXED, P2-2 FIXED, P3-3 half-fixed, P3-10 fixed beyond the ask, P3-1/2/4/5/6/7/8/9 + IN-8 not addressed at 022d679; matrix counts unchanged (PASS). Lead action before wave close: confirm with lane P the IN-8 dedupe + applier idempotence guard and an explicit deferred list, then re-audit the final pushed tip.
 
 ---
 
