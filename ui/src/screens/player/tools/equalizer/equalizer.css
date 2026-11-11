@@ -1,0 +1,244 @@
+/* equalizer.css (w26.c1) — the EQ tool card, measured from
+ * design/figma/"Audio - Equalizer.svg" (both stacked states) with the preset
+ * panel from "EQ presets.svg" and the w26.a20 analysis §A1/§D1 grammar:
+ *
+ *   * card — collapsed 360×48 rx6 #090909 / expanded rx6 #1B1B1B (the card
+ *     MORPHS between the two frame states; the expanded state's 59px header
+ *     row carries "Collapse Settings" + chevron-∨);
+ *   * rows — 11× (Preamp + 10 bands), pitch 90: head 34px (label left,
+ *     138×34 rx5 value chip right) → 15px → 328×16 rx6 slider track → 25px;
+ *   * slider — track rx6 #090909, FLAT #371F06 fill 12h rx4 inset 2,
+ *     8×24 rx4 #AB6314 thumb at the fill end (w26.c1 Lead pin: frame-exact
+ *     flat fill — overrides the w26.a04 gradient default IN THIS SCOPE
+ *     ONLY; the primitive keeps its grammar everywhere else);
+ *   * value chip — the form lane's .lumen-valuechip COMPOSED (mission
+ *     "compose, don't duplicate") with the frame anatomy scoped on top;
+ *   * band accents — the eq token group (--color-eq-1..7) as 6px dots.
+ *
+ * Semantic tokens only; raw px below are frame-measured structural
+ * dimensions with no token (card/rail heights, chip size, r5) and each
+ * carries its frame citation. Colors are var(--…) everywhere. */
+
+/* ------------------------------------------------------------------ card */
+
+.eq-tool {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family: var(--font-family-sans);
+
+  /* frame: collapsed card 360×48 rx6 #090909 (Audio - Equalizer.svg) */
+  background: var(--color-surface);
+  border-radius: var(--radius-control); /* frame: rx6 — cards r6, NOT r8 (w26.a20 §D1) */
+  transition: background-color var(--motion-duration-fast) ease-out;
+}
+
+/* frame: expanded card 360×1048 rx6 #1B1B1B — nearest token surface-panel
+ * (#191919, Δ2/255; the a18 tools-card log records the same mapping). */
+.eq-tool--open {
+  background: var(--color-surface-panel);
+}
+
+/* The toggle = the card's header row (48px collapsed / 59px expanded header
+ * block — frame: card top → row 1 = 59px). Transparent: the card owns the
+ * fill so the morph reads as one card, per the frames. */
+.eq-tool__toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px; /* frame: collapsed card 360×48 */
+  padding: 0 17px; /* frame: label @ 17px inset (x36.9 − card x20) */
+  font-family: inherit;
+  font-size: var(--font-size-body); /* frame: toggle label ≈14px */
+  font-weight: var(--font-weight-medium); /* W25 spec §2: medium labels [VERIFY weight] */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  background: none;
+  border: none;
+  border-radius: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.eq-tool--open .eq-tool__toggle {
+  height: 59px; /* frame: expanded header block (card top → row 1 = 59px) */
+}
+
+/* Hover band (frames carry no hover; the house hover grammar — a19 B14,
+ * the sibling dynamics-tool lane's identical rule). */
+.eq-tool__toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-secondary);
+}
+
+.eq-tool__toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Chevron: collapsed = frame Vector 27 (5×10 chevron-›, 1.5 stroke);
+ * expanded rotates to Vector 27_2's chevron-∨ (10×5). */
+.eq-tool__chevron {
+  flex: none;
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  transition: transform var(--motion-duration-fast) ease-out;
+}
+
+.eq-tool__toggle[aria-expanded="true"] .eq-tool__chevron {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------------------------------------------ body */
+
+.eq-tool__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 20px; /* frame: rows inset 16px (slider x36), 20px bottom pad */
+}
+
+/* flex + hidden must not fight (display:none wins — a18 pattern). */
+.eq-tool__body[hidden] {
+  display: none;
+}
+
+/* The preset panel — shared Dropdown grammar (EQ presets.svg: 362×48 rx6
+ * trigger #090909/#191919, open list rx6 #191919 + shadow, selected row
+ * #1F1F1F + orange check; all owned by components/menu). Full card-content
+ * width; the same inter-block gap as the rows below it. */
+.eq-tool__presets {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0 0 25px; /* frame row pitch: 25px between row blocks */
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.eq-tool__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Frame row = 34 (head) + 15 + 16 (track) = 65; the slider ELEMENT is 24px
+ * (hit area with the thumb's 4px overhangs) — negative margins keep the
+ * flow at the frame's 65px row block while the hit area overlaps the gaps
+ * (≥16px hit, doc 08 §4). Row pitch lands at 65 + 25 = 90 exactly. */
+.eq-tool__row {
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* frame: chip bottom → track top = 15px */
+}
+
+.eq-tool__row + .eq-tool__row {
+  margin-top: 25px; /* frame: row pitch 90 (34 head + 15 + 16 track + 25) */
+}
+
+/* Head: label left, value chip right (frame: label x36.9, chip x225–363). */
+.eq-tool__row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  min-height: 34px; /* frame: chip band 34px */
+}
+
+.eq-tool__row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-grid);
+  min-width: 0;
+  font-size: var(--font-size-body); /* frame: row labels ≈14–15px */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+}
+
+/* Band accent dot — the eq token group (Lead pin; frames render rows
+ * monochrome — the dot is the product-level band identity marker). The
+ * Preamp row renders the spacer without data-accent so labels align. */
+.eq-tool__accent {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.eq-tool__accent[data-accent="1"] { background: var(--color-eq-1); }
+.eq-tool__accent[data-accent="2"] { background: var(--color-eq-2); }
+.eq-tool__accent[data-accent="3"] { background: var(--color-eq-3); }
+.eq-tool__accent[data-accent="4"] { background: var(--color-eq-4); }
+.eq-tool__accent[data-accent="5"] { background: var(--color-eq-5); }
+.eq-tool__accent[data-accent="6"] { background: var(--color-eq-6); }
+.eq-tool__accent[data-accent="7"] { background: var(--color-eq-7); }
+
+/* ------------------------------------------------------- value chip (A1) */
+
+/* The form lane's ValueChip with the A1 frame anatomy scoped on top
+ * (compose, don't duplicate — the dialogs.css consumer-override pattern).
+ * Frame: 138×34 rx5, #090909 fill + 2px #191919 stroke, #8F8F8F ≈12px. */
+.eq-tool .eq-tool__chip {
+  box-sizing: border-box;
+  flex: none;
+  min-width: 138px; /* frame: chip 138 wide */
+  height: 34px; /* frame: chip 34 tall */
+  padding: 0 14px; /* frame: value @ 13.7px inset */
+  font-size: 12px; /* frame: value ≈12px — no token (caption 11, body 14) */
+  font-weight: var(--font-weight-regular);
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  background: var(--color-surface); /* frame: #090909 field */
+  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
+  border-radius: 5px; /* frame: rx5 — no token (control r6, inset r4) */
+}
+
+/* ------------------------------------------------- the EQ sliders (A1) */
+
+/* The w26.a04 EQSlider primitive with the frame-exact tool-slider anatomy
+ * scoped to this card (w26.c1 Lead pin: 328×16 rx6 track, FLAT #371F06
+ * fill, 8×24 rx4 #AB6314 thumb — the SVG-measured geometry, w26.a20 §A1).
+ * The primitive's own grammar (14px r7, gradient fill) stays untouched for
+ * every other consumer. */
+.eq-tool .lumen-slider {
+  width: 100%;
+  height: 24px; /* hit area: 16px track + the thumb's 4px overhangs */
+  margin: -4px 0; /* keeps the flow at the frame's 65px row block */
+}
+
+.eq-tool .lumen-slider__track {
+  top: calc(50% - 8px);
+  height: 16px; /* frame: 328×16 track */
+  background: var(--color-surface); /* frame: #090909 well */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.eq-tool .lumen-slider__fill {
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(2px + (100% - 4px) * var(--lumen-slider-fill, 0) / 100);
+
+  /* frame: FLAT #371F06 fill (== accent-tinted in dark) — the w26.c1 pin;
+   * the a04 gradient default is deliberately replaced in this scope */
+  background: var(--color-accent-tinted);
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+.eq-tool .lumen-slider__thumb {
+  top: calc(50% - 12px);
+  width: 8px; /* frame: 8×24 handle */
+  height: 24px;
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+/* --------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-tool,
+  .eq-tool__toggle,
+  .eq-tool__chevron {
+    transition: none;
+  }
+}

@@ -1,0 +1,223 @@
+/* w26.c2 — dynamics tools (Compressor / Spatializer / Stereo Widener).
+ * Design provenance: the three tool frames + the w26.a20 analysis §A4–A6/§D1
+ * (SVG ground truth; corrections applied — card r6 NOT r8, flat #371F06 fill
+ * NOT gradient, thumb #AB6314 8×24 rx4):
+ *   "Audio - Compressor Settings.svg"   collapsed 360×48 rx6 #090909 ·
+ *   "Audio - Spatializer Settings.svg"  expanded 360×H rx6 #1B1B1B, 59px
+ *   "Audio - Stereo Widener.svg"        header, rows pitch 76, plain values,
+ *                                       slider track 328×16 rx6 #090909,
+ *                                       fill 12px rx4 flat #371F06 inset 2,
+ *                                       thumb 8×24 rx4 #AB6314, degree ticks
+ *                                       6px #1A1611 sw2.
+ * Semantic tokens only (stylelint + eslint enforce); the frame hexes above
+ * live in comments. Raw px below are structural dimensions pinned by the
+ * design exports (no token exists — slider.css states.md precedent). */
+
+/* ------------------------------------------------------------------ card */
+
+.dynamics-tool {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family: var(--font-family-sans);
+}
+
+/* Collapsed card: the 360×48 rx6 #090909 pill IS the toggle (frame: card
+ * rect fill #090909 = surface on the transparent canvas). */
+.dynamics-tool__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--space-inset) * 2);
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px; /* frame: 360×48 collapsed card */
+  padding: 0 17px; /* frame: label 17px inset, chevron ~17px from the edge */
+  font-family: inherit;
+
+  /* frame: toggle labels measure ≈14px #6B6B6B (medium per W25 spec §2) */
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-tertiary);
+  background: var(--color-surface);
+  border: none;
+
+  /* frame: card rx6 (analysis correction 1 — r6, not r8) */
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+/* Expanded card: ONE #1B1B1B surface carries header + rows (frame: the
+ * expanded rect includes the 59px header; not a bar-above-card split).
+ * Nearest token: surface-panel #191919 (Δ2/255 from the frame's #1B1B1B). */
+.dynamics-tool--open {
+  background: var(--color-surface-panel);
+  border-radius: var(--radius-control);
+}
+
+/* The toggle becomes the 59px header row inside the expanded card. */
+.dynamics-tool--open .dynamics-tool__toggle {
+  height: 59px; /* frame: header block = card top → row 1 (59px) */
+  background: transparent;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+}
+
+/* Hover band (frames carry no hover; the house hover grammar — a19 B14). */
+.dynamics-tool__toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-secondary);
+}
+
+.dynamics-tool__toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Chevron direction encodes the state (frame: › collapsed / ∨ expanded —
+ * Vector 27 family via the shared Icon glyph). Frame ink #6B6B6B. */
+.dynamics-tool__chevron {
+  color: var(--color-content-tertiary);
+}
+
+/* Expanded body: rows + staged note, 16px side insets (frame: content x36 on
+ * the x20 card), 20px bottom pad (frame: last-row block + 20). */
+.dynamics-tool__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 calc(var(--space-inset) * 2) 20px;
+}
+
+.dynamics-tool__body[hidden] {
+  display: none; /* flex + hidden must not fight (display:none wins) */
+}
+
+.dynamics-tool__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Staged note — the honest-unbound marker (effects-area pattern): quiet
+ * caption line, never styled like an engine status. */
+.dynamics-tool__staged {
+  margin: calc(var(--space-inset) * 2) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* ------------------------------------------------------------------ rows */
+
+/* Frame row pitch 76 = 18 (label/value line) + 10 (gap) + 24 (slider band)
+ * + 24 (gap to next row). The 18px line box needs an explicit line-height —
+ * the base sheet's 1.4 ratio inflates 15px text to 21px and the pitch to 86. */
+.dynamics-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.dynamics-row + .dynamics-row {
+  margin-top: 24px;
+}
+
+.dynamics-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  min-height: 18px;
+  line-height: 18px; /* frame: 76px row pitch (see block comment above) */
+}
+
+/* Frame: label + plain value both #6B6B6B ≈15px (analysis: these three
+ * frames are the PLAIN-value family — no chip, value ink = label ink). */
+.dynamics-row__label {
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary);
+}
+
+.dynamics-row__value {
+  font-family: var(--font-family-time);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary);
+}
+
+.dynamics-row__slider {
+  position: relative;
+  display: flex; /* kills the inline-block baseline gap under the Slider
+                  * (24px band, not 24+line-box descender — frame pitch 76) */
+  margin-top: 10px;
+}
+
+/* ---------------------------------------------------------------- slider */
+
+/* The tool-slider scope on the standard Slider primitive: track 328×16 rx6
+ * (full row width at the frame's 360px card), flat tinted fill 12px rx4
+ * inset 2, thumb 8×24 rx4 accent-strong — the frames' measured grammar. */
+.dynamics-slider {
+  position: relative;
+  z-index: 1; /* slider paints above the tick overlay… */
+  width: 100%;
+  height: 24px; /* hit area: 16px track + the 24px thumb */
+}
+
+.dynamics-slider .lumen-slider__track {
+  top: calc(50% - 8px); /* 16px track centered in the 24px hit band */
+  height: 16px; /* frame: 328×16 */
+  background: var(--color-surface); /* frame well #090909 on the #1B1B1B card */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.dynamics-slider .lumen-slider__fill {
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame: flat #371F06 (not a gradient) */
+  border-radius: var(--radius-inset); /* frame: 12px fill rx4 */
+}
+
+.dynamics-slider .lumen-slider__thumb {
+  top: calc(50% - 12px); /* 24px thumb centered on the track centerline */
+  width: 8px; /* frame: 8×24 */
+  height: 24px;
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+/* ------------------------------------------------------------------ ticks */
+
+/* Degree ticks (spatializer + widener frames): 6px marks on the track
+ * centerline, drawn OVER the fill with the thumb over its own tick (frame
+ * z-order) — hence z-index above the slider, with the covered tick hidden
+ * by ToolSliderRow. Tick ink: frame #1A1611 has no token yet (analysis §D4
+ * ask) — nearest semantic surface-muted #151515, Δ≤5/255 per channel. */
+.dynamics-slider__ticks {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.dynamics-slider__tick {
+  position: absolute;
+  top: calc(50% - 3px); /* 6px mark centered on the track centerline */
+  width: 2px; /* frame: 6px line, sw2, round caps */
+  height: 6px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-hairline); /* round-cap pill on a 2×6 mark */
+}
+
+.dynamics-slider__tick--covered {
+  visibility: hidden; /* under the thumb — the frame's topmost paint */
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .dynamics-tool__toggle {
+    transition: none;
+  }
+}

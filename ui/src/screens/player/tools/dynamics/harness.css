@@ -1,0 +1,45 @@
+/* w26.c2 — DEV-ONLY vision harness styles (harness.tsx; never imported by
+ * app routes). Reproduces the frames' presentation: a 400px cell per tool
+ * with 20px gutters (cards land at 360px wide — the frames' card width, so
+ * the slider rows measure 328px exactly), on the app's dark surface. */
+
+.w26c2-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 40px;
+
+  /* Canvas between the app surface (#090909) and panel (#191919) so BOTH
+   * card states stay evaluable: the collapsed pill's #090909 fill reads as
+   * the recessed control it is, and the expanded #1B1B1B card stays visible.
+   * (On the plain surface the pill vanishes — same token, by design; the
+   * real hosts are the tools-dialog / settings panels.) */
+  background: var(--color-surface-deep);
+  font-family: var(--font-family-sans);
+}
+
+.w26c2-cell {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 400px;
+}
+
+.w26c2-caption {
+  margin: 0 0 8px;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* The frame canvas: 400px wide, 20px padding — collapsed and expanded cards
+ * stacked with the frames' 20px state gap. */
+.w26c2-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+  width: 400px;
+  padding: 20px;
+}

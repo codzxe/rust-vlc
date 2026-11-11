@@ -1,0 +1,48 @@
+/* w26.c4 — DEV-ONLY vision harness styles (harness.tsx; never imported by
+ * app routes). Reproduces the frames' presentation: a 400px canvas per card
+ * tool (20px insets — cards land at the frames' 360px) and a 406px canvas
+ * for the HDR dropdown (22px insets — 362px trigger), so screenshots compare
+ * 1:1 against the 900px figma renders at a 2.25 device scale. Not part of
+ * the product CSS. */
+
+/* The standalone export has no app shell — kill the UA body margin so the
+ * canvas is the full scroll width. */
+body {
+  margin: 0;
+}
+
+.w26c4-stage {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 400px; /* frame canvas width (Video - *.svg) */
+  padding: 20px; /* frame card inset */
+  background: var(--color-surface-deep); /* canvas between surface and panel
+   * so BOTH card states stay evaluable (the w26.c2 harness finding: on the
+   * plain #090909 surface the collapsed pill vanishes — same token, by
+   * design; the real hosts are the tools-dialog / settings panels) */
+  font-family: var(--font-family-sans);
+}
+
+.w26c4-stage--hdr {
+  width: 406px; /* HDR Options.svg canvas width */
+  padding: 22px; /* frame trigger inset */
+}
+
+.w26c4-caption {
+  margin: 0 0 8px;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.w26c4-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* frame: collapsed card bottom → expanded card top */
+}
+
+.w26c4-hdr-open {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px; /* room for the open list (frame: 278px list + note) */
+}

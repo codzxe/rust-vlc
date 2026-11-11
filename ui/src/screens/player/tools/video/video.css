@@ -1,0 +1,282 @@
+/* w26.c4 — video tools (Colors / Crop / Essential / HDR).
+ * Design provenance: the four tool frames + the w26.a20 analysis §B1–B4/§D1
+ * (SVG ground truth; corrections applied — card r6 NOT r8, flat #371F06 fill
+ * NOT gradient, thumb #AB6314 8×24 rx4):
+ *   "Video - Colors.svg"     collapsed 360×48 rx6 #090909 · expanded 360×755
+ *                           rx6 #1B1B1B, 59px header · hex input 116×32 rx6
+ *                           #090909 + 22×22 rx2 swatch + 68×32 toggle ·
+ *                           separators 1px #222222 full card width ·
+ *                           sub-dropdown 328×48 rx6 #0E0E0E
+ *   "Video - Crop.svg"      expanded 360×152 · input pairs 141×33 rx6 #090909
+ *                           @ 49px pitch, 8px gutter · link icon 20×10 sw1.5
+ *                           #8F8F8F 21px from the card's right edge
+ *   "Video - Essential.svg" 8 label-only slider rows @ 76px pitch
+ *   "HDR Options.svg"       dropdown 362×48 trigger + 6×44px rows (the shared
+ *                           components/menu Dropdown grammar)
+ * The card shell (collapsed pill / expanded panel / header / staged note) is
+ * NOT re-declared here: it is the w26.c2 dynamics grammar, imported from
+ * ../dynamics/dynamics.css (VideoCard composes the same classes).
+ * Semantic tokens only (stylelint + eslint enforce); the frame hexes above
+ * live in comments. Raw px below is structural geometry pinned by the design
+ * exports (no token exists — the dynamics.css precedent). */
+
+/* ------------------------------------------------------------- slider rows */
+
+/* The video frames' slider rows are LABEL-ONLY — "Video - Colors.svg"
+ * (Saturation/Similarity/Sepia) and "Video - Essential.svg" (all 8 rows)
+ * carry no value column (SVG: no value glyphs; vision-confirmed). The reused
+ * dynamics row keeps its value span for the DOM contract, hidden here; the
+ * slider's aria-valuetext still reports every value. */
+.video-tool .dynamics-row__value {
+  display: none;
+}
+
+/* --------------------------------------------------------- line rows (Colors) */
+
+/* Hex+swatch+toggle rows and plain toggle rows: one 32px control band, label
+ * left (#6B6B6B ≈15px — the shared .dynamics-row__label grammar via
+ * .video-row__label), control group right. */
+.video-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  min-height: 32px; /* frame: 32px control band */
+}
+
+.video-row + .video-row {
+  margin-top: 15px; /* frame: Color→Cartoon pitch 47 (32+15) */
+}
+
+.video-row__label {
+  overflow: hidden; /* sub-frame hosts ellipsize instead of spilling */
+  font-size: var(--font-size-section); /* frame: #6B6B6B ≈15px */
+  color: var(--color-content-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-row__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The slider rows that follow line rows pick up the frames' ≈12px seam
+ * (Color Threshold → Saturation); the shared 24px slider-to-slider rhythm
+ * covers the rest. */
+.video-tool .video-row + .dynamics-row {
+  margin-top: 12px;
+}
+
+/* Hex field: 116×32 rx6 recessed well, "#RRGGBB" #6B6B6B ≈15px at a 12px
+ * inset, with the 22×22 swatch 5px inside the field's right edge. */
+.video-hex {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 116px; /* frame: Video - Colors.svg */
+  height: 32px; /* frame: 32px */
+}
+
+.video-hex__input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0 32px 0 12px; /* frame: 12.2px text inset; swatch clearance right */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  line-height: 1;
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  background: var(--color-surface); /* frame: #090909 on the #1B1B1B card */
+  border: none;
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.video-hex__input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Color swatch: 22×22 rx2 (frame rx2 — nearest token, radius-hairline) with
+ * the frame's white@21% 1.5 inner stroke (inset 0.75). */
+.video-hex__swatch {
+  position: absolute;
+  top: 5px; /* frame: swatch @ (261,147) in the (172,142,116×32) field */
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-hairline); /* frame: rx2 */
+  box-shadow: inset 0 0 0 0.75px
+    color-mix(in srgb, var(--color-content-bright) 21%, transparent);
+}
+
+/* Separators: the frames' sectioning device inside tool cards — 1px #222222
+ * (token-exact: surface-raised) across the FULL card width, edge to edge. */
+.video-sep {
+  height: 1px;
+  margin: 13px calc(var(--space-inset) * -2); /* bleed out to the card edges */
+  background: var(--color-surface-raised); /* frame: #222222 */
+}
+
+.video-tool .dynamics-row + .video-sep {
+  margin-top: 16px; /* frame: Similarity slider end → separator @ y414 */
+}
+
+.video-tool .video-sep + .dynamics-row {
+  margin-top: 14px; /* frame: separator @ y747 → Sepia label */
+}
+
+/* Gradient sub-dropdown: 328×48 (full row width), the shared Dropdown
+ * primitive (a19 A9 grammar — trigger #0E0E0E well, chevron-down, r6 list).
+ * The frame's label ink is #6B6B6B (row-label ink), one step quieter than
+ * the primitive's #8F8F8F trigger default. */
+.video-subdropdown {
+  margin-top: 15px; /* frame: Gradient toggle row → dropdown @ y590 */
+}
+
+.video-tool .video-subdropdown + .video-row {
+  margin-top: 15px; /* frame: dropdown end → Color row @ y653 */
+}
+
+.video-subdropdown .lumen-dropdown {
+  display: flex;
+  width: 100%;
+}
+
+.video-subdropdown .lumen-dropdown__value {
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+}
+
+/* ------------------------------------------------------------------ crop */
+
+/* One crop pair row: input + input + link toggle. Frame pitch 49 = 33px
+ * inputs + a 16px seam; 8px gutter between the pair. */
+.video-crop-row {
+  display: flex;
+  align-items: center;
+}
+
+.video-crop-row + .video-crop-row {
+  margin-top: 16px; /* frame: 49px row pitch */
+}
+
+.video-crop-input {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 1 141px; /* frame: 141px — shrinks gracefully on sub-frame hosts */
+  min-width: 124px;
+  height: 33px; /* frame: 33px */
+  padding-left: 13px; /* frame: label 12.7px inset */
+  overflow: hidden;
+  background: var(--color-surface); /* frame: #090909 */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.video-crop-input + .video-crop-input {
+  margin-left: 8px; /* frame: gutter x177→x185 */
+}
+
+.video-crop-input__label {
+  overflow: hidden;
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Value + unit group, ending 41px from the input's right edge (frame). */
+.video-crop-input__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-left: auto;
+  padding-right: 41px; /* frame: reserved trailing area */
+}
+
+.video-crop-input__control {
+  width: 3ch;
+  font-family: var(--font-family-time);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-section);
+  line-height: 1;
+  color: var(--color-content-secondary); /* frame value: #8F8F8F */
+  text-align: right;
+  background: transparent;
+  border: none;
+}
+
+.video-crop-input__control:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.video-crop-input__unit {
+  font-size: var(--font-size-section);
+  color: var(--color-stroke-border); /* frame unit: #404040 (token-exact) */
+}
+
+/* Link toggle (chain = pair locked): the frame's 20×10 glyph 21px from the
+ * card's right edge, on a ≥32px hit area. Linked ink #8F8F8F (frame);
+ * unlinked dims to the quiet label ink. */
+.video-crop-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.video-crop-link:hover {
+  background: var(--color-surface-hover);
+}
+
+.video-crop-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.video-crop-link[aria-pressed="false"] {
+  color: var(--color-content-tertiary);
+  opacity: var(--opacity-emphasis); /* unlocked pair reads dimmed */
+}
+
+/* ------------------------------------------------------------------ hdr */
+
+/* The HDR frame is a bare dropdown (no card): full-width trigger, the staged
+ * note under it in the shared staged-note styling. */
+.video-hdr {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family: var(--font-family-sans);
+}
+
+.video-hdr .lumen-dropdown {
+  display: flex;
+  width: 100%;
+}
+
+.video-hdr__staged {
+  margin: calc(var(--space-inset) * 2) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .video-crop-link {
+    transition: none;
+  }
+}

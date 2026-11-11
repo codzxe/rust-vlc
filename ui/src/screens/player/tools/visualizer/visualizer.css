@@ -1,0 +1,392 @@
+/* visualizer.css (w26.c3) — the visualizer tool, measured from
+ * design/figma/"Audio Visualizer.svg" (w26.a20 §A7 — the mode dropdown)
+ * composed into the shared tool-card grammar (§D1, the w26.c1/w26.c2
+ * siblings):
+ *
+ *   * card — collapsed 360×48 rx6 #090909 / expanded rx6 #1B1B1B (one
+ *     morphing surface; 59px header block carries "Collapse Settings");
+ *   * selector — the a19 A9 Dropdown grammar the A7 frame reuses verbatim:
+ *     trigger 362×48 rx6 #090909 + inner 358×44 rx4 #191919 (2px ring),
+ *     label #8F8F8F ≈15px, chevron-∨ 10×5 sw1.5; open list rx6 #191919 +
+ *     shadow 0/+4 σ6.9, 2px inset, rows 358×44 rx4 @ 46 pitch, selected
+ *     #1F1F1F + check 14×11 sw2 #D37918, two-tone 20px icons @ 16px;
+ *   * display — the levels bar area: 3px round-capped pills (2× the
+ *     frame's 1.5-stroke icon bars) spread across a #090909 well; live
+ *     Spectrum bars cycle the eq token group, other modes keep the frame's
+ *     two-tone (#8F8F8F/#AB6314) alternation; peak dots accent-strong.
+ *
+ * Semantic tokens only (stylelint + eslint enforce); the frame hexes above
+ * live in comments. Raw px below are frame-measured structural dimensions
+ * with no token (row pitch, 2px insets, r4 rows, the 64px display well —
+ * each cited; the well height carries no frame measure [VERIFY]). */
+
+/* ------------------------------------------------------------------ card */
+
+.viz-tool {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family: var(--font-family-sans);
+
+  /* frame: collapsed card 360×48 rx6 #090909 (tool-card family, a20 §D1) */
+  background: var(--color-surface);
+  border-radius: var(--radius-control); /* frame: rx6 — cards r6, NOT r8 */
+  transition: background-color var(--motion-duration-fast) ease-out;
+}
+
+/* frame: expanded card rx6 #1B1B1B — nearest token surface-panel (#191919,
+ * Δ2/255; the a18/c1/c2 logs record the same mapping). */
+.viz-tool--open {
+  background: var(--color-surface-panel);
+}
+
+/* The toggle = the card's header row (48px collapsed / 59px expanded header
+ * block). Transparent: the card owns the fill so the morph reads as one
+ * card, per the frames (the c1/c2 pattern). */
+.viz-tool__toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px; /* frame: collapsed card 360×48 */
+  padding: 0 17px; /* frame: label @ 17px inset */
+  font-family: inherit;
+  font-size: var(--font-size-body); /* frame: toggle label ≈14px */
+  font-weight: var(--font-weight-medium); /* W25 spec §2: medium [VERIFY weight] */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  background: none;
+  border: none;
+  border-radius: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.viz-tool--open .viz-tool__toggle {
+  height: 59px; /* frame: expanded header block (card top → content = 59px) */
+}
+
+/* Hover band (frames carry no hover; the house hover grammar — a19 B14,
+ * the sibling eq-tool/dynamics-tool lanes' identical rule). */
+.viz-tool__toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-content-secondary);
+}
+
+.viz-tool__toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Chevron: collapsed = frame Vector 27 (5×10 chevron-›, 1.5 stroke);
+ * expanded rotates to chevron-∨ (the shared glyph at native scale). */
+.viz-tool__chevron {
+  flex: none;
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  transition: transform var(--motion-duration-fast) ease-out;
+}
+
+.viz-tool__toggle[aria-expanded="true"] .viz-tool__chevron {
+  transform: rotate(90deg);
+}
+
+/* Expanded body: display + selector + staged note, 16px side insets (the
+ * card family's content insets), 20px bottom pad. */
+.viz-tool__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 20px;
+}
+
+/* flex + hidden must not fight (display:none wins — the a18 pattern). */
+.viz-tool__body[hidden] {
+  display: none;
+}
+
+/* Staged note — the honest-unbound marker (effects-area pattern): quiet
+ * caption line, never styled like an engine status. */
+.viz-tool__staged {
+  margin: calc(var(--space-inset) * 2) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* --------------------------------------------------------------- display */
+
+/* The levels well: a #090909 recessed band (the slider-track field grammar
+ * on the #1B1B1B card). Height is a house choice — the frame measures only
+ * the 20px icon grammar [VERIFY display scale with Lead]. */
+.viz-display {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 64px; /* structural — no frame measure [VERIFY] */
+  margin: 0 0 calc(var(--space-inset) * 2);
+  padding: 8px 16px; /* 48px inner band, 16px side insets */
+  background: var(--color-surface); /* frame field grammar: #090909 well */
+  border-radius: var(--radius-control); /* r6 control radius */
+  overflow: hidden;
+}
+
+/* Bar row: one slot per level, spread across the well (bottom-aligned;
+ * Waveform centers on the midline — data-align switches it). */
+.viz-display__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+
+.viz-display__slot {
+  position: relative; /* anchors the peak dot */
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.viz-display__bars[data-align="center"] {
+  align-items: center;
+}
+
+.viz-display__bars[data-align="center"] .viz-display__slot {
+  align-items: center;
+  justify-content: center;
+}
+
+/* One bar: 3px round-capped pill — the frame's 1.5-stroke round-capped
+ * icon bar at 2× display scale (width + radius). */
+.viz-display__bar {
+  flex: none;
+  border-radius: 1.5px; /* pill = the frame's round stroke caps, scaled */
+}
+
+/* The frame's two-tone alternation (scope gray-first / waveform
+ * accent-first — frame #8F8F8F / #AB6314). */
+.viz-display__bar[data-tone="gray"] {
+  background: var(--color-content-secondary); /* frame: #8F8F8F */
+}
+
+.viz-display__bar[data-tone="accent"] {
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+}
+
+/* Live spectrum bars cycle the eq token group — the W25 "equalizer
+ * band/level accents" (mission pin: colors from the eq/accent groups). */
+.viz-display__bar[data-accent="1"] { background: var(--color-eq-1); }
+.viz-display__bar[data-accent="2"] { background: var(--color-eq-2); }
+.viz-display__bar[data-accent="3"] { background: var(--color-eq-3); }
+.viz-display__bar[data-accent="4"] { background: var(--color-eq-4); }
+.viz-display__bar[data-accent="5"] { background: var(--color-eq-5); }
+.viz-display__bar[data-accent="6"] { background: var(--color-eq-6); }
+.viz-display__bar[data-accent="7"] { background: var(--color-eq-7); }
+
+/* Spectrum's peak dot — the frame's accent dots floating above each bar
+ * top (Vector 91–97, stroke #AB6314). */
+.viz-display__peak {
+  position: absolute;
+  left: calc(50% - 1.5px);
+  width: 3px; /* frame dot Ø1.5 × 2 display scale */
+  height: 3px;
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: 50%;
+}
+
+/* The spectrometer dial (svg) centers in the well. */
+.viz-display__dial {
+  flex: none;
+}
+
+/* The two-tone icon inks (ModeIcons + the dial — frame #8F8F8F / #AB6314,
+ * semantic so the icons theme-correctly in light mode / accent variants). */
+.viz-tone-gray {
+  stroke: var(--color-content-secondary); /* frame: #8F8F8F */
+}
+
+.viz-tone-accent {
+  stroke: var(--color-accent-strong); /* frame: #AB6314 */
+}
+
+/* --------------------------------------------------------------- selector */
+
+.viz-select {
+  position: relative; /* anchors the open list */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Trigger: frame state=default — 362×48 rx6 #090909 outer pill; the 2px
+ * padding carries the inner 358×44 rx4 #191919 field (the A7/A3 grammar). */
+.viz-select__trigger {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px; /* frame: trigger 362×48 */
+  padding: 2px; /* frame: inner field inset 2 */
+  font-family: inherit;
+  background: var(--color-surface); /* frame: #090909 */
+  border: none;
+  border-radius: var(--radius-control); /* frame: rx6 */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease-out;
+}
+
+.viz-select__trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The inner field: 358×44 rx4 #191919 — label 15px in, chevron 21px in
+ * (frame: label x39.2, chevron x351–361 on the x24/x382 field). */
+.viz-select__field {
+  display: flex;
+  align-items: center;
+  gap: 13px; /* frame: icon right x61 → label x72.8 (≈12.8px) */
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 21px 0 15px;
+  background: var(--color-surface-panel); /* frame: #191919 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: background-color var(--motion-duration-fast) ease-out;
+}
+
+/* House hover on the whole trigger (frames carry no hover — a19 B14). */
+.viz-select__trigger:hover .viz-select__field {
+  background: var(--color-surface-hover);
+}
+
+.viz-select__selected-icon {
+  flex: none;
+  margin-left: 1px; /* frame: icon x40 = 16px into the field (15 + 1) */
+}
+
+.viz-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-section); /* frame: ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+
+  /* Buttons center their inherited text (UA default) — the frame's label
+   * is flush-left at x39.2 (probe-verified before this rule). */
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chevron-∨ 10×5 sw1.5 #8F8F8F (frame Vector 27 family at native scale);
+ * flips to ∧ while open (the a19 open-trigger grammar). The shared glyph
+ * centers in its 24px box — the −7px pull lands the stroke at the frame's
+ * x351–361 (glyph inset 7px right of the box edge). */
+.viz-select__chevron {
+  flex: none;
+  margin-right: -7px; /* frame: chevron flush to x361 (probe-verified) */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  transition: transform var(--motion-duration-fast) ease-out;
+}
+
+.viz-select__trigger[aria-expanded="true"] .viz-select__chevron {
+  transform: rotate(180deg);
+}
+
+/* Open list: rx6 #191919 + the frame's drop shadow, 2px inset, rows at 46
+ * pitch (44 + 2px gaps). The trigger stays put and the list drops below —
+ * the a19 Dropdown primitive's anchoring (the frames document the two
+ * states separately; c1 shipped the same reading for EQ presets). */
+.viz-select__list {
+  position: absolute;
+  top: calc(100% + var(--space-grid));
+  left: 0;
+  z-index: 10; /* overlays card content below — structural */
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* frame: row pitch 46 = 44 + 2 */
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px; /* frame: list inset 2 (rows 358 in the 362 list) */
+  background: var(--color-surface-panel); /* frame: #191919 */
+  border-radius: var(--radius-control); /* frame: rx6 */
+  box-shadow: var(--shadow-overlay); /* frame: 0/+4 σ6.9 */
+}
+
+/* Option row: 358×44 rx4 — icon 20px @ 16px, label ≈15px #8F8F8F, check
+ * 19px from the right edge (frame: x349–363 on the x382 row). */
+.viz-select__option {
+  display: flex;
+  align-items: center;
+  gap: 13px; /* frame: icon → label ≈12.8px */
+  box-sizing: border-box;
+  min-height: 44px; /* frame: rows 44 tall */
+  padding: 0 19px 0 16px; /* frame: icon x40, check right inset 19 */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section); /* frame: labels ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F (selected too) */
+  cursor: pointer;
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.viz-select__icon {
+  flex: none;
+}
+
+.viz-select__option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-select__option:hover {
+  background: var(--color-surface-hover); /* house hover grammar */
+  color: var(--color-content-bright);
+}
+
+/* The roving-focus option reads as active (the primitive's model). */
+.viz-select__option:focus {
+  background: var(--color-surface-selected);
+}
+
+.viz-select__option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Selected row: #1F1F1F band + the orange check (frame Vector 44,
+ * 14×11 sw2 #D37918). Label keeps its frame ink #8F8F8F. */
+.viz-select__option[aria-selected="true"] {
+  background: var(--color-surface-selected); /* frame: #1F1F1F */
+}
+
+.viz-select__check {
+  flex: none;
+  margin-left: auto;
+  margin-right: -5px; /* frame: check stroke flush to x363 (glyph inset 5) */
+  color: var(--color-accent); /* frame: #D37918 */
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .viz-tool,
+  .viz-tool__toggle,
+  .viz-tool__chevron,
+  .viz-select__trigger,
+  .viz-select__field,
+  .viz-select__chevron,
+  .viz-select__option {
+    transition: none;
+  }
+}

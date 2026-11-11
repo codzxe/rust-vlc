@@ -1,0 +1,54 @@
+/* w26.c3 — DEV-ONLY vision harness styles (harness.tsx; never imported by
+ * app routes). Reproduces the "Audio Visualizer.svg" canvas: 406px wide,
+ * 22px side gutters (the selector lands at its exact 362px frame width),
+ * on the app's recessed surface so BOTH the #090909 trigger pill and the
+ * #191919 list/panel stay evaluable (the c2 stage precedent). */
+
+body {
+  margin: 0; /* the standalone export has no app shell — kill UA margin */
+}
+
+.w26c3-stage {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 406px; /* frame: Audio Visualizer.svg canvas width */
+  padding: 22px; /* frame: states at y22/y90, selector x22–384 gutters */
+  background: var(--color-surface-deep); /* both trigger + list evaluable */
+  font-family: var(--font-family-sans);
+}
+
+.w26c3-caption {
+  margin: 0 0 8px;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+.w26c3-cell {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+/* The frame's two states: closed trigger, 20px gap, open dropdown. */
+.w26c3-cell > .viz-select {
+  width: 362px; /* frame: selector 362 wide */
+}
+
+/* Room for the open list below the second trigger (48 + 4 + 232 + 4). */
+.w26c3-frame-open {
+  min-height: 288px;
+}
+
+.w26c3-cell > .viz-select + .w26c3-frame-open {
+  margin-top: 20px; /* frame: state gap y70 → y90 */
+}
+
+/* The tool-card states stack at the tool family's 360px card width. */
+.w26c3-cell > .viz-tool {
+  width: 360px; /* tool-card family width (a20 §D1) */
+}
+
+.w26c3-cell > .viz-tool + .viz-tool {
+  margin-top: 20px;
+}
