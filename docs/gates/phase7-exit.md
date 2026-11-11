@@ -7,20 +7,24 @@
 
 ## 1. Verdict
 
-**NOT PASSED at `c339ee8` — 5 open findings (OF-1…OF-5), all with single-commit
-root causes in already-merged wave-23 commits, all with identified owners and
-bounded fixes.** 18 of 22 battery checks green (§2). The per-card substance of
+**NOT PASSED at `c339ee8` — 5 open findings (OF-1…OF-5), all with identified
+owners and bounded fixes; four have single-commit root causes in
+already-merged wave-23 commits, while OF-4's root cause is environmental
+(test-infra root discovery under the shared target dir — §3 OF-4).** 18 of 22
+battery checks green (§2). The per-card substance of
 Phase 7 (§4) is in-tree and tested: platform adapters, hw-decode lanes with
 honest compile/runtime labels, hotplug+discovery, recording/remux, crash
 isolation + example extensions, web pillars, control server first-pass
 security — with the browser matrix (#49) honestly in-flight on `w24/a`.
 
 Per repo law this is a **valid gate outcome**: failures are recorded, not
-papered over. Recommended closure path: land lane A's
-in-flight fixes (OF-1 `w24/a` `70ed69c`; OF-3 regeneration `w24/a`
-`771259c`), apply the OF-2 pin bumps, correct the OF-5 matrix note, then
-re-run the §8 battery at wave-24 merge. No finding
-requires design work.
+papered over. Recommended closure path (updated by W24-V's §3 fix-lane
+addendum): OF-2/OF-3/OF-4/OF-5 are already **landed on `w24/g`**
+(`1c48902`/`64757b1`/`ba9659f`/`de9b341`; independently verified by review
+W24-R5 — §3 addendum), and OF-1's fix sits on lane A (`w24/a` `70ed69c`) —
+the Lead's remaining step is to merge those lanes (`g` re-carries OF-3's
+regeneration byte-identically to lane A's `771259c`) and re-run the §8
+battery at wave-24 merge. No finding requires design work.
 
 ## 2. Gate battery — evidence ledger
 
@@ -103,6 +107,9 @@ only) without altering any recorded body (review W24-R3 P2-1).
 * **Owner/next step:** not owned by any wave-24 lane (settings-schema crate);
   2-line pin bumps ×3 by the Lead or a granted lane. These pins exist to force
   conscious updates — the failure is the mechanism working as designed.
+* **Post-report status (W24-V):** fixed on `w24/g` `1c48902` — pins *derived*
+  from the seed + a cross-artifact shape guard, stronger than the bumps
+  proposed above; see the fix-lane addendum below.
 
 ### OF-3 — UI generated settings schema stale vs seed [P1, generated artifact]
 
@@ -120,6 +127,9 @@ only) without altering any recorded body (review W24-R3 P2-1).
   (regenerates `ui/src/screens/settings/generated/schema.ts`, +105 lines).
   Lead re-verifies at wave merge, alongside OF-1's `70ed69c` on the same
   branch.
+* **Post-report status (W24-V):** also fixed on `w24/g` `64757b1` — artifact
+  byte-identical to lane A's `771259c` output (one artifact, two lanes); see
+  the fix-lane addendum below.
 
 ### OF-4 — rebrand reverse-control test breaks under the shared target dir [P2, test infra]
 
@@ -141,6 +151,8 @@ only) without altering any recorded body (review W24-R3 P2-1).
 * **Owner/next step:** Lead (test infra). Proposed fix: derive the root from
   `env!("CARGO_MANIFEST_DIR")` (compile-time, worktree-correct) or pass an
   explicit `--root`. Recorded as `[PROPOSAL]`.
+* **Post-report status (W24-V):** the `[PROPOSAL]`'s first option is
+  implemented on `w24/g` `ba9659f`; see the fix-lane addendum below.
 
 ### OF-5 — feature-matrix H.264 note over-claims the Media Foundation lane [P1, honesty]
 
@@ -164,12 +176,45 @@ only) without altering any recorded body (review W24-R3 P2-1).
   note to "VT + VA-API lanes landed (MF retracted — not implemented)".
   The module-level truth table (`hw/mod.rs`) is the authoritative honest
   statement and is what §4 7.B cites.
+* **Post-report status (W24-V):** note corrected on `w24/g` `de9b341`,
+  exactly as prescribed here; see the fix-lane addendum below.
 
 **Minor (recorded, no action demanded):** `crates/codecs/src/video/hevc/hw.rs:7`
 numbers the 7.B lanes (7.B1 VA-API, 7.B2 VT, 7.B3 MF) differently from doc 13
 §10 (7.B1 VT, 7.B2 MF, 7.B3 VA-API). Cosmetic labeling drift only; the HEVC
 module is otherwise explicit that its adapters are "*not built here*" and its
 matrix row claims nothing false.
+
+### Fix-lane addendum (W24-V, 2026-11-11) — OF-2/3/4/5 landed on `w24/g`
+
+Added per review W24-R12 P2-1 (docs-only; no evidence above altered). The
+§3 owner rows are the report-time snapshot (2026-11-10 17:16Z) and are
+superseded where they conflict with this block: fix lane `w24/g` (off
+`c339ee8`; tip `8121cbf` == `origin/w24/g`) landed the four non-lane-A
+fixes at 17:56–18:00Z — **before** the W24-K (21:52Z) and W24-S (23:42Z)
+edits to this report:
+
+* **OF-2** `1c48902` — seed-count pins now *derived* from
+  `schemas/settings.toml` + a cross-artifact shape guard (strictly stronger
+  than the "2-line pin bumps ×3" proposed above).
+* **OF-3** `64757b1` — regenerates `ui/src/screens/settings/generated/schema.ts`
+  (+105); byte-identical to lane A's `771259c` output (one artifact, two
+  lanes).
+* **OF-4** `ba9659f` — implements OF-4's `[PROPOSAL]` (proof rooted in the
+  compiling worktree, not the binary's location).
+* **OF-5** `de9b341` — lands exactly the OF-5 note correction (MF retracted).
+
+Independently verified by review **W24-R5** (`docs/reviews/w24-g-fixes-findings.md`
+on `origin/w24/r5`): all four previously-failing suites re-run green
+(settings-schema lib 43/0, integration 8/0, lumen-cli lib 125/0, xtask cli
+12/0 + 3 ignored), `npm run settings:check` green, fmt/clippy clean, **no test
+weakened** ("ALL FOUR IN-SCOPE FINDINGS FIXED PROPERLY"). Review **W24-R9**'s
+integration audit (`docs/reviews/w24-integration-findings.md` on `w24/r9`)
+confirms `w24/g` merged into rehearsal snapshot `286bacd` (17 merges incl.
+`g`), lane G's OF-5 retraction present verbatim, merged feature-matrix diff
+decomposing exactly into lanes D + G (zero overlap). OF-1 remains lane A's
+fix (`w24/a` `70ed69c`, local-only — W24-R12 P3-3). Remaining closure work:
+the Lead merges lane A + `w24/g` and re-runs the §8 battery.
 
 ## 4. Per-card Phase-7 verification (cards → issues → evidence)
 
