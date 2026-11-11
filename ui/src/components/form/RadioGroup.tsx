@@ -74,7 +74,13 @@ export function RadioGroup({
           return (
             <span
               key={option.value}
-              className={["lumen-choice", option.disabled && "lumen-choice--disabled"].filter(Boolean).join(" ")}
+              className={[
+                "lumen-choice",
+                "lumen-choice--radio", /* Values-1.svg row grammar (form.css) */
+                option.disabled && "lumen-choice--disabled",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             >
               <input
                 type="radio"

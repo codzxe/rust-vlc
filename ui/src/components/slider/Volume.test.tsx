@@ -33,11 +33,11 @@ const pinRect = (el: Element, width: number, height: number): void => {
   } as DOMRect);
 };
 
-describe("VolumeSlider (doc 08 §1.5 volume.svg: vertical, stroke-based)", () => {
-  it("exposes vertical slider ARIA over the 0…1 volume range with percent text", () => {
+describe("VolumeSlider (w26.a04: volume.svg — compact horizontal, level fill)", () => {
+  it("exposes horizontal slider ARIA over the 0…1 volume range with percent text", () => {
     render(<VolumeSlider value={0.5} aria-label="Volume" />);
     const slider = screen.getByRole("slider");
-    expect(slider).toHaveAttribute("aria-orientation", "vertical");
+    expect(slider).toHaveAttribute("aria-orientation", "horizontal");
     expect(slider).toHaveAttribute("aria-valuemin", "0");
     expect(slider).toHaveAttribute("aria-valuemax", "1");
     expect(slider).toHaveAttribute("aria-valuenow", "0.5");
@@ -45,7 +45,7 @@ describe("VolumeSlider (doc 08 §1.5 volume.svg: vertical, stroke-based)", () =>
     expect(slider).toHaveAttribute("aria-label", "Volume");
   });
 
-  it("keyboard: ArrowUp raises volume in 0.01 steps, live before commit", () => {
+  it("keyboard: ArrowUp/Right raise volume in 0.01 steps, live before commit", () => {
     const order: string[] = [];
     render(
       <StatefulVolume
@@ -56,9 +56,10 @@ describe("VolumeSlider (doc 08 §1.5 volume.svg: vertical, stroke-based)", () =>
     );
     const slider = screen.getByRole("slider");
     fireEvent.keyDown(slider, { key: "ArrowUp" });
-    expect(order).toEqual(["live:0.51", "commit:0.51"]);
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(order).toEqual(["live:0.51", "commit:0.51", "live:0.52", "commit:0.52"]);
     fireEvent.keyDown(slider, { key: "ArrowDown" });
-    expect(order).toEqual(["live:0.51", "commit:0.51", "live:0.5", "commit:0.5"]);
+    expect(order).toEqual(["live:0.51", "commit:0.51", "live:0.52", "commit:0.52", "live:0.51", "commit:0.51"]);
   });
 
   it("keyboard: Home mutes (0), End is full (1), clamped either way", () => {
@@ -71,21 +72,22 @@ describe("VolumeSlider (doc 08 §1.5 volume.svg: vertical, stroke-based)", () =>
     expect(onCommit).toHaveBeenLastCalledWith(1);
   });
 
-  it("pointer scrub maps bottom→0, top→1", () => {
+  it("pointer scrub maps left→0, right→1 (horizontal level axis)", () => {
     const onChangeLive = vi.fn();
     render(<VolumeSlider value={0.5} onChangeLive={onChangeLive} />);
     const slider = screen.getByRole("slider");
-    pinRect(slider, 24, 100);
-    fireEvent.pointerDown(slider, { pointerId: 1, buttons: 1, clientX: 12, clientY: 90 });
+    pinRect(slider, 100, 20);
+    fireEvent.pointerDown(slider, { pointerId: 1, buttons: 1, clientX: 10, clientY: 10 });
     expect(onChangeLive).toHaveBeenLastCalledWith(0.1);
-    fireEvent.pointerMove(slider, { pointerId: 1, buttons: 1, clientX: 12, clientY: 10 });
+    fireEvent.pointerMove(slider, { pointerId: 1, buttons: 1, clientX: 90, clientY: 10 });
     expect(onChangeLive).toHaveBeenLastCalledWith(0.9);
-    fireEvent.pointerUp(slider, { pointerId: 1, buttons: 1, clientX: 12, clientY: 10 });
+    fireEvent.pointerUp(slider, { pointerId: 1, buttons: 1, clientX: 90, clientY: 10 });
   });
 
-  it("renders the doc's vertical stroke anatomy (lumen-volume + EQ-style thumb)", () => {
+  it("renders the compact horizontal anatomy (lumen-volume + circular thumb)", () => {
     const { container } = render(<VolumeSlider value={0.25} />);
     expect(container.querySelector(".lumen-volume")).toBeInTheDocument();
+    expect(container.querySelector(".lumen-volume.lumen-slider--vertical")).not.toBeInTheDocument();
     const thumb = container.querySelector(".lumen-slider__thumb");
     expect(thumb).toBeInTheDocument();
     expect((screen.getByRole("slider") as HTMLElement).style.getPropertyValue("--lumen-slider-fill")).toBe("25");

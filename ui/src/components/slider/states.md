@@ -1,10 +1,11 @@
-# Slider family states (card 4.B2)
+# Slider family states (card 4.B2; w26.a04 restyle)
 
-Provenance: docs/08-ui-figma-fidelity.md §1.4 (anatomy), §4 (architecture),
-§4.5 (ARIA), §5.2 (truthful seek). Enforced by the colocated interaction
-tests (doc 08 §5.5, §9.2).
+Provenance: W25 figma-fidelity spec §1/§2 + measured frames (Player.svg,
+Controls.svg, EQ.svg, Audio - Equalizer.svg, volume.svg, audio value.svg);
+interaction contract doc 08 §4/§4.5/§5 (unchanged). Enforced by the
+colocated tests (Slider / Seekbar / Volume / EQSlider).
 
-## Interaction contract (all three components)
+## Interaction contract (all four components — unchanged, doc 08 §5)
 
 | Gesture / key | Fires | Renders |
 |---|---|---|
@@ -17,46 +18,59 @@ tests (doc 08 §5.5, §9.2).
 
 The component is fully controlled: after commit it renders only what the
 caller passes back via `value` — never an optimistic jump (doc 08 §5).
+Hit areas are ≥16px on the interaction axis (roots 20–24px tall/wide over
+4–14px painted tracks).
 
-## Slider
+## Anatomy (slider.css; w26.a04)
 
-| State | Visual (slider.css) | ARIA |
+| Component | Track | Fill | Thumb |
+|---|---|---|---|
+| `Slider` (base, horizontal) | 14px r7 pill, `surface-deep` | full-height pill, amber gradient `accent-tinted`→eq-fill-end, width = value | 8×20 r4 `accent-strong`, overhangs track |
+| `Slider` vertical | 14px-wide pill | bottom-anchored, gradient to-top | 20×8 r4 |
+| `EQSlider` (additive) | base pill, full width | base gradient | base handle |
+| `Seekbar` | 4px pill-ended, `surface-deep` | `accent`, pill ends, width = engine position | circular 12px `accent`, opacity 0 at rest |
+| `VolumeSlider` | 4px pill-ended, compact 96px | level fill: `--gradient-volume-level` token if present, else `accent` | circular 12px `accent`, opacity 0 at rest |
+
+Value chip (EQ rows, audio value.svg) is rendered by CONSUMERS — outside
+the slider primitive.
+
+## States
+
+| State | Visual (slider.css) | ARIA / data |
 |---|---|---|
-| rest | 16px track rx6 `surface-deep`; fill inset 2 `accent-tinted` rx4; 8×12 knob rx4 `accent` | `role=slider`, `aria-valuemin/max/now(/text)`, `aria-orientation`, `tabindex=0` |
-| vertical (`orientation="vertical"`) | 16px-wide track; fill 12 wide anchored bottom; 8×24 rx4 knob | `aria-orientation="vertical"`; ArrowUp increases |
-| focus-visible | 2px `accent` outline, 2px offset | — |
-| dragging | `data-dragging`, grabbing cursor | `aria-valuenow` tracks the preview |
+| rest | above; seekbar/volume thumbs hidden (quiet bars) | `role=slider`, `aria-valuemin/max/now(/text)`, `aria-orientation`, `tabindex=0` |
+| hover | handle → accent-strong lifted toward content-bright (color-mix; a real signal in dark, where accent-bright == accent); track well lifts one step (surface-deep ∙ surface-hover mix); seekbar/volume circular thumb fades in | — |
+| dragging (active) | `data-dragging`, grabbing cursor, handle stays `accent-bright`, thumb visible | `aria-valuenow` tracks the preview |
+| focus-visible | 2px `accent` outline, 2px offset; hidden thumbs revealed | — |
 | disabled | `--opacity-disabled`, `pointer-events:none` | `aria-disabled="true"`, `tabindex=-1`, value stays truthful |
 
-## Seekbar (doc 08 §5.2 — the truthful-seek table)
+## Seekbar truth table (doc 08 §5.2 — unchanged semantics)
 
 | Phase | Knob | Fill | ARIA / data |
 |---|---|---|---|
-| rest (engine truth) | at `value` | `--lumen-slider-fill` = `value` | `aria-valuenow` = `value`, valuetext = formatted time |
+| rest (engine truth) | at `value` (hidden until hover) | `--lumen-slider-fill` = `value` | `aria-valuenow` = `value`, valuetext = formatted time |
 | 1. scrubbing | follows local preview | **stays at engine position** | `data-dragging`, `aria-valuenow` = preview |
-| 2. pending (`pending` prop, caller-owned) | locked at requested target, `accent-strong` | **stays at engine position** | `data-pending="true"`, `aria-valuenow` = requested target |
-| 3. confirmed (caller updates `value`, clears `pending`) | at engine truth | animates to engine truth | pending attribute removed |
-| failed seek (caller clears `pending` without updating `value`) | snaps back to engine truth | never left it | no fabricated jump |
-| no media (`duration <= 0`) | inert | empty | `aria-disabled="true"`, `aria-valuemax="0"` |
+| 2. pending (`pending` prop) | locked at requested target, `accent-strong`, visible | **stays at engine position** | `data-pending="true"`, `aria-valuenow` = target |
+| 3. confirmed | animates to engine truth | animates to engine truth | pending attribute removed |
+| failed seek | snaps back to engine truth | never left it | no fabricated jump |
+| no media (`duration <= 0` / caller `data-empty`) | inert, hidden (calm unplayed track) | empty | `aria-disabled="true"`, `aria-valuemax="0"` |
 
-Buffer ranges: engine-reported `[{start,end}]` rendered as `surface-muted`
-sub-region overlays (**[PROPOSAL]** token mapping — no buffer color exists in
-the §1.4 exports). No ARIA is assigned to them: doc 08 §4.5 gives the slider
-role to the bar itself, nothing to buffer sub-regions. The component never
-invents buffer data.
+Buffer ranges: engine-reported `[{start,end}]` rendered as translucent
+`content-secondary` sub-region overlays ([PROPOSAL] token mapping — no
+buffer color exists in the frames). No ARIA on them (doc 08 §4.5 gives the
+slider role to the bar itself). The component never invents buffer data.
 
-## VolumeSlider
+## Token gaps logged for the token lane (do not hand-code in consumers)
 
-Vertical, stroke-based anatomy per volume.svg (§1.5): 2px `surface-muted`
-stroke track, `accent` fill, 8×24 rx4 `accent-strong` thumb (EQ thumb, §1.4).
-Range 0…1, step 0.01, `aria-valuetext` = percent. Mute/mute-pending is the
-later `VolumeControl` composite's concern (doc 08 §4.3/§5.5) — the icon +
-flyout chrome is not part of this primitive.
+- `--color-eq-fill-start` / `--color-eq-fill-end` — EQ amber gradient stops
+  (frame-measured `#371f06` → `#a5621a`). slider.css falls back to
+  `--color-accent-tinted` / `--color-accent-strong` until they land.
+- `--gradient-volume-level` — the volume signal gradient
+  (`#95D318 → #B2A918 → #D37918 → #FF3737`, revealed to the level;
+  Player.svg/volume.svg). slider.css falls back to `--color-accent`.
 
 ## Structural values without tokens (raw px in slider.css)
 
-`8`/`12`/`16`/`24`/`28` px track & knob dimensions, `2px` fill inset, `2px`
-stroke track, `2px` focus ring width/offset, `160px` default extent — all
-pinned by the §1.4 design exports or inherited from the B1 focus-ring
-convention; no semantic token exists for them (token gaps logged in
-docs/08 §3).
+`4`/`12`/`14`/`20`/`24`px track & knob dimensions, `7px`/`4px`/pill radii,
+`96`/`160`px default extents, `2px` focus ring width/offset — pinned by the
+design exports (W25 spec §2); no semantic token exists for them.

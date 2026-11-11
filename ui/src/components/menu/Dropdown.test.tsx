@@ -143,4 +143,42 @@ describe("Dropdown", () => {
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
+
+  it("applies the W26 density class to the root (default comfortable; compact for settings)", () => {
+    const { rerender } = render(
+      <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
+    );
+    const root = screen.getByRole("button", { name: "Subtitle track" }).parentElement;
+    expect(root).toHaveClass("lumen-dropdown--comfortable");
+    rerender(
+      <Dropdown
+        options={options}
+        value="en"
+        onChange={onChange}
+        label="Subtitle track"
+        resolveLabel={resolve}
+        density="compact"
+      />,
+    );
+    expect(root).toHaveClass("lumen-dropdown--compact");
+  });
+
+  it("renders option icons in a decorative slot (W26 Setting Preset grammar)", () => {
+    const iconOptions: DropdownOption<string>[] = [{ value: "none", labelKey: "track.none", icon: "volume-mute" }];
+    render(
+      <Dropdown
+        options={iconOptions}
+        value="none"
+        onChange={onChange}
+        label="Subtitle track"
+        resolveLabel={resolve}
+      />,
+    );
+    openList();
+    const option = screen.getByRole("option", { name: "None" });
+    const icon = option.querySelector(".lumen-dropdown__option-icon svg");
+    expect(icon).not.toBeNull();
+    // Decorative: the resolved label stays the accessible name.
+    expect(icon?.getAttribute("aria-hidden")).toBe("true");
+  });
 });

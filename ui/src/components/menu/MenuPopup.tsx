@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { MenuItem } from "./MenuItem";
-import type { MenuEntry, ResolveLabel } from "./types";
+import type { MenuDensity, MenuEntry, ResolveLabel } from "./types";
 import { SUBMENU_CLOSE_DELAY_MS, SUBMENU_OPEN_DELAY_MS } from "./timings";
 
 /**
@@ -22,6 +22,9 @@ export interface MenuPopupProps<K extends string = string> {
   depth?: number;
   /** Focus the first item on mount (menubar/context menus). @default true */
   autoFocusFirstItem?: boolean;
+  /** Row scale (W26 figma grammar): comfortable = big player menus,
+  *  compact = ~40px rows. @default "comfortable" */
+  density?: MenuDensity;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
@@ -36,6 +39,7 @@ export function MenuPopup<K extends string>({
   onDismissAll,
   depth = 0,
   autoFocusFirstItem = true,
+  density = "comfortable",
   className = "",
   style,
   ariaLabel,
@@ -198,7 +202,7 @@ export function MenuPopup<K extends string>({
     <div
       role="menu"
       aria-label={ariaLabel}
-      className={["lumen-menu", className].filter(Boolean).join(" ")}
+      className={["lumen-menu", `lumen-menu--${density}`, className].filter(Boolean).join(" ")}
       style={style}
       onKeyDown={handleKeyDown}
     >
@@ -231,6 +235,7 @@ export function MenuPopup<K extends string>({
                 resolveLabel={resolveLabel}
                 idPrefix={`${idPrefix}-sub-${index}`}
                 depth={depth + 1}
+                density={density}
                 className="lumen-menu--submenu"
                 ariaLabel={resolveLabel(entry.labelKey)}
                 onRequestClose={() => {

@@ -1,129 +1,209 @@
-// AppShell (Solstice app-shell workstream, 2026-11-08) — the persistent
-// chrome around every route except /onboarding (full-bleed hero) and
-// /dev/tokens (dev fixture).
+// AppShell (W26 Figma redesign, lane w26.a10) — the persistent chrome
+// around every route except /onboarding (full-bleed hero) and /dev/tokens
+// (dev fixture): TITLE BAR · ICON RAIL · PLAYLISTS SIDEBAR · main region.
+// Reference frames: design/figma/Player.svg (+ Player-1..6), sidebar.svg,
+// Miniplayer.svg — geometry measured from the SVGs (see docs/waves/w26/
+// logs/w26.a10.md for the measurement table).
 //
 // Landmark contract (kept aligned with e2e/a11y.spec.ts, which runs axe
 // wcag2a/2aa + a DOM-order tab audit on the wrapped routes):
-//   * <header class="app-shell__banner"> — top-level `banner` landmark;
-//     contains the MenuBar (role="menubar", WAI-ARIA menubar model) and the
-//     Demo chip. The menubar contributes exactly ONE tab stop (its roving
-//     tabindex keeps a single tabIndex=0 trigger).
-//   * <nav aria-label> — the icon rail: Player / Playlist / Media info /
-//     Shortcuts / Settings, NavLink-driven (aria-current="page" comes from
-//     react-router). Icon-only links carry aria-labels from the nav.* keys.
+//   * <header class="app-shell__banner"> — the `banner` landmark (title
+//     bar: orange app dot · sidebar-toggle · breadcrumb left · centered
+//     wordmark · window controls right; Player.svg topbar anatomy).
+//   * <nav aria-label> (rail) — Player / Playlist / Media info / Discovery
+//     / Shortcuts / Settings + the pinned add-media foot stop; every
+//     target is a ≥44px hit (IconWrapper `lg`; W26 contract).
+//   * <nav aria-label> (sidebar) — the playlists rail (sidebar.svg: header
+//     with back/…/search, "N Items" meta row + sort/list/grid, create row,
+//     rows composed through the LIST PRIMITIVES' API — VirtualList list
+//     view, ScrollArea grid view; the list components are imported, never
+//     edited).
 //   * <main> — the routed screen, ONLY when the screen does not render its
-//     own <main> (playlist/settings/media-info do — passing `provideMain`
-//     false for those keeps exactly one main landmark per page and valid
-//     HTML: <main> may never nest).
+//     own <main> (playlist/settings/media-info do — `provideMain` false
+//     keeps exactly one main landmark per page and valid HTML).
 //
-// Menu accelerators come from REAL keymap data (hotkeys generated bindings +
-// the variant keymap seed), never hardcoded strings. Playback items dispatch
-// real commands through the ClientProvider transport; navigation items use
-// react-router. Items with no backing surface render disabled (honest).
+// W26 shell facts (Player.svg at 1920×1080 → our 1440×900 viewport):
+//   title bar 40 → 32px (W25 spec §2 allows 24–32) · rail 50 → 52px wide
+//   (spec: 48–56; 44px+ hits) · sidebar 377 → 208px (spec pins 200–220) ·
+//   playlist rows 42px pitch → 36px · active nav icon = THE orange accent.
+//
+// The Solstice menubar is GONE (no W25 frame carries one): navigation
+// lives in the rail + breadcrumb; open-media stays shell-owned (the ONE
+// OPEN_MEDIA_EVENT listener for every screen); the window controls are
+// IN-APP actions (miniplayer / document fullscreen / stop + home) — the
+// web shell has no OS chrome to drive, and none of the buttons pretend
+// otherwise (labels say what they do).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { MenuBar } from "../menu/MenuBar";
-import type { MenuBarMenu } from "../menu/MenuBar";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { IconButton } from "../button/IconButton";
 import { Icon } from "../icon/Icon";
+import { IconWrapper } from "../icon/IconWrapper";
 import type { IconName } from "../icon/icons";
+import { ScrollArea, VirtualList } from "../list";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
+import { keys as laneKeys } from "../../i18n/keys/w26.a10";
 import { useClient } from "../../client/ClientProvider";
-import type { CommandRequest, CommandTransport, RepeatMode } from "../../client/transport";
+import type { CommandRequest } from "../../client/transport";
 import { OpenMediaDialog, OPEN_MEDIA_EVENT } from "../../screens/open-media";
-import { HOTKEY_BINDINGS } from "../../screens/settings/areas/hotkeys/generated/bindings";
-import { VARIANT_KEYMAP } from "../../screens/player/variants";
+import {
+  GlyphChevronLeft,
+  GlyphClose,
+  GlyphGrid,
+  GlyphGrip,
+  GlyphList,
+  GlyphMaximize,
+  GlyphMinimize,
+  GlyphMore,
+  GlyphPlus,
+  GlyphSearch,
+  GlyphSort,
+} from "./shellGlyphs";
 import "./appshell.css";
 
 // ---------------------------------------------------------------------------
-// Accelerators from keymap DATA (doc 05 §8.1 — binding-id indirection)
+// Lane i18n seam (contract §4.5) — copy with no catalog entry yet
 // ---------------------------------------------------------------------------
 
-/** Accelerator display string for a hotkeys binding id (undefined = none). */
-const acceleratorOf = (bindingId: string): string | undefined =>
-  HOTKEY_BINDINGS.find((binding) => binding.id === bindingId && !binding.disabled)?.key;
+/** Keys owned by this lane (registered into messages.ts by the Lead). */
+type LaneKey = keyof typeof laneKeys;
+const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 
-/** Accelerator for a shell-owned variant recipe (variantKeymap seed). */
-const variantAcceleratorOf = (recipe: string): string | undefined =>
-  VARIANT_KEYMAP.get(recipe)?.key;
+/**
+ * useShellMsg — `useMsg` extended with this lane's pre-registration keys.
+ * Lane keys win while they are unregistered; once the Lead merges them into
+ * the catalog both paths return the same string (the lane file copy is the
+ * reference). Every user-visible shell string flows through here — no
+ * literals (doc 07 §6.5).
+ */
+function useShellMsg() {
+  const m = useMsg();
+  return useCallback(
+    (key: MessageKey | LaneKey): string => laneCatalog[key] ?? m(key as MessageKey),
+    [m],
+  );
+}
 
 // ---------------------------------------------------------------------------
-// The icon rail
+// Structural data (frames + real routes — no invented surfaces)
 // ---------------------------------------------------------------------------
 
+/** Rail stops: real routes only; icons from the pinned registry. */
 const RAIL_ITEMS: ReadonlyArray<{
   to: string;
   labelKey: MessageKey;
   icon: IconName;
 }> = [
-  { to: "/player", labelKey: "nav.player", icon: "play" },
-  { to: "/playlist", labelKey: "nav.playlist", icon: "right-sidebar" },
+  // Player.svg rail stop 1 is a house ("home") — the player is home.
+  { to: "/player", labelKey: "nav.player", icon: "go-home" },
+  // stop 2/3 are folder glyphs (Videos/Music) — /playlist is the library.
+  { to: "/playlist", labelKey: "nav.playlist", icon: "open-folder" },
   { to: "/media-info", labelKey: "nav.media-info", icon: "about" },
-  // Discovery (card 7.D1, issue #42): the device-discovery panel — local
-  // volumes (live devices.* events) + the network-services verdict.
   { to: "/discovery", labelKey: "nav.discovery", icon: "network-stream" },
   { to: "/keyboard-shortcuts", labelKey: "nav.shortcuts", icon: "keyboard-shortcuts" },
   { to: "/settings", labelKey: "nav.settings", icon: "settings" },
 ];
 
+/** Breadcrumb (title-bar left cluster): route → section label + glyph. */
+const CRUMB_ITEMS: ReadonlyArray<{
+  when: (pathname: string) => boolean;
+  labelKey: MessageKey | LaneKey;
+  icon: IconName;
+}> = [
+  { when: (p) => p.startsWith("/player/music"), labelKey: "menu.view.music-mode", icon: "play" },
+  { when: (p) => p.startsWith("/miniplayer"), labelKey: "menu.view.miniplayer", icon: "pip" },
+  { when: (p) => p.startsWith("/player"), labelKey: "screen.player", icon: "go-home" },
+  { when: (p) => p.startsWith("/playlist"), labelKey: "nav.playlist", icon: "open-folder" },
+  { when: (p) => p.startsWith("/media-info"), labelKey: "nav.media-info", icon: "about" },
+  { when: (p) => p.startsWith("/discovery"), labelKey: "nav.discovery", icon: "network-stream" },
+  { when: (p) => p.startsWith("/settings"), labelKey: "screen.settings", icon: "settings" },
+  { when: (p) => p.startsWith("/keyboard-shortcuts"), labelKey: "nav.shortcuts", icon: "keyboard-shortcuts" },
+  { when: (p) => p.startsWith("/open-network-stream"), labelKey: "menu.file.open-network-stream", icon: "network-stream" },
+  { when: (p) => p.startsWith("/convert"), labelKey: "convert.title", icon: "convert" },
+];
+
+/**
+ * Sidebar rows — the STRUCTURAL reference fixture (Player.png sidebar:
+ * "Cool Songs", "Anime to Watch"). The playlists-LIBRARY data seam is not
+ * wired in this build (the engine v1 catalog has queue commands only); the
+ * rows navigate to the real /playlist surface and the create row renders
+ * disabled-honest, mirroring the shell's old menubar discipline (unbacked
+ * actions never pretend). The playlist-browse lane owns the real store.
+ */
+const SHELL_PLAYLISTS: ReadonlyArray<{ id: string; nameKey: LaneKey }> = [
+  { id: "cool-songs", nameKey: "shell.playlist.cool-songs" },
+  { id: "anime-to-watch", nameKey: "shell.playlist.anime-to-watch" },
+];
+
+/** Playlist row height (Player.svg 42px pitch at 1920 → 36px at our scale). */
+const PLAYLIST_ROW_HEIGHT = 36;
+
+/** Sidebar DOM id (the title-bar toggle's aria-controls target). */
+const SIDEBAR_ID = "lumen-app-sidebar";
+
 // ---------------------------------------------------------------------------
-// Playlist summary (shuffle/repeat checked states for the Playback menu)
+// Command dispatch (window-close stop) — same shape as the old menubar seam
 // ---------------------------------------------------------------------------
 
 /** Command request minus the transport-assigned requestId (distributive). */
 type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
 type CommandDraft = DistributiveOmit<CommandRequest, "requestId">;
 
-interface PlaylistSummaryState {
-  readonly shuffle: boolean | null;
-  readonly repeat: RepeatMode | null;
+// ---------------------------------------------------------------------------
+// Sidebar open/close — persisted UI state + narrow-viewport auto-collapse
+// ---------------------------------------------------------------------------
+
+const SIDEBAR_STORAGE_KEY = "lumen.shell.sidebar.v1";
+/** Below this width the sidebar auto-collapses (W26: at 1024×768 it may
+ * collapse to the icon rail; the user can still re-open it — flex keeps
+ * every region unclipped). */
+const NARROW_QUERY = "(max-width: 1100px)";
+
+function loadSidebarOpen(): boolean {
+  try {
+    return (globalThis.localStorage?.getItem(SIDEBAR_STORAGE_KEY) ?? "open") !== "closed";
+  } catch {
+    return true; // storage unavailable — session default (open)
+  }
 }
 
-/**
- * Engine-reported shuffle/repeat for the menubar checkboxes. Truth sources:
- * the state snapshot once, then `playlist.changed` events — the same seam
- * PlaylistProvider keeps authoritative.
- */
-function usePlaylistSummary(client: CommandTransport): PlaylistSummaryState {
-  const [summary, setSummary] = useState<PlaylistSummaryState>({ shuffle: null, repeat: null });
+function persistSidebarOpen(open: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(SIDEBAR_STORAGE_KEY, open ? "open" : "closed");
+  } catch {
+    // Unavailable host — session-only sidebar state, honest.
+  }
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .send({ cmd: "system.get-state-snapshot", requestId: 1 })
-      .then((response) => {
-        if (cancelled) return;
-        const result = response.result;
-        if ("completed" in result && result.completed.kind === "state-snapshot") {
-          const playlist = result.completed.snapshot.playlist;
-          setSummary({ shuffle: playlist.shuffle ?? null, repeat: playlist.repeat ?? null });
-        }
-      })
-      .catch(() => {
-        // Host unreachable — honest nulls (checkboxes render unchecked).
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
+// ---------------------------------------------------------------------------
+// Document fullscreen (the in-app "maximize" — no OS window API in the web
+// shell; the whole app fills the screen)
+// ---------------------------------------------------------------------------
 
-  useEffect(
-    () =>
-      client.subscribe((event) => {
-        if (event.kind !== "playlist.changed") return;
-        const change = event.change;
-        if (change.kind === "shuffle-set") {
-          setSummary((prev) => ({ ...prev, shuffle: change.enabled }));
-        } else if (change.kind === "repeat-set") {
-          setSummary((prev) => ({ ...prev, repeat: change.mode }));
-        }
-      }),
-    [client],
+function useShellFullscreen(): readonly [boolean, () => void] {
+  const [active, setActive] = useState(
+    () => typeof document !== "undefined" && document.fullscreenElement !== null,
   );
 
-  return summary;
+  useEffect(() => {
+    const onChange = (): void => setActive(document.fullscreenElement !== null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggle = useCallback(() => {
+    // Hosts without the fullscreen API (jsdom, embedded webviews) get an
+    // honest no-op instead of a crash; the pressed state never lies.
+    if (document.fullscreenElement === null) {
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      void document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
+
+  return [active, toggle] as const;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +227,7 @@ export function AppShell({
   provideMain?: boolean;
 }) {
   const m = useMsg();
+  const t = useShellMsg();
   const client = useClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -170,234 +251,147 @@ export function AppShell({
     return () => window.removeEventListener(OPEN_MEDIA_EVENT, onOpenMedia);
   }, []);
 
-  const { shuffle, repeat } = usePlaylistSummary(client);
-  const repeatMode = repeat ?? "off";
+  // ---- sidebar open/close (persisted + narrow auto-collapse) -------------
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(loadSidebarOpen);
+  const toggleSidebar = useCallback((): void => {
+    setSidebarOpen((open) => {
+      persistSidebarOpen(!open);
+      return !open;
+    });
+  }, []);
 
-  const menus = useMemo<MenuBarMenu<MessageKey>[]>(() => {
-    const isActive = (path: string): boolean => location.pathname === path;
-    return [
-      {
-        id: "file",
-        labelKey: "menu.file",
-        entries: [
-          {
-            id: "open-media",
-            labelKey: "menu.file.open-media",
-            accelerator: acceleratorOf("media.open-file"),
-            onSelect: () => setOpenMediaOpen(true),
-          },
-          {
-            id: "open-network-stream",
-            labelKey: "menu.file.open-network-stream",
-            accelerator: acceleratorOf("media.open-network-stream"),
-            onSelect: () => navigate("/open-network-stream"),
-          },
-          {
-            // Card 7.E3 (issue #44): the conversion screen. The hotkey data
-            // already carries media.convert (Ctrl+R) but the player keymap's
-            // SHELL_UI_ACTIONS does not route it yet — no accelerator shown
-            // (an unbound one would be a false promise); Lead owns the
-            // keymap row.
-            id: "convert",
-            labelKey: "menu.file.convert",
-            onSelect: () => navigate("/convert"),
-          },
-          { id: "file-sep", kind: "separator" },
-          {
-            id: "exit",
-            labelKey: "menu.file.exit",
-            // Honest disable: app-exit is host-owned; the v1 command catalog
-            // has no quit command, so the shell cannot act (no accelerator
-            // shown either — a disabled shortcut would be a false promise).
-            disabled: true,
-          },
-        ],
-      },
-      {
-        id: "playback",
-        labelKey: "menu.playback",
-        entries: [
-          {
-            id: "play-pause",
-            labelKey: "menu.playback.play-pause",
-            accelerator: acceleratorOf("navigation.toggle-play-pause"),
-            onSelect: () => dispatch({ cmd: "playback.toggle-play-pause" }),
-          },
-          {
-            id: "stop",
-            labelKey: "menu.playback.stop",
-            accelerator: acceleratorOf("navigation.stop"),
-            onSelect: () => dispatch({ cmd: "playback.stop" }),
-          },
-          { id: "playback-sep", kind: "separator" },
-          {
-            id: "previous",
-            labelKey: "menu.playback.previous",
-            accelerator: acceleratorOf("navigation.prev-track"),
-            onSelect: () => dispatch({ cmd: "playlist.prev" }),
-          },
-          {
-            id: "next",
-            labelKey: "menu.playback.next",
-            accelerator: acceleratorOf("navigation.next-track"),
-            onSelect: () => dispatch({ cmd: "playlist.next" }),
-          },
-          { id: "playback-sep-2", kind: "separator" },
-          {
-            id: "shuffle",
-            labelKey: "menu.playback.shuffle",
-            accelerator: acceleratorOf("playlist.shuffle"),
-            checked: shuffle === true,
-            onSelect: () =>
-              dispatch({ cmd: "playlist.set-shuffle", args: { enabled: !(shuffle === true) } }),
-          },
-          {
-            id: "repeat",
-            labelKey: "menu.playback.repeat",
-            // No keymap row exists for repeat — no accelerator (honest).
-            submenu: (["off", "all", "one"] as const).map((mode) => ({
-              id: `repeat-${mode}`,
-              labelKey: (`customize.repeat.${mode}` as MessageKey),
-              kind: "radio" as const,
-              checked: repeatMode === mode,
-              onSelect: () => dispatch({ cmd: "playlist.set-repeat", args: { mode } }),
-            })),
-          },
-        ],
-      },
-      {
-        id: "view",
-        labelKey: "menu.view",
-        entries: [
-          {
-            id: "player",
-            labelKey: "menu.view.player",
-            checked: isActive("/player"),
-            onSelect: () => navigate("/player"),
-          },
-          {
-            id: "music-mode",
-            labelKey: "menu.view.music-mode",
-            accelerator: variantAcceleratorOf("music-mode-toggle"),
-            checked: isActive("/player/music"),
-            onSelect: () => navigate("/player/music"),
-          },
-          {
-            id: "miniplayer",
-            labelKey: "menu.view.miniplayer",
-            accelerator: variantAcceleratorOf("miniplayer-toggle"),
-            checked: isActive("/miniplayer"),
-            onSelect: () => navigate("/miniplayer"),
-          },
-          { id: "view-sep", kind: "separator" },
-          {
-            id: "playlist",
-            labelKey: "menu.view.playlist",
-            checked: isActive("/playlist"),
-            onSelect: () => navigate("/playlist"),
-          },
-          {
-            id: "media-info",
-            labelKey: "menu.view.media-info",
-            checked: isActive("/media-info"),
-            onSelect: () => navigate("/media-info"),
-          },
-          {
-            id: "discovery",
-            labelKey: "menu.view.discovery",
-            checked: isActive("/discovery"),
-            onSelect: () => navigate("/discovery"),
-          },
-          { id: "view-sep-2", kind: "separator" },
-          {
-            id: "shortcuts",
-            labelKey: "menu.view.shortcuts",
-            checked: isActive("/keyboard-shortcuts"),
-            onSelect: () => navigate("/keyboard-shortcuts"),
-          },
-          {
-            id: "settings",
-            labelKey: "menu.view.settings",
-            checked: location.pathname.startsWith("/settings"),
-            onSelect: () => navigate("/settings/global"),
-          },
-        ],
-      },
-      {
-        id: "tools",
-        labelKey: "menu.tools",
-        entries: [
-          {
-            id: "customize",
-            labelKey: "menu.tools.customize",
-            // Honest disable: the customize panels live inside PlayerScreen's
-            // openPanels seam (screens/player ownership); no route or command
-            // opens them from the shell yet — handoff to the player scope.
-            disabled: true,
-          },
-          {
-            id: "tools-media-info",
-            labelKey: "menu.tools.media-info",
-            accelerator: acceleratorOf("window.media-info"),
-            onSelect: () => navigate("/media-info"),
-          },
-          {
-            id: "preferences",
-            labelKey: "menu.tools.preferences",
-            accelerator: acceleratorOf("window.preferences"),
-            onSelect: () => navigate("/settings/global"),
-          },
-        ],
-      },
-      {
-        id: "help",
-        labelKey: "menu.help",
-        entries: [
-          {
-            id: "about",
-            labelKey: "menu.help.about",
-            // The About surface is the settings "about" area (updates-about).
-            onSelect: () => navigate("/settings/about"),
-          },
-          {
-            id: "help-shortcuts",
-            labelKey: "menu.help.keyboard-shortcuts",
-            onSelect: () => navigate("/keyboard-shortcuts"),
-          },
-        ],
-      },
-    ];
-  }, [dispatch, location.pathname, navigate, repeatMode, shuffle]);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(NARROW_QUERY);
+    // Entering the narrow band collapses the sidebar ONCE (the icon rail
+    // keeps every destination reachable); the toggle stays live so the
+    // user can re-open it — nothing clips either way (flex + min-width:0).
+    if (query.matches) setSidebarOpen(false);
+    const onChange = (event: MediaQueryListEvent): void => {
+      if (event.matches) setSidebarOpen(false);
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  // ---- window controls ----------------------------------------------------
+  const [fullscreenActive, toggleFullscreen] = useShellFullscreen();
+  const onMiniplayerRoute = location.pathname.startsWith("/miniplayer");
+  const onWindowMinimize = useCallback((): void => {
+    navigate("/miniplayer");
+  }, [navigate]);
+  const onWindowClose = useCallback((): void => {
+    // The in-app "close": stop playback (a real command) and return home —
+    // the web shell has no window to close, and the label says exactly this.
+    dispatch({ cmd: "playback.stop" });
+    navigate("/player");
+  }, [dispatch, navigate]);
+
+  // ---- breadcrumb ----------------------------------------------------------
+  const crumb = useMemo(() => {
+    const hit = CRUMB_ITEMS.find((item) => item.when(location.pathname));
+    return hit ?? { labelKey: "app.name" as LaneKey, icon: "go-home" as IconName };
+  }, [location.pathname]);
+
+  // ---- sidebar rows: filter (search) + sort (alpha) over the fixture ------
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [alphaSort, setAlphaSort] = useState(false);
+  const [view, setView] = useState<"list" | "grid">("list");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  const toggleSearch = useCallback((): void => {
+    setSearchOpen((open) => {
+      if (open) setQuery(""); // closing drops the filter (no stale hidden rows)
+      return !open;
+    });
+  }, []);
+
+  const rows = useMemo(() => {
+    const named = SHELL_PLAYLISTS.map((playlist) => ({ id: playlist.id, label: t(playlist.nameKey) }));
+    const needle = query.trim().toLowerCase();
+    const filtered =
+      needle === "" ? named : named.filter((row) => row.label.toLowerCase().includes(needle));
+    return alphaSort ? [...filtered].sort((a, b) => a.label.localeCompare(b.label)) : filtered;
+  }, [alphaSort, query, t]);
 
   return (
     <div className="app-shell" data-demo={demo || undefined}>
+      {/* ---- title bar (banner landmark; Player.svg topbar) ---------------- */}
       <header className="app-shell__banner">
-        <MenuBar menus={menus} resolveLabel={m} id="lumen-app-menubar" />
-        {demo ? (
-          <span
-            className="solstice-chip solstice-chip--accent app-shell__demo-badge"
-            title={m("demo.notice.title")}
+        <div className="app-shell__banner-cluster">
+          <span className="app-shell__appdot" aria-hidden="true" />
+          <span className="app-shell__tick" aria-hidden="true" />
+          <IconButton
+            label={t("shell.title.toggle-sidebar")}
+            size="sm"
+            className="app-shell__sidebar-toggle"
+            aria-expanded={sidebarOpen}
+            aria-controls={SIDEBAR_ID}
+            onClick={toggleSidebar}
           >
-            {m("demo.badge")}
+            <Icon name="right-sidebar" size={16} />
+          </IconButton>
+          <span className="app-shell__tick" aria-hidden="true" />
+          <span className="app-shell__crumb">
+            <Icon name={crumb.icon} size={14} />
+            <span className="app-shell__crumb-label">{t(crumb.labelKey)}</span>
           </span>
-        ) : null}
+        </div>
+
+        <span className="app-shell__wordmark">{t("app.name")}</span>
+
+        <div className="app-shell__banner-cluster app-shell__banner-cluster--end">
+          {demo ? (
+            <span className="app-shell__demo-badge" title={m("demo.notice.title")}>
+              {m("demo.badge")}
+            </span>
+          ) : null}
+          <div className="app-shell__window" role="group" aria-label={t("shell.window.group")}>
+            <IconButton
+              label={t("shell.window.minimize")}
+              size="sm"
+              className="app-shell__winctl"
+              onClick={onWindowMinimize}
+              disabled={onMiniplayerRoute}
+            >
+              <GlyphMinimize size={14} />
+            </IconButton>
+            <IconButton
+              label={t("shell.window.maximize")}
+              size="sm"
+              className="app-shell__winctl"
+              aria-pressed={fullscreenActive}
+              onClick={toggleFullscreen}
+            >
+              <GlyphMaximize size={14} />
+            </IconButton>
+            <IconButton
+              label={t("shell.window.close")}
+              size="sm"
+              className="app-shell__winctl"
+              onClick={onWindowClose}
+            >
+              <GlyphClose size={14} />
+            </IconButton>
+          </div>
+        </div>
       </header>
 
       <div className="app-shell__frame">
-        {/* The rail's warm-glass treatment is fully self-contained in
-         * appshell.css (.app-shell__rail) — composing .solstice-glass here
-         * let the shared class override the rail gradient (cascade-order
-         * audit; see the note in that sheet). */}
+        {/* ---- icon rail (Player.svg rail: nav glyphs + pinned "+" foot) -- */}
         <nav className="app-shell__rail" aria-label={m("nav.title")}>
-          <span className="app-shell__logo solstice-sun" aria-hidden="true" />
           <ul className="app-shell__rail-list">
             {RAIL_ITEMS.map((item) => (
               <li key={item.to}>
                 <NavLink
                   to={item.to}
                   aria-label={m(item.labelKey)}
-                  /* v2 audit (§4 icon-only controls): hover affordance — the
-                   * visible tooltip mirrors the accessible name. */
+                  /* hover affordance mirrors the accessible name (§4 audit) */
                   title={m(item.labelKey)}
                   className={({ isActive }) =>
                     ["app-shell__rail-link", isActive ? "app-shell__rail-link--active" : ""]
@@ -405,11 +399,161 @@ export function AppShell({
                       .join(" ")
                   }
                 >
-                  <Icon name={item.icon} size={18} />
+                  {({ isActive }) => (
+                    /* 44px hit frame (Icon Wrapper.svg); the ACTIVE stop is
+                     * the ONE orange accent (W25 spec §2) at stroke 2. */
+                    <IconWrapper size="lg" active={isActive}>
+                      <Icon name={item.icon} size={20} variant={isActive ? "strong" : "default"} />
+                    </IconWrapper>
+                  )}
                 </NavLink>
               </li>
             ))}
           </ul>
+          <div className="app-shell__rail-foot">
+            <IconButton
+              label={t("shell.rail.add")}
+              className="app-shell__rail-add"
+              onClick={() => setOpenMediaOpen(true)}
+            >
+              <IconWrapper size="lg">
+                <GlyphPlus size={20} />
+              </IconWrapper>
+            </IconButton>
+          </div>
+        </nav>
+
+        {/* ---- playlists sidebar (sidebar.svg; collapsible) ---------------- */}
+        <nav
+          className="app-shell__sidebar"
+          id={SIDEBAR_ID}
+          aria-label={t("shell.sidebar.title")}
+          hidden={!sidebarOpen}
+        >
+          <header className="app-shell__sidebar-head">
+            <IconButton
+              label={t("shell.sidebar.back")}
+              size="sm"
+              className="app-shell__sidebar-back"
+              onClick={() => navigate(-1)}
+            >
+              <GlyphChevronLeft size={16} />
+            </IconButton>
+            <h2 className="app-shell__sidebar-title">{t("shell.sidebar.title")}</h2>
+            <IconButton
+              label={t("shell.sidebar.more")}
+              size="sm"
+              disabled
+              title={t("shell.sidebar.more.hint")}
+            >
+              <GlyphMore size={16} />
+            </IconButton>
+            <IconButton
+              label={t("shell.sidebar.search")}
+              size="sm"
+              aria-expanded={searchOpen}
+              aria-controls={searchOpen ? "lumen-app-sidebar-search" : undefined}
+              onClick={toggleSearch}
+            >
+              <GlyphSearch size={16} />
+            </IconButton>
+          </header>
+
+          {searchOpen ? (
+            <div className="app-shell__sidebar-search" id="lumen-app-sidebar-search">
+              <input
+                ref={searchInputRef}
+                type="search"
+                className="app-shell__sidebar-search-input"
+                aria-label={t("shell.sidebar.search")}
+                placeholder={t("shell.sidebar.search.placeholder")}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+          ) : null}
+
+          <div className="app-shell__sidebar-meta">
+            <span className="app-shell__sidebar-count">
+              {String(rows.length)} {t("shell.sidebar.count-suffix")}
+            </span>
+            <div className="app-shell__sidebar-modes">
+              <IconButton
+                label={t("shell.sidebar.sort")}
+                size="sm"
+                aria-pressed={alphaSort}
+                onClick={() => setAlphaSort((value) => !value)}
+              >
+                <GlyphSort size={16} />
+              </IconButton>
+              <IconButton
+                label={t("shell.sidebar.view-list")}
+                size="sm"
+                aria-pressed={view === "list"}
+                onClick={() => setView("list")}
+              >
+                <GlyphList size={16} />
+              </IconButton>
+              <IconButton
+                label={t("shell.sidebar.view-grid")}
+                size="sm"
+                aria-pressed={view === "grid"}
+                onClick={() => setView("grid")}
+              >
+                <GlyphGrid size={16} />
+              </IconButton>
+            </div>
+          </div>
+
+          {/* Unbacked surface → disabled-honest (the old menubar's rule):
+           * the engine has no create-playlist command; the row never
+           * pretends it can. */}
+          <IconButton
+            label={t("shell.sidebar.create")}
+            size="sm"
+            className="app-shell__create"
+            disabled
+            title={t("shell.sidebar.create.hint")}
+          >
+            <GlyphPlus size={14} />
+            <span className="app-shell__create-label">{t("shell.sidebar.create")}</span>
+          </IconButton>
+
+          <div className="app-shell__sidebar-body">
+            {rows.length === 0 ? (
+              <p className="app-shell__sidebar-empty">
+                {query.trim() === "" ? t("shell.sidebar.empty") : t("shell.sidebar.search.empty")}
+              </p>
+            ) : view === "list" ? (
+              /* List view — the list primitive's own API (windowed rows). */
+              <VirtualList
+                data={rows}
+                itemHeight={PLAYLIST_ROW_HEIGHT}
+                label={t("shell.sidebar.list-label")}
+                className="app-shell__sidebar-list"
+                renderItem={(row) => (
+                  <Link to="/playlist" className="app-shell__plrow" draggable={false}>
+                    <GlyphGrip size={14} />
+                    <span className="app-shell__plrow-label">{row.label}</span>
+                  </Link>
+                )}
+              />
+            ) : (
+              /* Grid view — the scroll primitive over a 2-up card grid. */
+              <ScrollArea label={t("shell.sidebar.list-label")} className="app-shell__sidebar-scroll">
+                <div className="app-shell__plgrid">
+                  {rows.map((row) => (
+                    <Link key={row.id} to="/playlist" className="app-shell__plcard" draggable={false}>
+                      <span className="app-shell__plcard-thumb" aria-hidden="true">
+                        <Icon name="open-folder" size={20} />
+                      </span>
+                      <span className="app-shell__plcard-label">{row.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
         </nav>
 
         {provideMain ? (

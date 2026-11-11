@@ -229,6 +229,8 @@ describe("Slider (doc 08 §4/§4.5: role=slider)", () => {
       ".lumen-seekbar__buffer",
       '[data-pending="true"]',
       ".lumen-volume",
+      ".lumen-eq-slider",
+      ".lumen-seekbar[data-empty]", // calm unplayed track guard (caller hook)
     ]) {
       expect(withoutComments).toContain(selector);
     }

@@ -243,6 +243,22 @@ describe("MenuBar", () => {
     openFileMenu();
     expect(screen.getByRole("separator")).toBeInTheDocument();
   });
+
+  it("applies the W26 density class to the popup (default comfortable)", () => {
+    render(<MenuBar menus={menus} resolveLabel={resolve} />);
+    openFileMenu();
+    expect(screen.getByRole("menu", { name: "File" })).toHaveClass("lumen-menu--comfortable");
+  });
+
+  it("propagates the compact density to the popup and its submenus", () => {
+    render(<MenuBar menus={menus} resolveLabel={resolve} density="compact" />);
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
+    const menu = screen.getByRole("menu", { name: "File" });
+    expect(menu).toHaveClass("lumen-menu--compact");
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: /Open File/ }), { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Open Recent" }), { key: "ArrowRight" });
+    expect(screen.getByRole("menu", { name: "Open Recent" })).toHaveClass("lumen-menu--compact");
+  });
 });
 
 afterEach(() => {

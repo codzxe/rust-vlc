@@ -1,20 +1,31 @@
 /* Card 4.C3 — playback UX-state overlays (doc 08 §5.3/§5.4).
  *
- * SOLSTICE RESTYLE (2026-11-08): overlays sit on the framed stage as warm
- * translucent scrims (the sunset glow stays visible); failure surfaces
- * (error/unsupported) float on washi-taped sticky notes; loading/buffering
- * spin a sun disc with a rotating ray ring. Semantic tokens only for
- * color/type/radius (§3.2); raw px appears solely for structural dimensions
- * with no token (gaps/indicator sizes — same precedent as the 4.C1 shell's
- * structural px). Motion (ray ring, fill transition) lives inside a
+ * W26 FIGMA REDESIGN (2026-11-11, design/figma-fidelity-spec.md §1–§2): the
+ * Solstice stage dressing (sun disc, washi-taped notes, warm glass blur) is
+ * retired. New grammar:
+ *   * Empty/first-run — the onboarding-style hero: orange cone mark
+ *     (frame-exact Onboarding.svg port in StageOverlays.tsx), display-scale
+ *     heading, secondary body, one orange primary CTA. Never a blank void.
+ *   * Loading/Buffering — quiet transient states on a dark scrim: a thin
+ *     28px ring spinner with an orange arc, caption label; the slim 4px
+ *     determinate bar (orange fill on a deep track, pill ends) renders only
+ *     when the engine reported a real percentage.
+ *   * Unsupported/Error — honest cards in the Figma panel grammar: r12
+ *     surface-panel, 1px stroke-border hairline, overlay shadow, secondary
+ *     copy, compact stage pill, one primary action.
+ * Semantic tokens only (§3.2); raw px appears solely for structural
+ * dimensions with no token (indicator sizes — same precedent as the 4.C1
+ * shell's structural px). Spinner/fill motion lives inside a
  * prefers-reduced-motion: no-preference block so reduced-motion users get a
- * static sun + honest text + aria (doc 08 §4.5). */
+ * static ring + honest text + aria (doc 08 §4.5). */
 
 /* The 4.C1 canvas region hosts the overlays (states sit ON the labeled
  * region; the canvas itself remains engine-owned, card 4.H1). */
 .lumen-player__canvas {
   position: relative;
 }
+
+/* --- transient + failure overlays: on the canvas over a dark scrim --- */
 
 .lumen-state-overlay {
   position: absolute;
@@ -26,29 +37,31 @@
   box-sizing: border-box;
   padding: calc(var(--space-inset) * 3);
 
-  /* Warm translucent scrim — the stage (and the sunset behind it) glows
-   * through instead of a hard opaque cut. */
-  background: color-mix(in srgb, var(--color-surface-deep) 62%, transparent);
-  backdrop-filter: blur(calc(var(--blur-backdrop-small) / 2));
+  /* Dark scrim — quiet, opaque enough that copy reads over any frame. */
+  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
 }
 
-.lumen-state-overlay__card {
+/* Centered cluster; `data-card` upgrades it to the Figma panel grammar
+ * (r12 card, hairline border, shadow) for the failure surfaces. */
+.lumen-state-overlay__cluster {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--space-inset) + 4px); /* 12px: 4px grid */
-  max-width: 480px;
+  gap: calc(var(--space-inset) + var(--space-grid)); /* 12px on the 4px grid */
+  max-width: 440px;
   text-align: center;
 }
 
-/* Failure surfaces: the taped sticky note (solstice-note supplies surface,
- * border, shadow, rotation; note ink inherits to children). */
-.lumen-state-overlay__card.solstice-note {
-  padding: calc(var(--space-inset) * 3);
-  color: var(--color-note-ink);
+.lumen-state-overlay__cluster[data-card] {
+  box-sizing: border-box;
+  padding: calc(var(--space-inset) * 3); /* 24px */
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-panel); /* r12–14 card radius, spec §1 */
+  box-shadow: var(--shadow-overlay);
 }
 
 .lumen-state-overlay__icon {
@@ -57,52 +70,49 @@
 
 .lumen-state-overlay__title {
   margin: 0;
-  color: inherit;
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-bold);
+  color: var(--color-content-bright);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
 }
 
-.lumen-state-overlay__label,
-.lumen-state-overlay__body,
-.lumen-state-overlay__action {
+/* Quiet transient label — caption tier like the design's meta text. */
+.lumen-state-overlay__label {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.lumen-state-overlay__body {
   margin: 0;
   color: var(--color-content-secondary);
 }
 
-/* Inside a note card the body/action ink follows the note. */
-.solstice-note .lumen-state-overlay__body,
-.solstice-note .lumen-state-overlay__label {
-  color: var(--color-note-ink-muted);
-}
-
-.solstice-note .lumen-state-overlay__action {
-  color: var(--color-note-ink);
-}
-
-/* stylelint-disable-next-line no-descending-specificity -- the note-ink variant is read before the fallback base; it wins by specificity either way */
+/* Actionable hint (doc 08 §5.4 “what the user can do”) — slightly stronger
+ * ink than the body so the escape route reads first. */
 .lumen-state-overlay__action {
+  margin: 0;
   color: var(--color-content-primary);
 }
 
-/* Stage tag (doc 08 §5.4: stage-named message) — a compact pill. */
+/* Stage tag (doc 08 §5.4: stage-named message) — compact bordered pill. */
 .lumen-state-overlay__stagetag {
   display: inline-flex;
   align-items: center;
   gap: var(--space-grid);
   margin: 0;
   padding: 2px var(--space-inset);
-  border: 1px solid var(--color-note-edge);
-  border-radius: var(--radius-menu);
-  background: color-mix(in srgb, var(--color-note) 55%, transparent);
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-inset);
   font-size: var(--font-size-caption);
 }
 
 .lumen-state-overlay__stagetag-label {
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-tertiary);
 }
 
 .lumen-state-overlay__stagetag-value {
-  color: var(--color-note-ink);
+  color: var(--color-content-primary);
   font-family: var(--font-family-time);
 }
 
@@ -119,21 +129,21 @@
   display: flex;
   gap: var(--space-inset);
   justify-content: center;
+  margin: 0;
 }
 
 .lumen-state-overlay__fact-label {
-  color: var(--color-note-ink-muted);
+  color: var(--color-content-secondary);
 }
 
 .lumen-state-overlay__fact-value {
   margin: 0;
-  color: var(--color-note-ink);
+  color: var(--color-content-primary);
   font-family: var(--font-family-time);
 }
 
-/* Progress indicator: sun-disc spinner (always) + bar fill (determinate
- * only). The disc reuses .solstice-sun (composed in StageOverlays.tsx);
- * the ray ring is the only motion, guarded below. */
+/* Progress indicator: quiet ring spinner (always) + slim bar (determinate
+ * only — never a fabricated percentage). */
 .lumen-state-overlay__progress {
   display: flex;
   flex-direction: column;
@@ -142,43 +152,41 @@
 }
 
 .lumen-state-overlay__spinner {
-  position: relative;
   box-sizing: border-box;
-  width: 64px; /* structural ornament size — no token */
-  height: 64px;
-}
-
-.lumen-state-overlay__spinner::after {
-  content: "";
-  position: absolute;
-  inset: calc(var(--space-inset) * -1);
+  width: 28px; /* structural indicator size — no token */
+  height: 28px;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 32%, transparent);
+  border-top-color: var(--color-accent);
   border-radius: 50%; /* functional circle, not a design radius */
-  border: 2px dashed color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
+/* Determinate engine percentage: slim bar in the Player.svg seekbar
+ * grammar — thin, orange fill, deep track, rounded ends. */
 .lumen-state-overlay__bar {
   box-sizing: border-box;
   display: block;
-  width: 180px; /* structural indicator width — no token */
-  height: 6px; /* structural indicator height — no token */
+  width: 220px; /* structural indicator width — no token */
+  height: 4px; /* structural indicator height — no token */
   overflow: hidden;
-  border-radius: var(--radius-ring);
-  background: color-mix(in srgb, var(--color-surface-muted) 60%, transparent);
+  background: var(--color-surface-deep);
+  border-radius: var(--radius-ring); /* clamps to half-height → pill ends */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-stroke-border) 50%, transparent);
 }
 
 .lumen-state-overlay__fill {
   display: block;
   height: 100%;
+  border-radius: inherit;
   background: var(--color-accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .lumen-state-overlay__spinner::after {
-    animation: lumen-state-spin 2.4s linear infinite;
+  .lumen-state-overlay__spinner {
+    animation: lumen-state-spin 900ms linear infinite;
   }
 
   .lumen-state-overlay__fill {
-    transition: width 200ms ease;
+    transition: width var(--motion-duration-fast) ease;
   }
 }
 
@@ -186,4 +194,59 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* --- first-run empty state: the onboarding-style hero (spec §2) ---
+ * Never a blank void: cone mark, heading, body, one primary CTA. */
+.lumen-state-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: calc(var(--space-inset) * 3);
+  text-align: center;
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+}
+
+.lumen-state-hero__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--space-inset) * 3); /* 24px — airy onboarding rhythm */
+  max-width: 420px;
+}
+
+/* Cone mark — accent ink; ~0.9× the Onboarding.svg hero scale. The width
+ * is frame-measured art, not a token (see ConeMark in StageOverlays.tsx). */
+.lumen-state-hero__mark {
+  width: 84px; /* ~0.8x the Onboarding.svg hero cone — VLM-calibrated scale */
+  height: auto;
+  margin-bottom: var(--space-grid); /* optical air between mark and heading */
+  color: var(--color-accent);
+}
+
+/* The hero CTA follows the onboarding primary exactly: r6 accent fill
+ * (Onboarding.svg 100x32 rx6) — scoped tighter than the shared button's
+ * default control radius for this surface. */
+.lumen-state-hero .lumen-button--primary {
+  border-radius: var(--radius-inset);
+}
+
+/* Onboarding hero heading: display scale, REGULAR weight — the hero reads
+ * calm and confident, not shouted (Onboarding.png heading grammar). */
+.lumen-state-hero__title {
+  margin: 0;
+  color: var(--color-content-bright);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-regular);
+}
+
+.lumen-state-hero__body {
+  margin: 0;
+  color: var(--color-content-secondary);
+  font-size: var(--font-size-body);
 }

@@ -52,12 +52,13 @@ describe("Toggle (doc 08 §4.5: role=switch)", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("forwards the ref and renders knob/fill structure", () => {
+  it("forwards the ref and renders knob/fill/segment structure", () => {
     const ref = createRef<HTMLButtonElement>();
     const { container } = render(<Toggle ref={ref} checked={false} onChange={() => {}} />);
     expect(ref.current).toBeInstanceOf(HTMLButtonElement);
     expect(container.querySelector(".lumen-toggle__knob")).toBeInTheDocument();
     expect(container.querySelector(".lumen-toggle__fill")).toBeInTheDocument();
+    expect(container.querySelector(".lumen-toggle__off")).toBeInTheDocument();
   });
 
   it("renders decorative ON/OFF micro labels, hidden from the a11y tree", () => {
@@ -75,29 +76,37 @@ describe("Toggle (doc 08 §4.5: role=switch)", () => {
   });
 });
 
-describe("Toggle state styling consumes semantic tokens (Toggle.svg)", () => {
-  it("track: surface-deep + radius-control (68x32 rx6)", () => {
+describe("Toggle state styling consumes semantic tokens (Toggle.svg, W26)", () => {
+  it("track: surface + control radius (68x32 rx6, #090909)", () => {
     const rule = cssRule(".lumen-toggle");
-    expect(rule).toContain("background: var(--color-surface-deep)");
+    expect(rule).toContain("background: var(--color-surface)");
     expect(rule).toContain("border-radius: var(--radius-control)");
+    expect(rule).toMatch(/width: 68px/);
+    expect(rule).toMatch(/height: 32px/);
   });
 
-  it("on: accent-tinted fill widens + accent-strong knob", () => {
-    expect(cssRule(".lumen-toggle__fill")).toContain("background: var(--color-accent-tinted)");
-    expect(cssRule('.lumen-toggle[aria-checked="true"] .lumen-toggle__fill')).toContain("width: 33px");
+  it("on: accent-tinted 33x26 fill shows + accent-strong knob", () => {
+    const fill = cssRule(".lumen-toggle__fill");
+    expect(fill).toContain("background: var(--color-accent-tinted)");
+    expect(fill).toContain("width: 33px");
+    expect(cssRule('.lumen-toggle[aria-checked="true"] .lumen-toggle__fill')).toContain("display: flex");
     expect(cssRule('.lumen-toggle[aria-checked="true"] .lumen-toggle__knob')).toContain(
       "background: var(--color-accent-strong)",
     );
   });
 
-  it("off knob: surface-muted per Toggle.svg", () => {
-    expect(cssRule(".lumen-toggle__knob")).toContain("background: var(--color-surface-muted)");
+  it("off: stroke-border knob (#404040) + surface-panel segment (#191919)", () => {
+    expect(cssRule(".lumen-toggle__knob")).toContain("background: var(--color-stroke-border)");
+    const off = cssRule(".lumen-toggle__off");
+    expect(off).toContain("background: var(--color-surface-panel)");
+    expect(off).toContain("width: 33px");
+    expect(cssRule('.lumen-toggle[aria-checked="true"] .lumen-toggle__off')).toContain("display: none");
   });
 
-  // 4.F4 a11y: the off label moved tertiary → secondary — tertiary can
-  // never clear 4.5:1 on the deep track in either theme (axe wcag2aa
-  // color-contrast). Secondary keeps "dimmer than the accent on-state"
-  // while being compliant; design deviation documented in ui/NEXT-STEPS.md.
+  // 4.F4 a11y: the off label stays secondary — the frame's #6B6B6B tertiary
+  // can never clear 4.5:1 on the #191919 segment in either theme (axe
+  // wcag2aa color-contrast). Secondary keeps "dimmer than the accent
+  // on-state" while being compliant; deviation documented in states.md.
   it("micro labels: font-size-micro, on=accent, off=content-secondary (doc 08 §1.3/§1.5, 4.F4 contrast fix)", () => {
     const label = cssRule(".lumen-toggle__label");
     expect(label).toContain("font-size: var(--font-size-micro)");

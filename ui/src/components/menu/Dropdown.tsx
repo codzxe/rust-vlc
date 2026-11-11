@@ -1,17 +1,25 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, Ref } from "react";
+import { Icon } from "../icon/Icon";
+import type { IconName } from "../icon/icons";
 import { identityResolveLabel } from "./types";
-import type { ResolveLabel } from "./types";
+import type { MenuDensity, ResolveLabel } from "./types";
 import { TYPEAHEAD_RESET_MS } from "./timings";
 import "./menu.css";
 
 /**
- * Dropdown / Select (doc 08 §116: trigger 364×48 rx6, open list rx6,
- * selected item `#1F1F1F`) — combobox trigger with `aria-haspopup="listbox"`,
- * popup `role="listbox"` with roving tabindex options, arrows/Home/End,
- * Enter/Space select, Escape/Tab close with focus restoration to the trigger,
- * typeahead jump, disabled options skipped and not selectable. Portal-free
- * absolute positioning inside a relatively-positioned wrapper.
+ * Dropdown / Select (W26 frames `Dropdown.svg` + `Setting Preset.svg`:
+ * trigger rx6 with border + chevron; open list rx6 `#191919` with a subtle
+ * drop shadow; option rows rx6, hover/selected `--color-surface-selected`
+ * with an orange check on the selected row) — combobox trigger with
+ * `aria-haspopup="listbox"`, popup `role="listbox"` with roving tabindex
+ * options, arrows/Home/End, Enter/Space select, Escape/Tab close with focus
+ * restoration to the trigger, typeahead jump, disabled options skipped and
+ * not selectable. Portal-free absolute positioning inside a
+ * relatively-positioned wrapper.
+ *
+ * Density (W26): `comfortable` = `Dropdown.svg` (48px trigger/rows);
+ * `compact` = `Setting Preset.svg` (~40px) for settings rows.
  */
 export interface DropdownProps<K extends string = string> {
   options: DropdownOption<K>[];
@@ -27,6 +35,8 @@ export interface DropdownProps<K extends string = string> {
   resolveLabel?: ResolveLabel<K>;
   disabled?: boolean;
   invalid?: boolean;
+  /** Row scale (W26): compact ≈ `Setting Preset.svg` settings dropdowns. @default "comfortable" */
+  density?: MenuDensity;
   id?: string;
   className?: string;
   /** React 19 ref-as-prop on the trigger button. */
@@ -36,6 +46,8 @@ export interface DropdownProps<K extends string = string> {
 export interface DropdownOption<K extends string = string> {
   value: string;
   labelKey: K;
+  /** Leading line icon (W26 `Setting Preset.svg` options). */
+  icon?: IconName;
   disabled?: boolean;
 }
 
@@ -47,6 +59,7 @@ export function Dropdown<K extends string>({
   resolveLabel = identityResolveLabel,
   disabled = false,
   invalid = false,
+  density = "comfortable",
   id,
   className = "",
   ref,
@@ -193,7 +206,12 @@ export function Dropdown<K extends string>({
         rootRef.current = node;
       }}
       id={rootId}
-      className={["lumen-dropdown", invalid && "lumen-dropdown--invalid", className]
+      className={[
+        "lumen-dropdown",
+        `lumen-dropdown--${density}`,
+        invalid && "lumen-dropdown--invalid",
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
     >
@@ -236,7 +254,12 @@ export function Dropdown<K extends string>({
               onFocus={() => setActiveIndex(index)}
               onClick={() => select(index)}
             >
-              {resolveLabel(option.labelKey)}
+              {option.icon !== undefined && (
+                <span className="lumen-dropdown__option-icon" aria-hidden="true">
+                  <Icon name={option.icon} />
+                </span>
+              )}
+              <span className="lumen-dropdown__option-label">{resolveLabel(option.labelKey)}</span>
             </div>
           ))}
         </div>

@@ -1,12 +1,15 @@
-// Card 4.C1 — PlayerScreen shell tests: landmarks, empty state,
-// layout-config consumption, chrome lock, keymap-driven fullscreen/ESC.
-// Visual fidelity (screenshot diff) waits for 4.G1 — these are DOM-shape +
-// behavior assertions per the card AC.
+// PlayerScreen shell tests — the W26 Player.png composition: docked
+// playlist sidebar, canvas region + honest placeholders, control-bar slot,
+// layout-config consumption, chrome lock, keymap-driven fullscreen/ESC,
+// sidebar-toggle seam, now-playing identity. DOM-shape + behavior
+// assertions per the card ACs (visual fidelity: dev-shots + VLM loop).
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
-import { PlayerScreen } from "./PlayerScreen";
+import type { CommandTransport, CommandResponse, CommandRequest, Event } from "../../client/transport";
+import { fullMediaInfo } from "../media-info/fixtures";
+import { PlayerScreen, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
 
 /** Card 4.C2: PlayerScreen hosts the player state seam → needs a client. */
 const renderWithClient = (ui: React.ReactElement) =>
@@ -53,14 +56,23 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     // honest placeholder: no unwired media element is rendered
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("canvas")).toBeNull();
-    // screen-reader note records the engine-wiring handoff (Solstice copy)
+    // screen-reader note records the engine-wiring handoff
     expect(canvas.textContent).toContain("Video appears here during playback");
   });
 
-  it("renders the top bar (banner) with the screen title and the real control bar (4.C2)", () => {
+  it("composes the docked playlist sidebar (Player.png) with the real 4.D1 panel", () => {
     renderWithClient(<PlayerScreen />);
-    expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Player" })).toBeInTheDocument();
+    const playlist = screen.getByRole("complementary", { name: "Playlist" });
+    expect(playlist).toHaveAttribute("data-region-id", "playlist");
+    expect(playlist).toHaveClass("lumen-player__sidebar");
+    // Card 4.D1: the docked sidebar renders the real panel + queue semantics
+    // (empty state honest until the app shell wires playlist.load).
+    expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
+    expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
+  });
+
+  it("renders the bottom control bar slot with the real control bar (4.C2)", () => {
+    renderWithClient(<PlayerScreen />);
     const controls = screen.getByRole("region", { name: "Playback controls" });
     expect(controls).toHaveAttribute("data-region-id", "controls-bar");
     // Card 4.C2: the transport cluster now lives here (play/pause + stop).
@@ -68,29 +80,124 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     expect(within(controls).getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
-  it("renders open side panels as labelled complementary landmarks (playlist = real 4.D1 panel)", () => {
-    renderWithClient(<PlayerScreen openPanels={["playlist", "media-info"]} media={{ hasVideo: true, hasChapters: false }} />);
-    const playlist = screen.getByRole("complementary", { name: "Playlist" });
-    expect(playlist).toHaveAttribute("data-region-id", "playlist");
-    // Card 4.D1: the playlist region now renders the real panel + queue
-    // semantics (empty state honest until the app shell wires playlist.load).
-    expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
-    expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
+  it("does not duplicate the window title bar (the app shell owns it, W26)", () => {
+    renderWithClient(<PlayerScreen />);
+    expect(screen.queryByRole("banner")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: "Player" })).toBeNull();
+  });
+
+  it("renders open tool panels as labelled complementary landmarks; closed ones render nothing", () => {
+    renderWithClient(
+      <PlayerScreen
+        openPanels={["media-info"]}
+        media={{ hasVideo: true, hasChapters: false }}
+      />,
+    );
     // media-info needs has-media (visible_when) — provided above
     expect(screen.getByRole("complementary", { name: "Media information" })).toBeInTheDocument();
-    // closed panels (library) render nothing
+    // The W26 default layout declares no library region — nothing renders.
     expect(screen.queryByRole("complementary", { name: "Library" })).toBeNull();
+  });
+});
+
+describe("PlayerScreen — docked sidebar toggle seam (W26, lumen:toggle-sidebar)", () => {
+  it("is open first-run and collapses/expands on the shell's toggle event", () => {
+    renderWithClient(<PlayerScreen />);
+    const root = document.querySelector(".lumen-player")!;
+    expect(root).toHaveAttribute("data-sidebar", "open");
+    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
+    });
+    expect(root).toHaveAttribute("data-sidebar", "closed");
+    expect(screen.queryByRole("complementary", { name: "Playlist" })).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
+    });
+    expect(root).toHaveAttribute("data-sidebar", "open");
+    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+  });
+
+  it("openPanels forces the sidebar visible — a host-requested panel never hides", () => {
+    renderWithClient(<PlayerScreen openPanels={["playlist"]} />);
+    act(() => {
+      window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
+    });
+    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+  });
+});
+
+describe("PlayerScreen — now-playing identity on the canvas (Player.png artwork stand-in)", () => {
+  /** Transport that answers like an idle mock but can EMIT engine events —
+   * the honest path for the canvas identity (engine truth only). */
+  function emittingTransport(): CommandTransport & { emit: (event: Event) => void } {
+    const listeners = new Set<(event: Event) => void>();
+    const wire: CommandTransport = {
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+      async send(request: CommandRequest): Promise<CommandResponse> {
+        return {
+          gen: 1,
+          requestId: request.requestId,
+          result: {
+            error: {
+              code: "feature-not-exposed",
+              details: { cmd: request.cmd },
+              message: "mock transport: command not simulated yet",
+              stage: "control",
+            },
+          },
+        };
+      },
+    };
+    return {
+      ...wire,
+      emit: (event: Event) => {
+        for (const listener of listeners) listener(event);
+      },
+    };
+  }
+
+  it("centers the engine-reported title while a session is playing (no overlay)", () => {
+    const transport = emittingTransport();
+    render(<ClientProvider transport={transport}><PlayerScreen /></ClientProvider>);
+    // Engine truth: a playing session + the info burst (title, video track).
+    act(() => {
+      transport.emit({
+        seq: 1,
+        kind: "session.state-changed",
+        from: "idle",
+        to: "opening",
+      });
+      transport.emit({ seq: 2, kind: "session.state-changed", from: "opening", to: "playing" });
+      transport.emit({ seq: 3, kind: "media.info-ready", info: fullMediaInfo });
+      transport.emit({ seq: 4, kind: "tracks.list-ready", tracks: fullMediaInfo.tracks });
+    });
+    const now = document.querySelector(".lumen-player__now")!;
+    expect(now).toHaveAttribute("data-media-kind", "video");
+    expect(screen.getByRole("heading", { name: "Big Buck Bunny" })).toBeInTheDocument();
+    // the first-run hero is gone once media is up
+    expect(screen.queryByRole("heading", { name: "No media open" })).toBeNull();
+  });
+
+  it("renders nothing over the canvas when the engine stays idle (honesty)", () => {
+    renderWithClient(<PlayerScreen />);
+    expect(document.querySelector(".lumen-player__now")).toBeNull();
   });
 });
 
 describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
   it("shows the empty state with the Open-media affordance wired to the shell dialog event", () => {
-    // Solstice redesign: the empty-state button is a REAL affordance now — it
-    // dispatches the shell-wide `lumen:open-media` event (the app-shell file
-    // dialog, another workstream, listens for exactly that name) instead of
-    // sitting as a disabled wiring stub. The test contract follows the
-    // behavior change; nothing was weakened — the click path is asserted
-    // more strongly than the old disabled-stub check.
+    // The empty-state button is a REAL affordance — it dispatches the
+    // shell-wide `lumen:open-media` event (the app-shell file dialog,
+    // another workstream, listens for exactly that name). The test contract
+    // follows the behavior; the click path is asserted.
     renderWithClient(<PlayerScreen />);
     expect(screen.getByRole("heading", { level: 2, name: "No media open" })).toBeInTheDocument();
     expect(screen.getByText("Open media to start playback.")).toBeInTheDocument();
@@ -139,6 +246,11 @@ label_key = "player.region.title-bar"
       />,
     );
     expect(screen.getByRole("region", { name: "Video canvas" })).toHaveAttribute("data-region-id", "canvas");
+    // A layout that declares a top region gets the player top strip with the
+    // screen title (the default W26 layout does not — the shell owns the
+    // window title bar).
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Player" })).toBeInTheDocument();
     // no controls-bar in this layout
     expect(screen.queryByRole("region", { name: "Playback controls" })).toBeNull();
   });

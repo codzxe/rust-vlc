@@ -1,19 +1,46 @@
-/* Card 4.B4 — surface primitives (Dialog, Sheet).
+/* Card 4.B4 — surface primitives (scrim, Dialog, Sheet, Panel, Card, Well,
+ * Separator, SectionHeader, HeroPill).
  * Design provenance: docs/08-ui-figma-fidelity.md §4.5 (role=dialog + focus
- * trap, Esc closes overlays), §1.4 (settings window 14px radius #0E0E0E;
- * onboarding scrim; 20px border strokes), §4.4 interim state rules.
+ * trap, Esc closes overlays), §4.4 interim state rules; W26 Figma grammar
+ * (design/figma-fidelity-spec.md §1 + the w26 frame measurements):
+ *   * Window-level app panels are SQUARE-edged (Player.svg title bar / icon
+ *     rail / sidebar / control bar all rx 0) — rounding lives on controls and
+ *     cards only. Panels separate via 1px var(--color-stroke-border) (the
+ *     #404040 workhorse border, 1011 frame fills).
+ *   * Cards/panels r12–14 on --color-surface-panel #191919 with the 1px
+ *     hairline (playlist.svg r14, Miniplayer.svg r14, Settings windows r14).
+ *   * Dialog/sheet surfaces r19–21 via --radius-window, floating on a soft
+ *     black shadow (Open network stream.svg / Keyboard Shortcuts.svg /
+ *     Settings - global.svg: 0 8px 15px rgb(0 0 0 / 46%) → --shadow-overlay).
+ *   * Recessed wells --color-surface-deep #0e0e0e (seekbar track, inputs).
+ *   * Hover-elevated cards --color-surface-raised (playlist cards).
+ *   * Section headers 15px semibold, optional thin rule (Settings - *.svg).
+ *   * Hero pills r30 (Onboarding-3..10.svg selected-accent disc ring).
+ *   * NO drop shadows except where a frame shows one: floating cards
+ *     (Miniplayer.svg card: 0 0 12px rgb(0 0 0 / 38%) → --shadow-card) and
+ *     modal overlays (--shadow-overlay).
  * Semantic tokens only (§3.2). Raw px appears solely for structural
  * dimensions with no token (max widths, edge offsets). */
+
+/* ---- Scrim (shared by Dialog and Sheet) ---- */
 
 .lumen-scrim {
   position: fixed;
   inset: 0;
+
+  /* Above the app's z-indexed stage chrome and the menubar popup layer
+   * (menu.css z-index 10) so a modal can never lose the paint race or the
+   * hit test — the fix for the open-media MODAL LAYER bug, now in the
+   * primitive; structural, no token. */
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
   /* stylelint-disable-next-line function-disallowed-list -- scrim ink: raw black over the token opacity; a semantic scrim-ink token is [PROPOSAL] in stylelint.config.js */
   background: rgb(0 0 0 / var(--opacity-scrim-strong));
 }
+
+/* ---- Dialog — modal window surface ---- */
 
 .lumen-dialog {
   display: flex;
@@ -23,10 +50,16 @@
   max-height: min(86vh, 720px);
   padding: var(--space-inset);
   overflow: auto;
-  color: var(--color-content-secondary);
+  color: var(--color-content-primary);
   background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-window);
+  box-shadow: var(--shadow-overlay);
   outline: none; /* focus ring drawn on focus-visible children per §4.4 */
+}
+
+.lumen-dialog[data-tone="deep"] {
+  background: var(--color-surface-deep);
 }
 
 .lumen-dialog:focus-visible {
@@ -47,21 +80,30 @@
   border: 0;
 }
 
-/* Sheet: edge-anchored dialog variant (doc 08 §4). */
+/* ---- Sheet: edge-anchored dialog variant (doc 08 §4) ---- */
+
 .lumen-sheet {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   overflow: auto;
-  color: var(--color-content-secondary);
+  color: var(--color-content-primary);
   background: var(--color-surface-panel);
+  box-shadow: var(--shadow-overlay);
   outline: none;
+}
+
+.lumen-sheet[data-tone="deep"] {
+  background: var(--color-surface-deep);
 }
 
 .lumen-sheet:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
+
+/* Edge anchoring: square against the viewport, --radius-window on the inner
+ * corners only; hairline on the free edges (the anchored edge is flush). */
 
 .lumen-sheet--top,
 .lumen-sheet--bottom {
@@ -81,6 +123,8 @@
   position: fixed;
   top: 0;
   left: 0;
+  border-inline: 1px solid var(--color-stroke-border);
+  border-block-end: 1px solid var(--color-stroke-border);
   border-radius: 0 0 var(--radius-window) var(--radius-window);
 }
 
@@ -88,6 +132,8 @@
   position: fixed;
   bottom: 0;
   left: 0;
+  border-inline: 1px solid var(--color-stroke-border);
+  border-block-start: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-window) var(--radius-window) 0 0;
 }
 
@@ -95,6 +141,8 @@
   position: fixed;
   top: 0;
   left: 0;
+  border-block: 1px solid var(--color-stroke-border);
+  border-inline-end: 1px solid var(--color-stroke-border);
   border-radius: 0 var(--radius-window) var(--radius-window) 0;
 }
 
@@ -102,6 +150,8 @@
   position: fixed;
   top: 0;
   right: 0;
+  border-block: 1px solid var(--color-stroke-border);
+  border-inline-start: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-window) 0 0 var(--radius-window);
 }
 
@@ -149,4 +199,144 @@
     transform: translateY(24px);
     opacity: 0;
   }
+}
+
+/* ---- Panel — square-edged, full-height app panel ---- */
+
+/* Class is .lumen-pane, NOT .lumen-panel: the theme base sheet
+ * (theme/lumen.css, theme lane) ships .lumen-panel as the r12–14 CARD
+ * grammar. Window-level app panels are a different concept (square, flush
+ * chrome), so this module keeps a collision-free class name — flagged to
+ * the Lead for cross-lane unification. */
+
+.lumen-pane {
+  box-sizing: border-box;
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+
+  /* Window-level panels are SHARP-edged (W26 grammar): rounding lives on
+   * controls and cards, never on title bars / rails / sidebars / strips. */
+  border-radius: 0;
+}
+
+.lumen-pane[data-tone="deep"] {
+  background: var(--color-surface-deep);
+}
+
+/* Opt-in 1px hairline separators on the chosen inline edges. */
+.lumen-pane[data-edges="start"],
+.lumen-pane[data-edges="both"] {
+  border-inline-start: 1px solid var(--color-stroke-border);
+}
+
+.lumen-pane[data-edges="end"],
+.lumen-pane[data-edges="both"] {
+  border-inline-end: 1px solid var(--color-stroke-border);
+}
+
+/* ---- Card — r12–14 bordered card ---- */
+
+.lumen-card {
+  box-sizing: border-box;
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card);
+}
+
+/* Hover-elevated card fill (playlist cards hover to the raised surface). */
+.lumen-card--raised {
+  background: var(--color-surface-raised);
+}
+
+.lumen-card--interactive:hover,
+.lumen-card--interactive:focus-within {
+  background: var(--color-surface-raised);
+}
+
+/* The one floating-card shadow the frames show (Miniplayer card). */
+.lumen-card--floating {
+  box-shadow: var(--shadow-card);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lumen-card--interactive {
+    transition: background-color var(--motion-duration-fast) ease-out;
+  }
+}
+
+/* ---- Well — recessed inset surface ---- */
+
+.lumen-well {
+  background: var(--color-surface-deep);
+  border-radius: var(--radius-inset);
+}
+
+/* ---- Separator — 1px hairline divider ---- */
+
+/* The theme base sheet (theme/lumen.css) owns the shared .lumen-separator
+ * hairline (hr grammar: border:none + quiet inset margins). This module
+ * layers ONLY the orientation geometry on top — the data-attribute
+ * selectors outrank the base class regardless of sheet order, so the
+ * component stays deterministic in both cascade orders. */
+
+.lumen-separator {
+  flex: none;
+  background: var(--color-stroke-border);
+}
+
+.lumen-separator[data-orientation="horizontal"] {
+  width: 100%;
+  height: 1px;
+}
+
+.lumen-separator[data-orientation="vertical"] {
+  width: 1px;
+  height: 100%;
+  align-self: stretch;
+  margin: 0; /* vertical hairlines run edge-to-edge of their track */
+}
+
+/* ---- SectionHeader — 15px semibold label, optional thin rule ---- */
+
+.lumen-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-grid);
+}
+
+.lumen-section-header__title {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-content-bright);
+}
+
+.lumen-section-header__trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  margin-inline-start: auto;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* The optional thin rule closing a section (Settings sections). */
+.lumen-section-header[data-rule] {
+  padding-block-end: var(--space-inset);
+  border-block-end: 1px solid var(--color-stroke-border);
+}
+
+/* ---- HeroPill — r30 hero surface ---- */
+
+.lumen-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-card-lg);
+}
+
+/* Selected-accent ring (Onboarding frames: 4px ring at 30% accent ink). */
+.lumen-hero-pill--ring {
+  border: var(--stroke-ring) solid color-mix(in srgb, var(--color-accent) 30%, transparent);
 }

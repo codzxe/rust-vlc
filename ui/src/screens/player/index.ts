@@ -1,5 +1,5 @@
 // Card 4.C1 — player screen shell public surface.
-export { PlayerScreen } from "./PlayerScreen";
+export { PlayerScreen, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
 export type { PlayerMediaContext, PlayerScreenProps } from "./PlayerScreen";
 export { useChromeAutoHide, CHROME_AUTO_HIDE_DELAY_MS } from "./useChromeAutoHide";
 export type { ChromeAutoHide, ChromeAutoHideOptions, ChromeVisibility } from "./useChromeAutoHide";

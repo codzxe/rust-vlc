@@ -9,4 +9,10 @@ export { Tooltip } from "./Tooltip";
 export type { TooltipProps } from "./Tooltip";
 export { MenuItem } from "./MenuItem";
 export type { MenuItemProps } from "./MenuItem";
-export type { MenuEntry, MenuEntryBase, MenuSeparator, ResolveLabel } from "./types";
+export type {
+  MenuDensity,
+  MenuEntry,
+  MenuEntryBase,
+  MenuSeparator,
+  ResolveLabel,
+} from "./types";

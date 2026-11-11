@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { ClientProvider } from "./client/ClientProvider";
 import { MockTransport } from "./client/transport";
 import { MemoryRouter } from "react-router-dom";
@@ -16,10 +16,10 @@ function renderAt(path: string): void {
   );
 }
 
-// Route smoke over the doc 08 §1.6 inventory — every route now renders a
-// real screen (Solstice app-shell workstream, 2026-11-08). On a fresh run
-// the first-run gate owns / and the player routes until the wizard
-// completes/skips (card 4.F1).
+// Route smoke over the doc 08 §1.6 inventory — every route renders a real
+// screen (app-shell workstream, 2026-11-08). On a fresh run the first-run
+// gate owns / and the player routes until the wizard completes/skips
+// (card 4.F1); ?onboarding=1 is the per-navigation test bypass of that gate.
 const ONBOARDING_DONE = JSON.stringify({
   complete: true,
   choices: { telemetry: false, updateChecks: false, onlineSuggestions: false },
@@ -55,5 +55,25 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
   it("renders unknown paths as the not-found screen", () => {
     renderAt("/definitely-not-a-route");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Lost the thread");
+  });
+
+  it("completed profile: / lands on the player home — the wizard never shows again", () => {
+    window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
+    resetOnboardingForTests(); // re-hydrate the module store from localStorage
+    renderAt("/");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    window.localStorage.clear();
+    resetOnboardingForTests(); // leave a fresh run for the later route tests
+  });
+
+  it("?onboarding=1 bypasses the first-run gate for tests/screenshots, per navigation only", () => {
+    // Fresh run (no persisted store): the param satisfies the gate…
+    renderAt("/player?onboarding=1");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    // …and writes nothing to the onboarding store: the next param-less
+    // navigation is gated again.
+    cleanup();
+    renderAt("/player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
   });
 });

@@ -5,3 +5,5 @@ export type { SeekbarProps, SeekbarBufferRange } from "./Seekbar";
 export { formatSeekTime } from "./formatTime";
 export { VolumeSlider } from "./Volume";
 export type { VolumeSliderProps } from "./Volume";
+export { EQSlider } from "./EQSlider";
+export type { EQSliderProps } from "./EQSlider";

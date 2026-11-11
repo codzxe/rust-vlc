@@ -3,7 +3,8 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import "./slider.css";
 import { toPercent, useSliderInteraction } from "./interaction";
 
-/** Slider orientation (doc 08 §1.4: EQ + volume flyout are vertical). */
+/** Slider orientation (the EQ rows + volume are horizontal; vertical keeps
+ * the classic EQ band view, EQ.svg). */
 export type SliderOrientation = "horizontal" | "vertical";
 
 export interface SliderProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
@@ -40,9 +41,10 @@ export interface SliderProps extends Omit<HTMLAttributes<HTMLDivElement>, "onCha
 }
 
 /**
- * Generic slider primitive (doc 08 §4.2 primitives/Slider). Anatomy per doc 08
- * §1.4 miniplayer/EQ exports: 16px track rx6 `surface-deep`; fill inset 2px
- * `accent-tinted` rx4; 8×12 (horizontal) / 8×24 (vertical) thumb rx4.
+ * Generic slider primitive (doc 08 §4.2 primitives/Slider; w26.a04 restyle).
+ * Anatomy per EQ.png / Audio - Equalizer.png (W25 spec §2): 14px r7 pill
+ * track `surface-deep`; full-height amber gradient fill (`accent-tinted` →
+ * eq fill end); 8×20 r4 `accent-strong` handle (20×8 vertical).
  * Keyboard: arrows ±step (Shift = coarse ×10), PageUp/PageDown coarse,
  * Home/End min/max (doc 08 §4.5). All states token-styled in slider.css.
  */

@@ -27,12 +27,12 @@ const crateCssPath = resolve(uiRoot, "..", "themes", "generated", "tokens.css");
 const outCssPath = resolve(uiRoot, "src", "tokens", "generated", "tokens.css");
 const outTsPath = resolve(uiRoot, "src", "tokens", "generated", "tokens.ts");
 
-// Doc 08 §3.3: dark is the default mode, yellow the default accent (Solstice
-// design language, 2026-11-08 — Keyvox gold). These are product constants
-// (product.toml brand fields) — the non-default values are parsed from the
-// CSS selectors below.
+// Doc 08 §3.3: dark is the default mode, orange the default accent (W25
+// Figma redesign, 2026-11-11 — the VLC orange, fidelity spec §1). These are
+// product constants (product.toml brand fields) — the non-default values are
+// parsed from the CSS selectors below.
 const DEFAULT_MODE = "dark";
-const DEFAULT_ACCENT = "yellow";
+const DEFAULT_ACCENT = "orange";
 
 async function main() {
   const check = process.argv.includes("--check");

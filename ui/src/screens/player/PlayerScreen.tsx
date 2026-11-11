@@ -1,28 +1,38 @@
-// Card 4.C1 — PlayerScreen: the player screen shell (doc 08 §1.6 anatomy,
-// §4.3 unobtrusive controls, §4.5 a11y; doc 07 §7 layout-config structure).
+// PlayerScreen: the player screen core — the W26 Player.png composition
+// (doc 08 §1.6 anatomy, §4.3 unobtrusive controls, §4.5 a11y; doc 07 §7
+// layout-config structure; figma-fidelity-spec §2 "Player" family).
 //
-// HONEST PLACEHOLDERS in this shell (each labeled in code + i18n copy):
+// COMPOSITION (Player.png, Player-6, Player - Light — all 7 frames agree):
+//   * window title bar + icon rail — the APP SHELL's regions (appshell lane;
+//     this screen is hosted inside AppShell's main and never duplicates them)
+//   * DOCKED PLAYLIST SIDEBAR, left of the canvas, open by default — the
+//     `lumen:toggle-sidebar` window event (exported below) is the seam the
+//     shell's title-bar toggle drives; `openPanels: ["playlist"]` also shows it
+//   * MAIN CANVAS — near-black in BOTH themes (the picture-frame rule); the
+//     honest engine-unwired placeholder (no <video>/<canvas> until 4.H1)
+//     centers the playing media's identity; the first-run EMPTY state is the
+//     onboarding-style hero from ./states (never a blank void)
+//   * BOTTOM CONTROL BAR SLOT — the sibling ControlBar (./controls) renders
+//     into the footer region this shell provides.
+//
+// HONEST PLACEHOLDERS still true here:
 //   * video canvas — a labelled region div, NOT a <video>/<canvas> element:
 //     nothing is wired to the render engine yet; the engine wiring handoff
 //     for card 4.H1 is the sr-only note + this comment + ui/NEXT-STEPS.md.
-//   * side panels + controls-bar region — empty containers from layout
-//     config; CONTENT is 4.C2 (transport controls) / 4.F3 (library,
-//     playlist) / later cards' work.
-//   * "Open media" affordance — disabled until 4.C2 wires session.open +
-//     the file-dialog ui-action (doc 07 §7.2 ui-actions registry).
+//   * "Open media" affordances dispatch the shell-wide `lumen:open-media`
+//     event (the app-shell file dialog, another workstream, listens for it).
 //
 // Owned here: chrome show/auto-hide/lock, fullscreen + keymap-driven ESC/F/I
 // (doc 05 §8.1 semantics from keymap DATA, never hardcoded), layout-config
-// consumption, ARIA landmarks. The first-run empty state + playback UX
-// overlays moved to ./states (card 4.C3) — the shell renders them on the
-// canvas region via the `engineState` prop / honest fallback.
+// consumption, ARIA landmarks. Playback UX overlays live in ./states and
+// render over this canvas region via the `engineState` prop / honest fallback.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMsg } from "../../i18n/messages";
 import { useClient } from "../../client/ClientProvider";
+import { Icon } from "../../components";
 import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
-import { PlaylistPanel, PlaylistProvider } from "../playlist";
-import { PlayerKeyHintStrip } from "./KeyHintStrip";
+import { PlaylistPanel, PlaylistProvider, usePlaylist } from "../playlist";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import { ControlBar, controlCommandOf } from "./controls";
 import { CustomizePanels } from "./customize";
@@ -41,7 +51,7 @@ import {
   type LayoutConditionContext,
   type LayoutRegion,
 } from "./layout";
-import { StateRouter, type PlayerEngineView } from "./states";
+import { StateRouter, resolveOverlay, type PlayerEngineView } from "./states";
 import {
   MiniPlayer,
   MusicMode,
@@ -54,6 +64,14 @@ import {
 import "./player.css";
 import { useChromeAutoHide } from "./useChromeAutoHide";
 import { useFullscreen } from "./useFullscreen";
+
+/**
+ * Shell seam (W26): the window title bar's sidebar-toggle dispatches this
+ * window event; the player answers by collapsing/expanding the docked
+ * playlist sidebar (Player.png ↔ Player-6.png). Same CustomEvent contract
+ * shape as `lumen:open-media`.
+ */
+export const PLAYER_TOGGLE_SIDEBAR_EVENT = "lumen:toggle-sidebar";
 
 /** Playback context for layout condition tokens; null = first-run empty state. */
 export interface PlayerMediaContext {
@@ -99,12 +117,16 @@ export interface PlayerScreenProps {
 }
 
 export function PlayerScreen(props: PlayerScreenProps) {
-  // Shared player state seam (card 4.C2 context.tsx) — the transport comes
-  // from ClientProvider (hosts/tests may not inject one here; tests wrap
-  // with ClientProvider, matching main.tsx composition).
+  // Shared seams: the player state context (card 4.C2 context.tsx) and the
+  // playlist context (card 4.D1) are mounted ONCE around the whole player
+  // composition — the docked sidebar, the music-mode panel and the canvas
+  // now-playing block all consume the same provider instances. Transports
+  // come from ClientProvider (hosts/tests wrap with it, matching main.tsx).
   return (
     <PlayerControlsProvider>
-      <PlayerScreenInner {...props} />
+      <PlaylistProvider>
+        <PlayerScreenInner {...props} />
+      </PlaylistProvider>
     </PlayerControlsProvider>
   );
 }
@@ -138,6 +160,18 @@ function PlayerScreenInner({
     [onVariantChange],
   );
 
+  // W26 Player.png: the docked playlist sidebar is part of the player's
+  // default composition — OPEN first-run, collapsible. The shell's
+  // sidebar-toggle drives it through the exported window event (see
+  // PLAYER_TOGGLE_SIDEBAR_EVENT); `openPanels` forcing it open keeps the
+  // old host seam honest (a panel a host asked for never hides).
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  useEffect(() => {
+    const onToggleSidebar = (): void => setSidebarOpen((open) => !open);
+    window.addEventListener(PLAYER_TOGGLE_SIDEBAR_EVENT, onToggleSidebar);
+    return () => window.removeEventListener(PLAYER_TOGGLE_SIDEBAR_EVENT, onToggleSidebar);
+  }, []);
+
   const layout = useMemo(
     () => resolveVariantLayout(layoutSource, variant),
     [layoutSource, variant],
@@ -153,13 +187,12 @@ function PlayerScreenInner({
   const [gotoOpen, setGotoOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
 
-  // Solstice app-shell derivation (2026-11-08): hosts MAY inject explicit
-  // `media` / `engineState` props, but the default composition (browser
-  // shell, /player route) owns no such objects — the screen then derives
-  // BOTH from the live seams it already mounts: the 4.C3 bridge view (pure
-  // engine events) for the overlays, and the controls state (tracks) for
-  // media presence. Nothing is fabricated: idle stays idle until the
-  // engine's session.state-changed events say otherwise.
+  // Hosts MAY inject explicit `media` / `engineState` props, but the default
+  // composition (browser shell, /player route) owns no such objects — the
+  // screen then derives BOTH from the live seams it already mounts: the 4.C3
+  // bridge view (pure engine events) for the overlays, and the controls
+  // state (tracks) for media presence. Nothing is fabricated: idle stays
+  // idle until the engine's session.state-changed events say otherwise.
   const client = useClient();
   const bridgeView = usePlayerEngineView(client);
   const controls = usePlayerControls();
@@ -178,17 +211,6 @@ function PlayerScreenInner({
           };
   const hasMedia = derivedMedia !== null;
 
-  // Solstice stage: the player is the transparent surface that lets the
-  // app-wide (veiled) sunset glow through. Clear any backdrop mode a previous
-  // screen left behind so the default veil applies, and leave it cleared on
-  // unmount (no cleanup debt for the next screen).
-  useEffect(() => {
-    delete document.documentElement.dataset.backdrop;
-    return () => {
-      delete document.documentElement.dataset.backdrop;
-    };
-  }, []);
-
   // Doc 08 §4.3 [PROPOSAL]: auto-hide on idle in fullscreen; empty state and
   // any open panel/menu lock the chrome visible (§4.5, §5.3).
   const chrome = useChromeAutoHide({
@@ -198,7 +220,7 @@ function PlayerScreenInner({
 
   // Control-bar commands (4.C2) via the shared state seam — keymap DATA
   // drives which bindings reach here (see controls/state-mapping.ts).
-  const { actions } = usePlayerControls();
+  const { actions } = controls;
 
   // Keymap-data-driven shortcuts (doc 05 §8.1): the shell listens for
   // bindings it owns (fullscreen-toggle, exit-fullscreen,
@@ -280,7 +302,12 @@ function PlayerScreenInner({
   const canvasRegion = regionsOf("center")[0];
 
   const sidePanel = (region: LayoutRegion): boolean => openPanels.includes(region.id);
-  const leftRegions = regionsOf("left").filter(sidePanel);
+  // Left regions: the playlist is the DOCKED SIDEBAR (default-open, W26);
+  // any other left region (custom layouts) keeps the openPanels gate.
+  const dockedSidebar = regionsOf("left").find((region) => region.id === "playlist");
+  const leftRegions = regionsOf("left").filter(
+    (region) => region.id !== "playlist" && sidePanel(region),
+  );
   // Music mode (4.F2): the playlist panel is LAYOUT-DRIVEN prominent — every
   // visible right-anchor region renders without the openPanels gate
   // (design matrix in variants/variantLayout.ts).
@@ -288,12 +315,13 @@ function PlayerScreenInner({
     variant === "music"
       ? regionsOf("right")
       : regionsOf("right").filter(sidePanel);
+  const sidebarVisible = sidebarOpen || openPanels.includes("playlist");
 
   // Miniplayer (4.F2): the whole surface is the compact card — no top bar,
   // no side panels, no full control bar (design: Miniplayer.svg default).
   if (variant === "miniplayer") {
     const thumb = regionsOf("center")[0];
-    const controls = regionsOf("bottom")[0];
+    const controlsRegion = regionsOf("bottom")[0];
     return (
       <div
         ref={rootRef}
@@ -304,10 +332,10 @@ function PlayerScreenInner({
         data-fullscreen={String(isFullscreen)}
         data-has-media={hasMedia}
       >
-        {thumb === undefined || controls === undefined ? null : (
+        {thumb === undefined || controlsRegion === undefined ? null : (
           <MiniPlayer
             thumbnailRegion={thumb}
-            controlsRegion={controls}
+            controlsRegion={controlsRegion}
             onExpand={() => setVariant("full")}
             onClose={() => {
               // [PROPOSAL]: window-level close is host-owned; the honest
@@ -337,12 +365,21 @@ function PlayerScreenInner({
       data-chrome={chrome.visibility}
       data-fullscreen={String(isFullscreen)}
       data-has-media={hasMedia}
+      data-sidebar={sidebarVisible ? "open" : "closed"}
     >
+      {/* Docked playlist sidebar (Player.png) — collapses via the shell's
+          sidebar-toggle (lumen:toggle-sidebar) or openPanels omission. */}
+      {dockedSidebar !== undefined && sidebarVisible ? (
+        <PlaylistSidebar region={dockedSidebar} />
+      ) : null}
+
       {leftRegions.map((region) => (
         <PanelRegion key={region.id} region={region} side="left" />
       ))}
 
       <div className="lumen-player__main">
+        {/* Top regions render only when a layout declares one — the default
+            W26 layout does not (the window title bar is the app shell's). */}
         {regionsOf("top").map((region) => (
           <header
             key={region.id}
@@ -350,10 +387,6 @@ function PlayerScreenInner({
             data-chrome-part=""
             className="lumen-player__topbar"
           >
-            {/* Screen title (window title template is product-config's job;
-                the top-bar composition itself is later work). The sun mark is
-                the Solstice ornament — decorative, aria-hidden. */}
-            <span className="solstice-sun lumen-player__mark" aria-hidden="true" />
             <h1 className="lumen-player__title">{m("screen.player")}</h1>
           </header>
         ))}
@@ -375,6 +408,16 @@ function PlayerScreenInner({
                 ui/NEXT-STEPS.md). Screen-reader note says so. */}
             <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
+            {/* Player.png "artwork centered": until the engine paints frames
+                (4.H1), the honest stand-in is the playing media's IDENTITY —
+                engine-reported title first (media.info-ready), the playlist
+                entry's title as fallback, a quiet kind mark when neither
+                reported. Real data only; renders only while an overlay-free
+                session state is up (loading/buffering/error take over). */}
+            {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
+              <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
+            ) : null}
+
             {/* Card 4.C3 playback UX states: exactly zero or one overlay on
                 the canvas region, driven by the engine view. The first-run
                 Empty surface only ever appears when NO media is present —
@@ -388,11 +431,6 @@ function PlayerScreenInner({
                 onOpenMedia={onOpenMedia}
               />
             )}
-
-            {/* Solstice keycap hint strip (chrome part): real keymap data,
-                bottom-centered above the control bar. Renders only when idle
-                or paused; fades with the chrome otherwise. */}
-            <PlayerKeyHintStrip hasMedia={hasMedia} />
           </div>
         )}
 
@@ -428,11 +466,49 @@ function PlayerScreenInner({
   );
 }
 
-/** An empty, honestly-labelled side-panel container from layout config.
- * Music-mode emphasis (4.F2) is the styling hook (washi strip on the top
- * edge, see player.css); the playlist panel's own empty-state Open-media CTA
- * (card 4.D1, screens/playlist) dispatches the shell-wide `lumen:open-media`
- * event from inside the panel — no duplicate CTA is pinned here. */
+/** The docked playlist sidebar (Player.png left rail of the canvas):
+ * a full-height deep surface with a hairline right edge. Content is the
+ * real 4.D1 playlist panel (queue semantics) — the playlists-LIST model
+ * (multiple saved playlists, Player.png "Cool Songs"/"Anime to Watch" rows)
+ * has no engine surface yet and is NOT fabricated here (see lane log). */
+function PlaylistSidebar({ region }: { region: LayoutRegion }) {
+  const m = useMsg();
+  return (
+    <aside
+      data-region-id={region.id}
+      data-chrome-part=""
+      role="complementary"
+      aria-label={m(region.labelKey)}
+      className="lumen-player__sidebar"
+    >
+      <PlaylistPanel />
+    </aside>
+  );
+}
+
+/** The honest "artwork centered" stand-in for media-present sessions (see
+ * the canvas region comment). Engine truth first, playlist truth second. */
+function NowPlayingMark({ hasVideo }: { hasVideo: boolean }) {
+  const { state } = usePlayerControls();
+  const playlist = usePlaylist();
+  const entryTitle =
+    playlist.entries.find((entry) => entry.id === playlist.currentId)?.title ?? null;
+  const title = state.mediaTitle ?? entryTitle;
+  return (
+    <div className="lumen-player__now" data-media-kind={hasVideo ? "video" : "audio"}>
+      <span className="lumen-player__now-glyph" aria-hidden="true">
+        <Icon name={hasVideo ? "play" : "volume-medium"} size={24} />
+      </span>
+      {title === null ? null : <h2 className="lumen-player__now-title">{title}</h2>}
+    </div>
+  );
+}
+
+/** An honestly-labelled side-panel container from layout config (custom
+ * layouts + the right-side tool panels: media-info, customize). Music-mode
+ * emphasis (4.F2) is a styling hook in player.css. The playlist context is
+ * mounted by PlayerScreen around the whole composition; the panels consume
+ * it (no per-panel provider nesting). */
 function PanelRegion({
   region,
   side,
@@ -458,9 +534,7 @@ function PanelRegion({
           landed with card 4.D2; customize panels landed with 4.F3
           (capability-gated fields); library remains an honest placeholder. */}
       {region.id === "playlist" ? (
-        <PlaylistProvider>
-          <PlaylistPanel />
-        </PlaylistProvider>
+        <PlaylistPanel />
       ) : region.id === "media-info" ? (
         <MediaInfoProvider>
           <MediaInfoPanel />

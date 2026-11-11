@@ -4,11 +4,13 @@ import { Slider } from "./Slider";
 import type { SliderProps } from "./Slider";
 
 /**
- * Volume slider primitive (card 4.B2; doc 08 §1.5 volume.svg: "Volume flyout
- * — vertical slider, stroke-based, 129×645"). Anatomy in slider.css: 2px
- * stroke track, accent fill, 8×24 rx4 `accent-strong` thumb (EQ thumb color,
- * §1.4). The icon + flyout chrome (mute/low/med/high × hover states) is the
- * later `VolumeControl` composite (doc 08 §4.3) — this is just the slider.
+ * Volume slider primitive (w26.a04 restyle; volume.svg + the Player.svg
+ * volume group). Compact HORIZONTAL slider in the seekbar's slim grammar
+ * (4px pill-ended track on the surface-deep well, circular thumb revealed
+ * on hover/drag) — the level fill resolves to the frame-measured
+ * green→amber→red signal gradient through the --gradient-volume-level token
+ * when present, else the accent (slider.css). The mute icon + flyout chrome
+ * remains the consumer composite's concern — this is just the slider.
  */
 export interface VolumeSliderProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
   /** Engine-reported volume, 0…1 (doc 05 command layer range). */
@@ -29,7 +31,7 @@ export const VolumeSlider = forwardRef<HTMLDivElement, VolumeSliderProps>(
       min: 0,
       max: 1,
       step: 0.01,
-      orientation: "vertical",
+      orientation: "horizontal",
       disabled,
       onChangeLive,
       onCommit,

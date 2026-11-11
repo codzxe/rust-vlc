@@ -9,7 +9,9 @@
 // Persistence and the settings-schema integration ("Accent color" setting,
 // doc 07 / doc 08 §3.3) land with the settings cards — this provider is the
 // rendering-side seam only, honestly defaulting to the product defaults
-// (dark + yellow, the Solstice Keyvox gold).
+// (dark + orange, the W25 Figma redesign accent; the Solstice gold default
+// is retired). The base stylesheet for the skin is lumen.css, imported
+// below so any host mounting <ThemeProvider> gets the whole theme layer.
 
 import {
   useCallback,
@@ -19,6 +21,10 @@ import {
   type ReactNode,
 } from "react";
 import { ACCENTS, type AccentId, type TokenMode } from "../tokens/generated/tokens";
+// Base stylesheet of the Lumen skin (wave 26 theme lane): root type,
+// scrollbars, selection, focus floor, shared panel/row/separator
+// primitives. Composes the generated tokens; replaces solstice.css.
+import "./lumen.css";
 import {
   ThemeContext,
   type ThemeContextValue,
@@ -42,7 +48,7 @@ function systemPrefersLight(): boolean {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [modeSetting, setModeSettingState] = useState<ThemeModeSetting>("dark");
-  const [accent, setAccentState] = useState<AccentId>("yellow");
+  const [accent, setAccentState] = useState<AccentId>("orange");
   const [systemLight, setSystemLight] = useState<boolean>(systemPrefersLight);
 
   // Track the OS preference only while the user is in "auto".

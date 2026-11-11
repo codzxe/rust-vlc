@@ -2,7 +2,8 @@ import { forwardRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import "./button.css";
 
-/** Control heights from doc 08 §1.4/§1.5: 28 / 32 / 48 hit wrapper (`sm`/`md`/`lg`). */
+/** Control hit areas per the W26 frames: 28 / 32 / 48 (`sm`/`md`/`lg` — the
+ * `lg` wrapper is the ~48px Icon Wrapper hit target; all are ≥ 28px). */
 export type IconButtonSize = "sm" | "md" | "lg";
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -13,15 +14,18 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   label: string;
   /** Hit-area size. @default "md" (32px; `lg` = the ~48px Icon Wrapper) */
   size?: IconButtonSize;
-  /** The icon glyph (SVG). */
+  /** The icon glyph (SVG) — 16px line glyphs per the W26 icon frames. */
   children: ReactNode;
   /** Pending state — inert + `aria-busy` + spinner styling hook. */
   loading?: boolean;
 }
 
 /**
- * IconButton primitive (doc 08 §4/§1.5 icon system: 1.5px stroke icons on a
- * ~48px hit wrapper). Icon-only, so `label` is mandatory for ARIA.
+ * IconButton primitive (doc 08 §4/§1.5 icon system; W26 Figma restyle:
+ * transparent rest + 1px transparent border, hover surface-hover chip per
+ * Icon Wrapper.svg, 2px accent focus ring). Icon-only, so `label` is
+ * mandatory for ARIA. Carries `lumen-icon-host` so nested `.lumen-icon`
+ * glyphs pick up the icon system's state tints (icon.css).
  */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   (
@@ -35,6 +39,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
       aria-busy={loading || undefined}
       className={[
         "lumen-icon-button",
+        "lumen-icon-host", // icon.css state protocol (hover/active glyph tints)
         size !== "md" && `lumen-icon-button--${size}`,
         className,
       ]

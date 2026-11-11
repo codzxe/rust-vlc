@@ -1,65 +1,225 @@
-/* Card 4.B2 — slider primitives (Slider, Seekbar, VolumeSlider).
- * Design provenance: docs/08-ui-figma-fidelity.md §1.4/§1.5/§4/§5.
- *   Miniplayer seek: 375×16 rx6 track #090909, knob 8×12 rx4 -> base slider
- *     anatomy (16px track, surface-deep, accent-tinted inset-2 fill, 8px knob).
- *   Main seek bar: track ×28 rx6 #090909; progress fill inset 2 (×24 rx4
- *     #371F06 = accent-tinted); handle 8×24 rx4 #D37918 (accent) — a slim
- *     vertical bar, not a circle.
- *   EQ slider (vertical): track 16, fill 12, thumb 8×24 rx4 #AB6314
- *     (accent-strong).
- *   volume.svg: vertical stroke-based flyout slider -> 2px stroke track,
- *     accent fill, EQ-style 8×24 accent-strong thumb.
- *   Pending seek (§5.2.2): knob locks at the requested target in
- *     accent-strong while the fill stays at engine truth.
- * Semantic tokens only (doc 08 §3.2); raw px below are structural dimensions
- * pinned by the design exports (no token exists) — see states.md. */
+/* w26.a04 — slider primitives (Slider, Seekbar, VolumeSlider, EQSlider).
+ * Design provenance: W25 figma-fidelity spec §1/§2 + the measured frames.
+ *   Player.svg / Controls.svg (seek row, harmonized per W25 spec §2): slim
+ *     3–4px track with radius (pill) ends on the surface-deep well
+ *     (#0e0e0e), orange accent fill, honest buffer tint, circular thumb
+ *     revealed on hover/drag/focus; hit area stays >= 16px tall.
+ *   volume.svg + Player.svg volume group: compact HORIZONTAL level slider
+ *     in the same slim grammar. The frame's level fill is the measured
+ *     signal gradient (#95D318 → #B2A918 → #D37918 → #FF3737, revealed to
+ *     the level) — resolved through the --gradient-volume-level token when
+ *     the token lane lands it; the accent is the fallback (same grammar).
+ *   EQ.svg / Audio - Equalizer.svg (EQ rows, W25 spec §2): full-width pill
+ *     track 14px r7 on the surface-deep well, amber gradient fill
+ *     (accent.tinted #371f06 → eq fill end #a5621a — frame-measured), 8×20
+ *     r4 amber handle. The value chip (audio value.svg) is rendered by
+ *     CONSUMERS, outside the slider.
+ * Semantic tokens only for colors (eslint + stylelint enforce; the
+ * frame-measured hexes above live in comments). Raw px below are structural
+ * dimensions pinned by the design exports — no token exists (states.md). */
+
+/* ------------------------------------------------------------------ base */
 
 .lumen-slider {
   position: relative;
   display: inline-block;
   box-sizing: border-box;
   width: 160px; /* caller-sized extent; structural default */
-  height: 16px; /* miniplayer seek track height (§1.4) */
+  height: 24px; /* hit area: 14px pill track + the 20px handle's overhang */
   touch-action: none; /* pointer-driven scrub (doc 08 §4) */
   user-select: none;
   cursor: pointer;
   outline: none;
 }
 
+/* track — the 14px r7 pill well (EQ.png / Audio - Equalizer.png grammar) */
+.lumen-slider__track {
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: calc(50% - 7px); /* 14px pill centered in the hit area */
+  height: 14px;
+  background: var(--color-surface-deep);
+  border-radius: 7px; /* r7 pill ends (frame: EQ.png) */
+  transition: background-color 120ms ease;
+}
+
+/* fill — the level/progress value; width driven by --lumen-slider-fill.
+ * Amber gradient accent.tinted → eq fill end (frame: #371f06 → #a5621a);
+ * the dedicated eq tokens win once the token lane lands them, falling back
+ * to accent-tinted / accent-strong (the frame's #ab6314 family). */
+.lumen-slider__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--lumen-slider-fill, 0) * 1%);
+  background: linear-gradient(
+    90deg,
+    var(--color-eq-fill-start, var(--color-accent-tinted)),
+    var(--color-eq-fill-end, var(--color-accent-strong))
+  );
+  border-radius: 7px; /* mirrors the track pill */
+  transition: width 120ms ease;
+}
+
+/* handle — 8×20 r4 amber bar (frame: EQ.png), left = committed/preview */
+.lumen-slider__thumb {
+  position: absolute;
+  top: calc(50% - 10px); /* 20px handle centered on the 14px track */
+  width: 8px;
+  height: 20px;
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent-strong);
+  border-radius: 4px;
+  transition: left 120ms ease, background-color 120ms ease;
+}
+
+/* -------------------------------------------------- orientation: vertical */
+
+/* Vertical keeps the pill grammar rotated 90° (EQ.svg's classic band view):
+ * 14px-wide pill track, bottom-anchored fill, 20×8 handle. */
+.lumen-slider--vertical {
+  width: 24px;
+  height: 160px; /* caller-sized extent */
+}
+
+.lumen-slider--vertical .lumen-slider__track {
+  inset: 0 auto 0 calc(50% - 7px); /* 14px pill centered in the hit area */
+  width: 14px;
+  height: auto;
+}
+
+.lumen-slider--vertical .lumen-slider__fill {
+  inset: auto 0 0; /* anchored to min (bottom): top auto, sides+bottom 0 */
+  width: auto;
+  height: calc(var(--lumen-slider-fill, 0) * 1%);
+  background: linear-gradient(
+    0deg,
+    var(--color-eq-fill-start, var(--color-accent-tinted)),
+    var(--color-eq-fill-end, var(--color-accent-strong))
+  );
+  transition: height 120ms ease;
+}
+
+.lumen-slider--vertical .lumen-slider__thumb {
+  top: auto;
+  left: calc(50% - 10px);
+  width: 20px;
+  height: 8px;
+  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  transition: bottom 120ms ease, background-color 120ms ease;
+}
+
+/* ------------------------------------------------------------- EQSlider */
+
+/* The EQ band row slider (EQ.png, W25 spec §2): the base pill grammar at
+ * full width. The value chip (audio value.svg) is a CONSUMER concern. */
+.lumen-eq-slider {
+  width: 100%;
+}
+
+/* -------------------------------------------------------------- Seekbar */
+
+/* The player seek bar (Player.svg controls row, W25 spec §2 "slim seekbar"):
+ * 4px pill-ended track on the surface-deep well, orange accent fill, honest
+ * buffer tint, circular thumb revealed on hover/drag/focus. */
+.lumen-seekbar {
+  width: 100%;
+  height: 20px; /* >= 16px vertical hit area over the 4px track */
+}
+
+.lumen-seekbar .lumen-slider__track {
+  top: calc(50% - 2px);
+  height: 4px;
+  border-radius: 999px; /* radius (pill) ends */
+}
+
+.lumen-seekbar .lumen-slider__fill {
+  background: var(--color-accent);
+  border-radius: 999px;
+}
+
+/* buffer sub-regions — engine-reported, honest overlay (doc 08 §4.3);
+ * deliberately *no* ARIA: the spec (§4.5) assigns roles to the slider itself */
+.lumen-seekbar__buffer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--color-content-secondary) 22%, transparent);
+  border-radius: 999px;
+}
+
+/* circular thumb — quiet at rest, revealed on hover/drag/pending/focus */
+.lumen-seekbar .lumen-slider__thumb {
+  top: calc(50% - 6px);
+  width: 12px;
+  height: 12px;
+  left: calc((100% - 12px) * var(--lumen-slider-thumb, 0) / 100);
+  border-radius: 50%; /* functional circle, not a design radius */
+  background: var(--color-accent);
+  opacity: 0;
+  transition: left 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+/* ---------------------------------------------------------- VolumeSlider */
+
+/* Compact horizontal level slider (volume.svg / Player.svg volume group):
+ * the seekbar's slim grammar at a compact extent; callers resize via
+ * className. The level fill prefers the frame-measured signal gradient
+ * token, else the accent. */
+.lumen-volume {
+  width: 96px; /* compact (frame pill ≈ 89px) */
+}
+
+.lumen-volume .lumen-slider__track {
+  top: calc(50% - 2px);
+  height: 4px;
+  border-radius: 999px;
+}
+
+.lumen-volume .lumen-slider__fill {
+  background: var(--gradient-volume-level, var(--color-accent));
+  border-radius: 999px;
+}
+
+.lumen-volume .lumen-slider__thumb {
+  top: calc(50% - 6px);
+  width: 12px;
+  height: 12px;
+  left: calc((100% - 12px) * var(--lumen-slider-thumb, 0) / 100);
+  border-radius: 50%; /* functional circle, not a design radius */
+  background: var(--color-accent);
+  opacity: 0;
+  transition: left 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+/* ---------------------------------------------------------------- states */
+
+/* focus-visible — 2px accent ring (B1 focus convention) */
 .lumen-slider:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
-.lumen-slider__track {
-  position: absolute;
-  inset: 0;
-  background: var(--color-surface-deep);
-  border-radius: var(--radius-control);
+/* hover — the handle warms up (accent-strong lifted toward the bright
+ * content tone: a real signal in dark too, where accent-bright == accent),
+ * the well lifts one step */
+.lumen-slider:hover .lumen-slider__thumb {
+  background: color-mix(in srgb, var(--color-accent-strong) 82%, var(--color-content-bright));
 }
 
-/* fill — committed/engine value; width driven by --lumen-slider-fill */
-.lumen-slider__fill {
-  position: absolute;
-  top: 2px; /* fill inset 2 per §1.4 (12px inside a 16px track) */
-  bottom: 2px;
-  left: 0;
-  width: calc(var(--lumen-slider-fill, 0) * 1%);
-  background: var(--color-accent-tinted);
-  border-radius: var(--radius-inset);
-  transition: width 120ms ease;
+.lumen-slider:hover .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface-deep) 70%, var(--color-surface-hover));
 }
 
-/* thumb — 8px-wide slim bar (never a circle), left = committed/preview pos */
-.lumen-slider__thumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  width: 8px; /* 8×12 inside a 16px track (miniplayer knob, §1.4) */
-  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
-  background: var(--color-accent);
-  border-radius: var(--radius-inset);
-  transition: left 120ms ease, background-color 120ms ease;
+/* active — dragging: grabbing cursor + the handle stays lit */
+.lumen-slider[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.lumen-slider[data-dragging="true"] .lumen-slider__thumb {
+  background: color-mix(in srgb, var(--color-accent-strong) 82%, var(--color-content-bright));
 }
 
 /* disabled (doc 08 §2 interim): token opacity, fully inert */
@@ -68,47 +228,12 @@
   pointer-events: none;
 }
 
-.lumen-slider[data-dragging="true"] {
-  cursor: grabbing;
-}
-
-/* orientation: vertical (EQ §1.4: track 16 wide, fill 12, thumb 8×24) */
-.lumen-slider--vertical {
-  width: 16px;
-  height: 160px; /* caller-sized extent */
-}
-
-.lumen-slider--vertical .lumen-slider__fill {
-  inset: auto 2px 0;
-  width: auto;
-  height: calc(var(--lumen-slider-fill, 0) * 1%);
-  transition: height 120ms ease;
-}
-
-.lumen-slider--vertical .lumen-slider__thumb {
-  top: auto;
-  left: calc(50% - 4px); /* 8px thumb centered in the 16px track */
-  width: 8px;
-  height: 24px; /* 8×24 per §1.4 */
-  bottom: calc((100% - 24px) * var(--lumen-slider-thumb, 0) / 100);
-  transition: bottom 120ms ease, background-color 120ms ease;
-}
-
-/* Seekbar — main-window seek anatomy (§1.4): 28px track, fill inset 2 (×24),
- * 8×24 rx4 accent knob. */
-.lumen-seekbar {
-  width: 100%;
-  height: 28px; /* seek track height (§1.4) */
-}
-
-/* buffer sub-regions — engine-reported, honest overlay (doc 08 §4.3);
- * deliberately *no* ARIA: the spec (§4.5) assigns roles to the slider itself */
-.lumen-seekbar__buffer {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  background: var(--color-surface-muted); /* [PROPOSAL] token mapping — states.md */
-  border-radius: var(--radius-inset);
+/* seekbar: the circular thumb appears on hover and for keyboard users */
+.lumen-seekbar:hover .lumen-slider__thumb,
+.lumen-seekbar:focus-visible .lumen-slider__thumb,
+.lumen-seekbar[data-dragging="true"] .lumen-slider__thumb,
+.lumen-seekbar[data-pending="true"] .lumen-slider__thumb {
+  opacity: 1;
 }
 
 /* pending seek (§5.2.2): knob locked at the *requested* target, distinct
@@ -117,34 +242,27 @@
   background: var(--color-accent-strong);
 }
 
-/* VolumeSlider — vertical stroke-based flyout slider (volume.svg §1.5) */
-.lumen-volume {
-  width: 24px; /* hit area around the 2px stroke track */
+/* volume: same reveal grammar for its circular thumb */
+.lumen-volume:hover .lumen-slider__thumb,
+.lumen-volume:focus-visible .lumen-slider__thumb,
+.lumen-volume[data-dragging="true"] .lumen-slider__thumb {
+  opacity: 1;
 }
 
-.lumen-volume .lumen-slider__track {
-  left: calc(50% - 1px); /* 2px stroke track */
-  right: calc(50% - 1px);
-  background: var(--color-surface-muted);
-  border-radius: var(--radius-hairline);
-}
-
-.lumen-volume .lumen-slider__fill {
-  left: calc(50% - 1px);
-  right: calc(50% - 1px);
-  background: var(--color-accent);
-  border-radius: var(--radius-hairline);
-}
-
-/* stylelint-disable-next-line no-descending-specificity -- the volume thumb override stays with the volume section; a .lumen-volume slider is never a .lumen-seekbar, so [data-pending] never applies here */
-.lumen-volume .lumen-slider__thumb {
-  left: calc(50% - 4px);
-  background: var(--color-accent-strong); /* EQ thumb color (§1.4) */
+/* calm unplayed track (caller-owned data-empty, e.g. ControlBar's
+ * duration-less state): no phantom zero-position thumb. An empty bar is
+ * inert (aria-disabled ⇒ pointer-events none), so hover/focus never light
+ * it; this rule is ordered last as a belt-and-braces guard. */
+.lumen-seekbar[data-empty] .lumen-slider__thumb,
+.lumen-seekbar[data-empty] .lumen-slider__fill {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lumen-slider__track,
   .lumen-slider__fill,
-  .lumen-slider__thumb {
+  .lumen-slider__thumb,
+  .lumen-seekbar__buffer {
     transition: none;
   }
 }

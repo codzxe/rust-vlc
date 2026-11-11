@@ -10,13 +10,32 @@
  *   The primitive renders it as-is; it does not interpret keys.
  * - Dynamic submenus (tracks, devices, chapters) arrive as data at runtime —
  *   same shape, populated by the app layer from queries.
+ * - W26 menu lane (figma `menu.svg` / `Profiles.svg`): rows may carry a
+ *   leading line icon (`icon`, the shared `IconName` catalog) and a selective
+ *   accent flag (`iconAccent`) for the orange-detail icons the frames pin
+ *   (profile, wand). Both are optional and additive — existing data keeps
+ *   rendering icon-less rows.
  */
+
+import type { IconName } from "../icon/icons";
+
+/** Row/pitch scale of a menu surface (W26 figma grammar).
+ *  - `comfortable` — the big player menus (`menu.svg`, `Profiles.svg`,
+ *    `right-click menu.svg`): tall icon rows, 15–16px medium labels.
+ *  - `compact` — settings-class dropdowns (`Setting Preset.svg`): ~40px rows
+ *    sized to sit inside settings list rows.
+ */
+export type MenuDensity = "comfortable" | "compact";
 
 export interface MenuEntryBase<K extends string = string> {
   /** Stable entry id (DOM wiring + tests). */
   id: string;
   /** i18n message key — resolved via `resolveLabel` (doc 05 §8.3: keys only). */
   labelKey: K;
+  /** Leading line icon from the shared icon catalog (frame: 22–24px slot). */
+  icon?: IconName;
+  /** Selective orange icon accent (frame: profile/wand icons in `Profiles.svg`). */
+  iconAccent?: boolean;
   /** Accelerator display string from keymap data; rendered verbatim. */
   accelerator?: string;
   /** Nested menu; presence implies a submenu affordance. */

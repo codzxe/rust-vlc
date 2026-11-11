@@ -1,5 +1,7 @@
 export { TextField } from "./TextField";
 export type { TextFieldProps } from "./TextField";
+export { BrowseField } from "./BrowseField";
+export type { BrowseFieldProps } from "./BrowseField";
 export { NumberField } from "./NumberField";
 export type { NumberFieldProps } from "./NumberField";
 export { Checkbox } from "./Checkbox";
@@ -8,3 +10,9 @@ export { RadioGroup } from "./RadioGroup";
 export type { RadioGroupProps, RadioOption } from "./RadioGroup";
 export { Switch } from "./Switch";
 export type { SwitchProps } from "./Switch";
+export { SegmentedControl } from "./SegmentedControl";
+export type { SegmentedControlProps, SegmentedOption } from "./SegmentedControl";
+export { SwatchGroup } from "./SwatchGroup";
+export type { SwatchGroupProps, SwatchOption } from "./SwatchGroup";
+export { ValueChip } from "./ValueChip";
+export type { ValueChipProps } from "./ValueChip";

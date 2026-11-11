@@ -4,6 +4,20 @@
 // respect (spinner/progress animation lives inside a no-preference media
 // query), i18n keys only (no raw JSX literals), and engine-truth data only —
 // no fabricated progress, success, or format info (doc 05 §1 C1–C8).
+//
+// W26 FIGMA REDESIGN (2026-11-11, design/figma-fidelity-spec.md §2 "Player"):
+// the Solstice stage (sun disc, washi-taped notes) is retired. New grammar —
+// * Empty/first-run: the onboarding-style hero (spec §2: "empty state = the
+//   onboarding-style hero, not a blank void") — orange cone mark ported
+//   frame-exact from Onboarding.svg, display heading, secondary body, one
+//   orange primary CTA (r6) opening media via the shell-wide event.
+// * Loading/Buffering: quiet states on a dark scrim — thin 2px orange-arc
+//   ring spinner (28px) + caption label; a determinate engine percentage
+//   renders a slim 4px progress bar (orange fill, deep track, pill ends)
+//   like the Player.svg seekbar grammar.
+// * Unsupported/Error: honest cards in the Figma panel grammar — r12
+//   surface-panel, hairline stroke-border border, overlay shadow, secondary
+//   text, one primary action. Never invented detail (doc 05 §1).
 
 import { Button, Icon } from "../../../components";
 import { useMsg, type MessageKey } from "../../../i18n/messages";
@@ -15,7 +29,7 @@ import {
   type UnsupportedDetailKey,
 } from "./error-display";
 
-/** The shell-wide open-media contract (Solstice redesign): the app-shell
+/** The shell-wide open-media contract (app-shell redesign): the app-shell
  * file dialog (another workstream) listens for exactly this event name on
  * `window`. The `onOpenMedia` prop remains as the composition seam for
  * hosts/tests — both fire, the event first. */
@@ -26,24 +40,54 @@ function dispatchOpenMedia(onOpenMedia?: () => void): void {
   onOpenMedia?.();
 }
 
+/** The Lumen cone mark — frame-exact port of the Onboarding.svg hero logo
+ * (the traffic-cone glyph: base plinth, band, tip as three stacked paths,
+ * `fill: currentColor` so the accent token drives ink). Geometry is
+ * frame-measured; the viewBox crops the source art box. */
+function ConeMark({ className }: { className?: string }) {
+  return (
+    // frame: Onboarding.svg (Icon/Frame 4) — three-segment cone, 106×125 art box
+    <svg
+      className={className}
+      viewBox="492 122 107 126"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M573.648 200.666L575.932 207.52C569.082 212.546 558.58 217.116 545.795 217.116C532.553 217.116 522.508 212.546 515.659 207.52L517.942 200.666H507.44C505.156 200.666 503.787 202.036 502.873 203.864L492.828 242.247C491.915 244.989 494.198 248.188 497.394 248.188H593.739C596.936 248.188 598.762 245.446 598.306 242.247L587.803 203.864C587.347 202.036 585.52 200.666 583.237 200.666H573.648Z"
+        fill="currentColor"
+      />
+      <path
+        d="M521.138 187.413C526.618 191.526 534.837 195.181 545.339 195.181C555.841 195.181 564.06 191.069 569.539 187.413L563.147 165.48C559.037 168.222 553.101 170.049 545.339 170.049C537.576 170.049 531.64 167.765 527.531 165.48L521.138 187.413Z"
+        fill="currentColor"
+      />
+      <path
+        d="M533.466 144.461L537.575 130.296C539.858 122.985 550.361 122.985 552.644 130.296L556.753 144.461C553.557 145.375 549.904 146.289 545.338 146.289C540.772 146.289 537.119 145.375 533.466 144.461Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 /** Shared overlay chrome: sits on the canvas region, one visible at a time.
  * Transient states (loading/buffering) are polite live regions; failure
  * surfaces (error/unsupported) are assertive alerts (doc 08 §5.4 “errors are
- * events”); first-run empty is static content. Solstice restyle: failure
- * surfaces float on a washi-taped sticky note (`note`), transient states stay
- * bare (spinner + label over the warm scrim). */
+ * events”); first-run empty is static content. `card` upgrades the centered
+ * cluster to the Figma panel grammar (r12 surface-panel + hairline border +
+ * shadow) for the failure surfaces. */
 function OverlayShell({
   kind,
   busy = false,
   role = "status",
-  note = false,
+  card = false,
   children,
 }: {
   kind: string;
   busy?: boolean;
   role?: "status" | "alert" | "presentation";
-  /** Solstice: render the card as a taped sticky note (failure surfaces). */
-  note?: boolean;
+  /** Render the cluster as a Figma panel card (failure surfaces). */
+  card?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -53,10 +97,7 @@ function OverlayShell({
       aria-busy={busy || undefined}
       role={role}
     >
-      <div
-        className={note ? "lumen-state-overlay__card solstice-note" : "lumen-state-overlay__card"}
-        data-tape={note ? "" : undefined}
-      >
+      <div className="lumen-state-overlay__cluster" data-card={card ? "" : undefined}>
         {children}
       </div>
     </div>
@@ -65,7 +106,9 @@ function OverlayShell({
 
 /** Determinate/indeterminate progress indicator. `progress` is the engine's
  * 0..=1 value from `session.opening-progress`/`session.buffering`; null =
- * no engine percentage exists → indeterminate, NEVER a fake number. */
+ * no engine percentage exists → indeterminate, NEVER a fake number. The
+ * quiet reading: a thin ring spinner always; the slim bar renders only when
+ * the engine actually reported a percentage. */
 function ProgressIndicator({
   progress,
   labelKey,
@@ -86,7 +129,7 @@ function ProgressIndicator({
       aria-valuemax={determinate ? 100 : undefined}
       aria-valuenow={percent ?? undefined}
     >
-      <span className="lumen-state-overlay__spinner solstice-sun" aria-hidden="true" />
+      <span className="lumen-state-overlay__spinner" aria-hidden="true" />
       {determinate ? (
         <span className="lumen-state-overlay__bar" aria-hidden="true">
           <span className="lumen-state-overlay__fill" style={{ width: `${percent}%` }} />
@@ -96,7 +139,8 @@ function ProgressIndicator({
   );
 }
 
-/** Loading — `opening` state: initial open, no first frame yet (doc 08 §5.3). */
+/** Loading — `opening` state: initial open, no first frame yet (doc 08 §5.3).
+ * Quiet grammar: ring spinner + caption over the dark canvas scrim. */
 export function LoadingOverlay({ progress }: { progress: number | null }) {
   const m = useMsg();
   return (
@@ -141,8 +185,8 @@ export function UnsupportedOverlay({
   };
   const hasInfo = Object.keys(info).length > 0;
   return (
-    <OverlayShell kind="unsupported" role="alert" note>
-      <Icon name="about" size={24} className="lumen-state-overlay__icon" />
+    <OverlayShell kind="unsupported" role="alert" card>
+      <Icon name="about" size={20} className="lumen-state-overlay__icon" />
       <h2 className="lumen-state-overlay__title">{m("player.state.unsupported.title")}</h2>
       <p className="lumen-state-overlay__body">{m("player.state.unsupported.body")}</p>
       {hasInfo ? (
@@ -174,7 +218,8 @@ export function UnsupportedOverlay({
 
 /** Error — stage-tagged + actionable + honest (doc 08 §5.4, doc 05 C5).
  * Renders the typed error's Display strings only (redaction-safe, V8);
- * never internal paths, never “recovered” unless the engine said so. */
+ * never internal paths, never “recovered” unless the engine said so.
+ * Figma grammar: r12 panel card, secondary text, primary retry button. */
 export function ErrorOverlay({
   error,
   onRetry,
@@ -190,8 +235,8 @@ export function ErrorOverlay({
   const stageKey = error === null ? null : STAGE_MESSAGE_KEYS[error.stage];
   const actionKey = error === null ? null : ERROR_ACTION_MESSAGE_KEYS[error.code];
   return (
-    <OverlayShell kind="error" role="alert" note>
-      <Icon name="about" size={24} className="lumen-state-overlay__icon" />
+    <OverlayShell kind="error" role="alert" card>
+      <Icon name="about" size={20} className="lumen-state-overlay__icon" />
       <h2 className="lumen-state-overlay__title">{m("player.state.error.title")}</h2>
       <p className="lumen-state-overlay__stagetag">
         <span className="lumen-state-overlay__stagetag-label">
@@ -214,6 +259,7 @@ export function ErrorOverlay({
       <Button
         // Honest stub: retry only when a real action is wired — the UI never
         // offers a control that would fake recovery (doc 05 §1 C1/C3).
+        variant="primary"
         disabled={onRetry === undefined}
         data-wiring-stub={onRetry === undefined ? "retry command dispatch — card 4.C2" : undefined}
         onClick={onRetry}
@@ -224,27 +270,24 @@ export function ErrorOverlay({
   );
 }
 
-/** Empty / first-run — no media open (`idle`). Migrated from the 4.C1 shell
- * markup (same i18n keys). Solstice v2 restage: the app's own Keyvox moment —
- * the sun sits fully BEHIND the washi-taped sticky note (z-discipline, brief
- * §2.2: the card occludes its lower arc, the tape straddles the card's top
- * edge above both), the group reads at the stage's optical center, and the
- * gold primary button opens media through the shell-wide `lumen:open-media`
- * event (the app-shell dialog listens for exactly that name) — a real
- * affordance, enabled from the start. */
+/** Empty / first-run — no media open (`idle`). W26 redesign: the
+ * onboarding-style hero per the Figma fidelity spec (§2 Player: "empty
+ * state = the onboarding-style hero, not a blank void") — the cone mark
+ * (frame-exact Onboarding.svg port, accent ink), a display-scale heading,
+ * secondary body copy, and the orange primary CTA opening media through the
+ * shell-wide `lumen:open-media` event (the app-shell dialog listens for
+ * exactly that name) — a real affordance, enabled from the start. */
 export function EmptyOverlay({ onOpenMedia }: { onOpenMedia?: () => void }) {
   const m = useMsg();
   return (
-    <div className="lumen-player__empty" data-empty-state="first-run" data-overlay="empty">
-      <div className="lumen-player__empty-stage">
-        <span className="solstice-sun lumen-player__empty-sun" aria-hidden="true" />
-        <div className="solstice-note lumen-player__empty-card solstice-rise" data-tape>
-          <h2 className="lumen-player__empty-title">{m("player.empty.title")}</h2>
-          <p className="lumen-player__empty-body">{m("player.empty.body")}</p>
-          <Button variant="primary" onClick={() => dispatchOpenMedia(onOpenMedia)}>
-            {m("player.empty.open")}
-          </Button>
-        </div>
+    <div className="lumen-state-hero" data-empty-state="first-run" data-overlay="empty">
+      <div className="lumen-state-hero__group">
+        <ConeMark className="lumen-state-hero__mark" />
+        <h2 className="lumen-state-hero__title">{m("player.empty.title")}</h2>
+        <p className="lumen-state-hero__body">{m("player.empty.body")}</p>
+        <Button variant="primary" onClick={() => dispatchOpenMedia(onOpenMedia)}>
+          {m("player.empty.open")}
+        </Button>
       </div>
     </div>
   );

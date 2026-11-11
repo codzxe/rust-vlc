@@ -9,21 +9,24 @@ import {
 } from "./layout";
 
 describe("parseLayoutConfig (doc 07 §7.2)", () => {
-  it("parses the default layout with all player-anatomy regions in order", () => {
+  it("parses the default layout with the W26 Player.png regions in order", () => {
     expect(DEFAULT_LAYOUT.schema).toBe("layout.v1");
     expect(DEFAULT_LAYOUT.regions.map((r) => r.id)).toEqual([
       "video-canvas",
-      "title-bar",
       "controls-bar",
-      "library",
       "playlist",
       "media-info",
       "customize",
     ]);
     const byId = new Map(DEFAULT_LAYOUT.regions.map((r) => [r.id, r]));
     expect(byId.get("video-canvas")).toMatchObject({ anchor: "center", order: 10 });
-    expect(byId.get("library")).toMatchObject({ anchor: "left", labelKey: "player.region.library" });
+    // W26: the playlist docks LEFT of the canvas, open by default.
+    expect(byId.get("playlist")).toMatchObject({ anchor: "left", labelKey: "player.region.playlist" });
     expect(byId.get("media-info")).toMatchObject({ anchor: "right", visibleWhen: "has-media" });
+    // W26: no title-bar/library regions in the default composition — the
+    // window title bar + icon rail are the app shell's, not the screen's.
+    expect(DEFAULT_LAYOUT.regions.some((r) => r.anchor === "top")).toBe(false);
+    expect(byId.has("library")).toBe(false);
   });
 
   it("parses the default menu tree with its ui-action leaf", () => {

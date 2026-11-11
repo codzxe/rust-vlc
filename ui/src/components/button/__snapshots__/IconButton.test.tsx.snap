@@ -3,7 +3,7 @@
 exports[`IconButton > DOM snapshot 1`] = `
 <button
   aria-label="Snapshot"
-  class="lumen-icon-button"
+  class="lumen-icon-button lumen-icon-host"
   type="button"
 >
   <svg

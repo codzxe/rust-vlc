@@ -14,6 +14,12 @@
 // dialog. The engine side of a goto is just the existing seek; no new
 // command exists (nor is one needed).
 //
+// SKIN (w26.a18, Figma dialog grammar — design/figma/Open network
+// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), r12
+// panel + hairline border, title-bar strip (title 15px semibold + ✕),
+// the Time row label-left / control-right with a tabular mono input,
+// and the footer grammar — quiet action left, primary action right.
+//
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map), so central keys are the recorded
 // follow-up for this dialog's strings; the vocabulary mirrors VLC's
@@ -23,11 +29,11 @@ import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "../../../components/button/Button";
 import { IconButton } from "../../../components/button/IconButton";
-import { Icon } from "../../../components/icon/Icon";
 import { TextField } from "../../../components/form/TextField";
 import { Dialog } from "../../../components/surface/Surface";
 import { formatSeekTime } from "../../../components/slider";
 import { usePlayerControls } from "../context";
+import { CloseGlyph } from "./dialogIcons";
 import { parseTimeInput } from "./parseTimeInput";
 import "./dialogs.css";
 
@@ -89,13 +95,13 @@ export function GotoTimeDialog({
       className="player-dialog__surface"
       closeOnOutsideClick
     >
-      <div className="player-dialog">
+      <div className="player-dialog player-dialog--goto">
         <div className="player-dialog__header">
           <h2 id={titleId} className="player-dialog__title">
             {GOTO_COPY.title}
           </h2>
-          {/* v2 §4.4: every dialog carries a visible quiet close affordance
-              (Escape and click-outside also close — the Dialog owns both). */}
+          {/* Figma dialog grammar: the title bar carries the quiet ✕
+              (Escape and scrim click also close — the Dialog owns both). */}
           <IconButton
             className="player-dialog__close"
             label={GOTO_COPY.close}
@@ -103,39 +109,43 @@ export function GotoTimeDialog({
             size="sm"
             onClick={onClose}
           >
-            <Icon name="quit" size={16} />
+            <CloseGlyph size={16} />
           </IconButton>
         </div>
-        <p className="player-dialog__subtitle">{GOTO_COPY.subtitle}</p>
 
-        <form id={formId} className="player-dialog__form" onSubmit={onSubmit}>
-          <TextField
-            label={GOTO_COPY.label}
-            placeholder={GOTO_COPY.placeholder}
-            value={value}
-            error={error}
-            spellCheck={false}
-            autoComplete="off"
-            inputMode="numeric"
-            onChange={(event) => {
-              setValue(event.target.value);
-              if (error !== undefined) setError(undefined);
-            }}
-          />
-        </form>
+        <div className="player-dialog__body">
+          <p className="player-dialog__subtitle">{GOTO_COPY.subtitle}</p>
 
-        {/* Engine-reported context, honest per doc 08 §5: position is the
-            seam's engine truth; duration shows "--:--" when unknown. */}
-        <p className="player-dialog__hint" data-hint="position">
-          {formatSeekTime(state.position)} /{" "}
-          {state.durationSeconds === null ? "--:--" : formatSeekTime(state.durationSeconds)}
-        </p>
+          <form id={formId} className="player-dialog__form" onSubmit={onSubmit}>
+            <TextField
+              label={GOTO_COPY.label}
+              placeholder={GOTO_COPY.placeholder}
+              value={value}
+              error={error}
+              spellCheck={false}
+              autoComplete="off"
+              inputMode="numeric"
+              onChange={(event) => {
+                setValue(event.target.value);
+                if (error !== undefined) setError(undefined);
+              }}
+            />
+          </form>
 
-        <div className="player-dialog__actions">
+          {/* Engine-reported context, honest per doc 08 §5: position is the
+              seam's engine truth; duration shows "--:--" when unknown. */}
+          <p className="player-dialog__hint" data-hint="position">
+            {formatSeekTime(state.position)} /{" "}
+            {state.durationSeconds === null ? "--:--" : formatSeekTime(state.durationSeconds)}
+          </p>
+        </div>
+
+        {/* Footer grammar (frame: quiet action left, primary action right). */}
+        <div className="player-dialog__footer">
+          <Button onClick={onClose}>{GOTO_COPY.cancel}</Button>
           <Button type="submit" variant="primary" form={formId}>
             {GOTO_COPY.action}
           </Button>
-          <Button onClick={onClose}>{GOTO_COPY.cancel}</Button>
         </div>
       </div>
     </Dialog>

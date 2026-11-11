@@ -5,13 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 import { Button } from "./Button";
 
 /**
- * Card 4.B1 — Button primitive tests (doc 08 §4.4 state matrix).
- * Visual-snapshot adaptation (recorded in states.md): 4.G1's screenshot
- * harness does not exist yet, and vitest stubs `.css` imports so jsdom never
- * cascades the real stylesheet. The "visual snapshot" is therefore (a) a
- * vitest DOM snapshot plus (b) computed-style-proxy assertions against the
- * CSS source mapped through semantic token variables (read via `node:fs` —
- * vitest stubs `.css` imports, including `?raw` queries).
+ * Card 4.B1 — Button primitive tests (doc 08 §4.4 state matrix; W26 Figma
+ * restyle, w26.a03). Visual-snapshot adaptation (recorded in states.md):
+ * 4.G1's screenshot harness does not exist yet, and vitest stubs `.css`
+ * imports so jsdom never cascades the real stylesheet. The "visual snapshot"
+ * is therefore (a) a vitest DOM snapshot plus (b) computed-style-proxy
+ * assertions against the CSS source mapped through semantic token variables
+ * (read via `node:fs` — vitest stubs `.css` imports, including `?raw`
+ * queries).
  */
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
@@ -38,6 +39,15 @@ describe("Button", () => {
     );
     const button = screen.getByRole("button");
     expect(button).toHaveClass("lumen-button", "lumen-button--primary", "lumen-button--lg", "extra");
+  });
+
+  it("base variants (default/secondary) render without a modifier class — one secondary look", () => {
+    const { rerender } = render(<Button>Cancel</Button>);
+    expect(screen.getByRole("button")).toHaveClass("lumen-button");
+    expect(screen.getByRole("button").className).not.toMatch(/lumen-button--/);
+    rerender(<Button variant="secondary">Cancel</Button>);
+    expect(screen.getByRole("button")).toHaveClass("lumen-button");
+    expect(screen.getByRole("button").className).not.toMatch(/lumen-button--/);
   });
 
   it("fires click handlers (mouse)", () => {
@@ -102,31 +112,42 @@ describe("Button", () => {
   });
 });
 
-describe("Button state styling consumes semantic tokens (doc 08 §3.2)", () => {
-  it("rest: surface-deep + radius-inset per Button.svg", () => {
+describe("Button state styling consumes semantic tokens (doc 08 §3.2; W26 frames)", () => {
+  it("rest (secondary): raised fill + 1px border + control radius per dialog frames", () => {
     const rule = cssRule(".lumen-button");
-    expect(rule).toContain("background: var(--color-surface-deep)");
-    expect(rule).toContain("border-radius: var(--radius-inset)");
+    expect(rule).toContain("background: var(--color-surface-raised)");
+    expect(rule).toContain("border: 1px solid var(--color-stroke-border)");
+    expect(rule).toContain("border-radius: var(--radius-control)");
     expect(rule).toContain("font-size: var(--font-size-body)");
+    expect(rule).toContain("font-weight: var(--font-weight-medium)");
   });
 
-  it("hover: surface-hover token", () => {
-    expect(cssRule(".lumen-button:hover")).toContain("background: var(--color-surface-hover)");
+  it("compact heights per frames: 28/32/36 (sm/md/lg)", () => {
+    expect(cssRule(".lumen-button--sm")).toContain("height: 28px");
+    expect(cssRule(".lumen-button")).toMatch(/height: 32px/);
+    expect(cssRule(".lumen-button--lg")).toContain("height: 36px");
+  });
+
+  it("hover: surface-hover token + bright label", () => {
+    const rule = cssRule(".lumen-button:hover");
+    expect(rule).toContain("background: var(--color-surface-hover)");
+    expect(rule).toContain("color: var(--color-content-bright)");
   });
 
   it("pressed: surface-selected token", () => {
     expect(cssRule(".lumen-button:active")).toContain("background: var(--color-surface-selected)");
   });
 
-  it("focus-visible: 2px accent ring at 2px offset (doc 08 §2 interim)", () => {
+  it("focus-visible: 2px accent ring at 2px offset", () => {
     const rule = cssRule(".lumen-button:focus-visible");
     expect(rule).toContain("outline: 2px solid var(--color-accent)");
     expect(rule).toContain("outline-offset: 2px");
   });
 
-  it("disabled: opacity token + pointer-events none (doc 08 §2 interim)", () => {
+  it("disabled: tertiary content on a muted well + pointer-events none (w26.a03)", () => {
     const rule = cssRule(".lumen-button:disabled");
-    expect(rule).toContain("opacity: var(--opacity-disabled)");
+    expect(rule).toContain("color: var(--color-content-tertiary)");
+    expect(rule).toContain("background: var(--color-surface-muted)");
     expect(rule).toContain("pointer-events: none");
   });
 
@@ -136,9 +157,29 @@ describe("Button state styling consumes semantic tokens (doc 08 §3.2)", () => {
     expect(buttonCss).toContain("prefers-reduced-motion"); // §4.5: motion off
   });
 
-  it("primary variant: accent tokens per onboarding button", () => {
-    expect(cssRule(".lumen-button--primary")).toContain("background: var(--color-accent)");
-    expect(cssRule(".lumen-button--primary")).toContain("color: var(--color-content-on-accent)");
+  it("primary variant: accent fill + on-accent glyph, r6 (Onboarding.svg Next / play.svg pill)", () => {
+    const rule = cssRule(".lumen-button--primary");
+    expect(rule).toContain("background: var(--color-accent)");
+    expect(rule).toContain("color: var(--color-content-on-accent)");
+    expect(rule).toContain("border-color: transparent");
+  });
+
+  it("primary hover/pressed walk accent-bright/strong (spec §1 accent roles)", () => {
+    expect(cssRule(".lumen-button--primary:hover")).toContain("background: var(--color-accent-bright)");
+    expect(cssRule(".lumen-button--primary:active")).toContain("background: var(--color-accent-strong)");
+  });
+
+  it("tinted variant: dialog confirm = accent-tinted fill + accent label (Save buttons)", () => {
+    const rule = cssRule(".lumen-button--tinted");
+    expect(rule).toContain("background: var(--color-accent-tinted)");
+    expect(rule).toContain("color: var(--color-accent)");
+  });
+
+  it("ghost variant: transparent rest + 1px transparent border, hover surface-hover", () => {
+    const rule = cssRule(".lumen-button--ghost");
+    expect(rule).toContain("background: transparent");
+    expect(rule).toContain("border-color: transparent");
+    expect(cssRule(".lumen-button--ghost:hover")).toContain("background: var(--color-surface-hover)");
   });
 
   it("contains no raw colors (semantic tokens only)", () => {

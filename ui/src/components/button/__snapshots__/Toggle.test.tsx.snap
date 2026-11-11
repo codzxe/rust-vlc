@@ -23,9 +23,13 @@ exports[`Toggle (doc 08 §4.5: role=switch) > DOM snapshot (on and off) > toggle
   />
   <span
     aria-hidden="true"
-    class="lumen-toggle__label lumen-toggle__label--off"
+    class="lumen-toggle__off"
   >
-    OFF
+    <span
+      class="lumen-toggle__label lumen-toggle__label--off"
+    >
+      OFF
+    </span>
   </span>
 </button>
 `;
@@ -53,9 +57,13 @@ exports[`Toggle (doc 08 §4.5: role=switch) > DOM snapshot (on and off) > toggle
   />
   <span
     aria-hidden="true"
-    class="lumen-toggle__label lumen-toggle__label--off"
+    class="lumen-toggle__off"
   >
-    OFF
+    <span
+      class="lumen-toggle__label lumen-toggle__label--off"
+    >
+      OFF
+    </span>
   </span>
 </button>
 `;

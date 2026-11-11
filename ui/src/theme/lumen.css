@@ -1,0 +1,183 @@
+/* lumen.css — the Lumen base stylesheet (W25 Figma redesign, wave 26).
+ *
+ * Compact, professional desktop base per the W25 fidelity spec
+ * (design/figma-fidelity-spec.md): near-black app surface painted from
+ * --color-surface (#090909 once the W25 token set lands), Inter-led
+ * type at 10–15px, tabular timecodes, 1px --color-stroke-border
+ * hairlines, ONE sparing orange accent for focus/active, thin dark
+ * scrollbars. Rounding lives on CONTROLS; panels stay square-edged
+ * except the r12–14 card grammar (.lumen-panel).
+ *
+ * Tokens come from the generated pipeline (src/tokens/generated/
+ * tokens.css) — this file COMPOSES them, never overrides or redefines
+ * them. Raw values here are geometry only (1px hairline, 8px scrollbar
+ * width, 1.5 line-height); every color and font is var(--…).
+ *
+ * Replaces solstice.css (sunset stage, taped notes, keycaps, Nunito,
+ * data-backdrop tiers — retired with the v2 aesthetic, W25 §0).
+ *
+ * Layers:
+ *   1. root type      — token font stack, color-scheme, compact body
+ *   2. numerals       — .tabular / .timecode (tabular-nums)
+ *   3. scrollbars     — thin, dark, stroke-border thumb
+ *   4. selection      — orange-tinted ::selection
+ *   5. focus floor    — orange :focus-visible ring
+ *   6. primitives     — .lumen-panel / .lumen-row / .lumen-separator
+ *   7. reduced motion — prefers-reduced-motion support
+ *
+ * Screens own their <screen>.css; this sheet carries ONLY base/global
+ * styles plus the shared primitives above (contract w26 §4.6).
+ */
+
+/* ------------------------------------------------------------------ */
+
+/* 1. Root type                                                        */
+
+/* ------------------------------------------------------------------ */
+
+html {
+  font-family: var(--font-family-sans);
+
+  /* Native controls, scrollbars and form widgets follow the mode. */
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  /* Flat token paint — the body floor (a11y/page.css) paints the same
+   * token; kept here so the base sheet alone never shows raw white. */
+  background: var(--color-surface);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body); /* compact desktop: 10–15px scale */
+  line-height: 1.5;
+}
+
+/* Headings: medium-tight professional tracking, no display tricks. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 2. Numerals — timecodes must hold their columns                     */
+
+/* ------------------------------------------------------------------ */
+
+.tabular,
+.timecode {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 3. Scrollbars — thin, dark, quiet                                   */
+
+/* ------------------------------------------------------------------ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stroke-border) transparent;
+}
+
+/* Chromium/Webkit detail (the Firefox pair lives above): slim gutter,
+ * transparent track, hairline-colored thumb. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-stroke-border);
+  border-radius: calc(var(--space-grid));
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 4. Selection — orange-tinted                                        */
+
+/* ------------------------------------------------------------------ */
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 32%, transparent);
+  color: var(--color-content-bright);
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 5. Focus floor — the orange ring                                    */
+
+/* ------------------------------------------------------------------ */
+
+/* Same declarations as a11y/focus.css (kept there for embeds without
+ * this sheet); repeated so the base layer alone stays keyboard-legible. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 6. Shared primitives — the panel/row/hairline grammar               */
+
+/* ------------------------------------------------------------------ */
+
+/* Card/panel surface: the r12–14 card grammar (W25 §1 radii). Square
+ * chrome is the default elsewhere — apply this class for card moments
+ * (playlist cards, tool panels, dialogs' inner cards). */
+.lumen-panel {
+  background: var(--color-surface-panel);
+  color: var(--color-content-primary);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-panel);
+}
+
+/* Row grammar: label left · control right (Settings, tools, menus).
+ * Neutral layout only — screens layer hover/selected states. */
+.lumen-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  padding: calc(var(--space-grid) * 2) var(--space-inset);
+  border-radius: var(--radius-inset);
+  color: var(--color-content-primary);
+}
+
+/* Hairline separator — 1px stroke-border, quiet margins. */
+.lumen-separator {
+  border: none;
+  height: 1px;
+  margin: var(--space-inset) 0;
+  background: var(--color-stroke-border);
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 7. Reduced motion                                                    */
+
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}

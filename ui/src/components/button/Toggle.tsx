@@ -13,12 +13,13 @@ export interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
  * Toggle switch primitive (doc 08 §1.5 Toggle.svg, §4.5: "toggles → switch").
  * Exposes `role="switch"` + `aria-checked` — the doc's ARIA contract (a
  * `switch` carries checked state, not `aria-pressed`; deviation from the
- * task-card blurb recorded in states.md). Geometry per Toggle.svg: 68x32 rx6
- * track; ON: 33x26 accent-tinted fill + 26x26 rx3 accent-strong knob right;
- * OFF: surface-muted knob left. Micro labels (doc 08 §1.3 row 4.4, §1.5):
- * "ON" in the fill (accent), "OFF" right of the knob (content-tertiary),
- * --font-size-micro — decorative (aria-hidden): the switch's checked state
- * is already conveyed by aria-checked.
+ * task-card blurb recorded in states.md). Geometry per Toggle.svg (W26):
+ * 68x32 rx6 track on `--color-surface`; ON = 33x26 rx3 accent-tinted fill
+ * ("ON" accent micro label) + 26x26 rx3 accent-strong knob right; OFF =
+ * 26x26 rx3 stroke-border knob left + 33x26 rx3 surface-panel segment
+ * ("OFF" micro label). Micro labels (doc 08 §1.3 row 4.4, §1.5) are
+ * decorative (aria-hidden): the switch's checked state is already conveyed
+ * by aria-checked.
  */
 export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
   ({ checked, onChange, disabled, type = "button", className = "", onClick, ...rest }, ref) => (
@@ -40,8 +41,8 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
         <span className="lumen-toggle__label lumen-toggle__label--on">ON</span>
       </span>
       <span className="lumen-toggle__knob" aria-hidden="true" />
-      <span className="lumen-toggle__label lumen-toggle__label--off" aria-hidden="true">
-        OFF
+      <span className="lumen-toggle__off" aria-hidden="true">
+        <span className="lumen-toggle__label lumen-toggle__label--off">OFF</span>
       </span>
     </button>
   ),

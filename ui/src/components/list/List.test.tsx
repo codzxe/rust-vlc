@@ -1,7 +1,21 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { ScrollArea, Tab, Tabs, TabsList, TabsPanel, VirtualList, VirtualTable, computeRange } from "./index";
+import { describe, expect, it, vi } from "vitest";
+import {
+  ListEmpty,
+  ListRow,
+  ROW_HEIGHTS,
+  naturalCompare,
+  naturalSort,
+  ScrollArea,
+  Tab,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  VirtualList,
+  VirtualTable,
+  computeRange,
+} from "./index";
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
 const listCss = readFileSync(`${dirname}/list.css`, "utf8");
@@ -221,6 +235,211 @@ describe("VirtualList — 10k-row AC (doc 08 §4 virtualization)", () => {
 function screenByTop(container: HTMLElement, top: number): string | null {
   return container.querySelector<HTMLElement>(`[role="option"][style*="top: ${top}px"]`)?.textContent ?? null;
 }
+
+describe("ListRow — Figma row grammar (W25 §2: playlist.svg / media.svg / menu.svg)", () => {
+  it("renders the anatomy: icon · title/meta · duration · trailing · kebab", () => {
+    const { container } = render(
+      <ListRow
+        icon={<span data-testid="row-icon" />}
+        title="Cool Playlist"
+        meta="15 items"
+        duration="23:06"
+        trailing="Ctrl + O"
+        kebab={{ label: "Row actions", onClick: () => {} }}
+      />,
+    );
+    expect(screen.getByText("Cool Playlist")).toBeInTheDocument();
+    expect(screen.getByText("15 items")).toBeInTheDocument();
+    expect(screen.getByText("23:06")).toBeInTheDocument();
+    expect(screen.getByTestId("row-icon")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl + O")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Row actions" })).toBeInTheDocument();
+    // no drag handle unless the row is draggable (queue rows only)
+    expect(container.querySelector(".lumen-lrow__handle")).toBeNull();
+  });
+
+  it("defaults to comfortable density and exposes the data-density hook", () => {
+    render(<ListRow title="Row" />);
+    const row = screen.getByText("Row").closest(".lumen-lrow");
+    expect(row).toHaveClass("lumen-lrow--comfortable");
+    expect(row).toHaveAttribute("data-density", "comfortable");
+  });
+
+  it("compact density swaps to the menu/settings pitch", () => {
+    render(<ListRow density="compact" title="General" />);
+    const row = screen.getByText("General").closest(".lumen-lrow");
+    expect(row).toHaveClass("lumen-lrow--compact");
+    expect(row).toHaveAttribute("data-density", "compact");
+  });
+
+  it("selected rows carry the selected class + data-selected", () => {
+    render(<ListRow selected title="General" />);
+    const row = screen.getByText("General").closest(".lumen-lrow");
+    expect(row).toHaveClass("lumen-lrow--selected");
+    expect(row).toHaveAttribute("data-selected", "true");
+  });
+
+  it("kebab click fires without bubbling to the row", () => {
+    const onRowClick = vi.fn();
+    const onKebab = vi.fn();
+    render(<ListRow title="Row" onClick={onRowClick} kebab={{ label: "More", onClick: onKebab }} />);
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(onKebab).toHaveBeenCalledTimes(1);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("custom actions replace the default kebab", () => {
+    const { container } = render(<ListRow title="Row" actions={<button type="button">Custom</button>} />);
+    expect(screen.getByRole("button", { name: "Custom" })).toBeInTheDocument();
+    expect(container.querySelector(".lumen-lrow__kebab")).toBeNull();
+  });
+
+  it("drag-handle rows: the handle renders only while draggable", () => {
+    const { container, rerender } = render(<ListRow title="Row" draggable />);
+    expect(container.querySelector(".lumen-lrow__handle")).not.toBeNull();
+    rerender(<ListRow title="Row" />);
+    expect(container.querySelector(".lumen-lrow__handle")).toBeNull();
+  });
+
+  it("passes role/aria through for listbox wiring", () => {
+    render(<ListRow role="option" aria-selected title="Item" />);
+    expect(screen.getByRole("option", { selected: true })).toBeInTheDocument();
+  });
+
+  it("composes inside VirtualList at the comfortable pitch", () => {
+    const { container } = render(
+      <VirtualList
+        data={["A", "B", "C"]}
+        itemHeight={ROW_HEIGHTS.comfortable}
+        label="Rows"
+        renderItem={(item) => <ListRow title={item} />}
+      />,
+    );
+    const row = container.querySelector<HTMLElement>(".lumen-lrow");
+    expect(row).not.toBeNull();
+    expect(row!.closest('[role="option"]')).not.toBeNull();
+  });
+});
+
+describe("row grammar CSS (source check — B1 pattern)", () => {
+  it("comfortable rows are ~66px with r10 rounding (playlist.svg)", () => {
+    expect(cssRule(".lumen-lrow--comfortable")).toContain(`height: ${ROW_HEIGHTS.comfortable}px`);
+    expect(cssRule(".lumen-lrow")).toContain("border-radius: 10px");
+  });
+
+  it("compact rows are 36–44px with the r6 control rounding (menus/settings)", () => {
+    expect(cssRule(".lumen-lrow--compact")).toContain(`height: ${ROW_HEIGHTS.compact}px`);
+    expect(cssRule(".lumen-lrow--compact")).toContain("var(--radius-control)");
+  });
+
+  it("hover: surface fill + bright text (playlist.svg hover state)", () => {
+    const hover = cssRule(".lumen-lrow:hover");
+    expect(hover).toContain("var(--color-surface-hover)");
+    expect(hover).toContain("var(--color-content-bright)");
+  });
+
+  it("selected: surface-selected fill + orange icon (Settings active row)", () => {
+    expect(cssRule(".lumen-lrow--selected")).toContain("var(--color-surface-selected)");
+    expect(cssRule(".lumen-lrow--selected .lumen-lrow__icon")).toContain("var(--color-accent-icon)");
+  });
+
+  it("focus-visible ring uses the accent (W25 §2 focus floor)", () => {
+    expect(cssRule(".lumen-lrow:focus-visible")).toContain("var(--color-accent)");
+  });
+
+  it("durations render with tabular numerals (W25 §1)", () => {
+    expect(cssRule(".lumen-lrow__duration")).toContain("tabular-nums");
+  });
+
+  it("kebab + drag handle stay hidden until hover/focus (quiet rows)", () => {
+    expect(cssRule(".lumen-lrow__actions")).toContain("opacity: 0");
+    expect(cssRule(".lumen-lrow__handle")).toContain("opacity: 0");
+    expect(listCss).toContain(".lumen-lrow:hover .lumen-lrow__actions");
+  });
+
+  it("virtualized rows carry the frame rounding too (.lumen-vrow)", () => {
+    expect(cssRule(".lumen-vrow")).toContain("border-radius: 10px");
+  });
+});
+
+describe("ListEmpty — quiet empty-list state", () => {
+  it("renders title/body/action without artwork", () => {
+    const { container } = render(
+      <ListEmpty
+        title="Nothing in the queue"
+        body="Files you open are listed here."
+        action={<button type="button">Open media</button>}
+      />,
+    );
+    expect(screen.getByText("Nothing in the queue")).toBeVisible();
+    expect(screen.getByText("Files you open are listed here.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Open media" })).toBeVisible();
+    // quiet: no images/SVG art in the empty state
+    expect(container.querySelector("img, svg")).toBeNull();
+  });
+
+  it("body and action are optional", () => {
+    const { container } = render(<ListEmpty title="No items" />);
+    expect(screen.getByText("No items")).toBeVisible();
+    expect(container.querySelector(".lumen-empty__body")).toBeNull();
+    expect(container.querySelector(".lumen-empty__action")).toBeNull();
+  });
+
+  it("CSS: secondary title + tertiary body (source check)", () => {
+    expect(cssRule(".lumen-empty__title")).toContain("var(--color-content-secondary)");
+    expect(cssRule(".lumen-empty__body")).toContain("var(--color-content-tertiary)");
+  });
+});
+
+describe("naturalCompare / naturalSort (Solstice-v2 flow fix: numeric order)", () => {
+  it('"Bookmark 1, 2, 10" — never the lexical "1, 10, 2"', () => {
+    expect(naturalSort(["Bookmark 10", "Bookmark 2", "Bookmark 1"])).toEqual([
+      "Bookmark 1",
+      "Bookmark 2",
+      "Bookmark 10",
+    ]);
+  });
+
+  it("episode/file numbers compare by value across runs", () => {
+    expect(naturalSort(["E10", "E9", "E2"])).toEqual(["E2", "E9", "E10"]);
+    expect(
+      naturalSort(["The Wand S01E02.mp4", "The Wand S01E10.mp4", "The Wand S01E01.mp4"]),
+    ).toEqual(["The Wand S01E01.mp4", "The Wand S01E02.mp4", "The Wand S01E10.mp4"]);
+  });
+
+  it("numeric value beats leading zeros; fewer zeros break ties", () => {
+    expect(naturalCompare("a02", "a10")).toBeLessThan(0); // 2 < 10 numerically
+    expect(naturalCompare("a1", "a01")).toBeLessThan(0); // same value, fewer zeros first
+    expect(naturalCompare("a10", "a9")).toBeGreaterThan(0);
+  });
+
+  it("text runs compare case-insensitively with a deterministic tie-break", () => {
+    expect(naturalCompare("bookmark 2", "Bookmark 10")).toBeLessThan(0); // 2 < 10, case aside
+    expect(naturalCompare("Bookmark 2", "bookmark 2")).toBeLessThan(0); // stable, not 0-equal
+    expect(naturalCompare("bookmark 2", "bookmark 2")).toBe(0);
+  });
+
+  it("prefixes sort before their numbered extensions", () => {
+    expect(naturalCompare("Track", "Track 1")).toBeLessThan(0);
+    expect(naturalCompare("Track 2", "Track 10a")).toBeLessThan(0);
+  });
+
+  it("sorts via a key extractor and never mutates the input", () => {
+    const input = [{ n: "Item 10" }, { n: "Item 2" }];
+    const sorted = naturalSort(input, (i) => i.n);
+    expect(sorted.map((i) => i.n)).toEqual(["Item 2", "Item 10"]);
+    expect(input.map((i) => i.n)).toEqual(["Item 10", "Item 2"]);
+  });
+
+  it("sort is stable for equal keys", () => {
+    const items = [
+      { id: 1, n: "same" },
+      { id: 2, n: "same" },
+      { id: 3, n: "same" },
+    ];
+    expect(naturalSort(items, (i) => i.n).map((i) => i.id)).toEqual([1, 2, 3]);
+  });
+});
 
 describe("VirtualTable (windowed table semantics)", () => {
   const data = makeRows(1000);

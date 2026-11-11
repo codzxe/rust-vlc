@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { Icon, iconNames } from "./index";
+import { Icon, iconNames, IconWrapper } from "./index";
 import type { IconName } from "./icons";
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
@@ -49,10 +49,37 @@ describe("Icon (1.5-stroke set, doc 08 §1.4/§1.5)", () => {
         "play",
         "pause",
         "stop",
+        "next",
+        "previous",
         "volume-mute",
         "volume-low",
         "volume-medium",
         "volume-high",
+        "fullscreen",
+        "menu",
+        "close",
+        "more",
+        "search",
+        "sort",
+        "list",
+        "grid",
+        "thumbnail",
+        "add",
+        "check",
+        "chevron-up",
+        "chevron-down",
+        "chevron-left",
+        "chevron-right",
+        "folder",
+        "person",
+        "profile",
+        "queue",
+        "equalizer",
+        "audio",
+        "subtitles",
+        "info",
+        "wand",
+        "favorite",
         "record",
         "snapshot",
         "pip",
@@ -62,7 +89,9 @@ describe("Icon (1.5-stroke set, doc 08 §1.4/§1.5)", () => {
         "settings",
       ]),
     );
-    expect(iconNames.length).toBe(32);
+    // 32 frozen (wave-1) + 53 frame-mined w26.a07 additions (see lane log)
+    expect(iconNames.length).toBe(85);
+    expect(new Set(iconNames).size).toBe(iconNames.length);
   });
 
   it("size prop maps to width/height", () => {
@@ -186,6 +215,50 @@ describe("Icon mined glyph geometry (issue #35, design/figma/Icon.svg)", () => {
     // open-file: page mask with 4-radius TL corner (Rectangle 1 in menu.svg row)
     expect(d("open-file", 0).startsWith("M3 8C3 4.686 5.686 2 9 2")).toBe(true);
   });
+
+  it("pins w26.a07 mined geometry — next/previous/menu/search/close/check/more/chevron", () => {
+    const d = (name: IconName, index: number): string => {
+      const { unmount } = render(<Icon name={name} />);
+      const paths = [...document.querySelectorAll("svg.lumen-icon path")].map((p) => p.getAttribute("d") ?? "");
+      unmount();
+      return paths[index] ?? "";
+    };
+    // next: sheet name=next (Frame 17) = Controls.svg Frame 10 transport
+    expect(d("next", 0)).toBe("M7.5 17V7L13.5 12L7.5 17Z");
+    expect(d("next", 1)).toBe("M14.5 17V7H16.5V17H14.5Z");
+    // previous: sheet name=previous (Frame 18) = Controls.svg Frame 8 transport
+    expect(d("previous", 0)).toBe("M7.5 17V7H9.5V17H7.5Z");
+    expect(d("previous", 1)).toBe("M16.5 17V7L10.5 12L16.5 17Z");
+    // menu: Controls.svg hamburger — nub + line, three rows at 5u pitch
+    expect(d("menu", 0)).toBe("M4 7H5");
+    expect(d("menu", 1)).toBe("M8 7H20");
+    expect(d("menu", 5)).toBe("M8 17H20");
+    // search: magnifier circle + handle (Frame 1_19)
+    expect(d("search", 0).startsWith("M15.345 15.345C16.495 14.195")).toBe(true);
+    // close: the ✕ (Frame 34)
+    expect(d("close", 0)).toBe("M7 7L17 17");
+    // check: Frame 1_15 = option.svg Vector 44
+    expect(d("check", 0)).toBe("M5 12L9.667 17.5L19 6.5");
+    // more: three dots (Frame 49)
+    expect(d("more", 0)).toBe("M6 12L6 12");
+    // chevrons (Frame_88/73/90/89)
+    expect(d("chevron-down", 0)).toBe("M7 9.5L12 14.5L17 9.5");
+    expect(d("chevron-up", 0)).toBe("M7 14.5L12 9.5L17 14.5");
+  });
+
+  it("registry aliases render the identical mined glyph (folder/person/info/wand)", () => {
+    const geometry = (name: IconName): string => {
+      const { unmount } = render(<Icon name={name} />);
+      const svg = document.querySelector("svg.lumen-icon")!;
+      const serial = svg.innerHTML;
+      unmount();
+      return serial;
+    };
+    expect(geometry("folder")).toBe(geometry("open-folder"));
+    expect(geometry("person")).toBe(geometry("profile"));
+    expect(geometry("info")).toBe(geometry("about"));
+    expect(geometry("wand")).toBe(geometry("customize-player"));
+  });
 });
 
 describe("Icon emphasis variants (issue #35, doc 08 §1.4 emphasis strokes)", () => {
@@ -221,5 +294,55 @@ describe("Icon emphasis variants (issue #35, doc 08 §1.4 emphasis strokes)", ()
     render(<Icon name="stop" variant="strong" title="Stop" />);
     expect(document.querySelector("svg.lumen-icon")!.getAttribute("role")).toBe("img");
     unmount();
+  });
+});
+
+describe("IconWrapper (w26.a07, design/figma/Icon Wrapper.svg)", () => {
+  it("frames an icon with the default md hit area (30×32 frame)", () => {
+    const { unmount } = render(
+      <IconWrapper>
+        <Icon name="settings" />
+      </IconWrapper>,
+    );
+    const wrapper = document.querySelector(".lumen-icon-wrapper")!;
+    expect(wrapper).toBeTruthy();
+    expect(wrapper.getAttribute("class")).toContain("lumen-icon-wrapper--md");
+    expect(wrapper.querySelector("svg.lumen-icon")).toBeTruthy();
+    unmount();
+  });
+
+  it("exposes sm/md/lg size presets; lg is the ≥44px rail target", () => {
+    for (const size of ["sm", "md", "lg"] as const) {
+      const { unmount } = render(
+        <IconWrapper size={size}>
+          <Icon name="go-home" />
+        </IconWrapper>,
+      );
+      expect(document.querySelector(`.lumen-icon-wrapper--${size}`)).toBeTruthy();
+      unmount();
+    }
+    expect(cssRule(".lumen-icon-wrapper--sm")).toContain("24px");
+    expect(cssRule(".lumen-icon-wrapper--md")).toContain("30px");
+    expect(cssRule(".lumen-icon-wrapper--md")).toContain("32px");
+    expect(cssRule(".lumen-icon-wrapper--lg")).toContain("44px");
+  });
+
+  it("active state flags the orange accent (token-driven, no raw colors)", () => {
+    const { unmount } = render(
+      <IconWrapper active>
+        <Icon name="go-home" />
+      </IconWrapper>,
+    );
+    expect(document.querySelector(".lumen-icon-wrapper--active")).toBeTruthy();
+    unmount();
+    expect(cssRule(".lumen-icon-wrapper--active .lumen-icon")).toContain("var(--color-accent-icon)");
+  });
+
+  it("hover applies the subtle framed backdrop from Icon Wrapper.svg via tokens", () => {
+    expect(cssRule(".lumen-icon-wrapper")).toContain("4px"); // frame: Icon Wrapper.svg rx=4
+    expect(cssRule(".lumen-icon-wrapper:hover")).toContain("var(--color-surface-hover)");
+    // token discipline: no raw colors in declarations (comments quote frame hexes)
+    const declarationsOnly = iconCss.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(declarationsOnly).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 });

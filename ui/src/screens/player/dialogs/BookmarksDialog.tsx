@@ -15,21 +15,28 @@
 // HOTKEY: keymaps/default.toml's `bookmarks-dialog` (Ctrl+B, ui_action =
 // "bookmarks") through keymap.ts's DIALOG_KEYMAP seed.
 //
+// SKIN (w26.a18, Figma dialog grammar — design/figma/Open network
+// stream.svg / Keyboard Shortcuts.svg): dark scrim (click closes), r12
+// panel + hairline border, title-bar strip (title 15px semibold + ✕),
+// rows label-left / control-right, r6 row hovers, tabular timecodes and
+// the list in NATURAL order (naturalSort.ts — "1, 2, 10", never lexical).
+//
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map); central keys are the recorded
 // follow-up (same note as GotoTimeDialog).
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "../../../components/button/Button";
 import { IconButton } from "../../../components/button/IconButton";
-import { Icon } from "../../../components/icon/Icon";
 import { TextField } from "../../../components/form/TextField";
 import { Dialog } from "../../../components/surface/Surface";
 import { formatSeekTime } from "../../../components/slider";
 import { useClient } from "../../../client/ClientProvider";
 import type { Bookmark } from "../../../generated/commands";
 import { usePlayerControls } from "../context";
+import { CloseGlyph } from "./dialogIcons";
+import { compareBookmarks } from "./naturalSort";
 import "./dialogs.css";
 
 /** The dialog's English copy (see COPY NOTE — central i18n is follow-up). */
@@ -95,6 +102,13 @@ export function BookmarksDialog({
     // responses below, never a re-render guess.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The rendered order (w26.a18): natural sort — time ascending, labels
+  // digit-aware, creation id last. A copy, never the engine array itself.
+  const sortedBookmarks = useMemo(
+    () => [...bookmarks].sort(compareBookmarks),
+    [bookmarks],
+  );
 
   const onAdd = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -166,59 +180,65 @@ export function BookmarksDialog({
             size="sm"
             onClick={onClose}
           >
-            <Icon name="quit" size={16} />
+            <CloseGlyph size={16} />
           </IconButton>
         </div>
-        <p className="player-dialog__subtitle">{BOOKMARKS_COPY.subtitle}</p>
 
-        <form className="player-dialog__form" onSubmit={onAdd}>
-          <TextField
-            label={BOOKMARKS_COPY.label}
-            placeholder={BOOKMARKS_COPY.placeholder}
-            value={labelValue}
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(event) => {
-              setLabelValue(event.target.value);
-            }}
-          />
-          <Button type="submit">{BOOKMARKS_COPY.add}</Button>
-        </form>
+        <div className="player-dialog__body">
+          <p className="player-dialog__subtitle">{BOOKMARKS_COPY.subtitle}</p>
 
-        {bookmarks.length === 0 ? (
-          <p className="player-dialog__empty">
-            {loaded ? BOOKMARKS_COPY.empty : ""}
-          </p>
-        ) : (
-          <ul className="player-dialog__list">
-            {bookmarks.map((bookmark) => {
-              const time = formatSeekTime(bookmark.time / 1000);
-              return (
-                <li key={bookmark.id} className="player-dialog__row">
-                  <button
-                    type="button"
-                    className="player-dialog__row-main"
-                    aria-label={BOOKMARKS_COPY.jump(time)}
-                    onClick={() => onJump(bookmark)}
-                  >
-                    <span className="player-dialog__row-time">{time}</span>
-                    <span className="player-dialog__row-label">
-                      {bookmark.label ?? BOOKMARKS_COPY.unnamed}
-                    </span>
-                  </button>
-                  <IconButton
-                    label={BOOKMARKS_COPY.deleteBookmark(time)}
-                    title={BOOKMARKS_COPY.deleteBookmark(time)}
-                    size="sm"
-                    onClick={() => onDelete(bookmark)}
-                  >
-                    <Icon name="quit" size={14} />
-                  </IconButton>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+          <form className="player-dialog__form" onSubmit={onAdd}>
+            <TextField
+              label={BOOKMARKS_COPY.label}
+              placeholder={BOOKMARKS_COPY.placeholder}
+              value={labelValue}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(event) => {
+                setLabelValue(event.target.value);
+              }}
+            />
+            <Button type="submit" variant="primary" className="player-dialog__form-action">
+              {BOOKMARKS_COPY.add}
+            </Button>
+          </form>
+
+          {sortedBookmarks.length === 0 ? (
+            <p className="player-dialog__empty">
+              {loaded ? BOOKMARKS_COPY.empty : ""}
+            </p>
+          ) : (
+            <ul className="player-dialog__list">
+              {sortedBookmarks.map((bookmark) => {
+                const time = formatSeekTime(bookmark.time / 1000);
+                return (
+                  <li key={bookmark.id} className="player-dialog__row">
+                    <button
+                      type="button"
+                      className="player-dialog__row-main"
+                      aria-label={BOOKMARKS_COPY.jump(time)}
+                      onClick={() => onJump(bookmark)}
+                    >
+                      <span className="player-dialog__row-time">{time}</span>
+                      <span className="player-dialog__row-label">
+                        {bookmark.label ?? BOOKMARKS_COPY.unnamed}
+                      </span>
+                    </button>
+                    <IconButton
+                      className="player-dialog__row-delete"
+                      label={BOOKMARKS_COPY.deleteBookmark(time)}
+                      title={BOOKMARKS_COPY.deleteBookmark(time)}
+                      size="sm"
+                      onClick={() => onDelete(bookmark)}
+                    >
+                      <CloseGlyph size={12} />
+                    </IconButton>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </Dialog>
   );

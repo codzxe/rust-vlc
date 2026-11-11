@@ -40,6 +40,7 @@
 }
 
 /* stylelint-disable no-descending-specificity -- disabled is documented last in the state narrative; :hover/:focus-visible outrank it by specificity either way */
+
 /* Emphasis stroke variants (issue #35, doc 08 §1.4 "stroke-width 1.5; 2 and 3
  * for emphasis"; §1.5 active-state glyphs redraw at 2). Icon.tsx also sets the
  * matching numeric attribute (1.5/2/3) so the SVG is self-describing; the CSS
@@ -63,6 +64,64 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lumen-icon {
+    transition: none;
+  }
+}
+
+/* Icon Wrapper (w26.a07) — the framed control target from
+ * design/figma/Icon Wrapper.svg: bare at rest ("Property 1=Default"), a
+ * subtle r4 backdrop on hover ("Property 1=hover": 30×32 white 6%). The
+ * hover tint maps to --color-surface-hover (the token pipeline carries the
+ * design value); the 4px radius is frame-measured. */
+.lumen-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 4px; /* frame: Icon Wrapper.svg rx=4 */
+  background: transparent;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+/* Hit-area presets (W26 contract: rail targets ≥44px; control bar ~30px). */
+.lumen-icon-wrapper--sm {
+  width: 24px;
+  height: 24px;
+}
+
+.lumen-icon-wrapper--md {
+  width: 30px;
+  height: 32px; /* frame: Icon Wrapper.svg hover frame 30×32 */
+}
+
+.lumen-icon-wrapper--lg {
+  width: 44px;
+  height: 44px;
+}
+
+/* Hover/active backdrop — the design keeps the glyph colour unchanged and
+ * only lifts the background, so the tint (not the ink) signals the target. */
+.lumen-icon-wrapper:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.lumen-icon-wrapper:focus-visible {
+  background-color: var(--color-surface-hover);
+}
+
+/* Orange accent state for active nav icons / selected rows (W25 spec: the
+ * ONE sparing accent). Same token chain as .lumen-icon-host--selected. */
+/* stylelint-disable no-descending-specificity -- the wrapper section is deliberately appended after the legacy host-state block so this file's state narrative reads base → wrapper; :hover in the earlier block still wins by specificity where both match */
+.lumen-icon-wrapper--active .lumen-icon,
+.lumen-icon-wrapper--active:hover .lumen-icon {
+  color: var(--color-accent-icon);
+}
+/* stylelint-enable no-descending-specificity */
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-icon-wrapper {
     transition: none;
   }
 }

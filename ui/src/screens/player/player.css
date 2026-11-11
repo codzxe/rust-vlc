@@ -1,37 +1,47 @@
-/* Card 4.C1 — player screen shell layout + chrome visibility.
- * Design provenance: doc 08 §1.6 player anatomy (top bar / video canvas /
- * control bar / side panels), §4.3 unobtrusive controls (auto-hide on idle
- * in fullscreen, [PROPOSAL] timing), §4.5 (reduced-motion disables fades;
- * focus order topbar → canvas → controls → panels = DOM order),
- * "Player - hide UI.svg" (chrome-hidden target state).
+/* PlayerScreen core layout + chrome visibility — the W26 Player.png
+ * composition (figma-fidelity-spec §1–§2; frames Player.svg, Player-6.svg,
+ * Player - Light.svg, Player - hide UI.svg).
  *
- * SOLSTICE RESTYLE (2026-11-08): the shell is a transparent stage — a
- * translucent deep wash lets the app-wide veiled sunset glow through; the
- * video canvas floats as a framed card (hairline warm border + inset shadow,
- * --radius-card-lg); chrome floats on glass instead of edge-to-edge strips.
+ * Regions this sheet owns (the window title bar + icon rail are the app
+ * shell's — appshell lane):
+ *   * docked playlist sidebar  ~216px, deep surface, hairline right edge
+ *   * main canvas              near-black in BOTH themes (picture-frame
+ *                              rule, W25 spec §1) — the honest engine-
+ *                              unwired placeholder until card 4.H1
+ *   * bottom control bar slot  ~44px chrome strip, hairline top edge
+ *   * right tool panels        floating r12–14 cards over the canvas
+ *
+ * Proportions (Player.svg @1920 → 1440 render): title 40→30, rail 50→38,
+ * sidebar 377→283 (W26 mission pins the docked sidebar at 200–220), controls
+ * 54→41 (mission pins ~44). Hairlines separate every region (#404040 =
+ * --color-stroke-border); rounding lives on controls and floating cards,
+ * NOT on the docked chrome strips (panels are square-edged, spec §1).
+ *
+ * Chrome auto-hide ("Player - hide UI.svg"): every [data-chrome-part] fades
+ * on idle in fullscreen; the canvas never does. Reduced-motion swaps the
+ * fade for an instant switch (doc 08 §4.5).
+ *
  * Semantic tokens only (§3.2); raw px appears solely for structural
- * dimensions with no token (panel width 377px per doc 08 §4.3, fade duration
- * 160ms matches the 4.B4 sheet animation precedent; both recorded in
- * ui/NEXT-STEPS.md). */
+ * dimensions with no token (sidebar width, strip heights, panel width). */
 
 .lumen-player {
+  position: relative; /* anchors the floating tool panels */
   display: flex;
   box-sizing: border-box;
   height: 100vh;
   overflow: hidden;
 
-  /* Translucent deep wash — the app-wide (veiled) sunset glows through the
-   * stage in both modes; the video canvas re-deepens itself below. */
-  background: color-mix(in srgb, var(--color-surface-deep) 55%, transparent);
+  /* Player.svg: the whole window reads on the near-black base surface. */
+  background: var(--color-surface);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
 }
 
-/* Chrome parts (top bar, controls bar, panels — never the video canvas):
- * fade on hide, pointer-transparent + focus-hostile when hidden. The
- * transition lives inside no-preference so prefers-reduced-motion gets an
- * instant switch (doc 08 §4.5). */
+/* Chrome parts (sidebar, top strip, controls bar, tool panels — never the
+ * video canvas): fade on hide, pointer-transparent + focus-hostile when
+ * hidden. The transition lives inside no-preference so prefers-reduced-motion
+ * gets an instant switch (doc 08 §4.5). */
 .lumen-player [data-chrome-part] {
   transition: opacity 160ms ease;
 }
@@ -52,263 +62,160 @@
   }
 }
 
+/* ---- docked playlist sidebar (Player.png, x=50..427) --------------------
+ * Full-height deep surface (#0E0E0E in the frame) with ONE hairline on its
+ * canvas edge. The panel content (4.D1, screens/playlist) owns its own
+ * internals; this is the dock. Square-edged — no radius, no float. */
+.lumen-player__sidebar {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  flex: none;
+  width: 216px; /* structural: W26 mission pins the sidebar at ~200–220px */
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-surface-deep);
+  border-right: 1px solid var(--color-stroke-border);
+}
+
+/* ---- main column: [top strip] / canvas / control bar ------------------- */
+
 .lumen-player__main {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 
-/* Top bar — floats on the stage (no strip); a small sun mark + the title. */
+/* Top strip — rendered ONLY for layouts that declare a top region (the
+ * default W26 layout does not: the window title bar is the app shell's).
+ * Player.svg topbar proportions: 40px @1920 ≈ 28–30px here, chrome surface,
+ * hairline bottom edge, compact 13px title. */
 .lumen-player__topbar {
   display: flex;
-  align-items: center;
-  gap: var(--space-grid);
-  padding: calc(var(--space-inset) * 1.5) calc(var(--space-inset) * 2);
-  background: transparent;
-  color: var(--color-content-secondary);
-}
-
-.lumen-player__mark {
   flex: none;
-  width: 20px;
-  height: 20px;
+  align-items: center;
+  gap: calc(var(--space-inset) * 1.5);
+  min-height: 28px; /* structural: mission invariant "title ~28px" */
+  box-sizing: border-box;
+  padding: 0 calc(var(--space-inset) * 1.5);
+  background: var(--color-surface-chrome);
+  border-bottom: 1px solid var(--color-stroke-border);
 }
 
 .lumen-player__title {
   margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-content-bright);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary);
 }
 
-/* The video canvas — the framed stage card: hairline warm border, inset
- * shadow, --radius-card-lg. Stays engine-owned (card 4.H1); the wash beneath
- * keeps it deep enough for honest video letterboxing in both modes. */
+/* ---- video canvas (Player.svg x=427..1920, y=40..1026) ------------------
+ * Near-black in BOTH themes — the picture-frame rule (W25 spec §1: light
+ * mode keeps the canvas #2b2b2b–#333). Stays a labelled region div until
+ * the render engine wiring (card 4.H1); the state overlays (./states) and
+ * the now-playing identity sit on it. */
 .lumen-player__canvas {
   position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
-  margin: 0 calc(var(--space-inset) * 2) calc(var(--space-inset) * 2);
   overflow: hidden;
-  border-radius: var(--radius-card-lg);
-  border: 1px solid color-mix(in srgb, var(--color-tape) 30%, transparent);
-  background: color-mix(in srgb, var(--color-surface-deep) 82%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--color-surface-deep) 60%, transparent),
-    inset 0 calc(var(--space-grid) * 2) calc(var(--space-inset) * 4)
-      color-mix(in srgb, var(--color-surface-deep) 80%, transparent);
+  background: var(--color-surface);
 }
 
-/* Controls region — a plain floating frame; the .lumen-controls bar itself
- * carries the solstice-glass treatment (controls/controls.css). */
-.lumen-player__controls {
-  padding: 0 calc(var(--space-inset) * 2) calc(var(--space-inset) * 2);
-  background: transparent;
+:root[data-theme="light"] .lumen-player__canvas {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - Light.svg — the picture-frame rule (W25 spec §1): the video canvas stays dark (#2b2b2b–#333) in BOTH themes; every surface token flips in light mode, and no stays-dark semantic token exists yet (token-lane handoff, w26.a13 lane log). */
+  background: #2b2b2b;
 }
 
-/* Side-panel containers (doc 08 §4.3: PlaylistPanel is 377px wide) —
- * floating warm panels on the stage: translucent surface-panel + blur,
- * hairline warm border, rounded, inset from the screen edges. */
-.lumen-player__panel {
-  position: relative; /* anchors the music-mode washi strip */
+/* ---- now-playing identity (honest "artwork centered" stand-in) ----------
+ * Player.png centers the artwork in the canvas; until frames exist (4.H1)
+ * the honest stand-in is the media's identity: a quiet kind glyph in a
+ * hairline ring + the engine-reported title. Real data only — the block
+ * renders solely in overlay-free session states (see PlayerScreen.tsx). */
+.lumen-player__now {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  width: 377px;
-  flex-shrink: 0;
-  margin: var(--space-inset) var(--space-grid);
-  padding: var(--space-inset);
-  overflow: auto;
-  background: color-mix(in srgb, var(--color-surface-panel) 92%, transparent);
-  backdrop-filter: blur(var(--blur-backdrop-small));
-  border: 1px solid color-mix(in srgb, var(--color-stroke-border) 85%, transparent);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-card);
-}
-
-/* Music-mode playlist emphasis (4.F2): a washi-tape strip straddling the
- * top edge — the pinned-note reading of the prominent playlist. v2 audit:
- * the old 3px tape-colored border-top read as a stuck focus ring around the
- * whole panel; the emphasis is now ONE deliberate strip on the top edge
- * (z above the panel, straddling like every other taped note — brief §2.2),
- * and the panel keeps its normal hairline border elsewhere.
- * v2 pass 2 (in-browser + VLM audit): the strip is positioned ABOVE the
- * panel's padding box, so the panel's own `overflow: auto` CLIPPED it to a
- * half-torn sliver reading as a rendering artifact. The emphasized panel
- * doesn't need the outer scroll (the playlist panel scrolls internally);
- * overflow: visible lets the tape straddle the edge cleanly. */
-.lumen-player__panel[data-emphasized] {
-  overflow: visible;
-  margin-top: calc(var(--space-inset) * 2.5); /* clearance for the strip */
-
-  /* Inner clearance: the tape's lower half reaches ~12px into the panel —
-   * the playlist header starts below it with room (VLM pass 2: the default
-   * 8px padding let the tape crowd the header row). */
-  padding-top: calc(var(--space-inset) * 2.5);
-}
-
-.lumen-player__panel[data-emphasized]::before {
-  content: "";
-  position: absolute;
-  top: calc(var(--space-inset) * -1.25);
-  left: 50%;
-  z-index: 1;
-  width: 88px;
-  height: 22px;
-  transform: translateX(-50%) rotate(-2deg);
-  /* stylelint-disable color-named -- art-direction: the washi-tape gradient blends toward white; no semantic blend-anchor token exists yet [PROPOSAL in stylelint.config.js] */
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-tape) 68%, white) 0%,
-    var(--color-tape) 42%,
-    var(--color-tape-edge) 100%
-  );
-  /* stylelint-enable color-named */
-  opacity: 0.9;
-  border-radius: 2px;
-  /* stylelint-disable function-disallowed-list, color-named -- art-direction: the tape's shadow inks — raw black drop shadow and a white paper sheen; no semantic shadow/highlight tokens yet [PROPOSAL in stylelint.config.js] */
-  box-shadow:
-    0 2px 4px rgb(0 0 0 / 28%),
-    inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
-  /* stylelint-enable function-disallowed-list, color-named */
-
-  /* torn ends — same clip as .solstice-note[data-tape] */
-  clip-path: polygon(
-    0% 12%, 3% 0%, 6% 10%, 94% 6%, 97% 0%, 100% 14%,
-    99% 88%, 96% 100%, 93% 90%, 7% 96%, 4% 100%, 1% 86%
-  );
-}
-
-/* First-run empty state, centered on the canvas (doc 08 §5.3): the sun
- * glows fully BEHIND the washi-taped sticky note (brief §2.2 z-discipline —
- * the card occludes its lower arc) and the group reads at the stage's
- * OPTICAL center (v2 pass 2, VLM audit: the old 7vh lift left the lower
- * stage reading as a dead void while the cluster hugged the topbar —
- * 5vh balances the sun's arc, the note, and the keycap strip's floor). */
-.lumen-player__empty {
-  position: absolute;
-  inset: 0;
-  display: flex;
   align-items: center;
   justify-content: center;
-  box-sizing: border-box;
-  padding: var(--space-inset) var(--space-inset) 4vh;
+  gap: calc(var(--space-inset) * 2);
+  margin: auto; /* centers in the canvas flex region */
+  padding: var(--space-inset);
   text-align: center;
 }
 
-/* The sun+note group: one column, the sun positioned behind the card's
- * top edge (peeking arc), the note on top of it. */
-.lumen-player__empty-stage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.lumen-player__empty-sun {
-  position: absolute;
-  top: -64px; /* the visible arc above the card; the card hides the rest */
-
-  /* Off-center peek (left of the tape): the arc and the washi tape no
-   * longer stack on the same point of the card's top edge — the audit
-   * read the stacked tape+sun as a clipped label chip. */
-  left: 30%;
-  z-index: 0;
-  width: 136px;
-  height: 136px;
-  transform: translateX(-50%);
-}
-
-.lumen-player__empty-card {
-  position: relative;
-  z-index: 1; /* the note sits ON the sun — brief §2.2 */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-inset);
-  max-width: 380px;
-
-  /* Padding belongs to the .solstice-note surface (24px) — a same-specificity
-   * override here would lose the cascade to theme/solstice.css, which loads
-   * after screen sheets in the dev-server graph (see appshell.css note). */
-}
-
-/* v2 pass 2 (VLM audit): on THIS card the shared tape's -2.2° tilt read as
- * a rendering artifact rather than washi tape. Scoped at one class higher
- * than .solstice-note[data-tape]::before so the override holds regardless
- * of sheet order (see the cascade note in appshell.css — screen sheets load
- * before theme/solstice.css in the dev-server graph). Pinned right of
- * center so the sun's off-center arc (left 30%) and the tape read as two
- * separate pinned objects, never a stack. */
-.lumen-player__empty-card.solstice-note[data-tape]::before {
-  left: 68%;
-  width: 104px;
-  transform: translateX(-50%) rotate(-4.5deg);
-}
-
-.lumen-player__empty-title {
-  margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-extrabold);
-  color: var(--color-note-ink);
-}
-
-.lumen-player__empty-body {
-  margin: 0;
-  color: var(--color-note-ink-muted);
-}
-
-/* Keycap hint strip (KeyHintStrip.tsx): bottom-centered chrome above the
- * control bar — translucent keycap-warm chip rail. v2 (brief §2.1/§2.9):
- * nothing clips at the viewport edge — ≥16px breathing room above the
- * canvas floor, the rail wraps (never overflows) and keeps ≥24px side
- * clearance; the caps render ≥12px (the micro token is far below the floor)
- * and the mono stack gains a glyph-capable fallback AFTER the token font so
- * ←/→ render as arrows, never tofu. */
-.lumen-player__keyhints {
-  position: absolute;
-  bottom: calc(var(--space-inset) * 2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
+.lumen-player__now-glyph {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--space-inset) * 1.5);
-  row-gap: var(--space-grid);
-  max-width: calc(100% - calc(var(--space-inset) * 6));
   box-sizing: border-box;
-  padding: var(--space-inset) calc(var(--space-inset) * 1.5);
-  border-radius: var(--radius-ring);
-  background: color-mix(in srgb, var(--color-surface-deep) 55%, transparent);
-  backdrop-filter: blur(var(--blur-backdrop-small));
-}
-
-.lumen-player__keyhint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-grid);
-}
-
-/* Keycap legibility floor (brief §2.9: caps ≥ 12px): the strip sizes its
- * own caps — max() keeps the token as the base and raises it to the floor.
- * The stack extension is documented in the ownership rules: extend in screen
- * CSS, never in solstice.css. */
-.lumen-player__keyhints .solstice-key {
-  min-width: 28px;
-  height: 28px;
-  font-family: var(--font-family-time), "DejaVu Sans Mono", monospace;
-  font-size: max(12px, var(--font-size-caption));
-}
-
-.lumen-player__keyhint-label {
-  font-size: max(12px, var(--font-size-caption));
-  font-weight: var(--font-weight-semibold);
+  width: 72px; /* structural: quiet art mark, well under the hero cone */
+  height: 72px;
   color: var(--color-content-secondary);
-  white-space: nowrap;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-ring);
+}
+
+.lumen-player__now-title {
+  margin: 0;
+  max-width: 46ch;
+  overflow-wrap: anywhere;
+  color: var(--color-content-bright);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ---- bottom control bar slot (Player.svg y=1026..1080) ------------------
+ * A chrome strip with ONE hairline on its canvas edge; the sibling
+ * ControlBar (./controls) renders into it and owns its own internals.
+ * Frame: 54px @1920 ≈ 41px; the W26 mission pins the strip at ~44px. */
+.lumen-player__controls {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-height: 44px; /* structural: mission invariant "controls ~44px" */
+  box-sizing: border-box;
+  background: var(--color-surface-chrome);
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+/* ---- right tool panels (media-info, customize; custom layouts) ----------
+ * Floating r12–14 cards OVER the canvas (the video keeps its size — the
+ * customize frames' panels float). Panel surface + hairline + overlay
+ * shadow; square panel chrome is gone (spec §1: rounding lives on cards). */
+.lumen-player__panel {
+  position: absolute;
+  top: calc(var(--space-inset) * 1.5);
+  bottom: calc(var(--space-inset) * 1.5);
+  z-index: 2; /* above the canvas + overlays, below dialogs */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 320px; /* structural: tool-panel width (design 377px @1920) */
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card-lg); /* r12–14 cards/panels, spec §1 */
+  box-shadow: var(--shadow-overlay);
+}
+
+.lumen-player__panel--left {
+  left: calc(var(--space-inset) * 1.5);
+}
+
+.lumen-player__panel--right {
+  right: calc(var(--space-inset) * 1.5);
+}
+
+/* Music-mode playlist emphasis (4.F2): styling hook only — the accent edge
+ * marks the prominent panel (the music lane owns the full treatment). */
+.lumen-player__panel[data-emphasized] {
+  border-right: 2px solid var(--color-accent);
 }
 
 /* Screen-reader-only honest placeholder notes (pattern from 4.B4 surface). */
@@ -319,7 +226,7 @@
   margin: -1px;
   padding: 0;
   overflow: hidden;
-  clip-path: inset(50%); /* deprecated clip: rect() replaced by its modern equivalent (issue #36 stylelint pass) */
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }

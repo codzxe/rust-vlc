@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, Ref } from "react";
 import { MenuPopup } from "./MenuPopup";
 import { identityResolveLabel } from "./types";
-import type { MenuEntry, ResolveLabel } from "./types";
+import type { MenuDensity, MenuEntry, ResolveLabel } from "./types";
 import "./menu.css";
 
 /** One top-level menubar menu: trigger + entries (doc 05 §8.3 menu tree). */
@@ -19,6 +19,8 @@ export interface MenuBarProps<K extends string = string> {
    * @default identity (keys render verbatim — dev mode)
    */
   resolveLabel?: ResolveLabel<K>;
+  /** Row scale for the open popups (W26). @default "comfortable" */
+  density?: MenuDensity;
   id?: string;
   className?: string;
   /** React 19 ref-as-prop on the menubar container. */
@@ -37,6 +39,7 @@ export interface MenuBarProps<K extends string = string> {
 export function MenuBar<K extends string>({
   menus,
   resolveLabel = identityResolveLabel,
+  density = "comfortable",
   id,
   className = "",
   ref,
@@ -129,6 +132,7 @@ export function MenuBar<K extends string>({
               entries={menu.entries}
               resolveLabel={resolveLabel}
               idPrefix={`${rootId}-${menu.id}`}
+              density={density}
               className="lumen-menubar__popup"
               ariaLabel={resolveLabel(menu.labelKey)}
               onRequestClose={() => closeMenu(index)}

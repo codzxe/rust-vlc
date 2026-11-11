@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement, Ref } from "react";
 import { MenuPopup } from "./MenuPopup";
 import { identityResolveLabel } from "./types";
-import type { MenuEntry, ResolveLabel } from "./types";
+import type { MenuDensity, MenuEntry, ResolveLabel } from "./types";
 import "./menu.css";
 
 export interface ContextMenuProps<K extends string = string> {
@@ -14,6 +14,8 @@ export interface ContextMenuProps<K extends string = string> {
   resolveLabel?: ResolveLabel<K>;
   /** Accessible name for the popup (already-resolved string). */
   ariaLabel?: string;
+  /** Row scale (W26): comfortable = big player context menus. @default "comfortable" */
+  density?: MenuDensity;
   children: ReactElement | ReactElement[];
   className?: string;
   /** React 19 ref-as-prop on the wrapper. */
@@ -32,6 +34,7 @@ export function ContextMenu<K extends string>({
   entries,
   resolveLabel = identityResolveLabel,
   ariaLabel,
+  density = "comfortable",
   children,
   className = "",
   ref,
@@ -79,6 +82,7 @@ export function ContextMenu<K extends string>({
           entries={entries}
           resolveLabel={resolveLabel}
           idPrefix="lumen-context-menu"
+          density={density}
           className="lumen-context-menu__popup"
           style={{ left: position.x, top: position.y }}
           ariaLabel={ariaLabel}

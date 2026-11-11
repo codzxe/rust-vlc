@@ -1,16 +1,27 @@
 /* Card 4.B3 — menu primitives (MenuBar, MenuPopup/MenuItem, Dropdown/Select,
  * ContextMenu, Tooltip).
- * Design provenance: docs/08-ui-figma-fidelity.md §1.4/§2/§115/§116:
- *   Context menu: 265×296 rx10 #191919 @ 0.95 + inset ring; items 48 high,
- *     hover 257×48 rx6 #1F1F1F  -> --radius-menu, --space-item-pitch,
- *     --radius-control, --color-surface, --color-surface-hover.
- *   Dropdown: trigger 48 rx6 (inner 44 rx4), open list rx6 #191919,
- *     selected item #1F1F1F     -> --radius-control, --radius-inset.
- *   menu.svg: items with accelerator glyphs on the trailing edge.
- * Semantic tokens only (doc 08 §3.2); raw px appears solely for structural
- * dimensions with no token (check slot, minimum popup width) — see states.md.
- * Known token gap: the 0.95 surface translucency has no rgba token; the popup
- * renders solid --color-surface (flagged in states.md for the token pipeline).
+ *
+ * W26 figma grammar (design/figma: `menu.svg`, `Profiles.svg`,
+ * `right-click menu.svg`, `context menu.svg`, `file|folder|playlist context
+ * menu.svg`, `option.svg`, `Dropdown.svg`, `Setting Preset.svg`;
+ * design/figma-fidelity-spec.md §2 "Menus"):
+ *   Panels: 400px-class, r10–12 (`--radius-menu`), bg `#1c1c1c–#202020` →
+ *     `--color-surface-panel`, 1px `--color-stroke-border`, subtle frame
+ *     shadow (`menu.svg`: blur 7.5 @ 46% → `--shadow-overlay`).
+ *   Big player menu rows (`--density: comfortable`): 58–60px tall, 22–24px
+ *     icon left, label 15–16px medium `#e8e8e8`, right-aligned shortcut
+ *     13–14px or submenu chevron, r6 row radius (`--radius-control`),
+ *     hover `--color-surface-hover`, active/selected `--color-surface-selected`
+ *     + selective orange icon accent (profile/wand frames →
+ *     `--color-accent-icon`).
+ *   Compact rows (`--density: compact`, settings dropdowns ≈ `Setting
+ *     Preset.svg`): ~40px, icon 16px, label `--font-size-body`.
+ *   Separators: thin 1px `--color-stroke-border` hairlines at row boundaries.
+ *   Dropdown: trigger r6 + 1px border + chevron; open list r6, options r6,
+ *     selected option shows an orange check (`option.svg` Vector 44).
+ * Colors are semantic tokens ONLY (doc 08 §3.2); raw px appears solely for
+ * structural dimensions with no token (row pitch, panel min-width, icon slot,
+ * 2px list inset) — each marked "structural" with its frame provenance.
  */
 
 /* ---- MenuBar (horizontal app menu) ---- */
@@ -28,10 +39,10 @@
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
-  height: var(--space-item-pitch);
+  height: 32px; /* W25 §2 player title bar is 24–32px — structural */
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-body); /* 13–14px menu medium (W25 §1) */
   font-weight: var(--font-weight-medium);
   color: var(--color-content-secondary);
   cursor: pointer;
@@ -62,12 +73,17 @@
   z-index: 10; /* overlays chrome; structural, no token */
   display: flex;
   flex-direction: column;
-  min-width: 257px; /* item hover width per doc 08 §115 — structural */
-  padding: var(--space-grid);
-  background: var(--color-surface);
-  border: 1px solid var(--color-stroke-border); /* inset ring approximation */
-  border-radius: var(--radius-menu);
-  box-shadow: var(--shadow-overlay);
+  min-width: 400px; /* 400px-class panel (task W26; `menu.svg` frame is 375) — structural */
+  box-sizing: border-box;
+  padding: var(--space-grid); /* 4px frame inset: rows sit 4px from the panel edge */
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-menu); /* r10–12 */
+  box-shadow: var(--shadow-overlay); /* frame shows a subtle drop shadow */
+}
+
+.lumen-menu--compact {
+  min-width: 0; /* compact popups size to their content/anchor — structural */
 }
 
 .lumen-menu--submenu {
@@ -80,23 +96,38 @@
   position: relative; /* anchors a nested submenu */
 }
 
+/* Row defaults = comfortable density (big player menus). */
 .lumen-menu__item {
   display: flex;
   align-items: center;
-  gap: var(--space-grid);
+  gap: calc(var(--space-grid) * 3); /* 12px icon→label gap (frame: icon 21–39, label ≈53) */
   box-sizing: border-box;
-  height: var(--space-item-pitch); /* 48px rows (doc 08 §115) */
-  padding: 0 var(--space-inset);
+  height: 58px; /* 58–60px big player menu rows (task W26) — structural */
+  padding: 0 calc(var(--space-inset) * 2); /* 16px row inset (frame ≈17px) */
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
+  font-size: var(--font-size-label); /* 15–16px medium labels */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-primary); /* #e8e8e8-class label (spec §2 Menus) */
   cursor: pointer;
-  border-radius: var(--radius-control); /* hover fill rx6 */
+  border-radius: var(--radius-control); /* r6 row radius */
   transition: background-color 120ms ease, color 120ms ease;
 }
 
+.lumen-menu--compact .lumen-menu__item {
+  height: 40px; /* ~40px compact rows (task W26, `Setting Preset.svg`) — structural */
+  gap: var(--space-inset);
+  padding: 0 var(--space-inset);
+  font-size: var(--font-size-body);
+}
+
 .lumen-menu__item:hover {
-  background: var(--color-surface-hover); /* #1F1F1F per doc 08 §115 */
+  background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+/* The roving-focus "active" row (keyboard navigation) reads as selected. */
+.lumen-menu__item:focus {
+  background: var(--color-surface-selected);
   color: var(--color-content-bright);
 }
 
@@ -110,12 +141,45 @@
   pointer-events: none; /* roving focus still reaches it — inert, not hidden */
 }
 
-/* check slot — 16px structural gutter; glyph only for checked items */
-.lumen-menu__check {
+/* Leading line-icon slot (W26: 22–24px comfortable / 16px compact). The Icon
+ * primitive renders 16px attributes; density CSS owns the real box. */
+.lumen-menu__icon {
+  display: inline-flex;
   flex: none;
+  color: var(--color-content-secondary); /* frame icons stroke #8F8F8F */
+}
+
+/* Defaults size the icon for comfortable density; compact overrides below
+ * (equal specificity, later in source order). */
+.lumen-menu .lumen-menu__icon svg {
+  width: 22px; /* 22–24px icon slot (task W26) — structural */
+  height: 22px;
+}
+
+.lumen-menu--compact .lumen-menu__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Selective orange icon accent (frames: profile / wand icons). */
+.lumen-menu__item--icon-accent .lumen-menu__icon {
+  color: var(--color-accent-icon);
+}
+
+/* Check slot — aligns labels of checked/plain rows; ✓ glyph when checked. */
+.lumen-menu__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px; /* matches the comfortable icon column — structural */
+  font-size: var(--font-size-label);
+  color: var(--color-accent-icon);
+}
+
+.lumen-menu--compact .lumen-menu__check {
   width: 16px;
   font-size: var(--font-size-body);
-  color: var(--color-accent-icon);
 }
 
 .lumen-menu__item[aria-checked="true"] > .lumen-menu__check::before {
@@ -131,8 +195,14 @@
 
 .lumen-menu__accelerator {
   margin-left: auto;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body); /* 13–14px shortcuts */
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-tertiary); /* dim gray, right-aligned (frames #6B6B6B) */
+}
+
+.lumen-menu--compact .lumen-menu__accelerator {
   font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
 }
 
 .lumen-menu__submenu-arrow::before {
@@ -140,9 +210,10 @@
   color: var(--color-content-tertiary);
 }
 
+/* Thin separators at row boundaries (frames: full row span, 1px hairline). */
 .lumen-menu__separator {
   height: 1px;
-  margin: var(--space-grid) var(--space-grid);
+  margin: var(--space-grid) 0; /* slight breathing room around the hairline */
   background: var(--color-stroke-border);
 }
 
@@ -151,6 +222,7 @@
   position: fixed;
   top: auto;
   left: auto;
+  min-width: 280px; /* context-menu frames are 265–292px wide — structural */
 }
 
 /* ---- Dropdown / Select ---- */
@@ -160,6 +232,8 @@
   flex-direction: column;
 }
 
+/* Trigger: r6 + 1px border + chevron (task W26; `Dropdown.svg` outer 364×48
+ * rx6, `Setting Preset.svg` 42px compact trigger). */
 .lumen-dropdown__trigger {
   display: inline-flex;
   align-items: center;
@@ -167,24 +241,19 @@
   gap: var(--space-inset);
   box-sizing: border-box;
   min-width: 0;
-  height: var(--space-item-pitch); /* 48px trigger (doc 08 §116) */
-  padding: 2px; /* inner 44px rx4 surface (structural) */
-  background: var(--color-surface-deep);
-  border: none;
-  border-radius: var(--radius-control); /* trigger rx6 */
+  height: var(--space-item-pitch); /* 48px trigger (`Dropdown.svg`) */
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
+  background: var(--color-surface-deep); /* recessed input well */
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-control); /* r6 */
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.lumen-dropdown__trigger > span {
-  display: inline-flex;
-  align-items: center;
-  box-sizing: border-box;
-  width: 100%;
-  height: 44px; /* inner surface (structural) */
-  padding: 0 var(--space-inset);
-  background: var(--color-surface);
-  border-radius: var(--radius-inset); /* inner rx4 */
+.lumen-dropdown--compact .lumen-dropdown__trigger {
+  height: 40px; /* ~40px settings trigger (`Setting Preset.svg`) — structural */
 }
 
 /* Space distribution: the VALUE owns all free width (ellipsis when truly
@@ -229,9 +298,8 @@
 
 .lumen-dropdown__value {
   overflow: hidden;
-  font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
+  color: var(--color-content-secondary); /* frame trigger text #8F8F8F */
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -241,6 +309,7 @@
   color: var(--color-content-tertiary);
 }
 
+/* Open list: r6 panel, 2px inset (frame: option 360×44 rx4 inside a 364 list). */
 .lumen-dropdown__list {
   position: absolute;
   top: calc(100% + var(--space-grid));
@@ -250,29 +319,40 @@
   flex-direction: column;
   width: 100%;
   box-sizing: border-box;
-  padding: var(--space-grid);
-  background: var(--color-surface);
+  padding: 2px; /* frame list inset (`Dropdown.svg`) — structural */
+  background: var(--color-surface-panel);
   border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-control); /* open list rx6 (doc 08 §116) */
-  box-shadow: var(--shadow-overlay);
+  border-radius: var(--radius-control); /* open list rx6 (`Dropdown.svg`) */
+  box-shadow: var(--shadow-overlay); /* frame list drop shadow (dy 4, blur 6.9) */
 }
 
 .lumen-dropdown__option {
   display: flex;
   align-items: center;
+  gap: var(--space-inset);
   box-sizing: border-box;
-  min-height: var(--space-item-pitch);
+  min-height: var(--space-item-pitch); /* 48px option rows (`option.svg`) */
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
+  color: var(--color-content-secondary); /* frame option text #8F8F8F */
   cursor: pointer;
   border-radius: var(--radius-control);
   transition: background-color 120ms ease, color 120ms ease;
 }
 
+.lumen-dropdown--compact .lumen-dropdown__option {
+  min-height: 40px; /* ~40px compact option rows (`Setting Preset.svg`) */
+}
+
 .lumen-dropdown__option:hover {
   background: var(--color-surface-hover);
+  color: var(--color-content-bright);
+}
+
+/* The roving-focus option reads as active/selected. */
+.lumen-dropdown__option:focus {
+  background: var(--color-surface-selected);
   color: var(--color-content-bright);
 }
 
@@ -282,13 +362,35 @@
 }
 
 .lumen-dropdown__option[aria-selected="true"] {
-  background: var(--color-surface-selected); /* #1F1F1F per doc 08 §116 */
+  background: var(--color-surface-selected); /* `option.svg` selected #1F1F1F */
   color: var(--color-content-bright);
+}
+
+/* Orange check on the selected option (frame `option.svg`/`Dropdown.svg`
+ * Vector 44, stroke #D37918). */
+.lumen-dropdown__option[aria-selected="true"]::after {
+  margin-left: auto;
+  font-size: var(--font-size-body);
+  content: "\2713"; /* graphical glyph, not an i18n string */
+  color: var(--color-accent-icon);
 }
 
 .lumen-dropdown__option[aria-disabled="true"] {
   opacity: var(--opacity-disabled);
   pointer-events: none;
+}
+
+.lumen-dropdown__option-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-content-secondary); /* frame option icons #6B6B6B–#8F8F8F */
+}
+
+.lumen-dropdown__option-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- Tooltip ---- */
@@ -307,7 +409,7 @@
   font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
   white-space: nowrap;
-  background: var(--color-surface-deep);
+  background: var(--color-surface-panel);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-control);
   box-shadow: var(--shadow-overlay);

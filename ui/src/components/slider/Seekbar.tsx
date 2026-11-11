@@ -41,9 +41,11 @@ export interface SeekbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "onCh
 }
 
 /**
- * Seekbar (doc 08 §4.3, §5.2). Anatomy per design (§1.4): track 28px rx6
- * `surface-deep`; progress fill inset 2px (24px) rx4 `accent-tinted`; handle
- * 8×24 rx4 `accent` — a slim vertical bar, not a circle.
+ * Seekbar (doc 08 §4.3, §5.2; w26.a04 restyle). Anatomy per W25 spec §2 +
+ * the Player.svg controls row: slim 4px track with radius (pill) ends on the
+ * `surface-deep` well; orange `accent` fill; honest buffer tint; circular
+ * thumb revealed on hover/drag/focus (knob locks at the pending target in
+ * `accent-strong`). Hit area stays ≥16px tall (slider.css).
  *
  * Truthful pending-seek rendering (§5.2):
  * 1. Scrub: knob follows the local preview; fill stays at the engine position.

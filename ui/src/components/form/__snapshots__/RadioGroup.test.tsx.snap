@@ -10,7 +10,7 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
     class="lumen-radiogroup__options"
   >
     <span
-      class="lumen-choice"
+      class="lumen-choice lumen-choice--radio"
     >
       <input
         class="lumen-choice__input"
@@ -27,7 +27,7 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
       </label>
     </span>
     <span
-      class="lumen-choice"
+      class="lumen-choice lumen-choice--radio"
     >
       <input
         checked=""
@@ -45,7 +45,7 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
       </label>
     </span>
     <span
-      class="lumen-choice"
+      class="lumen-choice lumen-choice--radio"
     >
       <input
         class="lumen-choice__input"

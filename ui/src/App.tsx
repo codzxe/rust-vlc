@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "./components/appshell/AppShell";
 import { PlayerScreen } from "./screens/player";
 import type { PlayerVariant } from "./screens/player";
@@ -8,8 +8,8 @@ import { PlaylistScreen } from "./screens/playlist";
 import { OnboardingEntry, RequireOnboarding } from "./screens/onboarding/OnboardingScreen";
 import { MediaInfoScreen } from "./screens/media-info";
 import { SettingsScreen } from "./screens/settings/SettingsScreen";
-// Solstice app-shell workstream (2026-11-08): real screens for the former
-// placeholder routes + persistent navigation (AppShell).
+// App-shell workstream (2026-11-08): real screens for the former placeholder
+// routes + persistent navigation (AppShell).
 import { OPEN_MEDIA_EVENT } from "./screens/open-media";
 import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
 // Discovery panel (card 7.D1, issue #42): the device-discovery surface —
@@ -24,13 +24,34 @@ import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 import { isDesktopShell } from "./client/app-transport";
 
-// Doc 08 §1.6 screen inventory, now fully real:
-//   * /player + /player/music + /miniplayer — the real player screen shell,
-//     with the route preselected variant (data-variant) and the open-media
-//     CTA wired to the AppShell dialog via the shared CustomEvent contract.
-//   * /playlist, /media-info, /settings/:area — unchanged real screens.
-//   * /keyboard-shortcuts, /open-network-stream, * — real screens (this
-//     workstream); ScreenPlaceholder is gone.
+// Product flow (doc 08 §1.6 screen inventory — every route is a real screen;
+// the placeholder routes are gone since the 2026-11-08 app-shell workstream).
+//
+//   first run (onboarding store absent / complete ≠ true — see
+//   screens/onboarding/onboardingState.ts, persisted as lumen.onboarding.v1)
+//     /            →  /player  →  first-run gate  →  /onboarding (wizard)
+//     /player, /player/music, /miniplayer  →  gate  →  /onboarding
+//     every other route renders directly (card 4.F1 gates ONLY the player
+//     home, so settings/playlist/… stay reachable from the shell)
+//
+//   after finish or skip (complete = true, persisted)
+//     /            →  /player — the home; the player empty state is the
+//                    onboarding-style hero, never a blank void (W25 spec §2)
+//     /player/music + /miniplayer — the same player screen, route-selected
+//                    variant (data-variant); open-media CTA fires the shared
+//                    CustomEvent that the AppShell dialog listens for
+//     /playlist, /media-info, /settings/:area (13 areas; /settings itself
+//                    redirects to /settings/global), /discovery, /convert,
+//     /keyboard-shortcuts, /open-network-stream, /dev/tokens (dev fixture),
+//     *            →  404
+//
+//   ?onboarding=1 — test/screenshot bypass of the first-run gate: player
+//     routes render as if the wizard were finished (dev-shots always starts
+//     a fresh browser profile, so player shots need a way past the gate).
+//     Per-navigation only — nothing is written to the onboarding store, so
+//     the very next param-less navigation is gated again. Enter on the
+//     player routes themselves (/player?onboarding=1, /player/music?…,
+//     /miniplayer?…); the / → /player redirect does not carry the query.
 
 /**
  * True for the browser dev shell: the app-layer transport probe
@@ -53,21 +74,32 @@ function dispatchOpenMedia(): void {
 }
 
 /**
+ * `?onboarding=1` on the current location: the first-run gate is treated as
+ * satisfied for this navigation (see the flow map above). Read per render —
+ * the override never touches the persisted onboarding store.
+ */
+function useOnboardingBypass(): boolean {
+  const [searchParams] = useSearchParams();
+  return searchParams.get("onboarding") === "1";
+}
+
+/**
  * Player routes. The variant is CONTROLLED by the route (persisted-variant
  * state stays for host-owned free-floating windows); keymap toggles and the
  * miniplayer expand/close affordances call onVariantChange, which routes.
+ * The first-run gate wraps the player home unless ?onboarding=1 bypasses it.
  */
 function PlayerRoute({ variant }: { variant: PlayerVariant }) {
   const navigate = useNavigate();
-  return (
-    <RequireOnboarding>
-      <PlayerScreen
-        variant={variant}
-        onOpenMedia={dispatchOpenMedia}
-        onVariantChange={(next) => navigate(playerVariantPath(next))}
-      />
-    </RequireOnboarding>
+  const bypassGate = useOnboardingBypass();
+  const player = (
+    <PlayerScreen
+      variant={variant}
+      onOpenMedia={dispatchOpenMedia}
+      onVariantChange={(next) => navigate(playerVariantPath(next))}
+    />
   );
+  return bypassGate ? player : <RequireOnboarding>{player}</RequireOnboarding>;
 }
 
 export function App() {

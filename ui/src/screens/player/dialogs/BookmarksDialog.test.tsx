@@ -17,13 +17,20 @@ import { BookmarksDialog, BOOKMARKS_COPY } from "./BookmarksDialog";
 
 /**
  * Transport with a real in-memory bookmark list (mirrors the engine-side
- * BookmarkList semantics: creation-ordered ids from 1, no id reuse).
+ * BookmarkList semantics: creation-ordered ids from 1, no id reuse). The
+ * optional seed lets tests pin the RENDERED order against an engine list
+ * that arrives out of order.
  */
 class BookmarkTransport implements CommandTransport {
   readonly sent: CommandRequest[] = [];
   private readonly listeners = new Set<(event: Event) => void>();
-  private bookmarks: Bookmark[] = [];
-  private nextId = 1;
+  private bookmarks: Bookmark[];
+  private nextId: number;
+
+  constructor(seed: Bookmark[] = []) {
+    this.bookmarks = [...seed];
+    this.nextId = seed.reduce((max, b) => Math.max(max, b.id), 0) + 1;
+  }
 
   async send(request: CommandRequest): Promise<CommandResponse> {
     this.sent.push(request);
@@ -170,6 +177,33 @@ describe("BookmarksDialog — create / jump / delete", () => {
     await waitFor(() => {
       expect(screen.getByText(BOOKMARKS_COPY.empty)).toBeInTheDocument();
     });
+  });
+
+  it("rows render in natural order — time ascending, labels digit-aware (never lexical)", async () => {
+    // Engine truth arrives scrambled: 5:00 first, two bookmarks at 2:00
+    // whose labels would sort "Part 10" before "Part 2" lexically.
+    const transport = new BookmarkTransport([
+      { id: 3, time: 300_000, label: "Part 10" },
+      { id: 1, time: 120_000, label: "Part 10" },
+      { id: 2, time: 120_000, label: "Part 2" },
+      { id: 4, time: 10_000, label: null },
+    ]);
+    renderDialog(transport);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Jump to 0:10" })).toBeInTheDocument();
+    });
+    const rows = screen
+      .getAllByRole("button", { name: /Jump to/ })
+      .map((button) => button.getAttribute("aria-label"));
+    expect(rows).toEqual([
+      "Jump to 0:10",
+      "Jump to 2:00",
+      "Jump to 2:00",
+      "Jump to 5:00",
+    ]);
+    // The 2:00 tie breaks naturally: "Part 2" before "Part 10".
+    const partRows = screen.getAllByText(/Part/);
+    expect(partRows.map((node) => node.textContent)).toEqual(["Part 2", "Part 10", "Part 10"]);
   });
 
   it("Escape closes (Dialog focus trap owns the key)", () => {

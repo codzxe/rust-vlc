@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Dialog, Sheet } from "./Surface";
+import { Card, Dialog, HeroPill, Panel, SectionHeader, Separator, Sheet, Well } from "./Surface";
 
 /** Host harness mimicking a real opener button + dialog usage. */
 function Harness({ closeOnOutsideClick = false }: { closeOnOutsideClick?: boolean }) {
@@ -165,5 +165,146 @@ describe("Sheet (edge-anchored dialog variant, doc 08 §4)", () => {
       </Sheet>,
     );
     expect(screen.getByRole("dialog").className).toContain("lumen-sheet--right");
+  });
+});
+
+describe("Dialog/Sheet tones (W26 Figma grammar)", () => {
+  it("Dialog defaults to the panel tone and marks the deep tone", () => {
+    const { rerender } = render(
+      <Dialog open onClose={() => {}} label="Settings window">
+        <span>content</span>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("lumen-dialog");
+    expect(dialog).not.toHaveAttribute("data-tone");
+
+    rerender(
+      <Dialog open onClose={() => {}} label="Settings window" tone="deep">
+        <span>content</span>
+      </Dialog>,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-tone", "deep");
+  });
+
+  it("Sheet marks the deep tone alongside the side class", () => {
+    render(
+      <Sheet open onClose={() => {}} side="bottom" tone="deep" label="Queue">
+        <span>content</span>
+      </Sheet>,
+    );
+    const sheet = screen.getByRole("dialog");
+    expect(sheet.className).toContain("lumen-sheet--bottom");
+    expect(sheet).toHaveAttribute("data-tone", "deep");
+  });
+});
+
+describe("Panel (square-edged app panel, W26 Figma grammar)", () => {
+  it("renders a section with the pane surface class by default", () => {
+    const { container } = render(<Panel>Sidebar</Panel>);
+    const panel = container.querySelector("section.lumen-pane")!;
+    expect(panel).toBeTruthy();
+    expect(panel).not.toHaveAttribute("data-edges");
+    expect(panel).not.toHaveAttribute("data-tone");
+  });
+
+  it("renders the requested semantic element", () => {
+    const { container } = render(<Panel as="nav">Rail</Panel>);
+    expect(container.querySelector("nav.lumen-pane")).toBeTruthy();
+  });
+
+  it("exposes hairline edge separators and the deep tone as data attributes", () => {
+    const { container } = render(
+      <Panel as="aside" edges="both" tone="deep">
+        Sidebar
+      </Panel>,
+    );
+    const panel = container.querySelector("aside.lumen-pane")!;
+    expect(panel).toHaveAttribute("data-edges", "both");
+    expect(panel).toHaveAttribute("data-tone", "deep");
+  });
+});
+
+describe("Card (r12–14 bordered card, W26 Figma grammar)", () => {
+  it("renders the flat card by default without a variant class", () => {
+    const { container } = render(<Card>A playlist card</Card>);
+    const card = container.querySelector("div.lumen-card")!;
+    expect(card).toBeTruthy();
+    expect(card.className).toBe("lumen-card");
+  });
+
+  it("applies variant classes and renders list-item cards", () => {
+    const { container } = render(
+      <>
+        <Card variant="raised">Raised</Card>
+        <Card variant="interactive">Interactive</Card>
+        <Card variant="floating">Floating</Card>
+        <Card as="li">Row</Card>
+      </>,
+    );
+    expect(container.querySelector(".lumen-card--raised")).toBeTruthy();
+    expect(container.querySelector(".lumen-card--interactive")).toBeTruthy();
+    expect(container.querySelector(".lumen-card--floating")).toBeTruthy();
+    expect(container.querySelector("li.lumen-card")).toBeTruthy();
+  });
+});
+
+describe("Well (recessed inset surface)", () => {
+  it("renders a div with the well class", () => {
+    const { container } = render(<Well data-testid="well" />);
+    expect(container.querySelector("div.lumen-well")).toBeTruthy();
+  });
+});
+
+describe("Separator (1px hairline divider)", () => {
+  it("is decorative (aria-hidden) and horizontal by default", () => {
+    const { container } = render(<Separator />);
+    const sep = container.querySelector("div.lumen-separator")!;
+    expect(sep).toHaveAttribute("aria-hidden", "true");
+    expect(sep).toHaveAttribute("data-orientation", "horizontal");
+  });
+
+  it("supports the vertical orientation", () => {
+    const { container } = render(<Separator orientation="vertical" />);
+    expect(container.querySelector(".lumen-separator")).toHaveAttribute(
+      "data-orientation",
+      "vertical",
+    );
+  });
+});
+
+describe("SectionHeader (15px semibold + optional thin rule)", () => {
+  it("renders the title as a heading with no rule by default", () => {
+    render(<SectionHeader>Appearance</SectionHeader>);
+    const heading = screen.getByRole("heading", { name: "Appearance" });
+    expect(heading.className).toContain("lumen-section-header__title");
+    expect(heading.parentElement).not.toHaveAttribute("data-rule");
+  });
+
+  it("honours the host heading level, rule and trailing content", () => {
+    render(
+      <SectionHeader as="h3" rule trailing={<span>2 items</span>}>
+        Startup
+      </SectionHeader>,
+    );
+    const heading = screen.getByRole("heading", { level: 3, name: "Startup" });
+    expect(heading.parentElement).toHaveAttribute("data-rule");
+    expect(screen.getByText("2 items").parentElement!.className).toContain(
+      "lumen-section-header__trailing",
+    );
+  });
+});
+
+describe("HeroPill (r30 hero surface)", () => {
+  it("renders the pill surface without the ring by default", () => {
+    const { container } = render(<HeroPill as="span">▶</HeroPill>);
+    const pill = container.querySelector("span.lumen-hero-pill")!;
+    expect(pill).toBeTruthy();
+    expect(pill.className).toBe("lumen-hero-pill");
+  });
+
+  it("adds the accent selection ring class", () => {
+    const { container } = render(<HeroPill ring />);
+    expect(container.querySelector(".lumen-hero-pill--ring")).toBeTruthy();
   });
 });

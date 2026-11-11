@@ -1,11 +1,28 @@
-/* Card 4.B1 — form input primitives (TextField, NumberField, Checkbox,
- * Radio/RadioGroup, Switch).
- * Design provenance: docs/08-ui-figma-fidelity.md §1.4 — onboarding text
- * input 469x34, fill #090909, 2px #191919 stroke (-> surface-deep fill,
- * stroke-border ring); Controls.svg text_input states (hover surface language
- * shared with Button). Values.svg steppers -> NumberField steppers.
- * Semantic tokens only (doc 08 §3.2). Raw px only for structural dimensions
- * with no token (heights, stroke widths) — see states.md. */
+/* Form input primitives — W26 Figma redesign (wave a, form lane w26.a06).
+ *
+ * Design provenance (design/figma/*.svg = source of truth, W25 spec §0):
+ *   · Toggle.svg / Settings - *.svg toggles — 68×32 rx6 track; ON: 33×26 rx3
+ *     accent-tinted text segment ("ON" in accent) + 26×26 rx3 accent-strong
+ *     fill right; OFF: 26×26 rx3 stroke-border fill left + 33×26 rx3 panel
+ *     text segment ("OFF" tertiary).
+ *   · W26 settings/onboarding inputs — #2a2a2a fill, 1px #3a3a3a border, r6,
+ *     focus-orange (Lead spec + W25 spec §2). Raw fallbacks below are
+ *     frame-marked and lose to `--color-surface-input` / `--color-stroke-input`
+ *     the moment the token lane lands them.
+ *   · Values.svg — segmented control: rx6 surface track, rx4 segments; active
+ *     = accent-tinted + accent text, inactive = panel + tertiary text.
+ *   · Values-1.svg — radio option rows: rx6 track, 36px rx4 rows, selected =
+ *     accent-tinted + accent text.
+ *   · Settings - global.svg — 9 accent swatches (20×20, 6px tinted slot on the
+ *     selected one); Browse combo (input + 32px r6 panel button).
+ *   · audio value.svg / EQ rows — dark recessed value chip (r6, bright value).
+ *
+ * Semantic tokens only (contract §4); raw px just for frame-measured
+ * structural dimensions with no token — each carries a `frame:` comment and
+ * is recorded in states.md. State matrix (hover/pressed/focus-visible/
+ * disabled) enforced by the colocated tests.
+
+/* ---------------------------------------------------------- TextField */
 
 .lumen-field {
   display: inline-flex;
@@ -25,24 +42,35 @@
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
-  height: 34px; /* onboarding text input height (doc 08 §1.4) */
+  height: 34px; /* frame: Onboarding.svg input 469×34 */
   padding: 0 var(--space-inset);
   font-family: inherit;
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-body); /* frame body 12–13px (W25 §1) */
   color: var(--color-content-bright);
-  background: var(--color-surface-deep);
-  border: 2px solid var(--color-surface); /* #191919 stroke per export */
-  border-radius: var(--radius-control); /* export rx5 — no 5px token (gap, states.md) */
-  transition: border-color 120ms ease, background-color 120ms ease;
+  border: 1px solid var(--color-stroke-input, #3a3a3a); /* stylelint-disable-line color-no-hex -- frame: W26 input border #3a3a3a; token seam: --color-stroke-input pending (token lane) */
+  border-radius: var(--radius-control); /* frame r6 */
+  transition: border-color var(--motion-duration-fast) ease, background-color var(--motion-duration-fast) ease;
+
+  /* frame: W26 input fill #2a2a2a; token seam: --color-surface-input pending
+   * (token lane) — the var() wins as soon as the token exists. */
+  background-color: var(--color-surface-input, #2a2a2a); /* stylelint-disable-line color-no-hex -- frame: W26 input fill #2a2a2a */
 }
 
 .lumen-field__control:hover {
-  background: var(--color-surface-hover);
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-content-tertiary);
 }
 
 /* pressed (doc 08 §4.4 matrix: every interactive primitive) */
 .lumen-field__control:active {
-  background: var(--color-surface-selected);
+  background-color: var(--color-surface-selected);
+  border-color: var(--color-content-secondary);
+}
+
+/* focus: orange border (W26 Lead spec) on any focus, ring for keyboard */
+.lumen-field__control:focus {
+  border-color: var(--color-accent);
+  outline: none;
 }
 
 .lumen-field__control:focus-visible {
@@ -52,6 +80,7 @@
 
 .lumen-field__control::placeholder {
   color: var(--color-content-tertiary);
+  opacity: 1;
 }
 
 .lumen-field__control:disabled {
@@ -59,9 +88,13 @@
   pointer-events: none;
 }
 
-/* error state (doc 08 §4.4/§5.4): --color-record is the only red semantic
- * token today; a dedicated --color-danger token is a recorded token-seam gap. */
+/* error state: --color-record stays the only red semantic token (dedicated
+ * --color-danger is a recorded token-seam request, states.md). */
 .lumen-field__control[aria-invalid="true"] {
+  border-color: var(--color-record);
+}
+
+.lumen-field__control[aria-invalid="true"]:focus {
   border-color: var(--color-record);
 }
 
@@ -72,7 +105,65 @@
   color: var(--color-record);
 }
 
-/* NumberField stepper (Values.svg) */
+/* -------------------------------------------------- BrowseField combo  *
+/* frame: Settings - interface.svg "Skin file" / Settings - global.svg
+ * "Log file" — 208×34 input + 100×32 r6 panel Browse button (frame gap 11px
+ * → nearest space token 8px). */
+
+.lumen-browse {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-inset);
+}
+
+.lumen-browse__control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lumen-browse__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-width: 100px; /* frame: Browse button width */
+  height: 32px; /* frame */
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+  background: var(--color-surface-panel);
+  border: none;
+  border-radius: var(--radius-control); /* frame r6 */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease, color var(--motion-duration-fast) ease;
+}
+
+.lumen-browse__action:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-content-bright);
+}
+
+.lumen-browse__action:active {
+  background: var(--color-surface-selected);
+}
+
+.lumen-browse__action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-browse__action:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------- NumberField  *
+/* Steppers are an app affordance (no stepper in the W26 package — Values.svg
+ * became the segmented control); restyled onto the input well language. */
+
 .lumen-number {
   display: inline-flex;
 }
@@ -92,20 +183,25 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: 28px;
-  height: 17px; /* half of the 34px control + 2px border share */
+  width: 26px;
+  height: 17px; /* half of the 34px control */
   padding: 0;
   font-family: inherit;
   font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
-  background: var(--color-surface-deep);
-  border: 2px solid var(--color-surface);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-input, #3a3a3a); /* stylelint-disable-line color-no-hex -- frame: W26 input border #3a3a3a; token seam: --color-stroke-input pending (token lane) */
   border-left: none;
   cursor: pointer;
 }
 
 .lumen-number__stepper:first-of-type {
   border-bottom: none;
+  border-top-right-radius: var(--radius-control);
+}
+
+.lumen-number__stepper:last-of-type {
+  border-bottom-right-radius: var(--radius-control);
 }
 
 .lumen-number__stepper:hover {
@@ -119,7 +215,7 @@
 
 .lumen-number__stepper:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .lumen-number__stepper:disabled {
@@ -127,8 +223,10 @@
   pointer-events: none;
 }
 
-/* Checkbox / Radio — native inputs, accent-styled (no checkbox/radio export
- * exists in the package; composed from the icon/accent language, doc 08 §2) */
+/* -------------------------------------------------- Checkbox / Radio  *
+/* Checkbox: no checkbox export exists in the design package — native input,
+ * accent-colored (doc 08 §2 interim; unchanged contract). */
+
 .lumen-choice {
   display: inline-flex;
   align-items: center;
@@ -143,7 +241,7 @@
   color: var(--color-content-bright);
 }
 
-/* pressed (doc 08 §4.4) — IconButton's accent-icon pressed language */
+/* pressed (doc 08 §4.4) — accent-icon pressed language */
 .lumen-choice:active {
   color: var(--color-accent-icon);
 }
@@ -171,6 +269,10 @@
   outline-color: var(--color-record);
 }
 
+/* Radio options — Values-1.svg row grammar: rx6 surface track, 36px rx4
+ * rows; selected = accent-tinted + accent label; the native radio input is
+ * visually hidden (checked state + roving tabindex carry the semantics). */
+
 .lumen-radiogroup {
   display: inline-flex;
   flex-direction: column;
@@ -178,8 +280,7 @@
   font-family: var(--font-family-sans);
 
   /* The group renders as a native <fieldset>: reset the browser-default
-   * groove border + margins — the v2 audit read the leftover chrome as a
-   * stray debug outline around the choice grid. */
+   * groove border + margins. */
   margin: 0;
   padding: 0;
   border: none;
@@ -194,12 +295,347 @@
 .lumen-radiogroup__options {
   display: inline-flex;
   flex-direction: column;
-  gap: var(--space-grid);
+  gap: 2px; /* frame: Values-1.svg row gap */
+  box-sizing: border-box;
+  padding: 2px; /* frame */
+  background: var(--color-surface);
+  border-radius: var(--radius-control); /* frame rx6 */
+}
+
+.lumen-choice--radio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 36px; /* frame: Values-1.svg option row */
+  padding: 0 var(--space-inset);
+  border-radius: 4px; /* frame rx4 — no token (gap, states.md) */
+  background: var(--color-surface-panel);
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-choice--radio label {
+  color: var(--color-content-tertiary);
+  cursor: inherit;
+}
+
+.lumen-choice--radio:hover {
+  background: var(--color-surface-raised);
+}
+
+.lumen-choice--radio:has(.lumen-choice__input:checked) {
+  background: var(--color-accent-tinted);
+}
+
+.lumen-choice--radio:has(.lumen-choice__input:checked) label {
+  color: var(--color-accent);
+}
+
+.lumen-choice--radio:hover:not(:has(.lumen-choice__input:checked)) label {
+  color: var(--color-content-secondary);
+}
+
+/* the native dot is replaced by the row language (Values-1.svg shows no
+ * dots); the input stays in the a11y tree + focusable */
+.lumen-choice--radio .lumen-choice__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* focus ring lands on the visible row (the input itself is 1×1) */
+.lumen-choice--radio:has(.lumen-choice__input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------- Switch  *
+/* frame: Toggle.svg (honest port): 68×32 rx6 surface track, 3px inset;
+ * ON  = [33×26 rx3 accent-tinted, "ON" accent] [26×26 rx3 accent-strong];
+ * OFF = [26×26 rx3 stroke-border] [33×26 rx3 panel, "OFF" tertiary].
+ * The ON/OFF micro labels are decorative (aria-checked carries state). */
+
+.lumen-switch {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  flex: none;
+  gap: 3px; /* frame: segment gap */
+  width: 68px; /* frame: Toggle.svg */
+  height: 32px; /* frame */
+  padding: 3px; /* frame: 26px segments inside the 32px track */
+  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-control); /* frame rx6 */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-switch:hover {
+  background: var(--color-surface-hover);
+}
+
+.lumen-switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-switch__text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: none;
+  width: 33px; /* frame */
+  height: 26px; /* frame */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption); /* frame ≈12px glyph height */
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  border-radius: 3px; /* frame rx3 — no 3px token (gap, states.md) */
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-switch__text--on {
+  background: var(--color-accent-tinted);
+  color: var(--color-accent);
+}
+
+.lumen-switch__text--off {
+  background: var(--color-surface-panel);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-switch__fill {
+  box-sizing: border-box;
+  flex: none;
+  width: 26px; /* frame */
+  height: 26px; /* frame */
+  background: var(--color-stroke-border);
+  border-radius: 3px; /* frame rx3 — no 3px token (gap, states.md) */
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-switch[aria-checked="true"] .lumen-switch__fill {
+  background: var(--color-accent-strong);
+}
+
+.lumen-switch[aria-checked="true"]:hover .lumen-switch__fill {
+  background: var(--color-accent-bright);
+}
+
+.lumen-switch[aria-checked="false"]:hover .lumen-switch__fill {
+  background: color-mix(in srgb, var(--color-stroke-border) 55%, var(--color-content-secondary));
+}
+
+.lumen-switch[aria-checked="true"] .lumen-switch__text--off {
+  display: none; /* ON: text segment left, fill right (frame) */
+}
+
+.lumen-switch[aria-checked="false"] .lumen-switch__text--on {
+  display: none; /* OFF: fill left, text segment right (frame) */
+}
+
+.lumen-switch:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------- SegmentedControl  *
+/* frame: Values.svg — rx6 surface track (2px inset), rx4 segments
+ * (min 104px), active = accent-tinted + accent text, inactive = panel +
+ * tertiary text. */
+
+.lumen-segmented {
+  display: inline-flex;
+  box-sizing: border-box;
+  gap: 2px; /* frame */
+  padding: 2px; /* frame */
+  background: var(--color-surface);
+  border-radius: var(--radius-control); /* frame rx6 */
+}
+
+.lumen-segmented__segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 1 0 auto;
+  min-width: 104px; /* frame: Values.svg 3-way segment */
+  height: 32px; /* frame */
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-tertiary);
+  background: var(--color-surface-panel);
+  border: none;
+  border-radius: 4px; /* frame rx4 — no token (gap, states.md) */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease, color var(--motion-duration-fast) ease;
+}
+
+.lumen-segmented__segment[aria-checked="true"] {
+  background: var(--color-accent-tinted);
+  color: var(--color-accent);
+}
+
+.lumen-segmented__segment[aria-checked="false"]:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-content-secondary);
+}
+
+.lumen-segmented__segment:active {
+  background: var(--color-surface-selected);
+}
+
+.lumen-segmented__segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-segmented__segment:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------- SwatchGroup  *
+/* frame: Settings - global.svg "Accent color" — 320×36 rx6 surface track,
+ * 32×32 hit targets, 20×20 swatch (rx1), selected swatch sits in a 6px
+ * accent-tinted rx4 slot. */
+
+.lumen-swatchgroup {
+  display: inline-flex;
+  box-sizing: border-box;
+  gap: 4px; /* frame pitch ≈35.5px (9×32 + gaps ≈ 320) */
+  padding: 2px; /* frame */
+  background: var(--color-surface);
+  border-radius: var(--radius-control); /* frame rx6 */
+}
+
+.lumen-swatchgroup__swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: none;
+  width: 32px; /* frame hit target (6px slot + 20px dot) */
+  height: 32px; /* frame */
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px; /* frame rx4 slot — no token (gap, states.md) */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-swatchgroup__swatch[aria-checked="true"] {
+  background: var(--color-accent-tinted);
+}
+
+.lumen-swatchgroup__swatch:active {
+  background: var(--color-surface-selected);
+}
+
+.lumen-swatchgroup__swatch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lumen-swatchgroup__swatch:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.lumen-swatchgroup__dot {
+  box-sizing: border-box;
+  width: 20px; /* frame */
+  height: 20px; /* frame */
+  border-radius: var(--radius-hairline); /* frame rx1 */
+}
+
+/* The 9 accent swatch primaries, frame-measured (Settings - global.svg,
+ * frame order — orange first, the W26 default). Per-accent primary tokens do
+ * not exist: the generated per-accent blocks are :root[data-accent]-scoped,
+ * so a group showing all nine at once cannot consume them. Token seam
+ * recorded in states.md + the lane log. */
+/* stylelint-disable color-no-hex -- frame: Settings - global.svg (9 accent swatch primaries, frame-measured) */
+.lumen-swatchgroup__swatch[data-accent="orange"] .lumen-swatchgroup__dot {
+  background: #d37918;
+}
+
+.lumen-swatchgroup__swatch[data-accent="red"] .lumen-swatchgroup__dot {
+  background: #e15032;
+}
+
+.lumen-swatchgroup__swatch[data-accent="yellow"] .lumen-swatchgroup__dot {
+  background: #c49e23;
+}
+
+.lumen-swatchgroup__swatch[data-accent="green"] .lumen-swatchgroup__dot {
+  background: #19a234;
+}
+
+.lumen-swatchgroup__swatch[data-accent="cyan"] .lumen-swatchgroup__dot {
+  background: #18aad3;
+}
+
+.lumen-swatchgroup__swatch[data-accent="blue"] .lumen-swatchgroup__dot {
+  background: #185dd3;
+}
+
+.lumen-swatchgroup__swatch[data-accent="violet"] .lumen-swatchgroup__dot {
+  background: #8e42ff;
+}
+
+.lumen-swatchgroup__swatch[data-accent="pink"] .lumen-swatchgroup__dot {
+  background: #f052b3;
+}
+
+.lumen-swatchgroup__swatch[data-accent="gray"] .lumen-swatchgroup__dot {
+  background: #afafaf;
+}
+
+/* stylelint-enable color-no-hex */
+
+/* ----------------------------------------------------------- ValueChip */
+
+/* frame: audio value.svg / EQ rows — dark recessed value well (r6, deep
+ * surface), bright value text, tabular numerals for dB/Hz readouts. */
+
+.lumen-valuechip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: none;
+  height: 32px;
+  min-width: 64px;
+  padding: 0 var(--space-inset);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-caption); /* frame ≈12px */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-bright); /* frame: white value */
+  font-variant-numeric: tabular-nums;
+  background: var(--color-surface-deep); /* frame: dark #141414 chip ≈ audio-value well */
+  border-radius: var(--radius-control); /* frame r6 */
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lumen-field__control,
-  .lumen-number__stepper {
+  .lumen-number__stepper,
+  .lumen-choice--radio,
+  .lumen-switch,
+  .lumen-switch__text,
+  .lumen-switch__fill,
+  .lumen-segmented__segment,
+  .lumen-browse__action,
+  .lumen-swatchgroup__swatch {
     transition: none;
   }
 }

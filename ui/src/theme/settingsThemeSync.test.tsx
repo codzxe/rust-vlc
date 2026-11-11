@@ -59,7 +59,7 @@ describe("useSettingsThemeSync (interface.theme → ThemeProvider → <html>)", 
     fireEvent.click(screen.getByTestId("set-light"));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
     // 4.A2's default stands until the schema owner adds the accent key.
-    expect(document.documentElement.dataset.accent).toBe("yellow");
+    expect(document.documentElement.dataset.accent).toBe("orange");
   });
 
   it("ignores non-theme values (never guesses a mode)", async () => {

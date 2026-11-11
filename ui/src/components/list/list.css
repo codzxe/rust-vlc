@@ -1,9 +1,18 @@
-/* Card 4.B4 — list primitives (Tabs, ScrollArea, VirtualList, VirtualTable).
- * Design provenance: docs/08-ui-figma-fidelity.md §4 (thin-scrollbar spec,
- * virtualization), §1.4 (radius ramp, selected category rx2), §1.5
- * (option.svg: 48h rows, rest/hover/selected), §4.4 interim state rules.
- * Semantic tokens only (§3.2). Raw px solely for structural dimensions with
- * no token (focus ring width, hairline scrollbar). */
+/* Card 4.B4 — list primitives (Tabs, ScrollArea, VirtualList, VirtualTable,
+ * ListRow, ListEmpty).
+ * Design provenance — W25 Figma spec (design/figma-fidelity-spec.md §1–§2)
+ * + frames playlist.svg / media.svg / menu.svg / Settings - global.svg /
+ *   Miniplayer.svg (queue):
+ *   · playlist rows ~66px r10 — icon + title, quiet gray text that brightens
+ *     on hover, hover fill, `•••` affordance revealed on hover
+ *   · compact rows 36–44px r6 (menus / settings sidebars) via density
+ *   · selected rows: --color-surface-selected fill + orange icon
+ *   · drag-handle queue rows with right-aligned tabular durations
+ *   · focus-visible accent ring (W25 §2 focus floor)
+ *   · empty lists: quiet secondary text, no artwork
+ * Plus doc 08 §4 (thin scrollbars, virtualization) and §4.5 (tabs anatomy).
+ * Semantic tokens only. Raw px is structural, frame-measured where marked
+ * (row heights/pitches, kebab dots, drag-handle bars, focus ring width). */
 
 /* ---------------------------------------------------------------- Tabs -- */
 
@@ -126,6 +135,9 @@
   box-sizing: border-box;
   padding: 0 var(--space-grid);
   color: var(--color-content-secondary);
+
+  /* frame: playlist.svg — row fill rx10 (rows round, panels square) */
+  border-radius: 10px;
 }
 
 .lumen-vrow:hover {
@@ -174,4 +186,289 @@
   color: var(--color-content-primary);
   font-weight: var(--font-weight-medium);
   background: var(--color-surface-chrome);
+}
+
+/* ------------------------------------------------------------ ListRow -- */
+
+/* Base grammar (playlist.svg / media.svg rows): icon · title/meta · duration
+ * · trailing · hover-revealed actions. Comfortable rows carry their own
+ * 20px frame insets; compact rows tighten to the menu/settings pitch. */
+
+.lumen-lrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-inset) + var(--space-grid)); /* frame: media.svg — 32px thumb → title ≈ 12px */
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0 20px; /* frame: media.svg — thumb at x=20, dots end 23px from the right edge */
+  font-family: var(--font-family-sans);
+  color: var(--color-content-secondary); /* frame rest ≈ #9a9a9a — the quiet gray */
+  background: transparent;
+
+  /* frame: playlist.svg — row rx10; no row-radius token (controls r6 live in
+   * --radius-control), so the frame-measured value is structural here */
+  border-radius: 10px;
+  transition:
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+.lumen-lrow--comfortable {
+  height: 66px; /* frame: playlist.svg — ~66px playlist rows */
+}
+
+.lumen-lrow--compact {
+  height: 40px; /* frame: menu.svg / Settings - global.svg — 36–44px rows */
+  gap: var(--space-inset);
+  padding: 0 calc(var(--space-grid) * 3);
+  border-radius: var(--radius-control); /* r6 — the control rounding */
+}
+
+/* Hover / focus-within (frame: playlist.svg hover state): the quiet gray
+ * lifts to bright text on the hover fill. */
+
+.lumen-lrow:hover,
+.lumen-lrow:focus-within {
+  background: var(--color-surface-hover); /* frame hover #1c1c1c — token-mapped */
+  color: var(--color-content-bright); /* frame hover ≈ #e6e6e6 */
+}
+
+/* Selected (frame: Settings - global.svg active row): selected surface,
+ * bright label and the ONE orange accent on the icon. Selected wins over
+ * hover — the active row never flickers to the plain hover fill. */
+
+.lumen-lrow--selected {
+  background: var(--color-surface-selected);
+  color: var(--color-content-bright);
+}
+
+.lumen-lrow--selected:hover {
+  background: var(--color-surface-selected);
+}
+
+/* Leading icon slot — hosts stroke glyphs or 32px thumbnails; tint follows
+ * the row state (secondary at rest, accent when selected). */
+
+.lumen-lrow__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-content-secondary);
+}
+
+.lumen-lrow--selected .lumen-lrow__icon {
+  color: var(--color-accent-icon); /* orange icon (active settings row) */
+}
+
+.lumen-lrow:focus-visible {
+  outline: 2px solid var(--color-accent); /* W25 §2 focus floor */
+  outline-offset: -2px;
+}
+
+/* Drag handle (frame: Miniplayer.svg queue rows — two 12px bars). Quiet at
+ * rest, revealed on hover/focus so the rail stays calm. */
+
+.lumen-lrow__handle {
+  position: relative;
+  flex: none;
+  width: 12px; /* frame: Miniplayer.svg — handle bars are 12px wide */
+  height: 8px;
+  color: var(--color-content-tertiary);
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) ease;
+}
+
+.lumen-lrow__handle::before,
+.lumen-lrow__handle::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 12px;
+  height: 2px;
+  border-radius: var(--radius-hairline);
+  background: currentcolor;
+}
+
+.lumen-lrow__handle::before {
+  top: 0;
+}
+
+.lumen-lrow__handle::after {
+  top: 6px; /* frame: 6px bar pitch */
+}
+
+.lumen-lrow--selected .lumen-lrow__handle,
+.lumen-lrow:hover .lumen-lrow__handle,
+.lumen-lrow:focus-within .lumen-lrow__handle {
+  opacity: 1;
+}
+
+.lumen-lrow[draggable="true"] {
+  cursor: grab;
+}
+
+.lumen-lrow[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Title/meta stack — the title owns the free width and ellipsizes. */
+
+.lumen-lrow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px; /* structural — tight two-line rhythm */
+  min-width: 0;
+}
+
+.lumen-lrow__title {
+  overflow: hidden;
+  font-size: var(--font-size-label); /* frame: playlist.svg ≈ 15px titles */
+  font-weight: var(--font-weight-regular);
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lumen-lrow__meta {
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Compact labels read as menu items (W25 §1: 13px sidebar/menu medium). */
+
+.lumen-lrow--compact .lumen-lrow__title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Duration — right-aligned tabular timecode (W25 §1: numerals hold their
+ * columns); lands at the trailing edge because __main flexes. */
+
+.lumen-lrow__duration {
+  flex: none;
+  margin-left: var(--space-inset);
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-secondary);
+}
+
+/* Trailing slot — shortcuts, chevrons, badges (menu.svg right-aligned hint). */
+
+.lumen-lrow__trailing {
+  flex: none;
+  margin-left: var(--space-grid);
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+/* Actions + the `•••` kebab (frame: playlist.svg — three 3px dots, 6px
+ * pitch, revealed on hover only). */
+
+.lumen-lrow__actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: var(--space-grid);
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) ease;
+}
+
+.lumen-lrow--selected .lumen-lrow__actions,
+.lumen-lrow:hover .lumen-lrow__actions,
+.lumen-lrow:focus-within .lumen-lrow__actions {
+  opacity: 1;
+}
+
+.lumen-lrow__kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; /* structural hit area around the 15px dot cluster */
+  height: 20px;
+  padding: 0;
+  color: var(--color-content-secondary);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-hairline);
+}
+
+.lumen-lrow__kebab:hover {
+  color: var(--color-content-bright);
+}
+
+.lumen-lrow__kebab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.lumen-lrow__kebab-dots {
+  position: relative;
+  width: 3px; /* frame: playlist.svg — 3px dots */
+  height: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.lumen-lrow__kebab-dots::before,
+.lumen-lrow__kebab-dots::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.lumen-lrow__kebab-dots::before {
+  left: -6px; /* frame: 6px dot pitch */
+}
+
+.lumen-lrow__kebab-dots::after {
+  left: 6px;
+}
+
+/* ---------------------------------------------------------- ListEmpty -- */
+
+/* Quiet empty state: centered secondary title + tertiary body, generous
+ * air, no artwork (W25 §2 — lists stay calm; the canvas is the hero). */
+
+.lumen-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding: calc(var(--space-item-pitch) / 2) var(--space-inset);
+  text-align: center;
+}
+
+.lumen-empty__title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary);
+}
+
+.lumen-empty__body {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-empty__action {
+  margin-top: calc(var(--space-grid) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-lrow,
+  .lumen-lrow__actions,
+  .lumen-lrow__handle {
+    transition: none;
+  }
 }

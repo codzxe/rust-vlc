@@ -106,4 +106,14 @@ describe("ContextMenu", () => {
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
+
+  it("applies the W26 density class to the popup (default comfortable)", () => {
+    render(
+      <ContextMenu entries={entries} resolveLabel={resolve}>
+        <button type="button">Row</button>
+      </ContextMenu>,
+    );
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Row" }), { clientX: 10, clientY: 10 });
+    expect(screen.getByRole("menu")).toHaveClass("lumen-menu--comfortable");
+  });
 });

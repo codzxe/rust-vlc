@@ -63,6 +63,11 @@ export interface PlayerState {
   readonly muted: boolean | null;
   /** Latest `tracks.list` result (also `tracks.list-ready` / snapshot). */
   readonly tracks: readonly TrackInfo[];
+  /** Engine-reported media title (`media.get-info` result / `media.info-ready`
+   * event); null = not reported (W26: the canvas identity block renders
+   * only engine truth — never a fabricated title). Cleared when the session
+   * returns to `idle`. */
+  readonly mediaTitle: string | null;
   /** Selected track ids per kind; null = engine has not reported. */
   readonly selections: TrackSelections | null;
   /** Outstanding seek target in seconds — the truthful-pending contract. */
@@ -107,6 +112,7 @@ const INITIAL_STATE: PlayerState = {
   volume: null,
   muted: null,
   tracks: [],
+  mediaTitle: null,
   selections: null,
   pendingSeek: null,
   pendingToggle: false,
@@ -191,6 +197,7 @@ export function PlayerControlsProvider({
             durationSeconds:
               result.info.duration.kind === "known" ? result.info.duration.time : null,
             tracks: result.info.tracks,
+            mediaTitle: result.info.title ?? null,
             engineReported: true,
           });
           break;
@@ -324,6 +331,9 @@ export function PlayerControlsProvider({
             ...prev,
             playbackState: event.to,
             pendingToggle: false,
+            // A closed session (idle) owns no media title — stale truth
+            // never survives into the next session (doc 05 §1 C6).
+            mediaTitle: event.to === "idle" ? null : prev.mediaTitle,
             // A state change invalidates an outstanding seek only via the
             // seek events; position itself is not guessed here.
           }));
@@ -354,6 +364,12 @@ export function PlayerControlsProvider({
           break;
         case "tracks.list-ready":
           patch({ tracks: event.tracks, engineReported: true });
+          break;
+        case "media.info-ready":
+          // The engine's info burst after a session open — the honest source
+          // for the canvas identity (title). Only engine-reported values
+          // land here; a null title stays null (never "Unknown media").
+          patch({ mediaTitle: event.info.title ?? null });
           break;
         case "tracks.changed": {
           const field = selectionFieldFor(event.trackKind as "video" | "audio" | "subtitle");

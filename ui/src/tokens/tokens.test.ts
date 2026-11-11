@@ -22,13 +22,24 @@ const cssRaw = TOKENS_CSS;
 
 // Update ONLY together with `cargo xtask tokens` + `npm run tokens:generate`
 // in the same commit — schema drift must never slip in silently.
-// (Solstice redesign, 2026-11-08: warm neutrals, yellow default accent,
-// sunset/note/tape/keycap/motion groups.)
-const PINNED_SHA256 = "4f6045e209a2d2a89aa8512c3f15839d68d760e4ec8db5168c7cad42d8f12c38";
+// (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
+// default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
+// Solstice groups removed; eq band accents added.)
+const PINNED_SHA256 = "98c24a36671843cb36c1e666bd1946190240ae8ab49f6b58b37f8606eb4c824a";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function rootDecl(name: string): string {
+  const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
+  return rootBlock.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1] ?? "";
+}
+
+function lightDecl(name: string): string {
+  const lightBlock = cssRaw.match(/:root\[data-theme="light"\]\s*\{([^}]*)\}/)?.[1] ?? "";
+  return lightBlock.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1] ?? "";
 }
 
 describe("generated token snapshot (doc 08 §3)", () => {
@@ -54,14 +65,14 @@ describe("generated token snapshot (doc 08 §3)", () => {
         "gray",
       ]),
     );
-    // dark + yellow are the DEFAULTS (Solstice, 2026-11-08): their values
-    // live in plain :root, so no [data-theme="dark"] / [data-accent="yellow"]
-    // selector exists.
+    // dark + orange are the DEFAULTS (W25 Figma redesign, 2026-11-11): their
+    // values live in plain :root, so no [data-theme="dark"] /
+    // [data-accent="orange"] selector exists.
     expect(cssRaw).toContain(':root[data-theme="light"]');
     expect(cssRaw).not.toMatch(/:root\[data-theme="dark"\]/);
-    expect(cssRaw).not.toMatch(/:root\[data-accent="yellow"\]/);
+    expect(cssRaw).not.toMatch(/:root\[data-accent="orange"\]/);
     // every non-default accent has a dark block AND a light combo block
-    for (const accent of ACCENTS.filter((a) => a !== "yellow")) {
+    for (const accent of ACCENTS.filter((a) => a !== "orange")) {
       expect(cssRaw).toMatch(new RegExp(`:root\\[data-accent="${accent}"\\]`));
       expect(cssRaw).toMatch(
         new RegExp(`:root\\[data-theme="light"\\]\\[data-accent="${accent}"\\]`),
@@ -72,9 +83,9 @@ describe("generated token snapshot (doc 08 §3)", () => {
   it("every accent block re-points the core accent tokens (doc 08 §3.2 roles)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     for (const accent of ACCENTS) {
-      // yellow (the default) re-points the roles inside plain :root.
+      // orange (the default) re-points the roles inside plain :root.
       const block =
-        accent === "yellow"
+        accent === "orange"
           ? rootBlock
           : (cssRaw.match(new RegExp(`:root\\[data-accent="${accent}"\\]\\s*\\{([^}]*)\\}`))?.[1] ?? "");
       expect(block.length, `accent block for ${accent}`).toBeGreaterThan(0);
@@ -93,7 +104,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     const cssNames = [...rootBlock.matchAll(/--[A-Za-z0-9-]+(?=\s*:)/g)].map((m) => m[0]);
     expect(new Set(cssNames)).toEqual(new Set(SEMANTIC_TOKEN_NAMES));
-    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(94);
+    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(78);
     expect(tokenVar("--color-surface-raised")).toBe("var(--color-surface-raised)");
   });
 
@@ -101,6 +112,77 @@ describe("generated token snapshot (doc 08 §3)", () => {
     // doc 08 §3.2: names describe role, never value.
     for (const name of SEMANTIC_TOKEN_NAMES) {
       expect(name).not.toMatch(/--(color-)?(gray|hex|dark|light)-/);
+    }
+  });
+
+  it("pins the W25 §1 measured values (figma-fidelity-spec.md, 2026-11-11)", () => {
+    // Dark defaults (plain :root).
+    expect(rootDecl("--color-surface")).toBe("#090909");
+    expect(rootDecl("--color-surface-deep")).toBe("#0e0e0e");
+    expect(rootDecl("--color-surface-panel")).toBe("#191919");
+    expect(rootDecl("--color-surface-chrome")).toBe("#161616");
+    expect(rootDecl("--color-surface-raised")).toBe("#222222");
+    expect(rootDecl("--color-surface-hover")).toBe("#262626");
+    expect(rootDecl("--color-surface-selected")).toBe("#1f1f1f");
+    expect(rootDecl("--color-surface-muted")).toBe("#151515");
+    expect(rootDecl("--color-stroke-border")).toBe("#404040");
+    expect(rootDecl("--color-content-primary")).toBe("#c6c6c6");
+    expect(rootDecl("--color-content-secondary")).toBe("#8f8f8f");
+    expect(rootDecl("--color-content-tertiary")).toBe("#6b6b6b");
+    expect(rootDecl("--color-content-bright")).toBe("#eaeaea");
+    // The orange accent family (default accent).
+    expect(rootDecl("--color-accent")).toBe("#d37918");
+    expect(rootDecl("--color-accent-strong")).toBe("#ab6314");
+    expect(rootDecl("--color-accent-tinted")).toBe("#371f06");
+    expect(rootDecl("--color-content-on-accent")).toBe("#090909");
+    expect(rootDecl("--color-record")).toBe("#e15032");
+    // Light mode.
+    expect(lightDecl("--color-surface")).toBe("#f0f0f0");
+    expect(lightDecl("--color-surface-chrome")).toBe("#f5f5f5");
+    expect(lightDecl("--color-surface-panel")).toBe("#efefef");
+    expect(lightDecl("--color-content-primary")).toBe("#2b2b2b");
+    expect(lightDecl("--color-content-secondary")).toBe("#6e6e6e");
+    expect(lightDecl("--color-stroke-border")).toBe("#d9d9d9");
+    expect(lightDecl("--color-stroke-icon")).toBe("#9a9a9a");
+    expect(lightDecl("--color-accent-bright")).toBe("#e8851a");
+  });
+
+  it("carries the 7 EQ band accents with frame provenance (W25 §1)", () => {
+    const eq = [
+      "#e15032",
+      "#c49e23",
+      "#19a234",
+      "#18aad3",
+      "#185dd3",
+      "#8e42ff",
+      "#f052b3",
+    ];
+    eq.forEach((hex, i) => {
+      expect(rootDecl(`--color-eq-${i + 1}`)).toBe(hex);
+    });
+  });
+
+  it("uses the W25 Inter stack and drops every Solstice remnant", () => {
+    expect(rootDecl("--font-family-sans")).toBe(
+      '"Inter", "-apple-system", "Segoe UI", "Roboto", sans-serif',
+    );
+    expect(rootDecl("--font-family-time")).toBe(
+      '"Inter", "-apple-system", "Segoe UI", "Roboto", sans-serif',
+    );
+    expect(cssRaw).not.toMatch(/nunito/i);
+    for (const gone of [
+      "sunset",
+      "note",
+      "keycap",
+      "tape",
+      "visualizer",
+      "stroke-warm",
+      "shadow-note",
+    ]) {
+      expect(cssRaw).not.toContain(`--color-${gone}`);
+      expect(cssRaw).not.toContain(`--gradient-${gone}`);
+      expect(cssRaw).not.toContain(`--shadow-${gone}`);
+      expect(SEMANTIC_TOKEN_NAMES.join(" ")).not.toContain(gone);
     }
   });
 });

@@ -1,0 +1,43 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SegmentedControl (Values.svg, wave 26) > DOM snapshot 1`] = `
+<div
+  aria-label="Theme"
+  class="lumen-segmented"
+  role="radiogroup"
+>
+  <button
+    aria-checked="false"
+    class="lumen-segmented__segment"
+    id="_r_5_-light"
+    role="radio"
+    tabindex="-1"
+    type="button"
+    value="light"
+  >
+    Light
+  </button>
+  <button
+    aria-checked="true"
+    class="lumen-segmented__segment"
+    id="_r_5_-dark"
+    role="radio"
+    tabindex="0"
+    type="button"
+    value="dark"
+  >
+    Dark
+  </button>
+  <button
+    aria-checked="false"
+    class="lumen-segmented__segment"
+    id="_r_5_-system"
+    role="radio"
+    tabindex="-1"
+    type="button"
+    value="system"
+  >
+    System
+  </button>
+</div>
+`;

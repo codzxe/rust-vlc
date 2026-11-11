@@ -336,14 +336,17 @@ export function parseLayoutConfig(src: string): LayoutConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Default layout [PROPOSAL] — mirrors the doc 07 §7.2 sketch + doc 08 §1.6
-// player anatomy (top bar / canvas / control bar / library sidebar + playlist
-// panel + media-info panel). Region and label existence is config-owned;
-// panel CONTENT is later cards' work (4.C2 controls, 4.F3 library/playlist).
+// Default layout — the W26 Player.png composition (figma-fidelity-spec §2):
+// the app shell (another lane) owns the window title bar + icon rail; the
+// player screen owns the DOCKED PLAYLIST SIDEBAR on the left, the video
+// canvas, the bottom control bar, and the right-side tool panels
+// (media-info, customize) that open over the canvas on demand. Region and
+// label existence is config-owned; panel CONTENT is the sibling lanes'
+// (4.C2 controls, 4.D1 playlist, 4.D2 media-info, 4.F3 customize).
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_LAYOUT_TOML = `# [PROPOSAL] default player layout (card 4.C1) — stands in for the
-# not-yet-landed config/layouts/main.toml (doc 07 §7.2). Same format.
+export const DEFAULT_LAYOUT_TOML = `# [PROPOSAL] default player layout (card 4.C1; W26 restage) — stands in
+# for the not-yet-landed config/layouts/main.toml (doc 07 §7.2). Same format.
 schema = "layout.v1"
 
 [[region]]
@@ -353,26 +356,16 @@ label_key = "player.canvas.label"
 order = 10
 
 [[region]]
-id = "title-bar"
-anchor = "top"
-label_key = "player.region.title-bar"
-order = 10
-
-[[region]]
 id = "controls-bar"
 anchor = "bottom"
 label_key = "player.region.controls-bar"
 order = 10
 
-[[region]]
-id = "library"
-anchor = "left"
-label_key = "player.region.library"
-order = 10
-
+# Player.png: the playlist sidebar docks LEFT of the canvas, open by default
+# (the shell title bar's sidebar-toggle collapses it — lumen:toggle-sidebar).
 [[region]]
 id = "playlist"
-anchor = "right"
+anchor = "left"
 label_key = "player.region.playlist"
 order = 10
 

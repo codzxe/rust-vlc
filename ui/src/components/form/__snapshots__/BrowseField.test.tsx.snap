@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`BrowseField (settings path combo, wave 26) > DOM snapshot 1`] = `
+<div
+  class="lumen-field"
+>
+  <label
+    class="lumen-field__label"
+    for="_r_5_"
+  >
+    Skin file
+  </label>
+  <div
+    class="lumen-browse"
+  >
+    <input
+      class="lumen-field__control lumen-browse__control"
+      id="_r_5_"
+      type="text"
+    />
+    <button
+      class="lumen-browse__action"
+      type="button"
+    >
+      Browse
+    </button>
+  </div>
+</div>
+`;
