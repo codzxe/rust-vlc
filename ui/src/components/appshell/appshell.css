@@ -116,7 +116,12 @@ body {
   margin-inline-end: calc(var(--space-grid) * 0.5);
   padding: 1px var(--space-grid);
   font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
+
+  /* w26.d2 a11y sweep (out-of-lane fix, flagged to the appshell-lane owner +
+   * Lead): tertiary ink failed the axe color-contrast audit in both modes
+   * (3.2:1 dark / 2.6:1 light); the badge keeps its quiet chip look at the
+   * secondary tier. */
+  color: var(--color-content-secondary);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-control);
 }

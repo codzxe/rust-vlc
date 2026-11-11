@@ -48,11 +48,14 @@
   color: var(--color-content-primary);
 }
 
-/* Count — quiet tabular numeral + suffix (no chip). */
+/* Count — quiet tabular numeral + suffix (no chip).
+ * w26.d2 a11y sweep: bumped tertiary → secondary (the frame's playlist meta
+ * tone ≈ #9a9a9a, the secondary tier) — the tertiary tier failed the axe
+ * color-contrast audit in both modes (3.2:1 dark). */
 .lumen-playlist__count {
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
-  color: var(--color-content-tertiary);
+  color: var(--color-content-secondary);
 }
 
 .lumen-playlist__controls {

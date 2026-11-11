@@ -279,3 +279,24 @@
   font-size: var(--font-size-body);
   line-height: 1.6; /* the onboarding paragraph's comfortable leading */
 }
+
+/* w26.d2 light sweep — the hero sits ON the picture-frame canvas, which
+ * STAYS DARK in light mode (#2b2b2b, player.css; W25 spec §1). The flipping
+ * content tokens would paint near-black on near-black (title 1.28:1 —
+ * invisible). No stays-dark content token exists yet (token-lane handoff,
+ * the w26.a13 canvas-pin precedent), so light mode pins the dark theme's
+ * frame values (Player.svg / Onboarding.svg hero grammar). */
+:root[data-theme="light"] .lumen-state-hero {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-primary #c6c6c6; picture-frame rule (W25 spec §1) */
+  color: #c6c6c6;
+}
+
+:root[data-theme="light"] .lumen-state-hero__title {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-bright #eaeaea on the stays-dark canvas (11.8:1) */
+  color: #eaeaea;
+}
+
+:root[data-theme="light"] .lumen-state-hero__body {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode content ramp pinned up one step from #8f8f8f (4.4:1) to hold AA 4.5:1 on the fixed #2b2b2b canvas */
+  color: #c6c6c6;
+}

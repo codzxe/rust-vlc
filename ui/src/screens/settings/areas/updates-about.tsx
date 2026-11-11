@@ -22,23 +22,28 @@ import { useMsg } from "../../../i18n/messages";
 import { SettingField } from "../SettingField";
 import { SETTING_PRIVACY_UPDATE_CHECKS } from "../generated/schema";
 
-/** About panel — version facts from imported package data (never hardcoded). */
+/** About panel — version facts from imported package data (never hardcoded).
+ * w26.d2 a11y sweep: the field head (a plain span label) moved OUT of the
+ * <dl> — axe definition-list requires every direct <div> child of a <dl> to
+ * hold an ordered dt/dd group; the head wrapper held only the span. */
 export function AboutPanel(): ReactElement {
   const m = useMsg();
   return (
-    <dl className="settings-field" data-testid="about-panel" data-about-package={UI_PACKAGE_NAME}>
+    <div className="settings-field" data-testid="about-panel" data-about-package={UI_PACKAGE_NAME}>
       <div className="settings-field__head">
         <span className="settings-field__label">{m("settings.about.product")}</span>
       </div>
-      <div className="settings-about__row">
-        <dt>{m("settings.about.ui-package")}</dt>
-        <dd data-testid="about-package-name">{UI_PACKAGE_NAME}</dd>
-      </div>
-      <div className="settings-about__row">
-        <dt>{m("settings.about.version")}</dt>
-        <dd data-testid="about-version">{UI_PACKAGE_VERSION}</dd>
-      </div>
-    </dl>
+      <dl className="settings-about__rows">
+        <div className="settings-about__row">
+          <dt>{m("settings.about.ui-package")}</dt>
+          <dd data-testid="about-package-name">{UI_PACKAGE_NAME}</dd>
+        </div>
+        <div className="settings-about__row">
+          <dt>{m("settings.about.version")}</dt>
+          <dd data-testid="about-version">{UI_PACKAGE_VERSION}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 

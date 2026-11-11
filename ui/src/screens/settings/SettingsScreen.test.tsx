@@ -77,6 +77,24 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
   });
 
+  it("Escape closes the clean window to the player (w26.d1 — frame-implied dismissal)", async () => {
+    renderAt("/settings/interface");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
+  });
+
+  it("Escape with unsaved changes routes through the same confirm dialog as the ✕", async () => {
+    renderAt("/settings/interface");
+    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Discard unsaved changes?");
+    // Stay keeps the settings window (and the draft) open.
+    fireEvent.click(screen.getByRole("button", { name: "Stay" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("settings-applybar")).toBeInTheDocument();
+  });
+
   it("segregates advanced entries behind the in-flow Advanced Options disclosure", () => {
     renderAt("/settings/interface");
     const toggle = screen.getByRole("button", { name: "Advanced Options" });

@@ -145,6 +145,26 @@
   --color-stroke-icon: var(--color-accent);
 }
 
+/* w26.d2 light sweep (out-of-lane fix, flagged to the button-lane owner +
+ * Lead in the lane log): the accent label on the tinted fill is 4.7:1 in
+ * dark (#d37918 on #371f06) but 1.75:1 in light (#d37918 on the flipped
+ * #d8ba9a tint) — the CTA reads washed-out/disabled (vision-flagged on
+ * /open-network-stream + /keyboard-shortcuts). Light keeps the tinted fill
+ * and swaps the ink to content-primary (7.8:1); hover walks to bright. */
+:root[data-theme="light"] .lumen-button--tinted,
+:root[data-theme="light"] .lumen-button--tinted:active,
+:root[data-theme="light"] .lumen-button--tinted:focus-visible {
+  color: var(--color-content-primary);
+
+  --color-stroke-icon: var(--color-content-primary);
+}
+
+:root[data-theme="light"] .lumen-button--tinted:hover {
+  color: var(--color-content-bright);
+
+  --color-stroke-icon: var(--color-content-bright);
+}
+
 /* variant: ghost — transparent rest, 1px transparent border so swapping
  * variants never shifts layout; hover = the Icon Wrapper.svg hover chip. */
 .lumen-button--ghost {
@@ -265,6 +285,30 @@
 
   cursor: default;
   pointer-events: none;
+}
+
+/* w26.d2 light sweep (out-of-lane fix, flagged to the button-lane owner +
+ * Lead in the lane log): the light icon token (W25 §1 light table,
+ * --color-stroke-icon #9a9a9a) puts the ghost rest glyphs at 2.1–2.3:1 on
+ * the light chrome/panel surfaces (#f0f0f0/#efefef) and 2.0:1 on the
+ * hover chip — under WCAG 1.4.11's 3:1 for interactive iconography
+ * (vision-flagged on /player/music light: near-invisible header cluster).
+ * Light steps the rest ink to content-secondary (4.5–4.7:1); hover,
+ * active, disabled and dark are unchanged. Decorative .lumen-icon usage
+ * keeps the spec's #9a9a9a token untouched. */
+:root[data-theme="light"] .lumen-icon-button {
+  /* Custom property only: the rest `color` keeps reading
+   * var(--color-stroke-icon) below, and higher-specificity intent rules
+   * (e.g. pressed toggles' accent ink) stay untouched. */
+  --color-stroke-icon: var(--color-content-secondary);
+}
+
+/* Companion at (0,4,0): keep the (0,3,0) light remap above from beating
+ * the disabled remap (disabled controls are exempt from 1.4.11; the
+ * tertiary quieting is the design's inert story). */
+:root[data-theme="light"] .lumen-icon-button:disabled,
+:root[data-theme="light"] .lumen-icon-button[aria-disabled="true"] {
+  --color-stroke-icon: var(--color-content-tertiary);
 }
 
 .lumen-icon-button[aria-busy="true"] {

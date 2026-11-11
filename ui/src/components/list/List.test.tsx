@@ -419,9 +419,9 @@ describe("ListEmpty — quiet empty-list state", () => {
     expect(container.querySelector(".lumen-empty__action")).toBeNull();
   });
 
-  it("CSS: secondary title + tertiary body (source check)", () => {
+  it("CSS: secondary title + secondary body (source check; w26.d2 a11y bump — tertiary body failed the axe color-contrast audit in both modes)", () => {
     expect(cssRule(".lumen-empty__title")).toContain("var(--color-content-secondary)");
-    expect(cssRule(".lumen-empty__body")).toContain("var(--color-content-tertiary)");
+    expect(cssRule(".lumen-empty__body")).toContain("var(--color-content-secondary)");
   });
 });
 

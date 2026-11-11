@@ -144,6 +144,16 @@ describe("DIALOG_KEYMAP seed (issue #32 — verbatim keymaps/default.toml rows)"
     });
   });
 
+  it("carries effects-and-filters exactly as the keymap file spells it (w26.d1, VLC Ctrl+E)", () => {
+    // keymaps/default.toml [window] effects-and-filters: QtHotkeys 'Extended
+    // settings Ctrl+E' (Adjustments and Effects) → the Tools dialog.
+    expect(DIALOG_KEYMAP.get("effects-and-filters")).toMatchObject({
+      key: "Ctrl+E",
+      uiAction: "av-effects",
+      mode: "player-focused",
+    });
+  });
+
   it("stays disjoint from the shell keymap (no silently shadowed ids)", () => {
     for (const id of DIALOG_KEYMAP.keys()) {
       expect(DEFAULT_KEYMAP.has(id)).toBe(false);
@@ -188,6 +198,16 @@ describe("matchModifierBindings (issue #32 — exact-combo matching)", () => {
     expect(matchModifierBindings(DIALOG_KEYMAP, ctrl("b")).map((b) => b.id)).toEqual([
       "bookmarks-dialog",
     ]);
+  });
+
+  it("matches the exact combo: Ctrl+E fires effects-and-filters (w26.d1)", () => {
+    expect(matchModifierBindings(DIALOG_KEYMAP, ctrl("e")).map((b) => b.id)).toEqual([
+      "effects-and-filters",
+    ]);
+    // extra modifiers never fire the combo
+    expect(
+      matchModifierBindings(DIALOG_KEYMAP, { ...ctrl("e"), shiftKey: true }),
+    ).toEqual([]);
   });
 
   it("ignores plain-key bindings and non-player-focused modes", () => {

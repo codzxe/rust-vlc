@@ -177,12 +177,23 @@
   font-size: var(--font-size-body); /* frame: placeholder ≈14px */
 }
 
+/* w26.d2 a11y sweep — same as the settings search pill: the input itself
+ * paints the keyboard focus ring (computed-outline requirement of the e2e
+ * tab audit), drawn just inside the pill. */
 .shortcuts__search input:focus-visible {
-  outline: none; /* the pill's :focus-within ring is the affordance */
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .shortcuts__search input::placeholder {
   color: var(--color-stroke-border); /* frame: placeholder #404040 */
+}
+
+/* w26.d2 light sweep — same as the settings search pill: the #404040
+ * placeholder maps to stroke-border, which flips to #d9d9d9 in light and
+ * vanishes on the #d4d4d4 pill. Light steps it to content-secondary. */
+:root[data-theme="light"] .shortcuts__search input::placeholder {
+  color: var(--color-content-secondary);
 }
 
 /* Field filter (Dropdown) — frame: 200×34 r6 #151515, value "All Fields"
@@ -406,6 +417,15 @@ a.shortcuts__edit:focus-visible {
   background: var(--color-accent-tinted);
   border-color: transparent;
   opacity: var(--opacity-disabled); /* frame: group at 50% */
+}
+
+/* w26.d2 light sweep — this (0,3,0) re-pin out-cascades the shared
+ * light-mode ink swap in button.css (equal specificity, later sheet): the
+ * accent label on the flipped #d8ba9a tint is 1.75:1 even at the disabled
+ * 50% render. Light keeps the frame's tinted disabled look with the
+ * content-primary ink (matches button.css's light tinted treatment). */
+:root[data-theme="light"] .shortcuts__save.lumen-button:disabled {
+  color: var(--color-content-primary);
 }
 
 /* ------------------------------------------------- narrow stages */

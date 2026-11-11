@@ -137,6 +137,18 @@
   background: var(--color-content-tertiary);
 }
 
+/* w26.d2 light/a11y sweep — the shared .lumen-icon-button:disabled remap
+ * (--color-stroke-icon: content-tertiary, same (0,2,0) specificity, later
+ * import order) clobbered the pill's on-accent ink: the disabled play
+ * glyph rendered tertiary-gray on the accent pill — 1.8:1 in light
+ * (#9a9a9a on #d37918), 2.1:1 in dark (vision-flagged on /player light).
+ * Re-pin the ink at (0,4,0) rest / (0,5,0) disabled so the pill wins in
+ * both themes and any import order. */
+:root .lumen-player .lumen-controls .lumen-controls__play,
+:root .lumen-player .lumen-controls .lumen-controls__play:disabled {
+  --color-stroke-icon: var(--color-content-on-accent);
+}
+
 /* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */
 .lumen-controls[data-playback-state="buffering"] .lumen-controls__transport {
   opacity: var(--opacity-emphasis);

@@ -13,8 +13,8 @@
 // field-scope dropdown, Action/Hotkey/Global Hotkey columns, Cancel +
 // disabled Save footer, per-row edit pencil → Settings → Hotkeys).
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { ShortcutsScreen, filterGroups, buildShortcutGroups } from "./ShortcutsScreen";
 
@@ -22,6 +22,17 @@ const renderScreen = () =>
   render(
     <MemoryRouter>
       <ShortcutsScreen />
+    </MemoryRouter>,
+  );
+
+/** Routed render with a /player stub — proves close/Escape navigations. */
+const renderWithPlayerRoute = () =>
+  render(
+    <MemoryRouter initialEntries={["/keyboard-shortcuts"]}>
+      <Routes>
+        <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
+        <Route path="/player" element={<div data-testid="player-home" />} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -199,5 +210,26 @@ describe("ShortcutsScreen (/keyboard-shortcuts)", () => {
     // default scope = all (pre-rebuild contract).
     const all = filterGroups(groups, labelOf as never, "Ctrl+O");
     expect(all.length).toBeGreaterThan(0);
+  });
+
+  it("✕ close returns to the player route (w26.d1 routed check)", async () => {
+    renderWithPlayerRoute();
+    fireEvent.click(screen.getByRole("button", { name: "Close shortcuts" }));
+    await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
+  });
+
+  it("Escape closes the window to the player (w26.d1 — frame-implied dismissal)", async () => {
+    renderWithPlayerRoute();
+    // An open dropdown listbox owns Escape first: closing it must NOT close
+    // the window (the Dropdown preventDefaults the key; the screen's handler
+    // defers to any open overlay).
+    fireEvent.click(screen.getByRole("button", { name: "Search scope" }));
+    const listbox = screen.getByRole("listbox");
+    fireEvent.keyDown(listbox, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(screen.getByPlaceholderText("Filter by action or key…")).toBeInTheDocument();
+    // With no overlay up, Escape closes the window.
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
   });
 });

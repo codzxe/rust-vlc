@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Dialog } from "../../components/surface/Surface";
@@ -141,6 +141,29 @@ function SettingsShell() {
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<{ area: SettingsAreaId } | { close: true } | null>(null);
 
+  // w26.d1 — Escape closes the settings window (the frames imply dismissal:
+  // Settings - *.svg are windowed with a ✕ close; VLC parity) through the
+  // SAME seam as the ✕ (dirty state → the confirm dialog). Open overlays
+  // (the confirm Dialog, menus, dropdown POPUPS) own Escape first — the
+  // guard keeps this handler silent while any of them is up. NOTE: the
+  // guard matches the Dropdown POPUP class, not every role="listbox" (the
+  // shell's sidebar VirtualList is a persistent listbox, never an overlay).
+  // Declared before the area-guard early return (Rules of Hooks); the ref
+  // carries the fresh requestClose closure each render.
+  const requestCloseRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], .lumen-dropdown__list') !== null) {
+        return; // an open overlay's focus trap handles this key
+      }
+      requestCloseRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   if (!isAreaId(area)) {
     // Deep-link canonicalisation (registry API): retired slugs (hotkeys,
     // codecs, about, advanced, effects — the b02 merges) redirect to their
@@ -182,6 +205,7 @@ function SettingsShell() {
     }
     navigate("/player");
   };
+  requestCloseRef.current = requestClose; // the Escape seam's fresh closure
   const discardAndContinue = () => {
     const next = pending;
     setPending(null);

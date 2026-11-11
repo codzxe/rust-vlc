@@ -124,12 +124,26 @@
   font-size: 15px; /* frame: "Search" ≈15px */
 }
 
+/* w26.d2 a11y sweep — the input itself paints the keyboard focus ring
+ * (the e2e tab audit asserts a computed outline on the focused stop; the
+ * pill's :focus-within box-shadow alone read as "0px none" on the input).
+ * The ring draws just inside the pill, matching the pill ring's position. */
 .settings-topbar__search input:focus-visible {
-  outline: none; /* the pill's :focus-within ring is the affordance */
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .settings-topbar__search input::placeholder {
   color: var(--color-stroke-border); /* frame: placeholder #404040 */
+}
+
+/* w26.d2 light sweep — the frame's #404040 placeholder maps to the
+ * stroke-border token, which flips to #d9d9d9 in light: invisible on the
+ * #d4d4d4 search pill (vision-flagged). Light steps the placeholder up to
+ * content-secondary (3.4:1 on the pill — the design's "gray placeholder"
+ * intent, readable). */
+:root[data-theme="light"] .settings-topbar__search input::placeholder {
+  color: var(--color-content-secondary);
 }
 
 /* Window title — frame: #969696 ≈16px at x240 (the content column's left
@@ -475,6 +489,12 @@
   background: var(--color-accent-tinted);
 }
 
+/* w26.d2 light sweep — accent ink on the flipped #d8ba9a tint is 1.75:1;
+ * light keeps the tinted chip and swaps the ink to content-primary (7.8:1). */
+:root[data-theme="light"] .settings-badge--restart {
+  color: var(--color-content-primary);
+}
+
 .settings-field__badges {
   display: flex;
   flex-wrap: wrap;
@@ -528,7 +548,12 @@
   margin-bottom: var(--space-grid);
 }
 
-/* About panel rows (updates-about) — term/value pairs. */
+/* About panel rows (updates-about) — term/value pairs. The <dl> wrapper
+ * (w26.d2 a11y restructure, updates-about.tsx) needs only the UA reset. */
+.settings-about__rows {
+  margin: 0;
+}
+
 .settings-about__row {
   display: grid;
   grid-template-columns: minmax(8rem, 40%) 1fr;

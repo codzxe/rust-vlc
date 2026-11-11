@@ -10,7 +10,6 @@ import { MediaInfoScreen } from "./screens/media-info";
 import { SettingsScreen } from "./screens/settings/SettingsScreen";
 // App-shell workstream (2026-11-08): real screens for the former placeholder
 // routes + persistent navigation (AppShell).
-import { OPEN_MEDIA_EVENT } from "./screens/open-media";
 import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
 // Discovery panel (card 7.D1, issue #42): the device-discovery surface —
 // live devices.volume-* events + the honest network-lane verdict.
@@ -38,8 +37,9 @@ import { isDesktopShell } from "./client/app-transport";
 //     /            →  /player — the home; the player empty state is the
 //                    onboarding-style hero, never a blank void (W25 spec §2)
 //     /player/music + /miniplayer — the same player screen, route-selected
-//                    variant (data-variant); open-media CTA fires the shared
-//                    CustomEvent that the AppShell dialog listens for
+//                    variant (data-variant); every open-media CTA dispatches
+//                    the shared CustomEvent exactly ONCE (the player screens'
+//                    own affordances fire it; the AppShell dialog listens)
 //     /playlist, /media-info, /settings/:area (13 areas; /settings itself
 //                    redirects to /settings/global), /discovery, /convert,
 //     /keyboard-shortcuts, /open-network-stream, /dev/tokens (dev fixture),
@@ -68,11 +68,6 @@ function playerVariantPath(variant: PlayerVariant): string {
   return "/player";
 }
 
-/** The open-media trigger contract: the AppShell listens and opens the dialog. */
-function dispatchOpenMedia(): void {
-  window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT));
-}
-
 /**
  * `?onboarding=1` on the current location: the first-run gate is treated as
  * satisfied for this navigation (see the flow map above). Read per render —
@@ -92,10 +87,14 @@ function useOnboardingBypass(): boolean {
 function PlayerRoute({ variant }: { variant: PlayerVariant }) {
   const navigate = useNavigate();
   const bypassGate = useOnboardingBypass();
+  // No onOpenMedia here: the player's own affordances (StageOverlays hero,
+  // canvas context menu, ControlBar app menu) already dispatch the shell-wide
+  // `lumen:open-media` CustomEvent — passing a re-dispatching callback made it
+  // fire TWICE per CTA (a13 open issue 4, fixed w26.d1). The prop stays on
+  // PlayerScreen's public API for hosts that need the composition seam.
   const player = (
     <PlayerScreen
       variant={variant}
-      onOpenMedia={dispatchOpenMedia}
       onVariantChange={(next) => navigate(playerVariantPath(next))}
     />
   );

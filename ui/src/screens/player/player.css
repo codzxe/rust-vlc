@@ -183,6 +183,21 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* w26.d2 light sweep — the now-playing identity sits ON the picture-frame
+ * canvas, which stays dark in light mode (#2b2b2b, the override above; W25
+ * spec §1). The flipping tokens would paint #161616 on #2b2b2b (1.3:1) and
+ * the glyph chip's icon would wash out on the flipped #dedede well — pin the
+ * title to the dark theme's bright value and step the glyph icon to
+ * content-secondary. Stays-dark content token: token-lane handoff (a13). */
+:root[data-theme="light"] .lumen-player__now-title {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-bright #eaeaea on the stays-dark canvas (picture-frame rule, W25 spec §1) */
+  color: #eaeaea;
+}
+
+:root[data-theme="light"] .lumen-player__now-glyph {
+  --color-stroke-icon: var(--color-content-secondary); /* 3.8:1 on the flipped deep well */
+}
+
 /* ---- bottom control bar slot (Player.svg y=1026..1080) ------------------
  * A chrome strip with ONE hairline on its canvas edge; the sibling
  * ControlBar (./controls) renders into it and owns its own internals.

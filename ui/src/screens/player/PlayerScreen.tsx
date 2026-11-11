@@ -70,7 +70,7 @@ import { selectedTrackId, trackDisplayName, tracksOfKind } from "./context";
 import { CustomizePanels } from "./customize";
 import { GotoTimeDialog } from "./dialogs/GotoTimeDialog";
 import { BookmarksDialog } from "./dialogs/BookmarksDialog";
-import { ToolsDialogHost } from "./dialogs";
+import { ToolsDialogHost, openToolsDialog } from "./dialogs";
 import { usePlayerEngineView } from "./states/context-bridge";
 import {
   DIALOG_KEYMAP,
@@ -597,6 +597,13 @@ function PlayerScreenInner({
           // the honest empty state).
           event.preventDefault();
           setBookmarksOpen(true);
+        } else if (binding.uiAction === "av-effects") {
+          // w26.c5 handoff: VLC's Ctrl+E "Extended settings" (Adjustments
+          // and Effects) = our audio/video Tools dialog (audio tab first —
+          // the VLC dialog's front page). No `when` in the keymap row: the
+          // tools render honestly (staged notes) on an idle session too.
+          event.preventDefault();
+          openToolsDialog("audio");
         }
       }
       for (const binding of matchBindings(PLAYER_SHELL_KEYMAP, event)) {

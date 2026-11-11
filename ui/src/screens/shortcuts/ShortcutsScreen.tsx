@@ -33,8 +33,7 @@
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
-import { useMemo, useState } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Icon } from "../../components/icon/Icon";
@@ -341,6 +340,25 @@ export function ShortcutsScreen() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<ShortcutFilterScope>("all");
+
+  // w26.d1 — Escape closes the shortcuts window (the frame implies dismissal:
+  // Keyboard_Shortcuts.svg is a windowed surface with a ✕ close; same seam as
+  // the ✕ button). Open overlays (the filter dropdown's popup, menus,
+  // dialogs) own Escape first — the guard matches the Dropdown POPUP class,
+  // not every role="listbox" (the shell's sidebar VirtualList is a persistent
+  // listbox, never an overlay).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], .lumen-dropdown__list') !== null) {
+        return; // an open overlay's focus trap handles this key
+      }
+      navigate("/player");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate]);
 
   const groups = useMemo(() => buildShortcutGroups(), []);
   // Bookmarks and other numbered series render in NUMERIC order (1..10).

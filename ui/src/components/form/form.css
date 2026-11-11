@@ -670,3 +670,38 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------- light-mode remediation
+ * w26.d2 light/a11y sweep (out-of-lane fix, flagged to the form-lane owner
+ * + Lead in the lane log):
+ *   1. The frame fallbacks above (#2a2a2a fill / #3a3a3a border, the
+ *      Onboarding.svg input wells) are DARK-only values behind the still
+ *      pending --color-surface-input / --color-stroke-input seams. In light
+ *      mode they painted near-black wells on light panels (a dark remnant
+ *      flagged by vision on /settings/interface + /convert). Light gets the
+ *      same recessed-well grammar from existing semantic tokens.
+ *   2. "Accent ink on accent-tinted" (active segment, selected radio row,
+ *      switch ON label) is 4.7:1 in dark (#d37918 on #371f06) but 1.75:1 in
+ *      light (#d37918 on the flipped #d8ba9a tint) — washed out. Light swaps
+ *      the ink to content-primary (7.8:1 on the tint). */
+:root[data-theme="light"] .lumen-field__control {
+  background-color: var(--color-surface-deep);
+  border-color: var(--color-stroke-border);
+}
+
+/* same sweep: the tertiary placeholder (#9a9a9a) is 1.9:1 on the flipped
+ * deep well — step it to content-secondary (3.4:1), matching the search
+ * pills' light placeholder treatment (settings.css / shortcuts.css). */
+:root[data-theme="light"] .lumen-field__control::placeholder {
+  color: var(--color-content-secondary);
+}
+
+:root[data-theme="light"] .lumen-number__stepper {
+  border-color: var(--color-stroke-border);
+}
+
+:root[data-theme="light"] .lumen-segmented__segment[aria-checked="true"],
+:root[data-theme="light"] .lumen-choice--radio:has(.lumen-choice__input:checked) label,
+:root[data-theme="light"] .lumen-switch__text--on {
+  color: var(--color-content-primary);
+}

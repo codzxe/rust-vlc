@@ -27,7 +27,7 @@
 // Nunito) is fully retired; this screen paints tokens only.
 
 import { Fragment, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { FormEvent, ReactElement, ReactNode } from "react";
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactElement, ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Button } from "../../components/button";
 import { NumberField, SegmentedControl, Switch, TextField } from "../../components/form";
@@ -522,6 +522,31 @@ export function OnboardingScreen(): ReactElement {
     "onboarding.progress.of",
   )} ${STEPS.length}`;
 
+  /**
+   * Arrow-key roving for the accent radiogroup (w26.d1 — the SwatchGroup
+   * keyboard contract: arrows move focus AND selection with wrap-around;
+   * the selected swatch is the group's single tab stop). WAI-ARIA
+   * radiogroup pattern; inert hosts (no ThemeProvider → disabled buttons)
+   * consume the key without side effects.
+   */
+  const onAccentKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
+    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
+    if (!vertical && !horizontal) return;
+    event.preventDefault();
+    if (!theme) return;
+    const current = ACCENT_ORDER.indexOf(theme.accent);
+    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
+    const next = ACCENT_ORDER[(current + delta + ACCENT_ORDER.length) % ACCENT_ORDER.length];
+    if (next === undefined) return; // unreachable (accent ids are total) — typed guard
+    theme.setAccent(next);
+    // Focus follows selection immediately (all 9 swatches exist in the DOM —
+    // no re-render round-trip needed).
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`[data-accent="${next}"]`)
+      ?.focus();
+  };
+
   const bodyKey = STEP_BODIES[step];
 
   return (
@@ -690,20 +715,26 @@ export function OnboardingScreen(): ReactElement {
                 role="radiogroup"
                 aria-label={msg("onboarding.appearance.accent")}
                 data-testid="onboarding-accents"
+                onKeyDown={onAccentKeyDown}
               >
                 {/* Per-accent raw values are not tokenized for direct
                  * consumption (they live under :root[data-accent=…] and
                  * redefine --color-accent), so the dot primaries are the
                  * frame-measured set (see onboarding.css) and the LIVE
-                 * accent token ring is the selected-state preview. */}
+                 * accent token ring is the selected-state preview.
+                 * Radio semantics + roving tabindex (w26.d1): the selected
+                 * accent is the single tab stop; arrows roam (see
+                 * onAccentKeyDown). */}
                 {ACCENT_ORDER.map((accent) => (
                   <button
                     type="button"
                     key={accent}
                     className="onboarding__accent"
                     data-accent={accent}
-                    aria-pressed={theme ? theme.accent === accent : undefined}
+                    role="radio"
+                    aria-checked={theme ? theme.accent === accent : undefined}
                     aria-label={msg(ACCENT_LABEL_KEYS[accent])}
+                    tabIndex={theme !== null && theme.accent === accent ? 0 : -1}
                     disabled={!theme}
                     onClick={() => theme?.setAccent(accent)}
                     data-testid={`onboarding-accent-${accent}`}

@@ -449,6 +449,37 @@ describe("PlayerScreen — Go-to-Time dialog wiring (issue #32, keymaps/default.
   });
 });
 
+describe("PlayerScreen — Ctrl+E tools dialog (w26.d1, VLC Adjustments and Effects parity)", () => {
+  const pressCtrlE = (): void => {
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "e", ctrlKey: true }),
+      );
+    });
+  };
+
+  it("Ctrl+E opens the audio/video Tools dialog on the Audio tab", () => {
+    renderWithClient(<PlayerScreen />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    pressCtrlE();
+    // ToolsDialogHost (mounted by this screen) answers the lumen:open-tools
+    // seam with the per-open dialog.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Audio", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Video" })).toBeInTheDocument();
+  });
+
+  it("the dialog closes on Escape (the shell's focus trap)", () => {
+    renderWithClient(<PlayerScreen />);
+    pressCtrlE();
+    const dialog = screen.getByRole("dialog");
+    act(() => {
+      fireEvent.keyDown(dialog, { key: "Escape" });
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
 describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", () => {
   /** Right-click the canvas region; returns the opened menu. */
   const openCanvasMenu = async (): Promise<HTMLElement> => {

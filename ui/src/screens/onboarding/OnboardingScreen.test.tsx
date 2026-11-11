@@ -256,6 +256,38 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
     expect(screen.getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("appearance step: arrow keys roam the accent radiogroup (w26.d1 roving tabindex)", () => {
+    render(
+      <ThemeProvider>
+        <ClientProvider transport={new MockTransport()}>
+          <MemoryRouter initialEntries={["/onboarding"]}>
+            <Routes>
+              <Route path="/onboarding" element={<OnboardingScreen />} />
+            </Routes>
+          </MemoryRouter>
+        </ClientProvider>
+      </ThemeProvider>,
+    );
+    goToStep(2);
+    const accents = screen.getByTestId("onboarding-accents");
+    const swatchOf = (accent: string): HTMLElement =>
+      screen.getByTestId(`onboarding-accent-${accent}`);
+    // Radio semantics: the selected swatch is the group's single tab stop.
+    expect(swatchOf("orange")).toHaveAttribute("aria-checked", "true");
+    expect(swatchOf("orange")).toHaveAttribute("tabindex", "0");
+    expect(swatchOf("red")).toHaveAttribute("tabindex", "-1");
+    // ArrowRight moves selection AND focus (the SwatchGroup contract).
+    fireEvent.keyDown(accents, { key: "ArrowRight" });
+    expect(document.documentElement.dataset.accent).toBe("red");
+    expect(swatchOf("red")).toHaveFocus();
+    expect(swatchOf("red")).toHaveAttribute("tabindex", "0");
+    // ArrowLeft wraps around the frame order (orange → gray).
+    fireEvent.keyDown(accents, { key: "ArrowLeft" });
+    fireEvent.keyDown(accents, { key: "ArrowLeft" });
+    expect(document.documentElement.dataset.accent).toBe("gray");
+    expect(swatchOf("gray")).toHaveFocus();
+  });
+
   // --- playback / subtitles steps: real settings-schema writes ---
 
   it("playback step writes the real settings overrides store", async () => {

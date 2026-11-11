@@ -458,7 +458,12 @@
 .lumen-empty__body {
   margin: 0;
   font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
+
+  /* w26.d2 a11y sweep (out-of-lane fix, flagged to the list-lane owner +
+   * Lead): tertiary failed the axe color-contrast audit on every consumer
+   * (3.2:1 dark / 2.45:1 light). One step up to the title's secondary tier —
+   * the two-tone calm is kept by size (body vs caption), not ink. */
+  color: var(--color-content-secondary);
 }
 
 .lumen-empty__action {
