@@ -17,30 +17,47 @@
 //! is the ALAC decoder through the purity-pinned
 //! `symphonia-codec-alac` engine with our own magic-cookie parse and
 //! error taxonomy (card 5.J3a — the ALAC half of 5.J3, lossless).
-//! Per-codec Cargo features arrive with the registration card
-//! (doc 01 §2.5(a)); today the modules ship unconditionally.
+//! Per-codec Cargo feature history: the EXTERNAL-engine modules
+//! ([`aac`], [`alac`], [`flac`], [`mp2`], [`mp3`], [`opus`], [`vorbis`])
+//! ride their `codec-*` Cargo features since card 7.K1 (doc 09 §2.4's
+//! tree-shake lane; `default` enables the full set, so the unconditional
+//! pre-7.K1 graph is unchanged); the in-house modules ([`adpcm`], [`pcm`])
+//! stay unconditional until the doc 01 §2.5(a) registration card owns
+//! their gates.
 
+#[cfg(feature = "codec-aac")]
 pub mod aac;
 /// [`adpcm`] is the in-house ADPCM family (cards 5.J2a + 5.J2b, doc
 /// 04 §3.1 rows "ADPCM MS"/"ADPCM IMA" and the ADPCM breadth rows):
 /// the WAV-carried MS/IMA-WAV pair plus Yamaha, OKI/Dialogic, SWF,
 /// Apple IMA4 and Westwood IMA — one `AdpcmDecoder`, seven flavors,
-/// bit-exact against the ffmpeg 7.1.5 reference. Per-codec Cargo
-/// features arrive with the registration card (doc 01 §2.5(a)).
+/// bit-exact against the ffmpeg 7.1.5 reference. In-house (zero external
+/// deps): unconditional until the registration card's per-codec gates
+/// (doc 01 §2.5(a)).
 pub mod adpcm;
+#[cfg(feature = "codec-alac")]
 pub mod alac;
+#[cfg(feature = "codec-flac")]
 pub mod flac;
 /// [`mp2`] is the dedicated MP2 (MPEG audio Layer II) decoder: the
 /// family engine (`symphonia-bundle-mp3`, no new dependency) behind
 /// our own Layer II gate, CBR geometry/seek arithmetic and typed
 /// error surface (card 5.J3 — the J3b half; doc 04 §3.1 row "MP2").
+/// Rides `codec-mp2` (which implies `codec-mp3` — the shared family
+/// engine + sync glue).
+#[cfg(feature = "codec-mp2")]
 pub mod mp2;
+#[cfg(feature = "codec-mp3")]
 pub mod mp3;
 /// [`opus`] is the Opus decoder through the admitted `ruopus` engine
 /// (card 6.M-opus, doc 04 §3.1 row "Opus") with our own OpusHead
 /// validation (the pre-constructor panic gate), pre-skip/end-trim
 /// granule arithmetic and RFC 7845 → house channel-order mapping
 /// (the admission record's two binding conditions).
+#[cfg(feature = "codec-opus")]
 pub mod opus;
+/// In-house (zero external deps): unconditional until the registration
+/// card's per-codec gates (doc 01 §2.5(a)).
 pub mod pcm;
+#[cfg(feature = "codec-vorbis")]
 pub mod vorbis;

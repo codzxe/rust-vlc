@@ -202,6 +202,33 @@
         "max_wasm_extension_memory_mib": { "type": "integer", "minimum": 8, "maximum": 256 }
       }
     },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size_budgets"],
+      "$comment": "Web-target product decisions (doc 09; card 7.K1, issue #49). Optional at the top level so sparse layer fixtures without it stay valid; the web-budget gate errors loudly when it is missing from the committed product.toml. NOT layer-overridable in v1: PartialProduct has no web field, so a layer document carrying [web] fails loudly as an unknown key (budgets are a product decision, not a user preference — doc 07 §4.4).",
+      "properties": {
+        "size_budgets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["phase2_vertical_max_mib", "full_p0_max_mib"],
+          "properties": {
+            "phase2_vertical_max_mib": {
+              "type": "integer", "minimum": 1, "maximum": 64,
+              "x-lumen-unit": "MiB",
+              "$comment": "doc 09 §2.4 Phase-2 vertical baseline ('3 MB' gzipped engine+host, [PROPOSAL] pending doc 09 §12 Q5): the ceiling `cargo xtask web-budget --check` enforces on the phase2-vertical rows of docs/web/size-record.toml (the shipped floor and the in-house-decoders build).",
+              "x-lumen-hint": "measured headroom lives in docs/web/size-report.md; raise only via the doc 09 §2.4 review, never to make a gate green."
+            },
+            "full_p0_max_mib": {
+              "type": "integer", "minimum": 1, "maximum": 1024,
+              "x-lumen-unit": "MiB",
+              "$comment": "doc 09 §2.4 full-P0 codec-set baseline ('6 MB' gzipped, [PROPOSAL] pending doc 09 §12 Q5): the ceiling for every codec-carrying row of docs/web/size-record.toml. full_p0_max_mib >= phase2_vertical_max_mib is enforced by the web-budget gate (the consumer of both values).",
+              "x-lumen-hint": "measured headroom lives in docs/web/size-report.md; raise only via the doc 09 §2.4 review, never to make a gate green."
+            }
+          }
+        }
+      }
+    },
     "telemetry": {
       "type": "object",
       "additionalProperties": false,

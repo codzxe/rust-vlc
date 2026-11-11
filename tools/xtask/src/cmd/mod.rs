@@ -28,6 +28,7 @@
 //! | `cmd::check_identity`    | `check-identity`     | 7.w21a (implemented — the C2 no-hardcoded-identity gate, doc 07 §9; same granted-registry precedent) |
 //! | `cmd::sbom`              | `sbom`               | 7.w23f (#52) (implemented — std-only CycloneDX 1.5 SBOM generator + drift gate, doc 11 §3.4; registered under task 7.w23f's granted ownership of tools/xtask/src/**, same precedent as check-panics/7-e) |
 //! | `cmd::compat_matrix`     | `compat-matrix`      | 8.B2 (#53) (implemented — the compat-matrix transitions writer: applies the evidence outbox to feature-matrix.toml, the ONLY status writer, never hand-edited; registered under issue #53's granted ownership of tools/xtask/src/** + the one dispatch line, same precedent as check-panics/7-e) |
+//! | `cmd::web_budget`        | `web-budget`         | 7.K1 (#49) (implemented — the doc 09 §2.4 wasm size-budget gate: rebuilds the record's rebuild rows via real cargo build, ceilings from product.toml [web.size_budgets]; registered under card 7.K1's granted ownership of the xtask subcommand surface, same precedent as sbom/7.w23f) |
 
 use std::process::ExitCode;
 
@@ -50,6 +51,7 @@ pub mod schema_gen;
 pub mod tokens;
 pub mod toml_lite;
 pub mod visual;
+pub mod web_budget;
 
 /// One registered subcommand: name, owning card, help text and entry point.
 pub struct Subcommand {
@@ -180,6 +182,13 @@ pub const SUBCOMMANDS: &[Subcommand] = &[
          status writer; doc 10 §7.3)",
         implemented: true,
         run: compat_matrix::run,
+    },
+    Subcommand {
+        name: "web-budget",
+        card: "7.K1 (#49)",
+        summary: "Web wasm size-budget gate: doc 09 §2.4 budgets + >5% growth (--check drift gate)",
+        implemented: true,
+        run: web_budget::run,
     },
 ];
 

@@ -10,16 +10,23 @@
 # beyond the command layer's own serde wire family, the lumen-cli
 # precedent).
 #
-# The `codecs` edge is TARGET-GATED (native only): the codecs crate's
-# external decode engines do not build on wasm32-unknown-unknown
-# (rav1d 1.1.0 fails: 38 errors, measured 2026-11-10 — asm-gated core
-# code does not compile for the target), so the wasm module ships the
-# engine core decoder-less and reports that honestly in its capability
-# snapshot. Native builds get the real MJPEG + PCM decoders (the
-# first vertical) so the headless lane proof decodes for real.
-# [PROPOSAL: Lead splits the in-house mjpeg/pcm decoders out of the
-# codecs crate — or feature-gates the external engines — to lift this;
-# an engine-crate edit outside this card's ownership.]
+# The `codecs` edge is TARGET-SPLIT (card 7.K1, issue #49): native
+# builds link the codecs crate unconditionally and get the real MJPEG
+# + PCM decoders (the first vertical) so the headless lane proof
+# decodes for real. The wasm32 side links the SAME crate as an
+# OPT-IN, `default-features = false` (in-house-only) dependency behind
+# the `builtin-codecs*` features — the doc 09 §2.4 per-codec
+# tree-shake lane. The codecs crate's external decode engines do not
+# all build on wasm32-unknown-unknown (rav1d 1.1.0 fails: 39 errors,
+# measured 2026-11-10 — asm-gated core code does not compile for the
+# target), so the wasm module SHIPS decoder-less (the honest
+# capability snapshot) and every codec-carrying wasm build is an
+# explicitly-labeled measurement/opt-in configuration — see
+# docs/web/size-report.md. [PROPOSAL: Lead splits the in-house
+# mjpeg/pcm decoders out of the codecs crate — or wasm-cleanups the
+# external engines — to make a codec-carrying wasm module shippable;
+# the per-codec feature gates this card landed in the codecs crate
+# (codec-*) are the mechanism either path would use.]
 #
 # externals: `serde` + `serde_json` are the command layer's own wire
 # family (doc 05 §5.1 — the catalog's serde path), admitted via
@@ -64,11 +71,60 @@ serde = "1"
 serde_json = "1"
 
 # The real builtin decoders (first vertical: MJPEG + PCM), NATIVE
-# ONLY — see the header's codecs note. check-architecture reads this
-# as a normal internal edge (the checker's target-table support), so
-# it stays boundary-checked and allowlisted in boundaries.toml.
+# ALWAYS — plus the OPT-IN wasm32 codec lane below. check-architecture
+# reads both sections as one normal internal edge (the checker's
+# target-table support dedups by (name, table-kind)), so it stays
+# boundary-checked and allowlisted in boundaries.toml.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 codecs = { path = "../../crates/codecs" }
+
+# The wasm32 half of the codecs edge (card 7.K1, issue #49 — doc 09
+# §2.4's per-codec tree-shake lane): the SAME crate, optional and
+# in-house-only (`default-features = false`: mjpeg, pcm, adpcm, and the
+# in-house parsers — rav1d is not wasm32-buildable), enabled by the
+# `builtin-codecs*` features below. The SHIPPED module enables none of
+# them: the v1 wasm host stays decoder-less (the honest capability
+# snapshot), and every feature build is an opt-in configuration whose
+# measured cost is recorded in docs/web/size-report.md.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+codecs = { path = "../../crates/codecs", optional = true, default-features = false }
+
+[features]
+# The in-house decoder set (mjpeg + pcm + adpcm — zero external deps;
+# the parsers h264/hevc/mpeg12 ride along in the codecs crate but are
+# decode-refusers, so they tree-shake out of an engine module that
+# only dispatches decoders).
+builtin-codecs = ["dep:codecs"]
+# Per-codec opt-in lanes: each wires its external decode engine into
+# the wasm dispatch table (host.rs) and the capability snapshot
+# (capabilities.rs), forwarding to the codecs crate's own `codec-*`
+# feature so the dependency itself is feature-gated end-to-end —
+# enabling NONE of them measures the true decoder-less floor.
+codec-flac = ["builtin-codecs", "codecs/codec-flac"]
+# mp3 + mp2 share the symphonia-bundle-mp3 family engine (the codecs
+# crate's codec-mp2 implies codec-mp3); one lane, both decoders.
+codec-mp3 = ["builtin-codecs", "codecs/codec-mp3", "codecs/codec-mp2"]
+codec-vorbis = ["builtin-codecs", "codecs/codec-vorbis"]
+codec-aac = ["builtin-codecs", "codecs/codec-aac"]
+codec-alac = ["builtin-codecs", "codecs/codec-alac"]
+codec-opus = ["builtin-codecs", "codecs/codec-opus"]
+codec-vp9 = ["builtin-codecs", "codecs/codec-vp9"]
+codec-dnx = ["builtin-codecs", "codecs/codec-dnx"]
+# Every wasm32-buildable external engine. codec-av1 / rav1d is
+# deliberately ABSENT: rav1d does not compile for
+# wasm32-unknown-unknown (39 errors, measured 2026-11-10 — the honest
+# record lives in docs/web/size-report.md and the codecs crate's
+# feature table).
+builtin-codecs-external = [
+    "codec-aac",
+    "codec-alac",
+    "codec-dnx",
+    "codec-flac",
+    "codec-mp3",
+    "codec-opus",
+    "codec-vorbis",
+    "codec-vp9",
+]
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7 / ARCH-7): the `Must`

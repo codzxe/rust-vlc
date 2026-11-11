@@ -203,6 +203,19 @@ max_playlist_items = 10000      # schema 100..=100000
 max_open_sessions = 4           # schema 1..=16
 max_wasm_extension_memory_mib = 64  # Phase 7 sandbox bound. schema 8..=256
 
+# --- 2.9a Web size budgets (doc 09 §2.4; card 7.K1, issue #49) --------------
+
+[web.size_budgets]
+# The wasm-module size ceilings doc 09 §2.4 pins as CONFIG, never prose or
+# gate-side literals: `cargo xtask web-budget --check` (full_gate step 10 +
+# the CI wasm-build job) reads THESE values and enforces them against the
+# measured gzip -n sizes in docs/web/size-record.toml. Units: MiB (binary)
+# of the gzip-compressed module. The UI bundle joins the arithmetic when a
+# production bundle build exists (docs/web/size-report.md "Honest limits").
+# Both numbers stay [PROPOSAL] until the Lead pins them (doc 09 §12 Q5).
+phase2_vertical_max_mib = 3   # Phase-2 vertical (engine+host; the shipped floor + in-house decoders). schema 1..=64
+full_p0_max_mib = 6           # Full P0 codec set (every codec-carrying build). schema 1..=1024
+
 # --- 2.10 Product URLs ------------------------------------------------------
 
 [urls]

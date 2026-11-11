@@ -1431,3 +1431,14 @@ Work Log:
 
 Stage Summary:
 - Wave-24 ledger delivered on w24/ac (off origin/w24/r16): 101 numbered findings across 17 reports + the gate's OF-*; 71 fixed+verified, 7 fixed-pending-verification (J/X/Y + N's R5-3), 5 deferred with recorded owners (L P3-1/6/8/9 + R2 P3-9), 15 open (13 unique) — top open: R11 P1 (false non-runnability claim, lane A), IN-2 (gate step-10 hole, Lead), IN-5 (web-lane deliverable re-baseline, Lead), R5-1 (shared-target clobber, Lead/tooling), the unreviewed fix lanes J/X/Y, lane A close-out. 17 Lead-decision items; 5 user-owned blockers (ADR-010 patent sign-off binds any public binary/artifact incl. the 7.K1 web bundle). Rehearsal still lacks w24/x, w24/y, and lane A's final tip; the §8 battery re-run is unexecuted. Files touched: docs/reviews/wave24-followup-ledger.md + this worklog entry; pushed origin w24/ac; main untouched.
+## 7.w24a — browser matrix, web conformance & packaging budgets (issue #49, cards 7.I1 + 7.K1)
+
+Lane A close-out (rounds r1–r16, Lead-finished). Deliverables on `w24/a`:
+- P0 fix: App.tsx committed merge markers resolved (70ed69c) — UI typecheck/lint/vitest green again (718/718, R8-verified).
+- OF-3 fix: settings screens regenerated after w23d's seed growth (771259c).
+- Browser-matrix harness: config-driven Playwright-Chromium conformance driver (ui/e2e/web/ + ui/scripts/web-matrix-run.mjs + playwright.web.config.ts) — real engine Worker, real wasm artifact, per-mode servers (Range-aware + range-blind + COOP/COEP pair).
+- The matrix run: real Chromium captures (chrome-157.0.8103.50 via WEB_MATRIX_CHROMIUM; earlier capture chromium-1200/143, recorded honestly). Final-tree re-run: 10/17 per isolation mode — the 7 fails are the typed web.decoders_absent refusal + downstream pumps; Firefox/WebKit/Safari/iOS lanes = BCD-cited expectations + not-runnable-in-sandbox + next step, never fabricated. Record+report: docs/web/browser-matrix-20261110.{json,md}.
+- 7.K1: five real wasm builds (floor/builtin-inhouse/flac/mp3/external-all) with per-config size table + symbol data (docs/web/size-report.md, size-record.toml); budgets as CONFIG in product.toml [web.size_budgets] (+ schema + tests); xtask web-budget --check gate (rebuild rows via real cargo build, integer-exact >5% growth rule, breach exits 1) wired as full_gate step 10 + ci.yml wasm-build step; COOP/COEP posture knob (off-by-default, doc 09 §9) + decision recorded in the matrix report.
+- Web-column honesty pass: docs/web/web-column-pass-20261110.md (252 rows, zero unexplained cells).
+- Review findings fixed en route: R8 P2-1/P2-2 + all five P3s; R11 P1 (false not-re-runnable claim — matrix re-executed on the final tree) + P3s (stale comment, dirty-tree flag, derived line count).
+Known-open on this lane: none. Cross-lane: the 4 known-failing workspace tests (rebrand ×2, gate_dry_run target-path, settings seed pins) are fixed on lane g / merge — verified at wave close on the integrated tree.

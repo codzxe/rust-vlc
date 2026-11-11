@@ -150,6 +150,12 @@ function renderMatrixMarkdown(report, serving) {
   const regen = report.recordRegenerated ?? null;
   const chromiumLane = report.lanes.find((lane) => lane.browser === "chromium");
   const otherLanes = report.lanes.filter((lane) => lane.browser !== "chromium");
+  // Derived, never a literal: the harness line count in the Method section
+  // tracks the committed file (R11 P3-3 — a stale "735 lines" was filed when
+  // the file grew).
+  const harnessLineCount = readFileSync(
+    path.join(pkgDir, "e2e", "web", "site", "harness.js"), "utf8",
+  ).split("\n").length;
   const lines = [];
   const push = (...rows) => lines.push(...rows);
 
@@ -165,10 +171,12 @@ function renderMatrixMarkdown(report, serving) {
     "- **The chromium lane is a real Playwright run** (evidence tier `playwright-run`):",
     `  captured ${capture.recorded} against commit \`${capture.commit}\` on branch \`${capture.branch}\`,`,
     `  driving ${chromiumLane?.modes?.[0]?.browserVersion ?? "the recorded"} with Playwright ${chromiumLane?.playwrightVersion ?? "?"}.`,
-    "- **This report is capture-based, not live**: the sandbox's Chromium binary was deleted",
-    "  after the capture (only ffmpeg remains under the Playwright cache; re-download is",
-    "  forbidden), so the matrix is NOT re-runnable in this sandbox. Everything below reads",
-    "  the committed record; nothing here was re-executed to produce it.",
+    "- **Re-runnability**: the run drives a pinned Chromium executable via the",
+    "  `WEB_MATRIX_CHROMIUM` env override (browser downloads are forbidden here), so the",
+    "  matrix re-runs whenever that executable exists; when it does not, this report is",
+    "  read from the committed record via `--restamp` (capture facts preserved verbatim,",
+    "  never re-simulated). The Playwright-managed browsers cache is NOT the source of the",
+    "  sandbox binary — the agent-browser install is.",
     "- **Firefox / WebKit / Safari / Safari-iOS never executed** — no binaries exist in this",
     "  sandbox and downloading is forbidden. Their lanes carry BCD-cited expectations and the",
     "  next step (real machines / CI runners), never a fabricated result (AGENTS §3.4).",
@@ -182,6 +190,7 @@ function renderMatrixMarkdown(report, serving) {
     "|---|---|",
     `| Record schema | \`${report.schema}\` |`,
     `| Capture | ${capture.recorded} @ \`${capture.commit}\` (branch \`${capture.branch}\`) |`,
+    `| Capture tree | ${report.git?.dirty === undefined ? "dirty flag not recorded at capture time" : (report.git.dirty ? "DIRTY (uncommitted changes present — see the honesty note)" : "clean")} |`,
   );
   if (regen) {
     push(
@@ -311,8 +320,8 @@ function renderMatrixMarkdown(report, serving) {
   push(
     "## Method",
     "",
-    "- Harness: `ui/e2e/web/` (card 7.I1) — the in-page conformance suite (`site/harness.js`,",
-    "  735 lines) drives the REAL engine Worker; the driver `ui/scripts/web-matrix-run.mjs`",
+    `- Harness: \`ui/e2e/web/\` (card 7.I1) — the in-page conformance suite (\`site/harness.js\`,`,
+    `  ${harnessLineCount} lines) drives the REAL engine Worker; the driver \`ui/scripts/web-matrix-run.mjs\``,
     "  stages the site (page + wasm artifact + worker/audio-worklet glue + first-vertical",
     "  fixture), serves one static server per isolation mode (Range-aware + range-blind +",
     "  per-mode COOP/COEP) and runs `playwright.web.config.ts`.",
@@ -717,9 +726,14 @@ function gitInfo() {
     const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" });
     return result.status === 0 ? result.stdout.trim() : null;
   };
+  // R11 P3-2: record whether the capture ran against a dirty tree — the
+  // earlier capture did (in-flight spec changes made red fragments possible),
+  // and the report must say so instead of implying a clean commit.
+  const status = run(["status", "--porcelain"]);
   return {
     commit: run(["rev-parse", "HEAD"]),
     branch: run(["rev-parse", "--abbrev-ref", "HEAD"]),
+    dirty: status !== null && status !== "",
   };
 }
 
