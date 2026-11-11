@@ -67,5 +67,12 @@ else
   echo "sbom: FAILED"; tail -5 /tmp/sbom.log; fail=1
 fi
 
+echo "=== 10. web-budget --check (issue #49 / doc 09 §2.4 — wasm size-budget + growth gate, card 7.K1) ==="
+if cargo xtask web-budget --check > /tmp/webbudget.log 2>&1; then
+  tail -1 /tmp/webbudget.log; echo "web-budget: PASS"
+else
+  echo "web-budget: FAILED"; tail -8 /tmp/webbudget.log; fail=1
+fi
+
 echo "=== GATE RESULT: $([ $fail -eq 0 ] && echo PASS || echo FAIL) ==="
 exit $fail
