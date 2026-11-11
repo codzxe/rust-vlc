@@ -34,8 +34,20 @@
     "maxSlices": 4096,
     "sliceTimeoutMs": 30000
   },
+  "waits": {
+    "timeoutMs": 30000,
+    "comment": "The in-page harness's default wait budget for every waitUntil (W24-R8 P3-1): the spec threads this into the runtime config it page.evaluate's, so the page-side waits are config-driven exactly like the pump budgets — no orphan literal in harness.js."
+  },
+  "runner": {
+    "timeoutMs": 240000,
+    "comment": "The Playwright per-test timeout for the web-matrix lane (W24-R8 P3-2): playwright.web.config.ts reads it here — the runner timeout is exactly the kind of knob this file exists for. 240 s: the suite runs 17 scenarios per mode, several of which legitimately consume their full 30 s pump budget."
+  },
   "playToEnd": {
     "positionToleranceUs": 20000
+  },
+  "serving": {
+    "coopCoepDefault": false,
+    "comment": "The SHIPPED site posture (doc 09 §9.5 decision, 2026-11-10): the response-header COOP/COEP pair is OFF by default — the v1 wasm module is single-threaded (doc 09 §3), so cross-origin isolation buys nothing today and its embeddability cost is real. This knob records the product posture and is rendered into every browser-matrix report; it does NOT change what the harness serves — the modes list above always exercises BOTH isolation shapes on purpose (doc 09 §2.5 item 6: both capability snapshots must be self-consistent). Flipping the default is a Lead decision (lands with threading, doc 09 §3.3); the deploy-check script that would assert headers on the shipped site remains [PROPOSAL] (doc 09 §2.3)."
   },
   "report": {
     "outputDir": "docs/web",

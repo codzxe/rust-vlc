@@ -55,6 +55,7 @@ interface MatrixConfig {
   };
   modes: Array<{ id: string; coopCoep: boolean }>;
   pump: { ticksPerSlice: number; maxSlices: number; sliceTimeoutMs: number };
+  waits: { timeoutMs: number };
   playToEnd: { positionToleranceUs: number };
 }
 
@@ -106,6 +107,7 @@ for (const mode of matrix.modes) {
         rangeBlindPath: `/${matrix.server.rangeBlindPath}`,
       },
       pump: matrix.pump,
+      waits: matrix.waits,
       playToEnd: matrix.playToEnd,
       mode,
       fixtureBytes,
@@ -131,12 +133,11 @@ for (const mode of matrix.modes) {
           `${expectedIsolated}, observed ${observedIsolated}`,
       );
     }
-    const failed = result.scenarios.filter((scenario) => scenario.status === "fail");
-    if (failed.length > 0) {
-      const names = failed.map((scenario) => scenario.name).join(", ");
-      throw new Error(`${failed.length} scenario(s) failed: ${names}`);
-    }
-
+    // The fragment is written BEFORE the pass/fail verdict: the
+    // machine-readable record must carry FAILING scenarios too (a
+    // failed run is evidence — the report and the honesty pass
+    // consume per-scenario rows either way; writing fragments only
+    // on a green run would silently erase red evidence).
     mkdirSync(outDir, { recursive: true });
     const fragment = {
       browser: "chromium",
@@ -151,5 +152,11 @@ for (const mode of matrix.modes) {
     };
     const fragmentPath = path.join(outDir, `chromium-${mode.id}.json`);
     writeFileSync(fragmentPath, `${JSON.stringify(fragment, null, 2)}\n`);
+
+    const failed = result.scenarios.filter((scenario) => scenario.status === "fail");
+    if (failed.length > 0) {
+      const names = failed.map((scenario) => scenario.name).join(", ");
+      throw new Error(`${failed.length} scenario(s) failed: ${names}`);
+    }
   });
 }

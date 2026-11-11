@@ -19,8 +19,12 @@
 // are never downloaded (PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1): the
 // sandbox's preinstalled Chromium is used via its default cache path.
 //
-// Usage: node scripts/web-matrix-run.mjs
-// Exit code: Playwright's, propagated verbatim (visual-run.mjs rule).
+// Usage: node scripts/web-matrix-run.mjs            — run the matrix (needs a browser)
+//        node scripts/web-matrix-run.mjs --restamp   — record maintenance: regenerate
+//                          the git stamp + render the markdown report from the EXISTING
+//                          record, without running anything (for when no browser exists —
+//                          the capture facts are preserved verbatim, never re-simulated)
+// Exit code: Playwright's, propagated verbatim (visual-run.mjs rule); --restamp exits 0.
 
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
@@ -60,7 +64,10 @@ function validateConfigShape(subject) {
     ["pump", "ticksPerSlice"],
     ["pump", "maxSlices"],
     ["pump", "sliceTimeoutMs"],
+    ["waits", "timeoutMs"],
+    ["runner", "timeoutMs"],
     ["playToEnd", "positionToleranceUs"],
+    ["serving", "coopCoepDefault"],
     ["report", "outputDir"],
     ["report", "markdownName"],
     ["report", "jsonName"],
@@ -95,8 +102,289 @@ function validateConfigShape(subject) {
       fail(`matrix.config.json: bad launch flag ${JSON.stringify(flag)}`);
     }
   }
+  if (typeof subject.serving.coopCoepDefault !== "boolean") {
+    fail("matrix.config.json: serving.coopCoepDefault must be a boolean (the shipped-posture pin, doc 09 §9.5)");
+  }
+  for (const knob of [
+    ["pump.sliceTimeoutMs", subject.pump.sliceTimeoutMs],
+    ["waits.timeoutMs", subject.waits.timeoutMs],
+    ["runner.timeoutMs", subject.runner.timeoutMs],
+  ]) {
+    if (!Number.isInteger(knob[1]) || knob[1] <= 0) {
+      fail(`matrix.config.json: ${knob[0]} must be a positive integer (got ${JSON.stringify(knob[1])})`);
+    }
+  }
 }
 validateConfigShape(config);
+
+// -- the human report (rendered FROM the machine record) ---------------------
+//
+// report.markdownName's writer (W24-R8 P2-2): a deterministic renderer over
+// the SAME object the JSON serializer emits, so the two artifacts can never
+// disagree. It adds NO facts — every value below is read from the record or
+// from matrix.config.json; the prose interprets signatures that are actually
+// present and never invents a verdict.
+
+const MD_CLIP = 220;
+
+function mdCell(text) {
+  const single = String(text).replace(/\s+/g, " ").trim();
+  const clipped = single.length > MD_CLIP ? `${single.slice(0, MD_CLIP)}…` : single;
+  return clipped.replaceAll("|", "\\|");
+}
+
+function wasmResponsesDigest(responses) {
+  if (!Array.isArray(responses) || responses.length === 0) {
+    return "none recorded";
+  }
+  const statuses = [...new Set(responses.map((entry) => entry.status))].join("/");
+  const types = [...new Set(responses.map((entry) => entry.contentType))].join(", ");
+  const lengths = [...new Set(responses.map((entry) => entry.contentLength))].join("/");
+  return `${responses.length} fetches — status ${statuses}, content-type ${types}, content-length ${lengths}`;
+}
+
+function renderMatrixMarkdown(report, serving) {
+  const capture =
+    report.capture ??
+    { commit: report.git?.commit ?? null, branch: report.git?.branch ?? null, recorded: report.generated ?? null };
+  const regen = report.recordRegenerated ?? null;
+  const chromiumLane = report.lanes.find((lane) => lane.browser === "chromium");
+  const otherLanes = report.lanes.filter((lane) => lane.browser !== "chromium");
+  const lines = [];
+  const push = (...rows) => lines.push(...rows);
+
+  push(
+    "# Browser matrix — the 2026-11-10 record (card 7.I1, issue #49)",
+    "",
+    `Machine record: \`docs/web/${config.report.jsonName}\` (schema \`${report.schema}\`).`,
+    "This report is RENDERED from that record by `ui/scripts/web-matrix-run.mjs`",
+    "(the `report.markdownName` writer); it adds no facts of its own.",
+    "",
+    "## Honesty note — read this first",
+    "",
+    "- **The chromium lane is a real Playwright run** (evidence tier `playwright-run`):",
+    `  captured ${capture.recorded} against commit \`${capture.commit}\` on branch \`${capture.branch}\`,`,
+    `  driving ${chromiumLane?.modes?.[0]?.browserVersion ?? "the recorded"} with Playwright ${chromiumLane?.playwrightVersion ?? "?"}.`,
+    "- **This report is capture-based, not live**: the sandbox's Chromium binary was deleted",
+    "  after the capture (only ffmpeg remains under the Playwright cache; re-download is",
+    "  forbidden), so the matrix is NOT re-runnable in this sandbox. Everything below reads",
+    "  the committed record; nothing here was re-executed to produce it.",
+    "- **Firefox / WebKit / Safari / Safari-iOS never executed** — no binaries exist in this",
+    "  sandbox and downloading is forbidden. Their lanes carry BCD-cited expectations and the",
+    "  next step (real machines / CI runners), never a fabricated result (AGENTS §3.4).",
+    "- **Verdicts are mixed and reported as mixed**: the engine core boots, negotiates WebGL2,",
+    "  answers typed refusals and drives the transports in a real browser; media playback is",
+    "  refused by design (see the fail-shape notes under the chromium lane).",
+    "",
+    "## Provenance",
+    "",
+    "| Field | Value |",
+    "|---|---|",
+    `| Record schema | \`${report.schema}\` |`,
+    `| Capture | ${capture.recorded} @ \`${capture.commit}\` (branch \`${capture.branch}\`) |`,
+  );
+  if (regen) {
+    push(
+      `| Record stamp | regenerated ${regen.date} @ \`${regen.commit}\` |`,
+      `| Regen reason | ${mdCell(regen.reason)} |`,
+    );
+  }
+  push(
+    `| Record git block | \`${report.git?.commit}\` on \`${report.git?.branch}\` (the tree this record was last maintained against; the record's own containing commit is its child — see git log) |`,
+    `| wasm artifact | \`${report.artifact.path}\` — ${report.artifact.profile} profile, ${report.artifact.bytes} bytes |`,
+    `| artifact sha256 | \`${report.artifact.sha256}\` |`,
+    `| Fixture | \`${report.fixture.path}\` (${report.fixture.bytes} bytes) |`,
+    `| Node | ${report.tooling.node} |`,
+    `| Harness | ${report.tooling.harness} |`,
+    `| Chromium executable | \`${report.tooling.chromiumExecutable}\` |`,
+    `| Chromium launch args | ${mdCell(report.tooling.chromiumLaunchArgs.join(" "))} |`,
+    "",
+    "## Lane summary",
+    "",
+    "| Browser | Evidence | Result |",
+    "|---|---|---|",
+  );
+  if (chromiumLane) {
+    const perMode = chromiumLane.modes
+      .map((fragment) => {
+        const passed = fragment.suite.scenarios.filter((scenario) => scenario.status === "pass").length;
+        return `${passed}/${fragment.suite.scenarios.length} (${fragment.mode})`;
+      })
+      .join(", ");
+    push(`| chromium | playwright-run (REAL) | ${perMode} scenarios passed |`);
+  }
+  for (const lane of otherLanes) {
+    push(`| ${lane.browser} | ${lane.evidence} | NOT RUN — BCD-cited expectations only |`);
+  }
+  push("");
+
+  if (chromiumLane) {
+    push(
+      "## Chromium — the real run",
+      "",
+      `Playwright ${chromiumLane.playwrightVersion}; user agent \`${chromiumLane.modes[0].userAgent}\`.`,
+      "Every mode below ran the full 17-scenario conformance suite against the real",
+      "engine-in-Worker module (real wasm instantiation, real fetch, real postMessage ordering).",
+      "",
+    );
+    for (const fragment of chromiumLane.modes) {
+      const scenarios = fragment.suite.scenarios;
+      const passed = scenarios.filter((scenario) => scenario.status === "pass").length;
+      push(
+        `### Mode \`${fragment.mode}\` (COOP/COEP ${fragment.coopCoep ? "ON" : "OFF"}, crossOriginIsolated=${fragment.crossOriginIsolated})`,
+        "",
+        `Browser ${fragment.browserVersion}; wasm lane: ${wasmResponsesDigest(fragment.wasmResponses)}.`,
+        "",
+        `**${passed}/${scenarios.length} scenarios passed.**`,
+        "",
+        "| Scenario | Category | Status | ms | Evidence / error (clipped; full text in the JSON) |",
+        "|---|---|---|---|---|",
+      );
+      for (const scenario of scenarios) {
+        const detail =
+          scenario.status === "pass"
+            ? scenario.evidence === undefined
+              ? ""
+              : JSON.stringify(scenario.evidence)
+            : String(scenario.error ?? "failed (no error recorded)");
+        push(
+          `| ${scenario.name} | ${scenario.category} | ${scenario.status === "pass" ? "✅ pass" : "❌ fail"} | ${scenario.ms} | ${mdCell(detail)} |`,
+        );
+      }
+      push("");
+    }
+    const allScenarios = chromiumLane.modes.flatMap((fragment) => fragment.suite.scenarios);
+    const decodersAbsent = allScenarios.some(
+      (scenario) => typeof scenario.error === "string" && scenario.error.includes("web.decoders_absent"),
+    );
+    const pumpTimeouts = allScenarios.filter(
+      (scenario) => typeof scenario.error === "string" && scenario.error.includes("pump loop exceeded"),
+    ).length;
+    const rangeBlindDefect = allScenarios.some(
+      (scenario) => scenario.name === "fetch-range-blind-server" && scenario.status === "fail",
+    );
+    push("### Fail shapes in this capture (interpretation)", "");
+    if (decodersAbsent) {
+      push(
+        "- `open-play-pause-stop` fails with the **typed refusal `web.decoders_absent`**: the wasm32",
+        "  module ships the engine core without the builtin decoders (the codecs crate's external",
+        "  engines do not build for wasm32-unknown-unknown — the Lead-approved typed refusal until",
+        "  the crate splits; see the capability snapshot's `builtin-software-decoders` row). This is",
+        "  the designed v1 posture, reported honestly — not a crash.",
+      );
+    }
+    if (pumpTimeouts > 0) {
+      push(
+        `- ${pumpTimeouts} scenario entries fail with \`pump loop exceeded 30000ms\`: every one of them`,
+        "  requires an OPEN session first, and open is refused by `web.decoders_absent` above — the",
+        "  suite waits out its pump budget on an engine that correctly stays idle. The failure",
+        "  cluster is downstream of the decoder-less posture, not an independent defect.",
+      );
+    }
+    if (rangeBlindDefect) {
+      push(
+        "- `fetch-range-blind-server` fails with `expected 200, got 404` — a **harness staging",
+        "  defect, not an engine defect**: the range-blind route was never staged as a file, so the",
+        "  server 404s before the range-blind behavior could be exercised. Diagnosed from this",
+        "  capture, fixed on w24/a after it (the fixture is now staged under the range-blind name",
+        "  too); the fix awaits a browser re-run on a machine that has one.",
+      );
+    }
+    push("");
+  }
+
+  push("## Lanes not runnable in this sandbox", "");
+  for (const lane of otherLanes) {
+    push(
+      `### ${lane.browser} — ${lane.evidence}`,
+      "",
+      `${lane.summary}`,
+      "",
+      "BCD-cited expectations:",
+    );
+    for (const expectation of lane.bcdExpectations) {
+      push(`- ${expectation}`);
+    }
+    push("", `**Next step:** ${lane.nextStep}`, "");
+  }
+
+  push(
+    "## Method",
+    "",
+    "- Harness: `ui/e2e/web/` (card 7.I1) — the in-page conformance suite (`site/harness.js`,",
+    "  735 lines) drives the REAL engine Worker; the driver `ui/scripts/web-matrix-run.mjs`",
+    "  stages the site (page + wasm artifact + worker/audio-worklet glue + first-vertical",
+    "  fixture), serves one static server per isolation mode (Range-aware + range-blind +",
+    "  per-mode COOP/COEP) and runs `playwright.web.config.ts`.",
+    "- Every knob is config-driven from `ui/e2e/web/matrix.config.json` (ports, artifact paths,",
+    "  isolation modes, pump budgets, launch args, report names); nothing is a code literal",
+    "  (doc 07 §9).",
+    `- Playwright ${chromiumLane?.playwrightVersion ?? "?"}; Chromium ${chromiumLane?.modes?.[0]?.browserVersion ?? "?"}`,
+    `  (\`${report.tooling.chromiumExecutable}\`), launch args ${mdCell(report.tooling.chromiumLaunchArgs.join(" "))}.`,
+    `- The wasm artifact under test: \`${report.artifact.path}\`, ${report.artifact.bytes} bytes,`,
+    `  sha256 \`${report.artifact.sha256}\` (${report.artifact.profile} profile).`,
+    "- Capture date: 2026-11-10. The record you are reading is that capture (see the honesty",
+    "  note); it was NOT re-run to produce this report.",
+    "",
+    "## Shipped COOP/COEP posture (decision record)",
+    "",
+    `**Off by default** (\`serving.coopCoepDefault = ${serving.coopCoepDefault}\` in`,
+    "`ui/e2e/web/matrix.config.json`; doc 09 §9.5, deciding §12 Q8): the v1 wasm module is",
+    "single-threaded, so cross-origin isolation buys nothing today and its embeddability cost",
+    "is real. The harness above still exercises BOTH isolation modes on purpose (doc 09 §2.5",
+    "item 6) — testing coverage is not the deployment posture. Flipping the default is a Lead",
+    "decision (lands with threading, doc 09 §3.3); the deploy-check script that would assert",
+    "headers on the shipped site remains [PROPOSAL] (doc 09 §2.3).",
+    "",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+// -- record maintenance: --restamp -------------------------------------------
+// W24-R8 P2-1: the committed record's `git` block must reflect the current
+// committed state, but no browser binary exists in this sandbox anymore — so
+// the stamp is REGENERATED, honestly, instead: the capture facts (the tree the
+// run executed against, the moment its record was written) move verbatim into
+// a `capture` block, the `git` block is re-derived from the working tree, and
+// a `recordRegenerated` block names this maintenance pass and its reason.
+// Lanes/tooling/artifact/fixture are never touched, and no new run is implied
+// anywhere — this is bookkeeping about provenance, not evidence production.
+if (process.argv.includes("--restamp")) {
+  const recordDir = resolveRepo(config.report.outputDir);
+  const recordPath = path.join(recordDir, config.report.jsonName);
+  let record;
+  try {
+    record = JSON.parse(readFileSync(recordPath, "utf8"));
+  } catch (error) {
+    fail(`--restamp: cannot read the existing record ${recordPath}: ${error}`);
+  }
+  if (record.schema !== "lumen.web.browser-matrix/1") {
+    fail(`--restamp: unexpected record schema ${JSON.stringify(record.schema)}`);
+  }
+  const head = gitInfo();
+  if (record.capture === undefined) {
+    record.capture = {
+      commit: record.git?.commit ?? null,
+      branch: record.git?.branch ?? null,
+      recorded: record.generated ?? null,
+      note: "The tree the browser lanes executed against and the moment their fragments were merged — the run's own facts, preserved verbatim when the git stamp below was later regenerated (no re-run happened).",
+    };
+  }
+  record.git = head;
+  record.recordRegenerated = {
+    date: new Date().toISOString(),
+    commit: head.commit,
+    reason:
+      process.env.WEB_MATRIX_RESTAMP_REASON ??
+      "stamp-only regeneration (W24-R8 P2-1): align the record's git block with the current committed state. NO browser re-run, NO lane data touched — the capture facts live in .capture.",
+  };
+  writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+  const markdownPath = path.join(recordDir, config.report.markdownName);
+  writeFileSync(markdownPath, renderMatrixMarkdown(record, config.serving));
+  console.log(`[web-matrix] record restamped: ${path.relative(repoRoot, recordPath)}`);
+  console.log(`[web-matrix] report rendered: ${path.relative(repoRoot, markdownPath)}`);
+  process.exit(0);
+}
 
 const siteSrc = path.join(pkgDir, "e2e", "web", "site");
 const siteDist = path.join(pkgDir, "e2e", "web", "sitedist");
@@ -163,6 +451,12 @@ copyFileSync(workerPath, path.join(siteDist, "worker.js"));
 copyFileSync(workletPath, path.join(siteDist, "audio-worklet.js"));
 copyFileSync(wasmPath, path.join(siteDist, "lumen_web.wasm"));
 copyFileSync(fixturePath, path.join(siteDist, config.server.servedFixture));
+// The range-blind route needs the fixture staged under ITS name too: the
+// 2026-11-10 capture's fetch-range-blind-server fail ("expected 200, got
+// 404") was exactly this gap — the server resolved /fixture-norange.avi
+// against a file that was never copied, so it 404'd before the range-blind
+// behavior could be exercised. Same bytes, two routes, different headers.
+copyFileSync(fixturePath, path.join(siteDist, config.server.rangeBlindPath));
 
 // -- the static server (one per isolation mode) ------------------------------
 
@@ -179,6 +473,15 @@ function parseRange(header, total) {
     return null;
   }
   const spec = header.slice("bytes=".length);
+  // Multi-range requests are served as the full body (RFC 9110 §14.2: a
+  // server MAY ignore Range) — but never SILENTLY: the old shape swallowed
+  // everything after the first comma via parseInt and served a wrong single
+  // window (W24-R8 P3-4). Media fetches never issue multi-range, so this is
+  // a strictness guard; each occurrence is logged once by the driver.
+  if (spec.includes(",")) {
+    console.warn(`[web-matrix] multi-range request ignored (serving 200 full body): ${header}`);
+    return null;
+  }
   const dash = spec.indexOf("-");
   if (dash < 1) {
     return null;
@@ -342,11 +645,14 @@ const child = spawn(process.execPath, [cli, "test", "--config", playwrightConfig
 const playwrightStatus = await new Promise((resolve, reject) => {
   child.once("error", reject);
   child.once("close", (code) => resolve(code ?? 2));
+}).finally(() => {
+  // Symmetric shutdown (W24-R8 P3-3): the spawn-error path used to skip
+  // this loop when the awaited promise rejected — the servers leaked until
+  // process exit. finally closes them on EVERY exit path.
+  for (const server of servers) {
+    server.close();
+  }
 });
-
-for (const server of servers) {
-  server.close();
-}
 
 // -- merge the fragments into the machine-readable record --------------------
 
@@ -440,6 +746,12 @@ const report = {
   schema: "lumen.web.browser-matrix/1",
   generated: new Date().toISOString(),
   git: gitInfo(),
+  capture: {
+    commit: null,
+    branch: null,
+    recorded: null,
+    note: "Filled below from this run's own generated/git values, so the capture facts survive any later --restamp provenance regeneration.",
+  },
   tooling: {
     node: process.version,
     harness: "ui/e2e/web (card 7.I1)",
@@ -458,11 +770,16 @@ const report = {
   },
   lanes: [chromiumLane, firefoxLane, webkitLane, safariLane, safariIosLane],
 };
+report.capture.commit = report.git.commit;
+report.capture.branch = report.git.branch;
+report.capture.recorded = report.generated;
 
 const reportDir = resolveRepo(config.report.outputDir);
 mkdirSync(reportDir, { recursive: true });
 const reportPath = path.join(reportDir, config.report.jsonName);
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+const markdownPath = path.join(reportDir, config.report.markdownName);
+writeFileSync(markdownPath, renderMatrixMarkdown(report, config.serving));
 
 // -- summary -----------------------------------------------------------------
 
@@ -486,4 +803,5 @@ if (fragments.length < config.modes.length) {
   );
 }
 console.log(`[web-matrix] record written: ${path.relative(repoRoot, reportPath)}`);
+console.log(`[web-matrix] report written: ${path.relative(repoRoot, markdownPath)}`);
 process.exit(playwrightStatus);

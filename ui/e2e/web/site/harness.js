@@ -30,7 +30,14 @@
  */
 "use strict";
 
-const HARNESS_TIMEOUT_MS = 30000;
+// Default wait budget for every waitUntil call — the page-side twin of
+// pump.sliceTimeoutMs. The literal is ONLY the pre-config fallback (a human
+// debugging the page by hand, outside the driver); the Playwright driver
+// always overwrites it at run start from the runtime config's waits.timeoutMs
+// (matrix.config.json owns the knob — W24-R8 P3-1), and runSuite asserts the
+// knob is present before any scenario runs, so a config regression can never
+// silently fall back to the literal in a real lane.
+let harnessTimeoutMs = 30000;
 
 function assert(condition, message) {
   if (!condition) {
@@ -90,7 +97,7 @@ class EngineLane {
     return this;
   }
 
-  waitUntil(predicate, timeoutMs = HARNESS_TIMEOUT_MS) {
+  waitUntil(predicate, timeoutMs = harnessTimeoutMs) {
     const existing = this.log.find(predicate);
     if (existing) {
       return Promise.resolve(existing);
@@ -227,9 +234,18 @@ async function drivePump(lane, config, done = () => false) {
 /**
  * Run the full suite. `config` is the runtime configuration the
  * Playwright driver passes in (matrix.config.json + mode facts).
- * Returns { scenarios: [...], probes: {...} } — never throws.
+ * Returns { scenarios: [...], probes: {...} } — scenario failures never
+ * throw (they become fail rows); a malformed runtime CONFIG throws loudly
+ * instead (the driver validates the same knobs before launch, so that
+ * only fires when the page is driven outside the driver).
  */
 async function runSuite(config) {
+  assert(
+    Number.isInteger(config.waits?.timeoutMs) && config.waits.timeoutMs > 0,
+    "runtime config is missing waits.timeoutMs (matrix.config.json owns it — W24-R8 P3-1): " +
+      JSON.stringify(config.waits),
+  );
+  harnessTimeoutMs = config.waits.timeoutMs;
   const results = [];
   // Per-scenario progress on the page's status element: a conformance
   // run is minutes-long in a real browser, and a stuck scenario must
