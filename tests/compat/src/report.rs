@@ -919,20 +919,28 @@ fn container_verdict(valid: &[&(CorpusFile, FileRecord)]) -> &'static str {
 
 /// The steps-lane cell, DERIVED from the recorded step outcomes
 /// (review finding P2-2): the cell text can never claim a build the
-/// lane's own recorded steps contradict. Every step `exit 0` → the
-/// engine-core-only claim (the pass-case detail is per row kind);
-/// any nonzero/timeout/termination → `steps-failed` quoting the
-/// first failing step's purpose, argv and recorded outcome; a steps
-/// lane with no recorded steps claims nothing.
-fn steps_cell(lane: &crate::config::Lane, steps: &[StepRecord], pass_detail: &str) -> Cell {
+/// lane's own recorded steps contradict. Both detail strings come
+/// from the CALL SITE, so the cell never embeds lane-specific prose
+/// the config did not vouch for (R10-3: the failure arm used to
+/// hard-code the web-wasm decoder-less clause for ANY Steps lane).
+/// Every step `exit 0` → the pass-case detail (per row kind); any
+/// nonzero/timeout/termination → `steps-failed` quoting the first
+/// failing step's purpose, argv and recorded outcome plus the lane's
+/// own decode-refusal clause; a steps lane with no recorded steps
+/// claims nothing.
+fn steps_cell(
+    lane: &crate::config::Lane,
+    steps: &[StepRecord],
+    pass_detail: &str,
+    decode_refusal: &str,
+) -> Cell {
     if let Some(worst) = steps.iter().find(|step| step.outcome != "exit 0") {
         return Cell {
             lane: lane.id.clone(),
             status: "steps-failed".to_string(),
             detail: format!(
                 "lane step `{}` FAILED: `{}` → {} — the recorded outcome contradicts the build \
-                 claim (see the lane's recorded steps); DECODE refused — the wasm32 module ships \
-                 decoder-less (apps/web/src/capabilities.rs); no decode claimed",
+                 claim (see the lane's recorded steps); {decode_refusal}",
                 worst.purpose,
                 worst.argv.join(" "),
                 worst.outcome
@@ -1071,6 +1079,8 @@ fn format_cell(
              of this family) compiled in; DECODE refused — the wasm32 module ships decoder-less \
              (codecs crate does not build for wasm32; apps/web/src/capabilities.rs reports the \
              split); no in-browser run in this matrix",
+            "DECODE refused — the wasm32 module ships decoder-less (apps/web/src/capabilities.rs); \
+             no decode claimed",
         ),
         LaneKind::Blocked {
             reason,
@@ -1200,6 +1210,8 @@ fn codec_cell(
             steps,
             "wasm32 module builds; DECODE refused for every codec — the module ships decoder-less \
              on wasm32 (apps/web/src/capabilities.rs); no decode claimed",
+            "DECODE refused for every codec — the module ships decoder-less on wasm32 \
+             (apps/web/src/capabilities.rs); no decode claimed",
         ),
         LaneKind::Blocked {
             reason,
@@ -2135,6 +2147,37 @@ mod tests {
         let cell = format_cell(&lane, &[], &[], &[], 0);
         assert_eq!(cell.status, "not-covered");
         assert!(cell.detail.contains("recorded no steps"), "{}", cell.detail);
+    }
+
+    /// R10-3: the failure arm's decode-refusal clause is a PARAMETER,
+    /// not a hard-coded web-wasm sentence — the config schema allows a
+    /// non-web Steps lane, and such a lane's failure cell must carry
+    /// its own scope, never wasm prose. (The web-wasm call sites'
+    /// clause is exercised byte-exactly by the P2-2 tests above.)
+    #[test]
+    fn steps_failure_detail_is_parameterized_not_wasm_prose() {
+        let mut lane = steps_lane();
+        lane.id = "cli-smoke".to_string();
+        let steps = vec![step_record("run the CLI smoke suite", "exit 1")];
+        let cell = steps_cell(
+            &lane,
+            &steps,
+            "CLI smoke suite passes; no engine build claimed",
+            "no engine decode claimed — this lane exercises the CLI surface only",
+        );
+        assert_eq!(cell.status, "steps-failed");
+        assert!(cell.detail.contains("exit 1"), "{}", cell.detail);
+        assert!(
+            cell.detail
+                .contains("no engine decode claimed — this lane exercises the CLI surface only"),
+            "{}",
+            cell.detail
+        );
+        assert!(
+            !cell.detail.contains("wasm32"),
+            "a non-web steps lane must not render wasm prose: {}",
+            cell.detail
+        );
     }
 
     /// P2-1 (control): the all-refused arm is unchanged — status
