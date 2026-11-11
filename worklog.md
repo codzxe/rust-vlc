@@ -1206,6 +1206,22 @@ Stage Summary:
 
 ---
 
+Task ID: W24-R13
+Agent: w24-r13 (wave 24 review scout — audit fixer lane W24-U; branch w24/r13 off origin/w24/u @ 1244e82)
+Task: READ-ONLY audit of w24/u (2 commits on origin/w24/q): T's F-1 fix in build-msi.ps1 (unescaped Source basenames + missing &apos;), the discovered pre-fix parse failure (bash-style \" — 4 ParserErrors), the New-MsiWxs extraction, and the new -SelfTest.
+
+Work Log:
+- Setup: worktree wt/w24r13; remote refspec only fetches main, so branched w24/r13 from the fetched w24/u commit 1244e82 directly (identical to origin/w24/u head; worktree wt/w24u checked out at the same sha).
+- Audit executed with U's still-present /tmp/pwsh-test/pwsh (PowerShell 7.7.0; auditor reuses it under the same verification-tooling-only, nothing-committed disclosure): (1) REAL parse both revisions — pre-fix 4 ParserErrors at lines 161/164 (exactly U's report), post-fix 0; consumer test-msi-upgrade.ps1 also 0; (2) -SelfTest run: PASS rc=0; red/green mutants in /tmp copies — dropping &apos; fails exactly the raw-text assertion, reverting to unescaped $base fails with ET.ParseError line 25 column 51 (the original failure mode); (3) fake-root full-script e2e (fake exes + fake wix, T's methodology): real config rc=0 (.msi + .wxs written, parses), -VersionOverride 0.0.9 -> Package/@Version="0.0.9", hostile docs a&b<c>"d".md + it's.md rc=0 with round-trip + raw pins green, all three refusals (duplicate/empty/missing) rc=1 with unchanged messages; (4) cross-twin byte-diff vs gen-wxs.sh under the same env (hostile identity values included): only the 4 provenance-comment lines + the .ps1's pre-existing missing trailing newline after </Wix> — U's claim confirmed exactly; (5) template verbatim check: old vs new here-string byte-identical after normalizing the two env->param interpolations ($msiVersion->$Version, $($env:PRODUCT_MSI_UPGRADE_CODE)->$UpgradeCode); (6) XmlEscape order/ set audited: & first (no double-escape possible), full set identical to gen-wxs.sh xml_escape, applied to pure [IO.Path]::GetFileName basenames — Source carries no path prefix in either twin, exe rows unescaped symmetrically.
+- Battery (ACTUAL): gate.sh PASS (51 vars, 14 scripts bash -n + sh -n, python tools, ps1 structural, stagers, both .UNSIGNED fallbacks); cargo run -p xtask --locked -- lint-literals PASS (0 violations / 452 allowlisted); ps1-sanity.py PASS on both .ps1. Scope verified: diffstat = build-msi.ps1 + worklog.md only.
+- U's three handed-over follow-ups verified REAL: (a) gen-wxs.sh --self-test lacks the raw-text pin — PROVEN by mutant: gen-wxs.sh with s/'/\&apos;/g deleted still passes --self-test rc=0 (the .ps1 twin's equivalent mutant fails); (b) docs/packaging/README.md .msi proof row (line 64) + local-proof paragraph (line 141) credit only gen-wxs.sh --self-test, predating build-msi.ps1 -SelfTest; (c) gate.sh wires neither self-test (no self-test/SelfTest/gen-wxs hits in gate.sh).
+- Writes (the only two allowed): docs/reviews/w24-u-fixes-findings.md (full per-item verdicts + evidence) + this entry. No other file touched.
+
+Stage Summary:
+- VERDICT: PASS — merge-ready. All 7 audit items green; zero blocking/high/medium findings; U's worklog accurate on every spot-checked claim (4->0 parse errors, line 25 column 51, rc values, messages, cross-twin diff shape). 3 LOW follow-ups confirmed for the Lead: gen-wxs.sh raw-text escape-set pin (proven gap via mutant), README build-msi.ps1 proof row predating -SelfTest, gate.sh self-test wiring (both Q's and U's hand-overs converge here). 3 INFO notes: symmetric dead escaped-description in both twins, pre-existing trailing-newline divergence (XML-insignificant), honest [VERIFY at first live run] boundaries (wix build on escaped Sources, Windows-runner pwsh, 5.1) correctly kept open — this audit's evidence is pwsh 7.7.0 on Linux, same class as U's own proof.
+
+---
+
 Task ID: W24-S (wave 24 lane S — small integration fixer)
 Agent: w24-s
 Task: Fix integration audit W24-R9 finding IN-6 — dangling browser-matrix deliverable name in the Phase-7 exit gate report (docs/gates/phase7-exit.md, §4 row 7.I1); docs-only lane.
