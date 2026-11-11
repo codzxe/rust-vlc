@@ -419,13 +419,24 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
 
     // --- (c) the report lists exactly the expected files ----------------------
 
+    // The README rewrite count is DERIVED from the source README (count the
+    // source-identity occurrences the rebrander will rewrite), never pinned:
+    // wave 24's docs truth pass (lane E, issue #58) legitimately edited the
+    // README and a stale pin (7 -> 6) failed the suite — the OF-2 derivation
+    // principle applies to every count that tracks living content.
+    let source_readme = fs::read_to_string(repo_root().join("README.md"))
+        .unwrap_or_else(|e| unreachable!("source README unreadable: {e}"));
+    // Case-insensitive: the rebrander rewrites every identity occurrence
+    // (Lumen, lumen, dev.lumen) — 6 in the current README.
+    let lowered = source_readme.to_lowercase();
+    let readme_rewrites = lowered.matches("lumen").count();
     let touched = report_lines(&out.stdout, "touched: ");
     assert_eq!(
         touched,
         [
             "product.toml (19 rewrites)",
             "apps/desktop/tauri/tauri.conf.json (3 rewrites)",
-            "README.md (7 rewrites)",
+            &format!("README.md ({readme_rewrites} rewrites)"),
             "schemas/generated/settings-docs.md (1 rewrite)",
             "schemas/generated/settings-help.txt (4 rewrites)",
         ],
@@ -445,9 +456,13 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
             "asset {asset} was not copied into the dest tree"
         );
     }
+    // The totals line is derived from the same per-file counts the report
+    // carried above (never a pinned sum — the README count follows content).
+    let total_rewrites = 19 + 3 + readme_rewrites + 1 + 4;
     assert!(
-        out.stdout
-            .contains("result: 5 surface(s) touched, 34 rewrites, 4 asset(s) copied"),
+        out.stdout.contains(&format!(
+            "result: 5 surface(s) touched, {total_rewrites} rewrites, 4 asset(s) copied"
+        )),
         "result line mismatch (stdout:\n{})",
         out.stdout
     );

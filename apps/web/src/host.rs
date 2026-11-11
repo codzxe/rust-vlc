@@ -1957,7 +1957,7 @@ mod tests {
     use super::*;
     use commands::catalog::types::SourceSpec;
     use commands::envelope::RequestId;
-    use testkit::{Must, assert_err, fixture_bytes};
+    use testkit::{Must, fixture_bytes};
 
     fn request(command: Command) -> WireRequest {
         WireRequest {
@@ -2227,7 +2227,14 @@ mod tests {
 
     /// The wasm32-profile decoder seam refuses typed on a native
     /// build too (the profile is data — the refusal path is
-    /// testable without the target).
+    /// testable without the target). Feature-honest (card 7.K1
+    /// tree-shake): the typed `web.decoders_absent` refusal exists
+    /// ONLY in decoder-less builds — a wasm32 build that ships the
+    /// builtin codecs (the tree-shake flac/mp3 lanes) decodes them,
+    /// so under `--all-features` the seam succeeds instead. This test
+    /// pins the decoder-less contract; the with-codecs contract is
+    /// pinned by the decoder_for dispatch tests.
+    #[cfg(not(feature = "builtin-codecs"))]
     #[test]
     fn wasm32_profile_decoder_seam_refuses_typed() {
         let facts = Arc::new(MediaFacts {
