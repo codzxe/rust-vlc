@@ -3,11 +3,13 @@
 // layout-config consumption, chrome lock, keymap-driven fullscreen/ESC,
 // sidebar-toggle seam, now-playing identity. DOM-shape + behavior
 // assertions per the card ACs (visual fidelity: dev-shots + VLM loop).
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
+import { DemoTransport } from "../../client/demo-transport";
+import { openPathRequest } from "../../client/open-path";
 import type { CommandTransport, CommandResponse, CommandRequest, Event } from "../../client/transport";
 import { fullMediaInfo } from "../media-info/fixtures";
 import { OPEN_MEDIA_EVENT } from "../open-media";
@@ -58,28 +60,45 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     const canvas = screen.getByRole("region", { name: "Video canvas" });
     expect(canvas).toHaveAttribute("data-region-id", "video-canvas");
     expect(canvas).toHaveAttribute("data-placeholder", "engine-wiring-4.H1");
-    // honest placeholder: no unwired media element is rendered
+    // honest idle: no session is up, so no media surface element is
+    // rendered either (w26.i02 mounts <video> ONLY while media is open —
+    // see the media-surface describe below)
     expect(container.querySelector("video")).toBeNull();
     expect(container.querySelector("canvas")).toBeNull();
     // screen-reader note records the engine-wiring handoff
     expect(canvas.textContent).toContain("Video appears here during playback");
   });
 
-  it("composes the docked playlist sidebar (Player.png) with the real 4.D1 panel", () => {
-    // w26.f09 (e02 F3, Lead decision): the dock IS the player's one
-    // default-open sidebar (data-sidebar=open first-run); the SHELL's
-    // playlists sidebar composes default-CLOSED on /player (f08 seam —
-    // AppShell's persisted sidebar default must become route-aware; see the
-    // w26.f09 lane log). variants.test.tsx asserts the dock present in the
-    // full variant; this screen owns the toggle seam.
+  it("w26.i02 (h03 #1): composes the docked sidebar as the playlists BROWSER (Player.png) over the real store", () => {
+    // Player.png's single sidebar is the playlists browser — "Playlists" /
+    // "N items" / "Create playlist" / rows — NOT the empty queue dock. The
+    // rows read the REAL saved-playlists store (the same seam as /playlist
+    // and the shell sidebar); the queue panel stays reachable via music
+    // mode / openPanels and /playlist.
     renderWithClient(<PlayerScreen />);
-    const playlist = screen.getByRole("complementary", { name: "Playlist" });
-    expect(playlist).toHaveAttribute("data-region-id", "playlist");
-    expect(playlist).toHaveClass("lumen-player__sidebar");
-    // Card 4.D1: the docked panel renders the real queue semantics (empty
-    // state honest until the app shell wires playlist.load).
-    expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
-    expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
+    const dock = screen.getByRole("complementary", { name: "Playlists" });
+    expect(dock).toHaveAttribute("data-region-id", "playlist");
+    expect(dock).toHaveClass("lumen-player__sidebar");
+    // Frame anatomy (Player.svg sidebar): header, meta, create row, rows.
+    expect(within(dock).getByRole("heading", { name: "Playlists" })).toBeInTheDocument();
+    expect(within(dock).getByText(/items$/)).toBeInTheDocument();
+    expect(
+      within(dock).getByRole("button", { name: "Create playlist" }),
+    ).toBeInTheDocument();
+    // REAL store rows (playlistsStore seed: Cool Playlist / Cool Songs /
+    // Anime to Watch) — one button per row, never a second data source.
+    const rows = within(dock).getAllByRole("listitem");
+    for (const row of rows) {
+      expect(within(row).getByRole("button")).toBeInTheDocument();
+    }
+    expect(
+      within(dock).getByRole("button", { name: /Cool Songs/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(dock).getByRole("button", { name: /Anime to Watch/ }),
+    ).toBeInTheDocument();
+    // The old default (h03 #1) is gone: no queue semantics on the dock.
+    expect(screen.queryByText("Nothing in the queue")).toBeNull();
   });
 
   it("w26.f09 (e02 F2): the control band spans the player width BELOW dock + canvas", () => {
@@ -91,7 +110,7 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     const root = document.querySelector(".lumen-player")!;
     const body = root.querySelector(":scope > .lumen-player__body")!;
     expect(body).not.toBeNull();
-    const dock = screen.getByRole("complementary", { name: "Playlist" });
+    const dock = screen.getByRole("complementary", { name: "Playlists" });
     const canvas = screen.getByRole("region", { name: "Video canvas" });
     expect(dock.closest(".lumen-player__body")).toBe(body);
     expect(canvas.closest(".lumen-player__body")).toBe(body);
@@ -154,20 +173,21 @@ describe("PlayerScreen — docked sidebar toggle seam (W26, lumen:toggle-sidebar
   it("is open first-run and collapses/expands on the shell's toggle event", () => {
     renderWithClient(<PlayerScreen />);
     const root = document.querySelector(".lumen-player")!;
+    const dock = screen.getByRole("complementary", { name: "Playlists" });
+    expect(dock).toBeInTheDocument();
     expect(root).toHaveAttribute("data-sidebar", "open");
-    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
     });
     expect(root).toHaveAttribute("data-sidebar", "closed");
-    expect(screen.queryByRole("complementary", { name: "Playlist" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Playlists" })).toBeNull();
 
     act(() => {
       window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
     });
     expect(root).toHaveAttribute("data-sidebar", "open");
-    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Playlists" })).toBeInTheDocument();
   });
 
   it("openPanels forces the sidebar visible — a host-requested panel never hides", () => {
@@ -175,7 +195,183 @@ describe("PlayerScreen — docked sidebar toggle seam (W26, lumen:toggle-sidebar
     act(() => {
       window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
     });
-    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Playlists" })).toBeInTheDocument();
+  });
+});
+
+describe("PlayerScreen — dock affordance row (w26.i02 pass 2, Player.svg Frame 20)", () => {
+  it("header carries the frame's chevrons: back collapses the dock, forward is honestly disabled", () => {
+    renderWithClient(<PlayerScreen />);
+    const player = document.querySelector<HTMLElement>("[data-screen='player']")!;
+    // Frame: back chevron ACTIVE (it hides this dock), forward at 0.3 (disabled).
+    const back = screen.getByRole("button", { name: "Hide the playlists dock" });
+    const forward = screen.getByRole("button", { name: "Forward" });
+    expect(forward).toBeDisabled();
+    expect(forward).toHaveAttribute("title", "Forward navigation is not exposed by this build yet.");
+    // The frame's "···" has no honest command either — the shell sidebar's call.
+    const more = screen.getByRole("button", { name: "More playlist options" });
+    expect(more).toBeDisabled();
+    fireEvent.click(back);
+    expect(player).toHaveAttribute("data-sidebar", "closed");
+    expect(screen.queryByRole("complementary", { name: "Playlists" })).toBeNull();
+  });
+
+  it("meta row: sort toggles strictly-alphabetical (aria-pressed), never a dead glyph", () => {
+    renderWithClient(<PlayerScreen />);
+    const sort = screen.getByRole("button", { name: "Sort playlists alphabetically" });
+    expect(sort).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(sort);
+    expect(sort).toHaveAttribute("aria-pressed", "true");
+    // The count follows the visible rows either way (real store, real filter).
+    expect(screen.getByText(/items$/)).toBeInTheDocument();
+  });
+
+  it("search reveals a live filter; closing drops it (no stale hidden rows)", () => {
+    renderWithClient(<PlayerScreen />);
+    const dock = () => screen.getByRole("complementary", { name: "Playlists" });
+    // Seeded store rows before any filter: 3 playlists.
+    expect(within(dock()).getAllByRole("listitem")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Search playlists" }));
+    const input = screen.getByRole("searchbox", { name: "Search playlists" });
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Search playlists" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    // Filter to the Cool pair; the count + rows follow the live query.
+    fireEvent.change(input, { target: { value: "cool" } });
+    expect(within(dock()).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText(/^2 items$/)).toBeInTheDocument();
+    // A query with no hits renders the honest empty copy, never a blank list.
+    fireEvent.change(input, { target: { value: "zzz" } });
+    expect(screen.getByText("No playlists match your search.")).toBeInTheDocument();
+    // Closing the field drops the filter entirely.
+    fireEvent.click(screen.getByRole("button", { name: "Search playlists" }));
+    expect(within(dock()).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("view pair flips rows ↔ grid cards (the shell sidebar's mode cluster)", () => {
+    renderWithClient(<PlayerScreen />);
+    const dock = () => screen.getByRole("complementary", { name: "Playlists" });
+    const list = screen.getByRole("button", { name: "List view" });
+    const grid = screen.getByRole("button", { name: "Grid view" });
+    expect(list).toHaveAttribute("aria-pressed", "true");
+    expect(grid).toHaveAttribute("aria-pressed", "false");
+    expect(within(dock()).getAllByRole("listitem")).toHaveLength(3);
+    fireEvent.click(grid);
+    expect(grid).toHaveAttribute("aria-pressed", "true");
+    expect(list).toHaveAttribute("aria-pressed", "false");
+    // Grid cards carry the same real rows (playlist tiles, not a second list).
+    const cards = within(dock()).getAllByRole("listitem");
+    expect(cards).toHaveLength(3);
+    expect(
+      cards.some((card) => card.textContent?.includes("Cool Songs") ?? false),
+    ).toBe(true);
+    fireEvent.click(list);
+    expect(list).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("PlayerScreen — the real media surface (w26.i02, h03 #2)", () => {
+  it("a session mounts the <video> surface; url sources carry REAL bytes, file sources mount without a src", { timeout: 20000 }, async () => {
+    // The UI half of the 4.H1 render seam: the surface's source comes from
+    // the ONE open funnel (session.open through openPathRequest — the same
+    // request the open-media dialog sends), and the surface follows the
+    // session state. The demo transport's choreography (opening → playing)
+    // runs on real timers (≈320ms).
+    const transport = new DemoTransport();
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen />
+      </ClientProvider>,
+    );
+    expect(document.querySelector("video")).toBeNull();
+
+    // A FILE source (the demo clip): no browser-addressable bytes — the
+    // surface mounts with no src and the identity card stays visible.
+    await act(async () => {
+      await transport.send(
+        openPathRequest({ kind: "file", path: "/media/demo/big-buck-bunny.mkv" }, 901),
+      );
+    });
+    const fileVideo = await waitFor(() => {
+      const el = document.querySelector("video");
+      expect(el).not.toBeNull();
+      return el as HTMLVideoElement;
+    });
+    // jsdom implements neither play nor pause — assert the surface's calls
+    // through mocks so the test stays quiet and the behavior under test is
+    // the effect's, not the DOM's.
+    const play = vi.fn().mockResolvedValue(undefined);
+    const pause = vi.fn();
+    fileVideo.play = play;
+    fileVideo.pause = pause;
+    expect(fileVideo).toHaveAttribute("data-media-surface", "video");
+    expect(fileVideo).toHaveAttribute("data-media-bytes", "none");
+    expect(fileVideo).not.toHaveAttribute("src");
+    expect(fileVideo).toHaveAttribute("aria-hidden", "true");
+    // identity stand-in stays while no real video bytes are addressable
+    // (the demo choreography reaches playing + the info burst at ~320ms;
+    // the shared sandbox runs loaded — generous waitFor bounds, not flake)
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: /bunny/i })).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(play).toHaveBeenCalled(), { timeout: 5000 });
+
+    // A URL source (the demo radio stream): the surface carries the real
+    // url — the browser's media stack does the decoding from here.
+    await act(async () => {
+      await transport.send(
+        openPathRequest({ kind: "url", url: "https://ice1.somafm.com/groovesalad-128-mp3" }, 902),
+      );
+    });
+    const urlVideo = await waitFor(() => {
+      const el = document.querySelector("video");
+      expect(el).not.toBeNull();
+      return el as HTMLVideoElement;
+    });
+    expect(urlVideo).toHaveAttribute("data-media-bytes", "url");
+    expect(urlVideo).toHaveAttribute("src", "https://ice1.somafm.com/groovesalad-128-mp3");
+  });
+
+  it("the surface follows the session state and never drives it (engine truth only)", { timeout: 20000 }, async () => {
+    const transport = new DemoTransport();
+    const states: string[] = [];
+    transport.subscribe((event) => {
+      if (event.kind === "session.state-changed") states.push(event.to);
+    });
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen />
+      </ClientProvider>,
+    );
+    await act(async () => {
+      await transport.send(
+        openPathRequest({ kind: "url", url: "https://ice1.somafm.com/groovesalad-128-mp3" }, 903),
+      );
+    });
+    const video = await waitFor(() => {
+      const el = document.querySelector("video");
+      expect(el).not.toBeNull();
+      return el as HTMLVideoElement;
+    });
+    const play = vi.fn().mockResolvedValue(undefined);
+    const pause = vi.fn();
+    video.play = play;
+    video.pause = pause;
+    // The demo choreography reaches playing (~320ms); the surface may only
+    // call play() once the ENGINE said playing.
+    await waitFor(() => expect(states).toContain("playing"), { timeout: 5000 });
+    await waitFor(() => expect(play).toHaveBeenCalled(), { timeout: 5000 });
+    // The real pause command flips the session; the surface follows.
+    await act(async () => {
+      await transport.send({ cmd: "playback.pause", requestId: 904 } as CommandRequest);
+    });
+    await waitFor(() => expect(states).toContain("paused"), { timeout: 5000 });
+    await waitFor(() => expect(pause).toHaveBeenCalled(), { timeout: 5000 });
   });
 });
 
@@ -718,14 +914,15 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
     }
   });
 
-  it("Playlist submenu toggles the docked queue panel (this screen's real seam)", async () => {
+  it("Playlist submenu toggles the docked playlists browser (this screen's real seam)", async () => {
     renderWithClient(<PlayerScreen />);
     const player = document.querySelector<HTMLElement>("[data-screen='player']")!;
     expect(player).toHaveAttribute("data-sidebar", "open");
     const menu = await openCanvasMenu();
     fireEvent.click(within(menu).getByText("Playlist"));
     const submenu = await screen.findByRole("menu", { name: "Playlist" });
-    fireEvent.click(within(submenu).getByText("Hide queue panel"));
+    // w26.i02: the dock is the playlists browser, so the rows say playlists.
+    fireEvent.click(within(submenu).getByText("Hide playlists panel"));
     expect(document.querySelector("[data-screen='player']")!).toHaveAttribute("data-sidebar", "closed");
   });
 
@@ -794,5 +991,134 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
       fireEvent.pointerDown(document.body);
     });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("PlayerScreen — playlist browse face + floating now-playing card (w26.i02, Player-4/Player-3 Lead ruling)", () => {
+  it("Player-4: a dock row opens the playlist's media grid in the CANVAS; exit returns to the player", () => {
+    // The grid+bar composition split: the frame shows the playlist grid
+    // above the window-bottom strip (PlayerScreen's control band) — the
+    // docked playlists browser's rows are the openers.
+    renderWithClient(<PlayerScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Cool Songs" }));
+
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    const browse = within(canvas).getByText("Cool Songs").closest(".lumen-state-browse");
+    expect(browse).not.toBeNull();
+    // Header context: title + the real item count (store data, never a
+    // second source — "Cool Songs" seeds 3 item names).
+    expect(within(browse as HTMLElement).getByRole("heading", { name: "Cool Songs" })).toBeInTheDocument();
+    expect(within(browse as HTMLElement).getByText("3 items")).toBeInTheDocument();
+    // The grid: one inert presentation cell per REAL item name (names-only
+    // local data has no play seam — never a dead button).
+    const cells = within(browse as HTMLElement).getAllByRole("listitem");
+    expect(cells).toHaveLength(3);
+    for (const name of ["The Wand (Main Theme).flac", "Voltage.mp3", "Paper Planes.mp3"]) {
+      expect(within(browse as HTMLElement).getByText(name)).toBeInTheDocument();
+    }
+    expect(within(browse as HTMLElement).queryAllByRole("button", { name: /flac|mp3/i })).toHaveLength(0);
+    // The first-run hero does not render while browsing (the grid IS the
+    // canvas content).
+    expect(screen.queryByRole("heading", { name: "No media open" })).toBeNull();
+
+    // Exit — back to the player canvas (hero returns, browse unmounts).
+    fireEvent.click(within(browse as HTMLElement).getByRole("button", { name: "Back to the player" }));
+    expect(document.querySelector(".lumen-state-browse")).toBeNull();
+    expect(screen.getByRole("heading", { name: "No media open" })).toBeInTheDocument();
+  });
+
+  it("Player-4: the browse face keeps the control band (the strip bar spans the window bottom)", () => {
+    renderWithClient(<PlayerScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Cool Songs" }));
+    // The band stays mounted as the full-width sibling BELOW the body row —
+    // the playlist sits ABOVE the bar (the ruling's composition).
+    const controls = screen.getByRole("region", { name: "Playback controls" });
+    expect(controls.parentElement).toBe(document.querySelector(".lumen-player"));
+    expect(within(controls).getByRole("button", { name: /play/i })).toBeInTheDocument();
+  });
+
+  it("Player-3: a session up over the browse face mounts the floating now-playing card; ✕ collapses, the header toggle re-opens", { timeout: 20000 }, async () => {
+    const transport = new DemoTransport();
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen />
+      </ClientProvider>,
+    );
+    // Open the demo clip through the ONE funnel; wait for the engine to
+    // reach playing (real choreography, ≈320ms).
+    await act(async () => {
+      await transport.send(
+        openPathRequest({ kind: "file", path: "/media/demo/big-buck-bunny.mkv" }, 901),
+      );
+    });
+    await waitFor(
+      () => {
+        expect(document.querySelector("video")).not.toBeNull();
+      },
+      { timeout: 5000 },
+    );
+    // The card reads ENGINE truth (media.info-ready title, real seek), so
+    // wait for the info burst (~320ms — the same wait the media-surface
+    // test above uses) BEFORE entering the browse face; entering earlier
+    // would race the choreography, not the composition.
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: /bunny/i })).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+
+    // Enter the browse face — the floating card rides bottom-right with the
+    // session up (Player-3's floating window), and the media surface STAYS
+    // MOUNTED under the opaque grid (url bytes keep flowing, never a
+    // silently stalled engine).
+    fireEvent.click(screen.getByRole("button", { name: "Cool Songs" }));
+    const card = await waitFor(() => {
+      const el = screen.getByRole("region", { name: "Now playing" });
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+    // Engine truth on the card: the reported title, the real seekbar.
+    expect(within(card).getByRole("heading", { name: /bunny/i })).toBeInTheDocument();
+    expect(card.querySelector('[data-control="seekbar"]')).not.toBeNull();
+    expect(document.querySelector("video")).not.toBeNull();
+    // The browse grid is up too (both halves of the composition).
+    expect(document.querySelector(".lumen-state-browse")).not.toBeNull();
+    // The card is chrome (fades with the idle chrome, hide-UI).
+    expect(card).toHaveAttribute("data-chrome-part", "");
+
+    // ✕ collapses the card — the browse face continues, the media surface
+    // stays mounted, and the header's PiP toggle is the honest re-opener.
+    fireEvent.click(within(card).getByRole("button", { name: "Hide the now-playing card" }));
+    expect(screen.queryByRole("region", { name: "Now playing" })).toBeNull();
+    expect(document.querySelector(".lumen-state-browse")).not.toBeNull();
+    expect(document.querySelector("video")).not.toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "Show the now-playing card" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Now playing" })).toBeInTheDocument();
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("honesty: with no session up the now-playing toggle is disabled with its reason and the card never mounts", () => {
+    renderWithClient(<PlayerScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Cool Songs" }));
+    const toggle = screen.getByRole("button", { name: "Show the now-playing card" });
+    expect(toggle).toBeDisabled();
+    expect(toggle).toHaveAttribute("title", "Open media to see the now-playing card.");
+    expect(screen.queryByRole("region", { name: "Now playing" })).toBeNull();
+  });
+
+  it("honesty: an emptied playlist renders the browse empty face (never fabricated cards)", () => {
+    // "Cool Playlist" seeds zero item names — the grid's honest empty.
+    renderWithClient(<PlayerScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Cool Playlist" }));
+    const browse = document.querySelector(".lumen-state-browse") as HTMLElement;
+    expect(browse).not.toBeNull();
+    expect(within(browse).getByText("0 items")).toBeInTheDocument();
+    expect(within(browse).getByText("No items in this playlist yet.")).toBeInTheDocument();
   });
 });
