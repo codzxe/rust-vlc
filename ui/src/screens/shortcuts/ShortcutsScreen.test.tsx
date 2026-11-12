@@ -44,34 +44,47 @@ const rowLabels = (section: HTMLElement): string[] =>
   );
 
 describe("ShortcutsScreen (/keyboard-shortcuts)", () => {
-  it("renders the four reference groups as sections of the shortcuts window", () => {
-    renderScreen();
-    for (const title of ["Playback", "Navigation", "Volume", "Player variants"]) {
-      const section = groupOf(title);
-      expect(section).not.toBeNull();
-      expect(section.querySelectorAll(".shortcuts__row").length).toBeGreaterThan(0);
-    }
-  });
+  it(
+    "renders the four reference groups as sections of the shortcuts window",
+    { timeout: 30_000 },
+    () => {
+      renderScreen();
+      for (const title of ["Playback", "Navigation", "Volume", "Player variants"]) {
+        const section = groupOf(title);
+        expect(section).not.toBeNull();
+        expect(section.querySelectorAll(".shortcuts__row").length).toBeGreaterThan(0);
+      }
+    });
 
-  it("renders the window grammar: search pill, scope filter, column headers, footer", () => {
-    renderScreen();
-    // Search pill (placeholder contract unchanged from the pre-rebuild UI).
-    expect(screen.getByPlaceholderText("Filter by action or key…")).toBeInTheDocument();
-    // Field-scope dropdown shows the frame's default value.
-    expect(screen.getByRole("button", { name: "Search scope" })).toHaveTextContent(
-      "All Fields",
-    );
-    // Column headers.
-    for (const header of ["Action", "Hotkey", "Global Hotkey"]) {
-      expect(screen.getByText(header)).toBeInTheDocument();
-    }
-    // Footer: Cancel (active) + Save (disabled — read-only reference).
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
-    const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-    // Top-bar ✕ close affordance.
-    expect(screen.getByRole("button", { name: "Close shortcuts" })).toBeInTheDocument();
-  });
+  it(
+    "renders the window grammar: dialog semantics, search pill, scope filter, column headers, footer",
+    // 146 rows in jsdom on the shared 20-lane box can exceed the 5s default
+    // (load avg >10 observed) — generous timeout, assertions unchanged.
+    { timeout: 30_000 },
+    () => {
+      renderScreen();
+      // w26.i17: real dialog semantics (h19 shame #2).
+      expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveAttribute(
+        "aria-modal",
+        "true",
+      );
+      // Search pill (placeholder contract unchanged from the pre-rebuild UI).
+      expect(screen.getByPlaceholderText("Filter by action or key…")).toBeInTheDocument();
+      // Field-scope dropdown shows the frame's default value.
+      expect(screen.getByRole("button", { name: "Search scope" })).toHaveTextContent(
+        "All Fields",
+      );
+      // Column headers.
+      for (const header of ["Action", "Hotkey", "Global Hotkey"]) {
+        expect(screen.getByText(header)).toBeInTheDocument();
+      }
+      // Footer: Cancel (active) + Save (disabled — read-only reference).
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+      const save = screen.getByRole("button", { name: "Save" });
+      expect(save).toBeDisabled();
+      // Top-bar ✕ close affordance.
+      expect(screen.getByRole("button", { name: "Close shortcuts" })).toBeInTheDocument();
+    });
 
   it("renders friendly keycap labels — no raw media-key spill", () => {
     renderScreen();
@@ -212,6 +225,44 @@ describe("ShortcutsScreen (/keyboard-shortcuts)", () => {
     expect(all.length).toBeGreaterThan(0);
   });
 
+  it(
+    "is a trapped modal: initial focus on the search field, Tab wraps to the first focusable (w26.i17)",
+    { timeout: 30_000 },
+    () => {
+      renderScreen();
+      // h19 #4: initial focus is the FIRST FIELD — never the ✕ glyph at rest
+      // (Enter must never read as "dismiss").
+      expect(document.activeElement).toBe(screen.getByPlaceholderText("Filter by action or key…"));
+      expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Close shortcuts" }));
+      // The trap cycles inside the window (the wrap semantics the e2e tab audit
+      // encodes): from the LAST focusable (Cancel — Save is disabled) Tab wraps
+      // back to the window's first focusable (✕, lowest DOM index)…
+      screen.getByRole("button", { name: "Cancel" }).focus();
+      fireEvent.keyDown(screen.getByRole("dialog", { name: "Keyboard shortcuts" }), { key: "Tab" });
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close shortcuts" }));
+      // …and forward Tab walks the DOM order (search field next).
+      fireEvent.keyDown(screen.getByRole("dialog", { name: "Keyboard shortcuts" }), { key: "Tab" });
+      expect(document.activeElement).toBe(screen.getByPlaceholderText("Filter by action or key…"));
+      // Shift+Tab steps back from the field to ✕, and once there it WRAPS to the
+      // window's LAST focusable (Cancel — the trap cycles both ways).
+      fireEvent.keyDown(screen.getByRole("dialog", { name: "Keyboard shortcuts" }), {
+        key: "Tab",
+        shiftKey: true,
+      });
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close shortcuts" }));
+      fireEvent.keyDown(screen.getByRole("dialog", { name: "Keyboard shortcuts" }), {
+        key: "Tab",
+        shiftKey: true,
+      });
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+    });
+
+  it("a scrim click closes the window to the player (w26.i17 dialog seam)", async () => {
+    renderWithPlayerRoute();
+    fireEvent.click(screen.getByRole("dialog").parentElement!);
+    await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
+  });
+
   it("✕ close returns to the player route (w26.d1 routed check)", async () => {
     renderWithPlayerRoute();
     fireEvent.click(screen.getByRole("button", { name: "Close shortcuts" }));
@@ -221,15 +272,17 @@ describe("ShortcutsScreen (/keyboard-shortcuts)", () => {
   it("Escape closes the window to the player (w26.d1 — frame-implied dismissal)", async () => {
     renderWithPlayerRoute();
     // An open dropdown listbox owns Escape first: closing it must NOT close
-    // the window (the Dropdown preventDefaults the key; the screen's handler
-    // defers to any open overlay).
+    // the window (the Dialog trap defers while a listbox/menu is open inside;
+    // the Dropdown preventDefaults + stopPropagation keeps it scoped).
     fireEvent.click(screen.getByRole("button", { name: "Search scope" }));
     const listbox = screen.getByRole("listbox");
     fireEvent.keyDown(listbox, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
     expect(screen.getByPlaceholderText("Filter by action or key…")).toBeInTheDocument();
-    // With no overlay up, Escape closes the window.
-    fireEvent.keyDown(window, { key: "Escape" });
+    // With no overlay up, Escape closes the window. The trap listens on the
+    // dialog node, so the key is dispatched on the focused field and bubbles
+    // (w26.i17 — the old w26.d1 window-level listener is gone).
+    fireEvent.keyDown(screen.getByPlaceholderText("Filter by action or key…"), { key: "Escape" });
     await waitFor(() => expect(screen.getByTestId("player-home")).toBeInTheDocument());
   });
 });
