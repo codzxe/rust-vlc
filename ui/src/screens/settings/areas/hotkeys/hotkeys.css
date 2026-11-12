@@ -1,4 +1,92 @@
-/* Hotkeys editor (card 4.E2) — semantic tokens only (doc 08 §3.2). */
+/* Hotkeys editor (card 4.E2) — semantic tokens only (doc 08 §3.2).
+ *
+ * w26.i15 (h11 #5): the editor rides the controls area's DIALOG
+ * (Keyboard_Shortcuts.svg window grammar — areas/controls.tsx). Window:
+ * 1048×800 r14 on the Dialog primitive's chrome; 50px #090909 top bar
+ * (title + ✕), scrollable table body, dirty-gated apply bar as the footer.
+ * Frame-measured geometry is marked `frame:`; raw px is structural. */
+
+/* ------------------------------------------------------------ dialog */
+
+.lumen-dialog.hotkeys-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1048px, 92vw); /* frame: Keyboard Shortcuts.svg 1048×800 */
+  max-width: min(1048px, 92vw);
+  height: min(800px, 92vh);
+  max-height: min(800px, 92vh);
+  padding: 0;
+  overflow: hidden; /* clips children to the r14 corners */
+}
+
+.hotkeys-dialog__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-grid);
+  flex: none;
+  height: 50px; /* frame: title strip */
+  padding: 0 13px 0 20px; /* frame: title x20, ✕ 25px right inset (24px hit) */
+  box-sizing: border-box;
+  background: var(--color-surface); /* frame: #090909 strip */
+}
+
+.hotkeys-dialog__title {
+  margin: 0;
+  font-size: var(--font-size-section); /* frame: ≈15px */
+  font-weight: var(--font-weight-regular);
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+}
+
+.hotkeys-dialog__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-content-secondary); /* frame: ✕ #8F8F8F */
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease-out, color var(--motion-duration-fast) ease-out;
+}
+
+.hotkeys-dialog__close:hover,
+.hotkeys-dialog__close:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-content-primary);
+}
+
+.hotkeys-dialog__close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* The table body — the only scroller (the 141-binding table never grows
+ * the page: the w26.i15 fix for the 5780px inline slab). */
+.hotkeys-editor__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 20px var(--space-grid);
+}
+
+/* The apply bar as the dialog's footer (dirty-gated): static, full-width —
+ * the settings-applybar sticky rule is neutralized inside the dialog. */
+.hotkeys-editor__applybar,
+.settings-applybar.hotkeys-editor__applybar {
+  position: static;
+  flex: none;
+  margin: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--color-stroke-border);
+  border-inline: none;
+  border-bottom: none;
+  backdrop-filter: none;
+}
+
+/* ------------------------------------------------------------ table */
 
 .hotkeys-table {
   width: 100%;
