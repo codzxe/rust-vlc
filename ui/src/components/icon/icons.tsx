@@ -64,6 +64,22 @@ import type { ReactElement } from "react";
  *     extend ~0.75u outward instead of inward; shape geometry is identical.
  *     The doubled sw=3 mask twin is dropped (w26.a07 applies the same rule to
  *     the new left-sidebar/collapse-sidebar/expand-sidebar/tv entries).
+ *
+ * W26.i16 TWO-TONE EXTENSION (h18 defect #3 — "icon accent binary orange,
+ * never two-tone"): every menu frame paints its row icons TWO-TONE — quiet
+ * #8F8F8F base strokes plus #AB6314 detail elements (the sheet's own
+ * `two-tone=yes` groups; e.g. `name=folder two-tone=yes` = Vector 23 accent
+ * + Vector 24 base). Accent sub-elements carry `className="lumen-icon__detail"`
+ * (bright #D37918 variants use `--detail--bright`, e.g. the video screen
+ * highlight); icon.css paints them ONLY under `.lumen-icon--two-tone`, so
+ * MONO rendering (every non-menu host) is byte-identical to before. Where
+ * the two-tone variant adds geometry the mono glyph lacks (open-file's
+ * folded corner, open-folder's front pocket, playback's screen rect,
+ * check's box), a dedicated `twoToneGlyphs` entry carries the frame variant
+ * — the mono registry is untouched. Tone splits below are frame-measured
+ * (menu.svg / right-click menu.svg / file|folder|playlist context menu.svg /
+ * Profiles.svg + the Icon.svg two-tone=yes groups; per-glyph comments cite
+ * the source).
  */
 
 export type IconName =
@@ -178,27 +194,33 @@ const folderGlyph = (
   <path d="M21 9.541V17C21 18.657 19.657 20 18 20H6C4.343 20 3 18.657 3 17V6.598C3 5.163 4.163 4 5.598 4H8.197C9.323 4 10.375 4.563 11 5.5C11.625 6.437 12.677 7 13.803 7H18.459C19.862 7 21 8.138 21 9.541Z" />
 );
 
-// sheet name=info (Ellipse 9_2 + Vector 98/99) — menu.svg "About VLC"
+// sheet name=info (Ellipse 9_2 + Vector 98/99) — menu.svg "About VLC".
+// w26.i16 two-tone (menu.svg option_12 / sheet two-tone=yes): circle = base,
+// the i stem + dot (sw 2, kept verbatim) = accent detail.
 const infoGlyph = (
   <>
     <circle cx="12" cy="12" r="10" />
-    <path d="M12 11V17" strokeWidth={2} />
-    <path d="M12 7V7" strokeWidth={2} />
+    <path className="lumen-icon__detail" d="M12 11V17" strokeWidth={2} />
+    <path className="lumen-icon__detail" d="M12 7V7" strokeWidth={2} />
   </>
 );
 
-// sheet name=paint (Rectangle 256 + Vector 100) — menu.svg "Customize Player" (the "wand")
+// sheet name=paint (Rectangle 256 + Vector 100) — menu.svg "Customize Player" (the "wand").
+// w26.i16 two-tone (menu.svg option_10 / sheet two-tone=yes): Rectangle 256
+// wand body = base, Vector 100 swoosh = accent detail.
 const wandGlyph = (
   <>
     <path d="M11.989 9.318L19.07 2.237C19.751 1.556 20.854 1.556 21.535 2.237C22.216 2.918 22.216 4.022 21.535 4.702L14.454 11.783C13.774 12.464 12.67 12.464 11.989 11.783C11.309 11.102 11.309 9.999 11.989 9.318Z" />
-    <path d="M10.641 14.547C11.914 16.244 11.841 19.547 8.641 19.547C5.441 19.547 4.696 21.444 4.696 22.444C3.863 21.611 1.784 17.856 4.696 14.944C6.196 13.444 9.141 12.547 10.641 14.547Z" />
+    <path className="lumen-icon__detail" d="M10.641 14.547C11.914 16.244 11.841 19.547 8.641 19.547C5.441 19.547 4.696 21.444 4.696 22.444C3.863 21.611 1.784 17.856 4.696 14.944C6.196 13.444 9.141 12.547 10.641 14.547Z" />
   </>
 );
 
-// sheet name=profile (head + shoulders) — menu.svg "Profile (Movies)", Miniplayer meta row
+// sheet name=profile (head + shoulders) — menu.svg "Profile (Movies)", Miniplayer meta row.
+// w26.i16 two-tone (menu.svg option_8 / sheet name=profile two-tone=yes):
+// Ellipse 7 head = accent detail, Vector 72 shoulders = base.
 const personGlyph = (
   <>
-    <path d="M15.25 7.125C15.25 8.92 13.795 10.375 12 10.375C10.205 10.375 8.75 8.92 8.75 7.125C8.75 5.33 10.205 3.875 12 3.875C13.795 3.875 15.25 5.33 15.25 7.125Z" />
+    <path className="lumen-icon__detail" d="M15.25 7.125C15.25 8.92 13.795 10.375 12 10.375C10.205 10.375 8.75 8.92 8.75 7.125C8.75 5.33 10.205 3.875 12 3.875C13.795 3.875 15.25 5.33 15.25 7.125Z" />
     <path d="M5 20.125C5.311 18.125 7.147 14.125 12 14.125C16.853 14.125 18.844 18.125 19 20.125" />
   </>
 );
@@ -216,8 +238,10 @@ const equalizerGlyph = (
 );
 
 const glyphs: Record<IconName, ReactElement> = {
-  // Icon.svg "name=play" (Vector 16_4) — identical geometry to play.svg type=play and the Controls.svg play button
-  "play": <path d="M7.75 16.955V7.045C7.75 6.213 8.707 5.744 9.364 6.255L15.735 11.211C16.25 11.611 16.25 12.389 15.735 12.789L9.364 17.745C8.707 18.256 7.75 17.787 7.75 16.955Z" fill="currentColor" />,
+  // Icon.svg "name=play" (Vector 16_4) — identical geometry to play.svg type=play and the Controls.svg play button.
+  // w26.i16 two-tone: right-click menu.svg option 1 — the whole glyph paints
+  // the accent tone (single-path transport rows 1–5 are full #AB6314).
+  "play": <path className="lumen-icon__detail" d="M7.75 16.955V7.045C7.75 6.213 8.707 5.744 9.364 6.255L15.735 11.211C16.25 11.611 16.25 12.389 15.735 12.789L9.364 17.745C8.707 18.256 7.75 17.787 7.75 16.955Z" fill="currentColor" />,
 
   // Icon.svg "name=pause" (Vector 17_4/16_9) — matches play.svg type=pause
   "pause": (
@@ -227,24 +251,27 @@ const glyphs: Record<IconName, ReactElement> = {
     </>
   ),
 
-  // Icon.svg "name=stop" (Vector 16_12)
-  "stop": <path d="M8 17V7H16V17H8Z" fill="currentColor" />,
+  // Icon.svg "name=stop" (Vector 16_12).
+  // w26.i16 two-tone: right-click menu.svg option 2 — full accent.
+  "stop": <path className="lumen-icon__detail" d="M8 17V7H16V17H8Z" fill="currentColor" />,
 
   // Icon.svg "name=next" (Frame 17, state=default) — filled triangle + bar; identical to
-  // Controls.svg Frame 10 (Vector 18_2/Vector 16_3) and the Player.svg bottom bar transport
+  // Controls.svg Frame 10 (Vector 18_2/Vector 16_3) and the Player.svg bottom bar transport.
+  // w26.i16 two-tone: right-click menu.svg option 4 / sheet name=next two-tone=yes — full accent.
   "next": (
     <>
-      <path d="M7.5 17V7L13.5 12L7.5 17Z" fill="currentColor" />
-      <path d="M14.5 17V7H16.5V17H14.5Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M7.5 17V7L13.5 12L7.5 17Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M14.5 17V7H16.5V17H14.5Z" fill="currentColor" />
     </>
   ),
 
   // Icon.svg "name=previous" (Frame 18, state=default) — bar + filled triangle; identical to
-  // Controls.svg Frame 8 (Vector 16/Vector 18) and the Player.svg bottom bar transport
+  // Controls.svg Frame 8 (Vector 16/Vector 18) and the Player.svg bottom bar transport.
+  // w26.i16 two-tone: right-click menu.svg option 3 / sheet two-tone=yes — full accent.
   "previous": (
     <>
-      <path d="M7.5 17V7H9.5V17H7.5Z" fill="currentColor" />
-      <path d="M16.5 17V7L10.5 12L16.5 17Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M7.5 17V7H9.5V17H7.5Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M16.5 17V7L10.5 12L16.5 17Z" fill="currentColor" />
     </>
   ),
 
@@ -431,20 +458,24 @@ const glyphs: Record<IconName, ReactElement> = {
   "folder": folderGlyph,
 
   // Icon.svg "name=playlist" (Frame 1_38) — list + play triangle; identical to the
-  // sidebar playlist rows (Vector/Vector_2/Vector_3 + Vector 1) and right-click "Playlist"
+  // sidebar playlist rows (Vector/Vector_2/Vector_3 + Vector 1) and right-click "Playlist".
+  // w26.i16 two-tone (right-click menu.svg option_12 / sheet two-tone=yes):
+  // the three list lines = base, the filled play triangle = accent.
   "playlist": (
     <>
       <path d="M2.9095 6H20.9095" />
       <path d="M2.9095 11H11.5575" />
       <path d="M2.9095 16H11.5575" />
-      <path d="M17.0905 18V10L21.0905 14L17.0905 18Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M17.0905 18V10L21.0905 14L17.0905 18Z" fill="currentColor" />
     </>
   ),
 
-  // Icon.svg "name=queue" (Frame 1_40) — pill + two lines (the queue toggle)
+  // Icon.svg "name=queue" (Frame 1_40) — pill + two lines (the queue toggle).
+  // w26.i16 two-tone (file/playlist context menu.svg / sheet two-tone=yes):
+  // the pill = accent, the two lines = base (Rectangle 26 → accent).
   "queue": (
     <>
-      <path d="M6 4.875H18C19.243 4.875 20.25 5.882 20.25 7.125C20.25 8.368 19.243 9.375 18 9.375H6C4.757 9.375 3.75 8.368 3.75 7.125C3.75 5.882 4.757 4.875 6 4.875Z" />
+      <path className="lumen-icon__detail" d="M6 4.875H18C19.243 4.875 20.25 5.882 20.25 7.125C20.25 8.368 19.243 9.375 18 9.375H6C4.757 9.375 3.75 8.368 3.75 7.125C3.75 5.882 4.757 4.875 6 4.875Z" />
       <path d="M5 14.125H19" />
       <path d="M5 19.125H19" />
     </>
@@ -465,31 +496,37 @@ const glyphs: Record<IconName, ReactElement> = {
   ),
 
   // Icon.svg "name=favorite" (Frame 1_73) — heart; identical to the file/playlist
-  // context-menu "Union" favorite row
-  "favorite": <path d="M12.0005 6.312L12.9435 5.369C14.7655 3.546 17.7205 3.546 19.5425 5.369C21.6255 7.452 21.6255 10.829 19.5425 12.911L12.0005 20.454L4.4575 12.911C2.3745 10.829 2.3745 7.452 4.4575 5.369C6.2805 3.546 9.2345 3.546 11.0575 5.369L12.0005 6.312Z" />,
+  // context-menu "Union" favorite row.
+  // w26.i16 two-tone (file context menu.svg option_3 / sheet two-tone=yes):
+  // the whole heart paints the accent.
+  "favorite": <path className="lumen-icon__detail" d="M12.0005 6.312L12.9435 5.369C14.7655 3.546 17.7205 3.546 19.5425 5.369C21.6255 7.452 21.6255 10.829 19.5425 12.911L12.0005 20.454L4.4575 12.911C2.3745 10.829 2.3745 7.452 4.4575 5.369C6.2805 3.546 9.2345 3.546 11.0575 5.369L12.0005 6.312Z" />,
 
   // Icon.svg "name=preferences" (Frame_96) — 3 sliders with offset nubs: THE equalizer glyph
   "equalizer": equalizerGlyph,
 
   // Icon.svg "name=audio" (Frame_12) — five level bars; the Controls.svg level pill
-  // (Vector 10-14) and right-click "Audio" row use the same geometry
+  // (Vector 10-14) and right-click "Audio" row use the same geometry.
+  // w26.i16 two-tone (right-click menu.svg option_9 / sheet two-tone=yes):
+  // bars 2 + 4 = accent, bars 1/3/5 = base (Vector 12/11 → accent, 13/10/14 → base).
   "audio": (
     <>
       <path d="M4 11V13" />
-      <path d="M8 8V16" />
+      <path className="lumen-icon__detail" d="M8 8V16" />
       <path d="M12 3V21" />
-      <path d="M16 6V18" />
+      <path className="lumen-icon__detail" d="M16 6V18" />
       <path d="M20 9V15" />
     </>
   ),
 
   // Icon.svg "name=subtitles" (Frame_9) — cc card + two dashed rows; identical to the
-  // Controls.svg cc button (Rectangle 1 + Vector 8/9) and right-click "Subtitle" row
+  // Controls.svg cc button (Rectangle 1 + Vector 8/9) and right-click "Subtitle" row.
+  // w26.i16 two-tone (right-click menu.svg option_10 / sheet two-tone=yes):
+  // the CC letter strokes = accent, the card = base.
   "subtitles": (
     <>
       <path d="M5 4.75H19C20.795 4.75 22.25 6.2051 22.25 8V16C22.25 17.7949 20.795 19.25 19 19.25H5C3.205 19.25 1.75 17.7949 1.75 16V8C1.75 6.2051 3.205 4.75 5 4.75Z" />
-      <path d="M5 13H13M15.5 13H19" />
-      <path d="M5 16H8M14 16H19M11.5 16H10.5" />
+      <path className="lumen-icon__detail" d="M5 13H13M15.5 13H19" />
+      <path className="lumen-icon__detail" d="M5 16H8M14 16H19M11.5 16H10.5" />
     </>
   ),
 
@@ -544,19 +581,23 @@ const glyphs: Record<IconName, ReactElement> = {
     </>
   ),
 
-  // Icon.svg "name=shuffle, direction=right" (Vector 27_15/28_8)
+  // Icon.svg "name=shuffle, direction=right" (Vector 27_15/28_8).
+  // w26.i16 two-tone (playlist context menu.svg option_3 / sheet two-tone=yes):
+  // upper crossing = base, lower crossing = accent.
   "shuffle": (
     <>
       <path d="M18 10.25L20.5 7.75L18 5.25M20.5 7.75H15.866C13.308 7.75 11.086 9.51 10.5 12C9.914 14.49 7.692 16.25 5.134 16.25H3.5" />
-      <path d="M18 13.75L20.5 16.25L18 18.75M20.5 16.25L15.866 16.25C13.308 16.25 11.086 14.49 10.5 12C9.914 9.51 7.692 7.75 5.134 7.75L3.5 7.75" />
+      <path className="lumen-icon__detail" d="M18 13.75L20.5 16.25L18 18.75M20.5 16.25L15.866 16.25C13.308 16.25 11.086 14.49 10.5 12C9.914 9.51 7.692 7.75 5.134 7.75L3.5 7.75" />
     </>
   ),
 
-  // Icon.svg "name=record" (Ellipse 14 ring + filled Ellipse 15)
+  // Icon.svg "name=record" (Ellipse 14 ring + filled Ellipse 15).
+  // w26.i16 two-tone (right-click menu.svg option_5 / sheet two-tone=yes): ring
+  // + dot both paint the accent (a full-accent transport row).
   "record": (
     <>
-      <path d="M20.25 12C20.25 16.556 16.556 20.25 12 20.25C7.444 20.25 3.75 16.556 3.75 12C3.75 7.444 7.444 3.75 12 3.75C16.556 3.75 20.25 7.444 20.25 12Z" />
-      <path d="M15.25 12C15.25 13.795 13.795 15.25 12 15.25C10.205 15.25 8.75 13.795 8.75 12C8.75 10.205 10.205 8.75 12 8.75C13.795 8.75 15.25 10.205 15.25 12Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M20.25 12C20.25 16.556 16.556 20.25 12 20.25C7.444 20.25 3.75 16.556 3.75 12C3.75 7.444 7.444 3.75 12 3.75C16.556 3.75 20.25 7.444 20.25 12Z" />
+      <path className="lumen-icon__detail" d="M15.25 12C15.25 13.795 13.795 15.25 12 15.25C10.205 15.25 8.75 13.795 8.75 12C8.75 10.205 10.205 8.75 12 8.75C13.795 8.75 15.25 10.205 15.25 12Z" fill="currentColor" />
     </>
   ),
 
@@ -568,11 +609,15 @@ const glyphs: Record<IconName, ReactElement> = {
     </>
   ),
 
-  // Icon.svg "name=PiP" (Vector 22_11 + filled Vector 23_14)
+  // Icon.svg "name=PiP" (Vector 22_11 + filled Vector 23_14).
+  // w26.i16 two-tone: the canvas Video row's screen glyph paints its highlight
+  // in the BRIGHT accent (#D37918 — right-click menu.svg option_8 Subtract, the
+  // frame's only bright icon detail); the PiP inset square carries the same
+  // tone relationship (quiet frame + bright inner square).
   "pip": (
     <>
       <path d="M6 6H18V18H6V6Z" />
-      <path d="M18 13H13V18H18V13Z" fill="currentColor" />
+      <path className="lumen-icon__detail lumen-icon__detail--bright" d="M18 13H13V18H18V13Z" fill="currentColor" />
     </>
   ),
 
@@ -601,19 +646,23 @@ const glyphs: Record<IconName, ReactElement> = {
     </>
   ),
 
-  // Icon.svg "name=quit" (Rectangle 2_16 + Vector 27_20)
+  // Icon.svg "name=quit" (Rectangle 2_16 + Vector 27_20).
+  // w26.i16 two-tone (right-click menu.svg option_14 / sheet two-tone=yes):
+  // bracket = base, the exit arrow = accent.
   "quit": (
     <>
       <path d="M12 3H6C4.343 3 3 4.343 3 6V18C3 19.657 4.343 21 6 21H12" />
-      <path d="M16 17L21 12L16 7M21 12H9" />
+      <path className="lumen-icon__detail" d="M16 17L21 12L16 7M21 12H9" />
     </>
   ),
 
-  // Icon.svg "name=settings" (Vector 75 + Ellipse 10) — same geometry as the menu.svg Settings row
+  // Icon.svg "name=settings" (Vector 75 + Ellipse 10) — same geometry as the menu.svg Settings row.
+  // w26.i16 two-tone (menu.svg option_11 / sheet two-tone=yes): gear body =
+  // base, the centre dot = accent.
   "settings": (
     <>
       <path d="M12.504 21H11.597C10.707 21 9.985 20.278 9.985 19.388C9.985 18.816 9.683 18.288 9.191 17.998L8.251 17.445C7.728 17.137 7.078 17.138 6.555 17.447C5.761 17.917 4.736 17.653 4.268 16.857L3.873 16.185C3.421 15.417 3.686 14.427 4.462 13.988C4.97 13.7 5.28 13.157 5.27 12.572L5.252 11.491C5.242 10.918 4.93 10.392 4.431 10.11C3.645 9.664 3.376 8.66 3.834 7.881L4.245 7.183C4.7 6.409 5.693 6.143 6.474 6.586C6.986 6.876 7.614 6.871 8.121 6.572L9.089 6.002C9.582 5.712 9.884 5.183 9.884 4.612C9.884 3.722 10.605 3 11.496 3H12.425C13.303 3 14.015 3.712 14.015 4.59C14.015 5.172 14.333 5.707 14.844 5.986L15.833 6.524C16.34 6.8 16.953 6.795 17.455 6.511C18.248 6.062 19.254 6.331 19.717 7.117L20.127 7.815C20.579 8.583 20.314 9.573 19.538 10.012C19.03 10.3 18.719 10.843 18.73 11.427L18.748 12.51C18.758 13.083 19.07 13.608 19.569 13.89C20.355 14.336 20.624 15.34 20.166 16.119L19.755 16.817C19.3 17.591 18.307 17.857 17.526 17.414C17.014 17.124 16.386 17.129 15.879 17.428L14.91 17.998C14.418 18.288 14.116 18.816 14.116 19.388C14.116 20.278 13.394 21 12.504 21Z" />
-      <path d="M14.25 12C14.25 13.243 13.243 14.25 12 14.25C10.757 14.25 9.75 13.243 9.75 12C9.75 10.757 10.757 9.75 12 9.75C13.243 9.75 14.25 10.757 14.25 12Z" />
+      <path className="lumen-icon__detail" d="M14.25 12C14.25 13.243 13.243 14.25 12 14.25C10.757 14.25 9.75 13.243 9.75 12C9.75 10.757 10.757 9.75 12 9.75C13.243 9.75 14.25 10.757 14.25 12Z" />
     </>
   ),
 
@@ -631,54 +680,64 @@ const glyphs: Record<IconName, ReactElement> = {
   // Icon.svg "name=folder" (Vector 23_2) — matches menu.svg "Open Folder"
   "open-folder": folderGlyph,
 
-  // Icon.svg "name=streaming" (Ellipse 1-3) — matches menu.svg "Open Network Stream"
+  // Icon.svg "name=streaming" (Ellipse 1-3) — matches menu.svg "Open Network Stream".
+  // w26.i16 two-tone (menu.svg option_3 / sheet two-tone=yes): Ellipse 1 centre
+  // dot + Ellipse 3 outer arcs = base, Ellipse 2/4 middle arcs = accent.
   "network-stream": (
     <>
       <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-      <path d="M7.757 7.757C6.672 8.843 6 10.343 6 12C6 13.657 6.672 15.157 7.757 16.243" />
-      <path d="M16.243 16.243C17.328 15.157 18 13.657 18 12C18 10.343 17.328 8.843 16.243 7.757" />
+      <path className="lumen-icon__detail" d="M7.757 7.757C6.672 8.843 6 10.343 6 12C6 13.657 6.672 15.157 7.757 16.243" />
+      <path className="lumen-icon__detail" d="M16.243 16.243C17.328 15.157 18 13.657 18 12C18 10.343 17.328 8.843 16.243 7.757" />
       <path d="M19.071 4.929C20.881 6.738 22 9.238 22 12C22 14.761 20.881 17.261 19.071 19.071M4.929 19.071C3.119 17.261 2 14.761 2 12C2 9.238 3.119 6.738 4.929 4.929" />
     </>
   ),
 
-  // Icon.svg "name=disc" (Ellipse 19_2/20_2 + Vector 105_2/106_2) — matches menu.svg "Open Disc"
+  // Icon.svg "name=disc" (Ellipse 19_2/20_2 + Vector 105_2/106_2) — matches menu.svg "Open Disc".
+  // w26.i16 two-tone (menu.svg option_4 / sheet two-tone=yes): ring + centre =
+  // base, the two filled corner arrows = accent.
   "open-disc": (
     <>
       <path d="M21.25 12C21.25 17.109 17.109 21.25 12 21.25C6.891 21.25 2.75 17.109 2.75 12C2.75 6.891 6.891 2.75 12 2.75C17.109 2.75 21.25 6.891 21.25 12Z" />
-      <path d="M6 10L8 10C8 10 8 9.333 8.667 8.667C9.333 8 10 8 10 8L10 6C10 6 8.667 6 7.333 7.333C6 8.667 6 10 6 10Z" fill="currentColor" />
-      <path d="M18 14L16 14C16 14 16 14.667 15.333 15.333C14.667 16 14 16 14 16L14 18C14 18 15.333 18 16.667 16.667C18 15.333 18 14 18 14Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M6 10L8 10C8 10 8 9.333 8.667 8.667C9.333 8 10 8 10 8L10 6C10 6 8.667 6 7.333 7.333C6 8.667 6 10 6 10Z" fill="currentColor" />
+      <path className="lumen-icon__detail" d="M18 14L16 14C16 14 16 14.667 15.333 15.333C14.667 16 14 16 14 16L14 18C14 18 15.333 18 16.667 16.667C18 15.333 18 14 18 14Z" fill="currentColor" />
       <circle cx="12" cy="12" r="2" />
     </>
   ),
 
-  // Icon.svg "name=capture-device" (Vector 107 + Vector 16_18) — same vectors as menu.svg "Open Capture Device"
+  // Icon.svg "name=capture-device" (Vector 107 + Vector 16_18) — same vectors as menu.svg "Open Capture Device".
+  // w26.i16 two-tone (menu.svg option_5 / sheet two-tone=yes): device outline =
+  // base, the play triangle = accent.
   "capture-device": (
     <>
       <path d="M2.5 2H4.5C5.052 2 5.5 2.448 5.5 3V4M5.5 4V18M5.5 4H19.5C20.605 4 21.5 4.895 21.5 6V16C21.5 17.105 20.605 18 19.5 18H18.5M5.5 18V22M5.5 18H9.5M9.5 18V20C9.5 20.552 9.948 21 10.5 21H12.5M9.5 18H12.5M12.5 21V18M12.5 21H15.5M12.5 18H15.5M15.5 21V18M15.5 21H17.5C18.052 21 18.5 20.552 18.5 20V18M15.5 18H18.5" />
-      <path d="M12.5 8V14L16.5 11L12.5 8Z" />
+      <path className="lumen-icon__detail" d="M12.5 8V14L16.5 11L12.5 8Z" />
     </>
   ),
 
-  // Icon.svg "name=swap" (Vector 42_5/43_3) — same arrows as menu.svg "Convert"
+  // Icon.svg "name=swap" (Vector 42_5/43_3) — same arrows as menu.svg "Convert".
+  // w26.i16 two-tone (menu.svg option_6 / sheet two-tone=yes): Vector 42
+  // down-right arrow = accent, Vector 43 up-left arrow = base.
   "convert": (
     <>
-      <path d="M6 17.5L19 17.5M15.5 14L19 17.5L15.5 21" />
+      <path className="lumen-icon__detail" d="M6 17.5L19 17.5M15.5 14L19 17.5L15.5 21" />
       <path d="M18 6.5H5M8.5 10L5 6.5L8.5 3" />
     </>
   ),
 
-  // Icon.svg "name=hotkeys" (Vector 9-17 + Rectangle 1) — matches menu.svg "Keyboard Shortcuts"
+  // Icon.svg "name=hotkeys" (Vector 9-17 + Rectangle 1) — matches menu.svg "Keyboard Shortcuts".
+  // w26.i16 two-tone (menu.svg option_9 / sheet two-tone=yes): all nine key
+  // marks = accent, the keyboard body = base.
   "keyboard-shortcuts": (
     <>
-      <path d="M9 16H15" />
-      <path d="M6 9H6" />
-      <path d="M6 12H6" />
-      <path d="M10 9H10" />
-      <path d="M10 12H10" />
-      <path d="M14 9H14" />
-      <path d="M14 12H14" />
-      <path d="M18 9H18" />
-      <path d="M18 12H18" />
+      <path className="lumen-icon__detail" d="M9 16H15" />
+      <path className="lumen-icon__detail" d="M6 9H6" />
+      <path className="lumen-icon__detail" d="M6 12H6" />
+      <path className="lumen-icon__detail" d="M10 9H10" />
+      <path className="lumen-icon__detail" d="M10 12H10" />
+      <path className="lumen-icon__detail" d="M14 9H14" />
+      <path className="lumen-icon__detail" d="M14 12H14" />
+      <path className="lumen-icon__detail" d="M18 9H18" />
+      <path className="lumen-icon__detail" d="M18 12H18" />
       <path d="M5 4.75H19C20.795 4.75 22.25 6.205 22.25 8V16C22.25 17.795 20.795 19.25 19 19.25H5C3.205 19.25 1.75 17.795 1.75 16V8C1.75 6.205 3.205 4.75 5 4.75Z" />
     </>
   ),
@@ -695,28 +754,34 @@ const glyphs: Record<IconName, ReactElement> = {
   "wand": wandGlyph,
 
   // Icon.svg "name=recent" (Frame 1_28) — clock with rewind arrow; identical to
-  // menu.svg "Open Recent" (Ellipse 12 + Vector 101)
+  // menu.svg "Open Recent" (Ellipse 12 + Vector 101).
+  // w26.i16 two-tone (menu.svg option_7 / sheet two-tone=yes): clock circle +
+  // rewind = base, the hands = accent.
   "recent": (
     <>
       <path d="M13.3575 5C17.1445 5 20.2145 8.134 20.2145 12C20.2145 15.866 17.1445 19 13.3575 19C9.5705 19 6.5005 15.866 6.5005 12V10.444M3.7855 13.159L6.5005 10.444L9.2145 13.159" />
-      <path d="M13.2145 8V11.143C13.2145 11.616 13.5985 12 14.0715 12H15.7145" />
+      <path className="lumen-icon__detail" d="M13.2145 8V11.143C13.2145 11.616 13.5985 12 14.0715 12H15.7145" />
     </>
   ),
 
-  // Icon.svg "name=refresh" (Frame_88/89 region) — twin refresh arrows
+  // Icon.svg "name=refresh" (Frame_88/89 region) — twin refresh arrows.
+  // w26.i16 two-tone (folder context menu.svg option_5 / sheet two-tone=yes):
+  // upper arrow = base, lower arrow = accent.
   "refresh": (
     <>
       <path d="M20 10C19.5714 8 17.4286 4 12.2857 4C7.1429 4 5.4286 8 4.5714 10M9.7143 8.5L4.5714 10L2 6.5" />
-      <path d="M4 14C4.4286 16 6.5714 20 11.7143 20C16.8571 20 18.5714 16 19.4286 14M14.2857 15.5L19.4286 14L22 17.5" />
+      <path className="lumen-icon__detail" d="M4 14C4.4286 16 6.5714 20 11.7143 20C16.8571 20 18.5714 16 19.4286 14M14.2857 15.5L19.4286 14L22 17.5" />
     </>
   ),
 
-  // Icon.svg "name=save" (Frame 1_76, two-tone=yes) — floppy: outline + two fills
+  // Icon.svg "name=save" (Frame 1_76, two-tone=yes) — floppy: outline + two fills.
+  // w26.i16 two-tone (playlist context menu.svg option_4 / sheet two-tone=yes):
+  // outline = base, both fills = accent.
   "save": (
     <>
       <path d="M3 17V7C3 4.791 4.791 3 7 3H8H13H13.343C14.404 3 15.421 3.421 16.172 4.172L18 6L19.828 7.828C20.579 8.579 21 9.596 21 10.657V17C21 19.209 19.209 21 17 21H16H8H7C4.791 21 3 19.209 3 17Z" />
-      <path d="M9 12.778C8.448 12.778 8 13.225 8 13.778V18C8 18.552 8.448 19 9 19H15C15.552 19 16 18.552 16 18V13.778C16 13.225 15.552 12.778 15 12.778H9Z" fill="currentColor" stroke="none" />
-      <path d="M13 6C13 5.448 12.552 5 12 5H9C8.448 5 8 5.448 8 6V7.889C8 8.441 8.448 8.889 9 8.889H12C12.552 8.889 13 8.441 13 7.889V6Z" fill="currentColor" stroke="none" />
+      <path className="lumen-icon__detail" d="M9 12.778C8.448 12.778 8 13.225 8 13.778V18C8 18.552 8.448 19 9 19H15C15.552 19 16 18.552 16 18V13.778C16 13.225 15.552 12.778 15 12.778H9Z" fill="currentColor" stroke="none" />
+      <path className="lumen-icon__detail" d="M13 6C13 5.448 12.552 5 12 5H9C8.448 5 8 5.448 8 6V7.889C8 8.441 8.448 8.889 9 8.889H12C12.552 8.889 13 8.441 13 7.889V6Z" fill="currentColor" stroke="none" />
     </>
   ),
 
@@ -801,11 +866,13 @@ const glyphs: Record<IconName, ReactElement> = {
   ),
 
   // right-click menu.svg "Hide UI" row — rounded square + diagonal (Rectangle 2 +
-  // Vector 115; the accent slash inherits currentColor like every other stroke)
+  // Vector 115).
+  // w26.i16 two-tone (right-click menu.svg option_6): rounded square = base,
+  // the diagonal = accent.
   "hide-ui": (
     <>
       <path d="M6 21H18C19.657 21 21 19.657 21 18V6C21 4.343 19.657 3 18 3H6C4.343 3 3 4.343 3 6V18C3 19.657 4.343 21 6 21Z" />
-      <path d="M8 8L16 16" />
+      <path className="lumen-icon__detail" d="M8 8L16 16" />
     </>
   ),
 };
@@ -814,4 +881,79 @@ export const iconNames = Object.keys(glyphs) as IconName[];
 
 export function getIconGlyph(name: IconName): ReactElement {
   return glyphs[name];
+}
+
+/**
+ * w26.i16 — TWO-TONE glyph variants for the four icons whose frame variant
+ * ADDS geometry the mono glyph does not carry (the sheet's `two-tone=yes`
+ * groups vs its `two-tone=no` default). Every other glyph renders its
+ * two-tone face through the shared `glyphs` entry: the `lumen-icon__detail`
+ * markers are inert in mono mode (icon.css colors them only under
+ * `.lumen-icon--two-tone`).
+ */
+const twoToneGlyphs: Partial<Record<IconName, ReactElement>> = {
+  // sheet "name=file, two-tone=yes" = menu.svg "Open File(s)" option 1:
+  // Rectangle 1 page outline (base) + Rectangle 2 folded-corner fill
+  // (accent). Mono `open-file` is the page alone.
+  "open-file": (
+    <>
+      <path d="M3 8C3 4.686 5.686 2 9 2H17C19.209 2 21 3.791 21 6V18C21 20.209 19.209 22 17 22H7C4.791 22 3 20.209 3 18V8Z" />
+      <path
+        className="lumen-icon__detail"
+        d="M10 8V5.0526C10 4.4713 9.5287 4 8.9474 4C6.7673 4 5 5.7673 5 7.9474C5 8.5287 5.4713 9 6.0526 9H9C9.5523 9 10 8.5523 10 8Z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </>
+  ),
+
+  // sheet "name=folder, two-tone=yes" (Frame_41) = menu.svg "Open Folder"
+  // option_2 / right-click "Open Media": Vector 23 folder-with-tab (accent)
+  // + Vector 24 front pocket (base). Mono folder/open-folder = Vector 23 alone.
+  "open-folder": (
+    <>
+      <path
+        className="lumen-icon__detail"
+        d="M21 9.541V17C21 18.657 19.657 20 18 20H6C4.343 20 3 18.657 3 17V6.598C3 5.163 4.163 4 5.598 4H8.197C9.323 4 10.375 4.563 11 5.5C11.625 6.437 12.677 7 13.803 7H18.459C19.862 7 21 8.138 21 9.541Z"
+      />
+      <path d="M21 9V17C21 18.657 19.657 20 18 20H6C4.343 20 3 18.657 3 17V9C3 7.895 3.895 7 5 7H12H19C20.105 7 21 7.895 21 9Z" />
+    </>
+  ),
+
+  // sheet "name=playback, state=selected, two-tone=yes" (Frame_17) =
+  // right-click menu.svg "Playback" option_7: Vector 17 screen rect (base) +
+  // Vector 16 play triangle (accent). Mono playback = the triangle alone.
+  "playback": (
+    <>
+      <path d="M6 6.29V16.21C6 18.69 8.84 20.1 10.81 18.6L17.35 13.64C18.93 12.44 18.93 10.06 17.35 8.86L10.81 3.9C8.84 2.4 6 3.81 6 6.29Z" />
+      <path className="lumen-icon__detail" d="M9 6.25V16.25L15.5 11.25L9 6.25Z" />
+    </>
+  ),
+
+  // sheet "name=check, state=selected, two-tone=yes" (Frame 1_15 region) =
+  // file context menu.svg "Mark as Watched" option_2: Vector 114 open box
+  // (base) + Vector 44 check (accent). Mono check = the bare checkmark.
+  "check": (
+    <>
+      <path d="M18.5 14.5V16.5C18.5 18.157 17.157 19.5 15.5 19.5H6.5C4.843 19.5 3.5 18.157 3.5 16.5V7.5C3.5 5.843 4.843 4.5 6.5 4.5H10.0625" />
+      <path className="lumen-icon__detail" d="M8.5 9.5L12.5 14.5L20.5 4.5" />
+    </>
+  ),
+};
+
+/** The folder alias shares the open-folder two-tone variant (same glyph). */
+twoToneGlyphs.folder = twoToneGlyphs["open-folder"];
+
+/**
+ * w26.i16 — the two-tone face of a glyph: the dedicated variant when one
+ * exists, else the shared mono entry (whose detail markers are tone-split by
+ * CSS under `.lumen-icon--two-tone`).
+ */
+export function getTwoToneGlyph(name: IconName): ReactElement {
+  return twoToneGlyphs[name] ?? glyphs[name];
+}
+
+/** w26.i16 — does this glyph carry a two-tone variant? (test hook) */
+export function hasTwoToneVariant(name: IconName): boolean {
+  return twoToneGlyphs[name] !== undefined;
 }
