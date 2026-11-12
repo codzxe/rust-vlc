@@ -23,15 +23,24 @@ import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
 import { TokenSandbox } from "./tokens/TokenSandbox";
 import { isDesktopShell } from "./client/app-transport";
 
-// Product flow (doc 08 §1.6 screen inventory — every route is a real screen;
-// the placeholder routes are gone since the 2026-11-08 app-shell workstream).
+// Product flow (contract §1 — ONE flow; doc 08 §1.6 screen inventory — every
+// route is a real screen; the placeholder routes are gone since the
+// 2026-11-08 app-shell workstream).
 //
 //   first run (onboarding store absent / complete ≠ true — see
 //   screens/onboarding/onboardingState.ts, persisted as lumen.onboarding.v1)
-//     /            →  /player  →  first-run gate  →  /onboarding (wizard)
-//     /player, /player/music, /miniplayer  →  gate  →  /onboarding
-//     every other route renders directly (card 4.F1 gates ONLY the player
-//     home, so settings/playlist/… stay reachable from the shell)
+//     /            →  /player  →  APP GATE  →  /onboarding (wizard)
+//     w26.i20 (h20 top-5 #3): the first-run gate wraps the WHOLE shell, not
+//     just the player family — pre-onboarding, EVERY AppShell route
+//     (/player, /player/music, /miniplayer, /playlist, /media-info,
+//     /settings/:area — all 13, /discovery, /convert, /keyboard-shortcuts,
+//     /open-network-stream, the 404) redirects into the wizard; only
+//     /onboarding itself and /dev/tokens (dev fixture) render ungated.
+//     Onboarding IS the first-run gate for the product (contract §1); a
+//     hostile first-run user can no longer walk straight into settings or
+//     the dialogs. The e2e suites + dev-shots keep working unchanged: they
+//     seed lumen.onboarding.v1 with complete:true (the same shape since
+//     card 4.F1 — never touched by this change).
 //
 //   after finish or skip (complete = true, persisted)
 //     /            →  /player — the home; the player empty state is the
@@ -39,19 +48,35 @@ import { isDesktopShell } from "./client/app-transport";
 //     /player/music + /miniplayer — the same player screen, route-selected
 //                    variant (data-variant); every open-media CTA dispatches
 //                    the shared CustomEvent exactly ONCE (the player screens'
-//                    own affordances fire it; the AppShell dialog listens)
+//                    own affordances fire it; the AppShell dialog listens).
+//                    The shell keeps its ONE chrome (banner + rail +
+//                    playlists sidebar) on music/mini even though
+//                    Player - Music.png and Miniplayer.png depict rail-less
+//                    floating cards — h20 hops 8–9 called the tradeoff
+//                    "defensible but undocumented"; this is the
+//                    documentation (w26.i20): per-route shell surgery would
+//                    strand navigation (no rail = no way back from
+//                    /miniplayer) and break the music-mode centering math
+//                    that keys on (rail 52 + dock) — the product stays ONE
+//                    shell (h20: "one shell, one rail … genuinely coherent").
 //     /playlist, /media-info, /settings/:area (13 areas; /settings itself
 //                    redirects to /settings/global), /discovery, /convert,
 //     /keyboard-shortcuts, /open-network-stream, /dev/tokens (dev fixture),
 //     *            →  404
 //
-//   ?onboarding=1 — test/screenshot bypass of the first-run gate: player
-//     routes render as if the wizard were finished (dev-shots always starts
-//     a fresh browser profile, so player shots need a way past the gate).
-//     Per-navigation only — nothing is written to the onboarding store, so
-//     the very next param-less navigation is gated again. Enter on the
-//     player routes themselves (/player?onboarding=1, /player/music?…,
-//     /miniplayer?…); the / → /player redirect does not carry the query.
+//   ?onboarding=1 — test/screenshot bypass of the first-run gate, honored on
+//     ANY shell route (w26.i20 extended it from the player family to the
+//     whole shell). Per-navigation only — nothing is written to the
+//     onboarding store, so the very next param-less navigation is gated
+//     again. dev-shots does NOT need it (it seeds the store); player shots
+//     that used it keep working.
+//
+//   provideMain (single main landmark per route, kept aligned with
+//     e2e/a11y.spec.ts): the shell renders the <main> landmark ONLY for
+//     screens that do not render their own — playlist, settings and
+//     media-info ship their own <main>, so their layout passes
+//     provideMain={false} and the page keeps exactly ONE main landmark
+//     (a nested <main> would be invalid HTML and a duplicate landmark).
 
 /**
  * True for the browser dev shell: the app-layer transport probe
@@ -71,7 +96,9 @@ function playerVariantPath(variant: PlayerVariant): string {
 /**
  * `?onboarding=1` on the current location: the first-run gate is treated as
  * satisfied for this navigation (see the flow map above). Read per render —
- * the override never touches the persisted onboarding store.
+ * the override never touches the persisted onboarding store. w26.i20:
+ * honored by the shell layout gate, so it now bypasses on every route, not
+ * just the player family.
  */
 function useOnboardingBypass(): boolean {
   const [searchParams] = useSearchParams();
@@ -79,26 +106,47 @@ function useOnboardingBypass(): boolean {
 }
 
 /**
+ * The first-run gate around the WHOLE shell (w26.i20, h20 top-5 #3 + the
+ * contract §1 story: onboarding is the gate for the product, not five
+ * routes). Until the wizard is finished or skipped, every AppShell route
+ * redirects to /onboarding (RequireOnboarding — the onboarding lane's gate
+ * component, reactive to the same lumen.onboarding.v1 store the wizard
+ * writes); `?onboarding=1` keeps its per-navigation bypass for tests and
+ * screenshots. Used for both shell layout groups below (provideMain true
+ * and false) — the gate is route-tree-level, so screens added to either
+ * group are gated automatically; nobody can opt a route out by forgetting
+ * a wrapper.
+ */
+function GatedShell({ provideMain = true }: { provideMain?: boolean }) {
+  const bypassGate = useOnboardingBypass();
+  const shell = (
+    <AppShell demo={DEMO_SHELL} provideMain={provideMain}>
+      <Outlet />
+    </AppShell>
+  );
+  return bypassGate ? shell : <RequireOnboarding>{shell}</RequireOnboarding>;
+}
+
+/**
  * Player routes. The variant is CONTROLLED by the route (persisted-variant
  * state stays for host-owned free-floating windows); keymap toggles and the
  * miniplayer expand/close affordances call onVariantChange, which routes.
- * The first-run gate wraps the player home unless ?onboarding=1 bypasses it.
+ * w26.i20: the first-run gate moved UP to the shell layout (GatedShell
+ * wraps every AppShell route) — PlayerRoute owns variant→URL routing only.
  */
 function PlayerRoute({ variant }: { variant: PlayerVariant }) {
   const navigate = useNavigate();
-  const bypassGate = useOnboardingBypass();
   // No onOpenMedia here: the player's own affordances (StageOverlays hero,
   // canvas context menu, ControlBar app menu) already dispatch the shell-wide
   // `lumen:open-media` CustomEvent — passing a re-dispatching callback made it
   // fire TWICE per CTA (a13 open issue 4, fixed w26.d1). The prop stays on
   // PlayerScreen's public API for hosts that need the composition seam.
-  const player = (
+  return (
     <PlayerScreen
       variant={variant}
       onVariantChange={(next) => navigate(playerVariantPath(next))}
     />
   );
-  return bypassGate ? player : <RequireOnboarding>{player}</RequireOnboarding>;
 }
 
 export function App() {
@@ -112,14 +160,9 @@ export function App() {
       <Route path="/dev/tokens" element={<TokenSandbox />} />
 
       {/* AppShell routes whose screens do NOT render their own <main> —
-          the shell provides the single main landmark. */}
-      <Route
-        element={
-          <AppShell demo={DEMO_SHELL}>
-            <Outlet />
-          </AppShell>
-        }
-      >
+          the shell provides the single main landmark. w26.i20: the whole
+          group sits inside GatedShell — first-run gate for the product. */}
+      <Route element={<GatedShell />}>
         <Route path="/player" element={<PlayerRoute variant="full" />} />
         <Route path="/player/music" element={<PlayerRoute variant="music" />} />
         <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
@@ -132,14 +175,10 @@ export function App() {
 
       {/* AppShell routes whose screens render their own <main> (playlist,
           settings, media-info) — provideMain=false keeps exactly one main
-          landmark per page; a nested <main> would be invalid HTML. */}
-      <Route
-        element={
-          <AppShell demo={DEMO_SHELL} provideMain={false}>
-            <Outlet />
-          </AppShell>
-        }
-      >
+          landmark per page; a nested <main> would be invalid HTML. w26.i20:
+          the same first-run gate wraps this group — settings, playlists and
+          media-info are no longer reachable pre-onboarding (h20 #3). */}
+      <Route element={<GatedShell provideMain={false} />}>
         <Route path="/playlist" element={<PlaylistScreen />} />
         <Route path="/media-info" element={<MediaInfoScreen />} />
         <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
