@@ -7,6 +7,11 @@ import { GENERATED_AREA_TITLES } from "../generated/Screens";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTINGS_ENTRIES } from "../generated/schema";
 import type { SettingEntry } from "../generated/schema";
+import { SettingsSections } from "../SettingsSections";
+import { schemaSectionsOf } from "../SettingsSections";
+import { InvertedSwitchField } from "../SettingWidgets";
+import { SettingsSliderField } from "../SettingWidgets";
+import { StartupVolumeField } from "../SettingWidgets";
 import { LocalePicker } from "./language/LocalePicker";
 import { ThemeModePicker } from "./appearance/ThemeModePicker";
 import { AccentColorPicker } from "./appearance/AccentColorPicker";
@@ -16,6 +21,7 @@ import { CodecsArea } from "./codecs";
 import { EffectsArea } from "./effects";
 import { VideoArea } from "./video";
 import { AudioArea } from "./audio";
+import { PrivacyArea } from "./privacy";
 import { SubtitlesArea } from "./subtitles";
 import { NetworkArea } from "./privacy-network";
 // w26.b02 — sibling area components under the FIXED module names (wave-B
@@ -80,19 +86,19 @@ type LaneKey = keyof typeof laneKeys;
 
 const laneMsg = (key: LaneKey): MessageKey => key as string as MessageKey;
 
-/** Global = generated language row + the folded About panel (about→global). */
-const GeneratedGlobalScreen = GENERATED_SCREENS.global;
-
+/** Global = schema sections + the About fold BEFORE the Advanced bar (g10-P2-3). */
 function GlobalAreaScreen(): ReactElement {
   return (
-    <>
-      <GeneratedGlobalScreen />
-      <AboutArea />
-    </>
+    <SettingsSections
+      area="global"
+      sections={schemaSectionsOf("global")}
+      beforeAdvanced={<AboutArea />}
+    />
   );
 }
 
-/** Video = VideoArea + the folded codecs rows (codecs→video). */
+/** Video = VideoArea (the frame's 4 sections + Reset picture, areas/video)
+ * + the folded codecs rows (codecs→video) — g12-P0-1. */
 function VideoAreaScreen(): ReactElement {
   return (
     <>
@@ -102,7 +108,9 @@ function VideoAreaScreen(): ReactElement {
   );
 }
 
-/** Audio = AudioArea + the folded effects/EQ surface (effects→audio). */
+/** Audio = AudioArea (the frame's 3 sections with the capability-backed
+ * Output device row interleaved, areas/audio) + the folded effects/EQ
+ * surface last — g12-P0-2. */
 function AudioAreaScreen(): ReactElement {
   return (
     <>
@@ -110,6 +118,29 @@ function AudioAreaScreen(): ReactElement {
       <EffectsArea />
     </>
   );
+}
+
+/**
+ * Playback rows the frame's Tracks section does not carry (g11-P2-2): the
+ * three language/mode rows stay REAL, LIVE settings (the onboarding wizard
+ * writes them; search still finds them) — the playback screen's own
+ * composition just hides them from the frame's 4-row Tracks section.
+ */
+const PLAYBACK_HIDDEN_KEYS: ReadonlySet<string> = new Set([
+  "playback.preferred-audio-languages",
+  "playback.preferred-subtitle-languages",
+  "playback.subtitle-mode",
+]);
+
+/** Playback = the generated frame sections minus the non-frame Tracks rows. */
+function PlaybackAreaScreen(): ReactElement {
+  const sections = schemaSectionsOf("playback").map((section) => ({
+    ...section,
+    entries: section.entries.filter(
+      (row) => !("key" in row && PLAYBACK_HIDDEN_KEYS.has(row.key)),
+    ),
+  }));
+  return <SettingsSections area="playback" sections={sections} />;
 }
 
 export type SettingsAreaId =
@@ -164,16 +195,23 @@ export const SETTINGS_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {
 };
 
 export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
-  // interface, privacy, playback, performance stay pure schema-generated.
+  // interface + performance stay pure schema-generated.
   ...GENERATED_SCREENS,
-  // global composes HERE (both halves already exist: generated language row
-  // + the about fold) — no new sibling file for this area.
-  global: GlobalAreaScreen,
+  // w26.gfix-B compositions (the frame inventories interleave hand rows
+  // with the schema sections — the helpers at the top of this file):
+  global: GlobalAreaScreen, // schema sections + About fold BEFORE the Advanced bar
+  // w26.gfix-B (g11-P2-2): playback composes HERE (the frame's 4-row Tracks
+  // section — the non-frame language/mode rows render via search/onboarding
+  // only, PLAYBACK_HIDDEN_KEYS above).
+  playback: PlaybackAreaScreen,
   // w26.f03 (e05 F3/F7): interface is HAND-AUTHORED — the Figma frame
   // (Settings - interface.svg) carries no "Advanced Options" bar, so the
   // schema sections render flat (areas/interface.tsx); sections stay
-  // schema-driven for the w26.f01 seed.
+  // schema-driven for the w26.gfix-B seed.
   interface: InterfaceArea,
+  // w26.gfix-B (g11-P1-1): privacy owns its composition (areas/privacy —
+  // schema sections + the Clear-history action row in History).
+  privacy: PrivacyArea,
   // controls / recording / extensions: the NEW sibling files own the whole
   // screen (frame order interleaves hand + schema sections — see the SIBLING
   // CONTRACT above); the generated records for these ids are replaced, not
@@ -182,8 +220,8 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   recording: RecordingArea,
   extensions: ExtensionsArea,
   // existing content files, registry-folded (siblings own the files):
-  video: VideoAreaScreen, // VideoArea + codecs fold
-  audio: AudioAreaScreen, // AudioArea + effects/EQ fold
+  video: VideoAreaScreen, // generated frame sections + Reset picture + codecs fold
+  audio: AudioAreaScreen, // generated frame sections + Output device row + effects/EQ fold
   subtitles: SubtitlesArea,
   library: LibraryArea, // playlist-services fold (b07/b08)
   network: NetworkArea,
@@ -237,8 +275,34 @@ const ACCENT_SETTING_KEYS: readonly string[] = ["global.accent-color", "interfac
 const themeEntry = SETTINGS_ENTRIES.find((e) => THEME_SETTING_KEYS.includes(e.key));
 const accentEntry = SETTINGS_ENTRIES.find((e) => ACCENT_SETTING_KEYS.includes(e.key));
 
+// w26.gfix-B: the frame's slider rows (g11-P2-3 / g12-P1-3), the inverted
+// start-playing switch (g11-P2-2) and the Values-1 startup-volume control
+// (g12-P1-4) — every key a real schema key (AC below).
+const SLIDER_WIDGET_KEYS: readonly string[] = [
+  "video.hue",
+  "video.brightness",
+  "video.contrast",
+  "video.saturation",
+  "video.gamma",
+  "playback.default-rate",
+  "audio.maximum-volume",
+  "interface.hide-controls-after",
+];
+
 export const SPECIAL_FIELD_WIDGETS: Readonly<Record<string, ComponentType<{ entry: SettingEntry }>>> = {
   ...(themeEntry !== undefined ? { [themeEntry.key]: ThemeModePicker } : {}),
   ...(accentEntry !== undefined ? { [accentEntry.key]: AccentColorPicker } : {}),
   "global.language": LocalePicker,
+  "playback.start-paused": InvertedSwitchField,
+  "audio.startup-volume": StartupVolumeField,
+  ...Object.fromEntries(SLIDER_WIDGET_KEYS.map((key) => [key, SettingsSliderField])),
 };
+
+/**
+ * Compound-widget keys (g12-P1-4): rendered INSIDE another key's special
+ * widget (the Values-1 startup-volume control owns the mode enum), never as
+ * a standalone row — SettingField returns null for them and the composed
+ * screens filter them out of the section arrays. Defined in SettingWidgets
+ * (beside the compound widget); re-exported here for the registry API.
+ */
+export { WIDGET_GROUPED_KEYS } from "../SettingWidgets";

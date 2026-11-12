@@ -5,11 +5,12 @@
 // composes, in Figma frame order, its hand-authored section WITH the
 // schema-static section generated from the w26.b02 seed:
 //   Add-ons (hand — §C13 y83: the add-on LIST well (y110: 782×192 rx5,
-//     empty in the frame — no rows are exported) + the toolbar row (y311:
-//     search 208×34 rx5, "Find more extensions" 185×32, "Add"/"Remove"
-//     100×32 rx6, right-aligned to the content edge). Dynamic data, NOT
-//     [[setting]] rows — the same class of surface as the hotkey bindings
-//     that live in areas/hotkeys) →
+//     #090909 fill + 2px #191919 stroke — the settings well family, NOT the
+//     surface Well/card; w26.gfix-B, g14-P1-1) + the toolbar row (y311:
+//     search 208×34 rx5 in the same well skin, "Find more extensions"
+//     185×32, "Add"/"Remove" 100×32 rx6 #191919 — ≈15px labels, g14-P2-1/
+//     P2-2). Dynamic data, NOT [[setting]] rows — the same class of surface
+//     as the hotkey bindings that live in areas/hotkeys) →
 //   "Load add-ons on startup" (SCHEMA — <GENERATED_SCREENS.extensions />;
 //     the registry REPLACED the generated record for this id, so the embed
 //     below is the seeded row's only on-route render path).
@@ -20,7 +21,8 @@
 //     (Phase 7, rule F2), so the list seam below is EMPTY — the well
 //     renders the honest quiet empty state, never fabricated rows. When
 //     the extensions command card lands, that seam becomes the live store
-//     (handoff note: docs/waves/w26/logs/w26.b08.md).
+//     (handoff note: docs/waves/w26/findings/w26.g14.md — the b08 log
+//     never landed, agent died mid-wave).
 //   • The toolbar actions ("Find more extensions" / "Add" / "Remove") have
 //     no command to call and no store to mutate: they render
 //     disabled-from-data while wasm-extensions is off (the codecs lane's
@@ -38,13 +40,13 @@ import { Switch } from "../../../components/form/Switch";
 import { TextField } from "../../../components/form/TextField";
 import { ListEmpty } from "../../../components/list/Empty";
 import { ListRow } from "../../../components/list/Row";
-import { Well } from "../../../components/surface/Surface";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b08";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTING_EXTENSIONS_LOAD_ON_STARTUP } from "../generated/schema";
+import "./extensions.css";
 
 /** Add-ons — the w26.b02-seeded load-on-startup row (gate wasm-extensions). */
 const GeneratedExtensionsScreen = GENERATED_SCREENS.extensions;
@@ -141,13 +143,11 @@ export function ExtensionsArea(): ReactElement {
           {t("settings.section.extensions.add-ons")}
         </h2>
         {/* The frame's list well (§C13: 782×192 rx5 #090909 + 2px #191919
-            stroke, empty in the frame). Composed from the surface family:
-            Well (recessed deep fill, r4 — later in surface.css, so it wins
-            the shared background/radius) + the card hairline (1px
-            stroke-border). The frame's exact 2px #191919 stroke and 192px
-            min-height need a settings.css class — handoff note in the lane
-            log. Rows render from the (empty) list seam. */}
-        <Well className="lumen-card" data-testid="extensions-list">
+            stroke, empty in the frame — w26.gfix-B, g14-P1-1: the settings
+            well family replaces the surface Well/card combo; the anatomy
+            lives in extensions.css). Rows render from the (empty) list
+            seam. */}
+        <div className="settings-extensions-list" data-testid="extensions-list">
           {visible.length > 0 ? (
             visible.map((info) => (
               <ExtensionRow
@@ -166,17 +166,14 @@ export function ExtensionsArea(): ReactElement {
               data-testid="extensions-list-empty"
             />
           )}
-        </Well>
-        {/* Toolbar (§C13 y311): search left, the three frame actions
-            right-aligned to the content edge — laid out on the surface
-            family's header-row grammar (.lumen-section-header: flex row; the
-            trailing slot's auto start-margin pushes the actions right; the
-            sheet ships with the Well import). The settings sheet carries no
-            toolbar row of its own — a proper .settings-toolbar class is a
-            settings.css handoff (see the lane log). Actions
-            disabled-from-data while wasm-extensions is off — the codecs F1/F2
-            disabled-with-reason pattern. */}
-        <div className="lumen-section-header" data-testid="extensions-toolbar">
+        </div>
+        {/* Toolbar (§C13 y311): search left (208×34, the settings input
+            well skin — g14-P2-1), the three frame actions right-aligned to
+            the content edge with 10px gaps (frame x619/x814/x924; ≈15px
+            labels, min-width 185px on the primary action — g14-P2-2).
+            Actions disabled-from-data while wasm-extensions is off — the
+            codecs F1/F2 disabled-with-reason pattern. */}
+        <div className="settings-extensions-toolbar" data-testid="extensions-toolbar">
           <TextField
             type="search"
             label={t("settings.extensions.search")}
@@ -185,49 +182,40 @@ export function ExtensionsArea(): ReactElement {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div className="lumen-section-header__trailing">
-            {/* §C0 control inventory: "Small action 100×32 rx6 #191919
-                (#8F8F8F) — 'Browse', 'Clear', 'Add', 'Remove'" — the frame's
-                own Add/Remove anatomy. The lumen-browse__action class IS that
-                settings small-action button (form.css, the BrowseField
-                action); "Find more extensions" is the same family at 185px
-                (auto width ≥ the 100px minimum). Plain <button>s carry the
-                class (the BrowseField's own pattern), disabled-from-data. */}
-            <div className="lumen-browse">
-              <button
-                type="button"
-                className="lumen-browse__action"
-                disabled={actionsDisabled}
-                aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
-                onClick={() => {
-                  /* inert by design: no discovery surface exists yet */
-                }}
-              >
-                {t("settings.extensions.find-more")}
-              </button>
-              <button
-                type="button"
-                className="lumen-browse__action"
-                disabled={actionsDisabled}
-                aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
-                onClick={() => {
-                  /* inert by design: no install command exists yet */
-                }}
-              >
-                {t("settings.extensions.add")}
-              </button>
-              <button
-                type="button"
-                className="lumen-browse__action"
-                disabled={actionsDisabled}
-                aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
-                onClick={() => {
-                  /* inert by design: no removal command exists yet */
-                }}
-              >
-                {t("settings.extensions.remove")}
-              </button>
-            </div>
+          <div className="settings-extensions-toolbar__actions">
+            <button
+              type="button"
+              className="settings-action settings-extensions-toolbar__find"
+              disabled={actionsDisabled}
+              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              onClick={() => {
+                /* inert by design: no discovery surface exists yet */
+              }}
+            >
+              {t("settings.extensions.find-more")}
+            </button>
+            <button
+              type="button"
+              className="settings-action"
+              disabled={actionsDisabled}
+              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              onClick={() => {
+                /* inert by design: no install command exists yet */
+              }}
+            >
+              {t("settings.extensions.add")}
+            </button>
+            <button
+              type="button"
+              className="settings-action"
+              disabled={actionsDisabled}
+              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              onClick={() => {
+                /* inert by design: no removal command exists yet */
+              }}
+            >
+              {t("settings.extensions.remove")}
+            </button>
           </div>
         </div>
         {actionsDisabled ? (

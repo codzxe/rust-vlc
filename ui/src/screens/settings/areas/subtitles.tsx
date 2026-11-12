@@ -47,6 +47,7 @@
 import type { CSSProperties, ReactElement } from "react";
 import { Switch } from "../../../components/form";
 import { SegmentedControl } from "../../../components/form";
+import { TextField } from "../../../components/form";
 import { Icon } from "../../../components/icon";
 import { Dropdown } from "../../../components/menu";
 // Direct-module import (the ShortcutsScreen/ConvertScreen pattern): the
@@ -77,10 +78,15 @@ function InfoGlyph({ note }: { note: string }): ReactElement {
 }
 
 /** One staged row shell — label (+ optional ⓘ) left, control right in the
- * 320px column, the frame's row grammar (settings.css owns the classes). */
+ * 320px column, the frame's row grammar (settings.css owns the classes).
+ * w26.gfix-B (g13-P2-3): rows render FULL-STRENGTH while inert (the
+ * frame's live-looking controls; the honesty lives in the disabled state +
+ * the ⓘ note), and carry data-kind so the row pitch follows the frame's
+ * per-control heights (g13-P1-1). */
 function StagedRow({
   labelKey,
   pendingKey,
+  kind,
   info = false,
   note,
   children,
@@ -88,6 +94,8 @@ function StagedRow({
   labelKey: SubtitlesLabelKey;
   /** Future schemas/settings.toml key this row awaits (data marker). */
   pendingKey: string;
+  /** Row control kind (frame pitch: switches 42, 36px controls 46). */
+  kind: "switch" | "enum" | "text" | "slider" | "color";
   info?: boolean;
   note: string;
   children: ReactElement;
@@ -97,6 +105,7 @@ function StagedRow({
   return (
     <div
       className="settings-field"
+      data-kind={kind}
       data-setting-key={`pending.${pendingKey}`}
       data-staged="subtitles-settings-seed"
     >
@@ -129,7 +138,7 @@ function StagedToggleRow({
   const m = useSubtitlesMsg();
   const label = m(labelKey);
   return (
-    <StagedRow labelKey={labelKey} pendingKey={pendingKey} info={info} note={note}>
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="switch" info={info} note={note}>
       <Switch
         checked={checked}
         onChange={() => {
@@ -160,7 +169,7 @@ function StagedDropdownRow({
   const m = useSubtitlesMsg();
   const label = m(labelKey);
   return (
-    <StagedRow labelKey={labelKey} pendingKey={pendingKey} info={info} note={note}>
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="enum" info={info} note={note}>
       <Dropdown
         options={[{ value: optionKey, labelKey: optionKey }]}
         value={optionKey}
@@ -172,6 +181,30 @@ function StagedDropdownRow({
         density="compact"
         disabled
       />
+    </StagedRow>
+  );
+}
+
+/** A staged text row — the frame's input well (no chevron; g13-P2-2: the
+ * Font row is a text input, not a dropdown). */
+function StagedTextRow({
+  labelKey,
+  valueKey,
+  pendingKey,
+  info = false,
+  note,
+}: {
+  labelKey: SubtitlesLabelKey;
+  valueKey: SubtitlesLabelKey;
+  pendingKey: string;
+  info?: boolean;
+  note: string;
+}): ReactElement {
+  const m = useSubtitlesMsg();
+  const label = m(labelKey);
+  return (
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="text" info={info} note={note}>
+      <TextField label={label} hideLabel value={m(valueKey)} disabled onChange={() => undefined} />
     </StagedRow>
   );
 }
@@ -195,7 +228,7 @@ function StagedSegmentedRow({
   const m = useSubtitlesMsg();
   const label = m(labelKey);
   return (
-    <StagedRow labelKey={labelKey} pendingKey={pendingKey} info={info} note={note}>
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="enum" info={info} note={note}>
       <SegmentedControl
         label={label}
         options={options.map((option) => ({ value: option.value, label: m(option.labelKey) }))}
@@ -226,7 +259,7 @@ function StagedColorRow({
   const m = useSubtitlesMsg();
   const value = m(valueKey);
   return (
-    <StagedRow labelKey={labelKey} pendingKey={pendingKey} note={note}>
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="color" note={note}>
       <div className="settings-area-subtitles-color" data-staged-value={value}>
         <span className="settings-area-subtitles-color-hex">{value}</span>
         <span
@@ -258,7 +291,7 @@ function StagedOpacityRow({
   const label = m(labelKey);
   const percent = (value: number): string => `${value}%`;
   return (
-    <StagedRow labelKey={labelKey} pendingKey={pendingKey} note={note}>
+    <StagedRow labelKey={labelKey} pendingKey={pendingKey} kind="slider" note={note}>
       <div className="settings-area-subtitles-opacity">
         <div className="settings-area-subtitles-opacity-track">
           <Slider
@@ -308,9 +341,9 @@ export function SubtitlesArea(): ReactElement {
         <h2 className="settings-section__title">
           {m("settings.section.subtitles.tracks-languages")}
         </h2>
-        <p className="settings-area-subtitles-staged" role="note">
-          {staged}
-        </p>
+        {/* w26.gfix-B (g13-P1-1): the per-section staged notes are GONE — the
+            honesty moved into the 7 ⓘ titles (the frame carries no notes;
+            the rows must fit the 865px window). */}
         <StagedToggleRow
           labelKey="settings.subtitles.enable"
           checked
@@ -336,9 +369,6 @@ export function SubtitlesArea(): ReactElement {
 
       <section className="settings-section" data-section="loading">
         <h2 className="settings-section__title">{m("settings.section.subtitles.loading")}</h2>
-        <p className="settings-area-subtitles-staged" role="note">
-          {staged}
-        </p>
         <StagedToggleRow
           labelKey="settings.subtitles.auto-load"
           checked
@@ -359,12 +389,11 @@ export function SubtitlesArea(): ReactElement {
         <h2 className="settings-section__title">
           {m("settings.section.subtitles.appearance")}
         </h2>
-        <p className="settings-area-subtitles-staged" role="note">
-          {staged}
-        </p>
-        <StagedDropdownRow
+        {/* w26.gfix-B (g13-P2-2): Font is the frame's TEXT input well (no
+            chevron), not a dropdown. */}
+        <StagedTextRow
           labelKey="settings.subtitles.font"
-          optionKey="settings.subtitles.font.system-sans-serif"
+          valueKey="settings.subtitles.font.system-sans-serif"
           pendingKey="subtitles.font"
           info
           note={staged}

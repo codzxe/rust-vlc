@@ -4,6 +4,7 @@ import type { MessageKey } from "../../../i18n/messages";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.f03";
+import { keys as gfixKeys } from "../../../i18n/keys/w26.gfixB";
 import { SETTINGS_AREAS } from "../generated/schema";
 import { useSettingsSearch } from "../search";
 import { SettingField } from "../SettingField";
@@ -19,26 +20,30 @@ import { SettingField } from "../SettingField";
 // (SPECIAL_FIELD_WIDGETS), type controls, dirty/restart contracts and
 // search filtering all stay framework-driven.
 //
-// Sections stay SCHEMA-DRIVEN (SETTINGS_AREAS, the w26.f01 seed): the
-// frame rows (Skin "Use a custom skin"/"Skin file", Window "Play video
-// inside main window"/"Resize window to fit video"/…, Playback Controls
-// "Hide after" slider, …) render here the moment the seed carries them —
-// no fabricated rows before that (config-never-invents, doc 05 §6.4).
+// w26.gfix-B (g10-P1-1): the seed now carries the frame's full inventory
+// (Skin: Use a custom skin · Skin file; Window: the 7 frame rows incl. the
+// relabeled "Remember window size and position"; Playback Controls: the
+// "Hide after" slider). The frame's FOURTH section — "Notifications and
+// System Tray" (y837) — is a HEADER ONLY (its rows sit below the exported
+// fold; no [[setting]] rows exist), so it renders as the bare hand header
+// below the schema sections.
 
 type LaneKey = keyof typeof laneKeys;
 type RegistryKey = keyof typeof registryKeys;
 type FixerKey = keyof typeof fixerKeys;
-/** Pre-registration seam: b01 + b02 + f03 lane keys (see w26.f03.ts). */
+type GfixKey = keyof typeof gfixKeys;
+/** Pre-registration seam: b01 + b02 + f03 + gfixB lane keys. */
 const laneCatalog: Readonly<Record<string, string>> = {
   ...registryKeys,
   ...laneKeys,
   ...fixerKeys,
+  ...gfixKeys,
 };
 
 /** useInterfaceMsg — useMsg + the settings lanes' pre-registration keys. */
 function useInterfaceMsg() {
   const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | FixerKey): string =>
+  return (key: MessageKey | LaneKey | RegistryKey | FixerKey | GfixKey): string =>
     m(key as MessageKey) ?? laneCatalog[key];
 }
 
@@ -63,6 +68,12 @@ export function InterfaceArea(): ReactElement {
           </section>
         );
       })}
+      {/* Frame C2 y837: header-only section — the frame exports no rows
+       * below it. Honest absence: no fabricated rows, the header stays to
+       * match the frame's section inventory. */}
+      <section className="settings-section" data-section="notifications">
+        <h2 className="settings-section__title">{t("settings.section.interface.notifications")}</h2>
+      </section>
     </div>
   );
 }

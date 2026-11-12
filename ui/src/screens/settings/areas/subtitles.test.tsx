@@ -92,9 +92,10 @@ describe("SubtitlesArea — the frame's three sections (Settings - subtitles.svg
   it("Appearance: font/size/values/colors/opacity/shadow per the frame", () => {
     const { sections } = renderArea();
     const section = within(sections[2]!);
-    // Font — dropdown "System, sans-serif".
-    expect(section.getByRole("button", { name: "Font" })).toBeDisabled();
-    expect(section.getByText("System, sans-serif")).toBeInTheDocument();
+    // Font — the frame's TEXT input well (318×34, no chevron; g13-P2-2).
+    const font = section.getByRole("textbox", { name: "Font" }) as HTMLInputElement;
+    expect(font).toBeDisabled();
+    expect(font).toHaveValue("System, sans-serif");
     // Size values — segmented Relative (active) | Pixels.
     const segmented = section.getByRole("radiogroup", { name: "Size values" });
     expect(segmented).toBeInTheDocument();
@@ -156,13 +157,10 @@ describe("SubtitlesArea — honest staged surface (config-never-invents)", () =>
     for (const row of staged) {
       expect(row.getAttribute("data-setting-key")).toMatch(/^pending\.subtitles\./);
     }
-    // One quiet honest note per section naming the awaited seam, and the 7
-    // ⓘ glyphs carry the same note as their accessible name.
-    const notes = screen.getAllByRole("note");
-    expect(notes).toHaveLength(3);
-    for (const note of notes) {
-      expect(note).toHaveTextContent("Staged — controls activate when the subtitles settings seed lands");
-    }
+    // w26.gfix-B (g13-P1-1): NO in-flow note lines — the frame carries none
+    // (they pushed 3 rows below the 865px fold); the honesty lives in the 7
+    // ⓘ titles (the staged note as their accessible name).
+    expect(screen.queryAllByRole("note")).toHaveLength(0);
     expect(
       screen.getAllByRole("img", {
         name: "Staged — controls activate when the subtitles settings seed lands",

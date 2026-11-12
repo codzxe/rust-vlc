@@ -161,6 +161,215 @@
   overflow-wrap: anywhere;
 }
 
+/* ------------------------------------------------ slider rows (g12-P1-3) */
+
+/* The frame's settings slider (§C0 "Slider": track 320×16 rx6 #090909,
+ * flat #371F06 fill 12 rx4 inset 2, thumb 8×24 rx4 #AB6314, optional
+ * ticks + ≈12px #6B6B6B scale labels under the track) — the base Slider
+ * primitive restyled in place, the subtitles-area precedent. */
+.settings-field__control .settings-slider {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.settings-field__control .settings-slider .lumen-slider {
+  width: 100%;
+  height: 32px; /* hit band: 16px track + the 24px thumb */
+}
+
+.settings-field__control .settings-slider .lumen-slider__track {
+  top: calc(50% - 8px); /* 16px track centered in the 32px band */
+  height: 16px; /* frame: 320×16 */
+  background: var(--color-surface); /* frame well #090909 */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.settings-field__control .settings-slider .lumen-slider__fill {
+  top: 2px; /* frame: 12px fill, 2px inset */
+  bottom: 2px;
+  background: var(--color-accent-tinted); /* frame: FLAT #371F06 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+.settings-field__control .settings-slider .lumen-slider__thumb {
+  top: calc(50% - 12px); /* 24px thumb, 4px overhang each side */
+  height: 24px; /* frame: 8×24 */
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+/* Degree ticks (§C0: 6px #1A1611 sw2 — surface-muted, the subtitles-area
+ * mapping; decorative, aria-hidden). */
+.settings-field__control .settings-slider__ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.settings-field__control .settings-slider__tick {
+  position: absolute;
+  top: calc(50% - 3px); /* 6px mark centered on the track centerline */
+  width: 2px;
+  height: 6px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-hairline);
+  transform: translateX(-50%);
+}
+
+/* Scale labels (§C0: ≈12px #6B6B6B under the track; the anchors are
+ * inline-positioned by the widget — first left-flush, last right-flush). */
+.settings-field__control .settings-slider__scale {
+  position: relative;
+  height: 18px;
+  margin-top: 4px;
+  font-size: var(--font-size-caption); /* frame: ≈12px */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-field__control .settings-slider__scale-mark {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+/* ------------------------------------- Values-1 radio rows (g12-P1-4) */
+
+/* The Startup volume control (a19 B5): 320×78 rx6 #090909 well, two
+ * 316×36 rx4 rows (2px gaps) — selected #371F06 + #D37918 label,
+ * unselected #191919 + #6B6B6B, nested input 182×32 rx2 @0.4 opacity
+ * while unselected. */
+.settings-field__control .settings-values {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* frame: rows flush, 2px gaps */
+  width: 100%;
+  padding: 2px; /* frame: 316 = 320 − 2×2 */
+  box-sizing: border-box;
+  border-radius: var(--radius-control); /* frame: rx6 */
+  background: var(--color-surface); /* frame: #090909 */
+}
+
+.settings-field__control .settings-values__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px; /* frame: 316×36 */
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  background: var(--color-surface-panel); /* frame: unselected #191919 */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+}
+
+.settings-field__control .settings-values__row--selected {
+  background: var(--color-accent-tinted); /* frame: selected #371F06 */
+  color: var(--color-accent); /* frame: label #D37918 */
+}
+
+/* Row 1 — the full-cell hit: the ROW ITSELF is a <button>, so it needs the
+ * app font stack explicitly (Chromium's UA button font is 13.33px Arial —
+ * w26.gfix-B caught it rendering "Remember last volume" in Arial). Box
+ * anatomy (flex/36px/padding/radius/background) flows from the
+ * .settings-values__row rule above — same element, lower specificity. */
+.settings-field__control .settings-values > button.settings-values__row {
+  border: none;
+  font: inherit; /* kills the UA button font (Arial 13.33px) */
+  font-size: var(--font-size-section); /* frame: ≈15px */
+  text-align: start;
+  cursor: pointer;
+}
+
+/* Row 2's radio — content-sized (flex 0 0 auto): a `width: 100%` here would
+ * squeeze the nested input out of its frame 182×32 (w26.gfix-B probe: the
+ * input measured 123px before the split). */
+.settings-field__control .settings-values__radio {
+  flex: 0 0 auto;
+  min-width: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-section); /* frame: ≈15px */
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-field__control .settings-values__row--with-input {
+  padding-right: 2px; /* frame: nested input 2px from the row's right edge */
+}
+
+/* The nested "Always starts at:" radio — content-sized next to the input
+ * (the label stays the row's own text color); the full anatomy lives in the
+ * .settings-values__radio rule above. */
+
+.settings-field__control .settings-values__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-section); /* frame: ≈15px */
+}
+
+/* The nested input 182×32 rx2 #090909 (a19 B5) — wrapper carries the
+ * frame's 0.4-opacity disabled presentation. */
+.settings-field__control .settings-values__input-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 182px; /* frame: input width */
+  margin-left: auto; /* pinned to the row's right edge */
+}
+
+.settings-field__control .settings-values__input-wrap--disabled {
+  opacity: 0.4; /* frame: disabled nested input group @ 0.4 */
+}
+
+.settings-field__control .settings-values__input {
+  width: 100%;
+  height: 32px; /* frame: 182×32 */
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: none;
+  border-radius: 2px; /* frame: rx2 (micro radius) */
+  background: var(--color-surface); /* frame: #090909 */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  font: inherit;
+  font-size: var(--font-size-section);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-field__control .settings-values__input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------- path rows (g10-P2-2) */
+
+/* 208×34 well + Browse 100×32 (§C0: input+Browse variant) — the input
+ * yields the trailing 100px, the frame's 11px gap at the nearest token. */
+.settings-field__control .settings-field__path {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inset);
+  width: 100%;
+}
+
+.settings-field__control .settings-field__path .lumen-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-field__control .settings-field__path .settings-action {
+  flex: 0 0 auto;
+}
+
+/* Any BrowseField-hosted action inside settings rows keeps the ≈15px label
+ * (g14-P2-2: the shared caption-size default is this surface's deviation). */
+.settings-field__control .lumen-browse__action {
+  font-size: var(--font-size-section); /* frame: ≈14–15px glyph */
+}
+
 /* Row grammar (e06 F2): the row's VISIBLE label is the lead span; the
  * control's own <label> stays associated (a11y) but visually hidden, so the
  * text never prints twice. */

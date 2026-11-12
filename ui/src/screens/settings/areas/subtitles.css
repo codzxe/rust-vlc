@@ -16,14 +16,9 @@
 
 /* ------------------------------------------------- honest staged note */
 
-/* One quiet single-line note per section (e07 F7 compact direction — no
- * per-row badges: the note names the seam, every row carries the
- * data-staged marker instead). */
-.settings-area-subtitles-staged {
-  margin: -4px 0 12px; /* tucks into the section header's 12px gap */
-  font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
-}
+/* w26.gfix-B (g13-P1-1): the per-section staged notes are GONE — the 7 ⓘ
+ * glyphs carry the same copy as their accessible names (nothing extra
+ * renders between a header and its first row; the frame carries no notes). */
 
 /* The ⓘ info glyph the frame pins after 7 labels (frame: 16px circle,
  * stroke #404040 — stroke-border). */
@@ -48,9 +43,28 @@
 /* ---------------------------------------------------- segmented row */
 
 /* frame: the Values.svg control fills the column; two 157×32 rx4 segments
- * stretch inside the 320×36 rx6 track. */
+ * stretch inside the 320×36 rx6 track.
+ * w26.gfix-B (g13-P2-4): ≈15px labels (font-size-section) and EQUAL cells
+ * (flex-basis 0) — the shared form.css caption-size/auto-basis defaults
+ * are this screen's deviation; scoped here so the primitive keeps its own
+ * grammar everywhere else. */
 .settings-area-subtitles .lumen-segmented {
   width: 100%;
+}
+
+.settings-area-subtitles .lumen-segmented__segment {
+  flex: 1 1 0; /* frame: 2 × 157 equal cells */
+  font-size: var(--font-size-section); /* frame: labels ≈15px */
+}
+
+/* w26.gfix-B (g13-P2-3): staged controls render FULL-STRENGTH — the frames
+ * show live-looking controls; the honesty lives in the disabled state
+ * (inert, never fired) + the ⓘ notes, not in dimming. */
+.settings-area-subtitles .lumen-switch:disabled,
+.settings-area-subtitles .lumen-dropdown__trigger:disabled,
+.settings-area-subtitles .lumen-segmented__segment:disabled,
+.settings-area-subtitles .lumen-field__control:disabled {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------- color rows */
@@ -67,7 +81,8 @@
   padding-inline: 17px 5px; /* frame: hex x721 − field x704 / swatch inset */
   border-radius: var(--radius-control); /* frame: rx6 */
   background: var(--color-surface); /* frame well #090909 */
-  opacity: var(--opacity-disabled); /* staged — matches the disabled fields */
+
+  /* w26.gfix-B (g13-P2-3): full-strength staged presentation (no dimming). */
 }
 
 .settings-area-subtitles-color-hex {

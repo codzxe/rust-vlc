@@ -22,7 +22,12 @@
 
 /* The app backdrop: fills the shell's main region and dims it — the window
  * floats over it (no frame shows the backdrop; flat surface + the window's
- * shadow carries the float). */
+ * shadow carries the float).
+ * w26.gfix-B (g13-P1-1 + the verifiers' 837-vs-865 note): stage padding
+ * 16→2px — at 1440×900 the window now measures the frames' exact
+ * 1048×865 (previously 837: the 14px lost to padding pushed 3 subtitles
+ * rows below the fold). Inside smaller stages the window still shrinks
+ * (min(865px, 100%)) and the content column scrolls. */
 .settings-screen {
   display: flex;
   align-items: center;
@@ -31,7 +36,7 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  padding: 16px;
+  padding: 2px;
   background: var(--color-surface);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
@@ -325,16 +330,30 @@
   outline-offset: -2px;
 }
 
+/* w26.gfix-B: the f03 mount focus ("focus starts on the active row") must
+ * not paint the keyboard ring at rest — the frames' active row carries the
+ * #222222 fill only, and Chromium matches :focus-visible for script focus
+ * before any user interaction. SettingsScreen clears the marker on the
+ * first keydown, so real keyboard use gets the ring back. */
+.settings-nav__item[data-mount-focus]:focus-visible {
+  outline: none;
+}
+
 /* ------------------------------------------------------------ content */
 
-/* frame: scrollable column x240–1024 (784px wide, 24px side padding). */
+/* frame: scrollable column x240–1024 (784px wide, 24px side padding).
+ * w26.gfix-B (g13-P1-1 / g10-P3-3): first section header 33px below the
+ * top bar (frame: header top y83, bar ends y50) — was 44. No bottom
+ * padding: the frames end the column at the last row (video.svg even clips
+ * a row at the window edge) — a reserved gutter would invent scroll past
+ * the last control (the subtitles frame fits with ZERO slack). */
 .settings-content {
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 44px 24px 24px; /* frame: first header top y95 in the 865 window */
+  padding: 33px 24px 0; /* frame: header y83 = 33px below the bar */
 }
 
 .settings-screen__results {
@@ -354,13 +373,42 @@
 }
 
 /* Section — header + rows directly on the window (the frames carry NO
- * section cards). */
+ * section cards). w26.gfix-B (g13-P1-1): section gap ~38px total (the
+ * 28px margin + the last row's 10px margin; frame subtitles headers
+ * y83/y276/y423 — last row bottom → next header ≈ 38). */
 .settings-section {
-  margin-bottom: 34px; /* frame: ~44px section gap incl. the row margin */
+  margin-bottom: 28px;
+}
+
+/* w26.gfix-B (g13-P1-1 final): the subtitles frame packs its 14 rows + the
+ * opacity scale inside the 815px viewport with zero slack (its own last row
+ * overshoots the window edge by 2px), so the area tightens each section
+ * boundary by 2px (sub-visual) to clear the fold with no trailing scroll. */
+.settings-area-subtitles .settings-section {
+  margin-bottom: 26px; /* frame: 2×2px reclaimed across the 2 boundaries */
+}
+
+/* w26.gfix-B (g10-P1-1): the interface frame ends at the Notifications
+ * header (y837 glyph top) INSIDE the window — 5px per boundary reclaims the
+ * header’s 5px overshoot. */
+.settings-sections[data-settings-area="interface"] .settings-section {
+  margin-bottom: 23px;
+}
+
+/* w26.gfix-B (g13-P1-1): the frames end the column at the last control —
+ * trailing section/row margins must not invent scroll past it (placed AFTER
+ * the scoped shaves so the equal-specificity last-child rule wins; the
+ * matching last-row rule lives below, after the row rules, for
+ * no-descending-specificity). */
+.settings-sections .settings-section:last-child {
+  margin-bottom: 0;
 }
 
 .settings-section__title {
-  margin: 0 0 12px; /* frame: header bottom ~y114, first row top y114 */
+  margin: 0 0 7px; /* frame: header block + gap = 31px to the first row top
+                      * (header bottom ~y83+19, row y114) — w26.gfix-B
+                      * (g13-P3-11): was 12px, 5px over the frame on every
+                      * section */
   font-size: var(--font-size-label); /* frame: ≈16–17px */
   font-weight: var(--font-weight-medium);
   color: var(--color-content-primary); /* frame: #C6C6C6 */
@@ -369,7 +417,9 @@
 /* ------------------------------------------------------------ rows */
 
 /* One settings row: label left, control right in the 320px column
- * (frame: controls x704–1024). */
+ * (frame: controls x704–1024). w26.gfix-B (g13-P3-11): the pitch follows
+ * the frame's per-control heights (§C0: 42px for 32px controls / 46–47 for
+ * 36px) — switches, action buttons and sliders tighten to 42. */
 .settings-field__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) min(320px, 40vw); /* frame: 320px */
@@ -377,6 +427,19 @@
   align-items: center;
   min-height: 36px; /* frame: 36px controls / 42–46px pitch */
   margin-bottom: 10px;
+}
+
+/* frame: toggle rows pitch 42 (§C0) — 32px switches/actions. */
+.settings-field[data-kind="switch"] .settings-field__row,
+.settings-field[data-kind="action"] .settings-field__row,
+.settings-field[data-kind="slider"] .settings-field__row {
+  margin-bottom: 6px;
+}
+
+/* frame: the Values-1 startup-volume block (320×78, C6 y379–457) — ~17px
+ * gap to the next row (volume-step input @y474). */
+.settings-field[data-kind="values"] .settings-field__row {
+  margin-bottom: 16px;
 }
 
 /* Lead cluster — label + badges + per-field reset, one line, wraps when
@@ -470,6 +533,83 @@
   color: var(--color-content-secondary);
 }
 
+/* ------------------------------------------------- action buttons */
+
+/* The frame's settings action buttons (§C0 control inventory: "Small
+ * action 100×32 rx6 #191919 (#8F8F8F)" — Browse / Clear / Reset / Add /
+ * Remove; "Full-width action 320×32" — Edit Keyboard Shortcuts / Reset /
+ * Rescan; w26.gfix-B). */
+.settings-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 100px; /* frame: small action width */
+  height: 32px; /* frame */
+  padding: 0 var(--space-inset);
+  border: none;
+  border-radius: var(--radius-control); /* frame: r6 */
+  background: var(--color-surface-panel); /* frame: flat #191919, no stroke */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  font: inherit;
+  font-size: var(--font-size-section); /* frame: ≈15px labels */
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease-out,
+    color var(--motion-duration-fast) ease-out;
+}
+
+.settings-action--wide {
+  width: 100%; /* frame: full-width 320×32 action */
+}
+
+.settings-action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.settings-action:disabled {
+  opacity: var(--opacity-disabled); /* honest inert action (reason via note/title) */
+  cursor: default;
+}
+
+.settings-action:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+  color: var(--color-content-bright);
+}
+
+.settings-action:active:not(:disabled) {
+  background: var(--color-surface-selected);
+}
+
+/* ------------------------------------------------- about / staged notes */
+
+/* About rows (updates-about, g10-P2-3): value right in the control column. */
+.settings-about__value {
+  justify-self: end;
+  font-size: var(--font-size-section);
+  color: var(--color-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* One quiet staged-area note (the controls/Remotes pattern — names the
+ * awaited seam; the frame carries no note, so it stays a single line). */
+.settings-area-staged-note {
+  margin: 2px 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* Staged rows render FULL-STRENGTH while inert (w26.gfix-B, g13-P2-3 /
+ * g12-P3-8): the frames show live-looking controls; the honesty lives in the
+ * disabled state + the row's data-staged marker, never in dimming. The
+ * subtitles area carries the same rule scoped in subtitles.css. */
+[data-staged] .lumen-switch:disabled,
+[data-staged] .lumen-dropdown__trigger:disabled,
+[data-staged] .lumen-field__control:disabled {
+  opacity: 1;
+}
+
 /* Badges — restart-required flag (quiet, in-row after the label; the
  * advanced badge is gone: advanced entries live behind the disclosure). */
 .settings-badge {
@@ -538,6 +678,13 @@
   border-radius: 2px; /* frame: r2 sharp sub-family */
   padding-inline-start: var(--space-grid);
   margin-inline-start: calc(var(--space-grid) * -1);
+}
+
+/* w26.gfix-B (g13-P1-1): the last section's last row drops its trailing
+ * margin too — the frames end the column at the last control with zero
+ * reserved gutter (see the sibling rule above the row rules). */
+.settings-sections .settings-section:last-child .settings-field:last-child .settings-field__row {
+  margin-bottom: 0;
 }
 
 /* Sibling areas/* fields still render the stacked head/badges grammar —

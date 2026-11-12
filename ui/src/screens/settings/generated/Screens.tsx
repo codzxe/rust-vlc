@@ -10,8 +10,10 @@ import { SettingsSections } from "../SettingsSections";
 import type { GeneratedSection } from "../SettingsSections";
 import type { SettingEntry } from "./schema";
 import { SETTING_GLOBAL_LANGUAGE } from "./schema";
+import { SETTING_INTERFACE_THEME } from "./schema";
 import { SETTING_GLOBAL_ACCENT_COLOR } from "./schema";
 import { SETTING_GLOBAL_SHOW_DIALOGS } from "./schema";
+import { SETTING_GLOBAL_UPDATE_CHECKS } from "./schema";
 import { SETTING_GLOBAL_DEVELOPER_MODE } from "./schema";
 import { SETTING_GLOBAL_SAVE_LOG } from "./schema";
 import { SETTING_GLOBAL_LOG_FILE } from "./schema";
@@ -20,17 +22,19 @@ import { SETTING_GLOBAL_SHOW_MINOR_WARNINGS } from "./schema";
 import { SETTING_GLOBAL_EXTRA_CLI_OPTIONS } from "./schema";
 import { SETTING_GLOBAL_LOG_FORMAT } from "./schema";
 import { SETTING_GLOBAL_COLLECT_PLAYBACK_STATISTICS } from "./schema";
-import { SETTING_INTERFACE_THEME } from "./schema";
-import { SETTING_INTERFACE_START_MAXIMIZED } from "./schema";
+import { SETTING_INTERFACE_USE_CUSTOM_SKIN } from "./schema";
+import { SETTING_INTERFACE_SKIN_FILE } from "./schema";
+import { SETTING_INTERFACE_PLAY_VIDEO_IN_MAIN_WINDOW } from "./schema";
+import { SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO } from "./schema";
 import { SETTING_INTERFACE_REMEMBER_WINDOW_GEOMETRY } from "./schema";
-import { SETTING_INTERFACE_WINDOW_WIDTH } from "./schema";
-import { SETTING_INTERFACE_WINDOW_HEIGHT } from "./schema";
-import { SETTING_INTERFACE_WINDOW_MIN_WIDTH } from "./schema";
-import { SETTING_INTERFACE_WINDOW_MIN_HEIGHT } from "./schema";
-import { SETTING_PRIVACY_TELEMETRY } from "./schema";
-import { SETTING_PRIVACY_CRASH_REPORTS } from "./schema";
-import { SETTING_PRIVACY_USAGE_STATS } from "./schema";
-import { SETTING_PRIVACY_UPDATE_CHECKS } from "./schema";
+import { SETTING_INTERFACE_KEEP_ABOVE } from "./schema";
+import { SETTING_INTERFACE_WINDOW_DECORATIONS } from "./schema";
+import { SETTING_INTERFACE_FILENAME_IN_TITLE_BAR } from "./schema";
+import { SETTING_INTERFACE_OPEN_FULLSCREEN_ON } from "./schema";
+import { SETTING_INTERFACE_START_IN_COMPACT_MODE } from "./schema";
+import { SETTING_INTERFACE_AUTO_HIDE_CONTROLS } from "./schema";
+import { SETTING_INTERFACE_HIDE_CONTROLS_AFTER } from "./schema";
+import { SETTING_INTERFACE_SHOW_CONTROLS_IN_FULLSCREEN } from "./schema";
 import { SETTING_PRIVACY_SAVE_RECENT_ITEMS } from "./schema";
 import { SETTING_PRIVACY_REMEMBER_PLAYBACK_POSITION } from "./schema";
 import { SETTING_PRIVACY_NEVER_REMEMBER_MATCHING } from "./schema";
@@ -51,15 +55,15 @@ import { SETTING_CONTROLS_MOUSE_REVERSE_SCROLL_DIRECTION } from "./schema";
 import { SETTING_PLAYBACK_PREFERRED_AUDIO_LANGUAGES } from "./schema";
 import { SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES } from "./schema";
 import { SETTING_PLAYBACK_SUBTITLE_MODE } from "./schema";
+import { SETTING_PLAYBACK_RESUME } from "./schema";
+import { SETTING_PLAYBACK_START_PAUSED } from "./schema";
+import { SETTING_PLAYBACK_DEFAULT_RATE } from "./schema";
+import { SETTING_PLAYBACK_PAUSE_ON_AUDIO_FOCUS } from "./schema";
 import { SETTING_PLAYBACK_HW_DECODE_POLICY } from "./schema";
 import { SETTING_PLAYBACK_PREFERRED_VIDEO_QUALITY } from "./schema";
 import { SETTING_PLAYBACK_MENU_LANGUAGE } from "./schema";
 import { SETTING_PLAYBACK_DEFAULT_AUDIO_TRACK } from "./schema";
 import { SETTING_PLAYBACK_DEFAULT_SUBTITLE_TRACK } from "./schema";
-import { SETTING_PLAYBACK_START_PAUSED } from "./schema";
-import { SETTING_PLAYBACK_DEFAULT_RATE } from "./schema";
-import { SETTING_PLAYBACK_RESUME } from "./schema";
-import { SETTING_PLAYBACK_PAUSE_ON_AUDIO_FOCUS } from "./schema";
 import { SETTING_PLAYBACK_REPEAT_MODE } from "./schema";
 import { SETTING_PLAYBACK_SHUFFLE } from "./schema";
 import { SETTING_PLAYBACK_STOP_AFTER_EACH_ITEM } from "./schema";
@@ -82,6 +86,7 @@ import { SETTING_AUDIO_ENABLE } from "./schema";
 import { SETTING_AUDIO_SPEAKER_SETUP } from "./schema";
 import { SETTING_AUDIO_MAXIMUM_VOLUME } from "./schema";
 import { SETTING_AUDIO_STARTUP_VOLUME } from "./schema";
+import { SETTING_AUDIO_STARTUP_VOLUME_MODE } from "./schema";
 import { SETTING_AUDIO_VOLUME_STEP } from "./schema";
 import { SETTING_AUDIO_NORMALIZE_LOUDNESS } from "./schema";
 import { SETTING_AUDIO_TARGET_LEVEL } from "./schema";
@@ -122,14 +127,11 @@ function GlobalScreen(): ReactElement {
     <SettingsSections
       area="global"
       sections={[
-        section("language", "settings.section.global.language", [
-          SETTING_GLOBAL_LANGUAGE,
-        ]),
         section("appearance", "settings.section.global.appearance", [
-          SETTING_GLOBAL_ACCENT_COLOR,
+          SETTING_GLOBAL_LANGUAGE, SETTING_INTERFACE_THEME, SETTING_GLOBAL_ACCENT_COLOR,
         ]),
         section("startup", "settings.section.global.startup", [
-          SETTING_GLOBAL_SHOW_DIALOGS,
+          SETTING_GLOBAL_SHOW_DIALOGS, SETTING_GLOBAL_UPDATE_CHECKS,
         ]),
         section("diagnostics", "settings.section.global.diagnostics", [
           SETTING_GLOBAL_DEVELOPER_MODE, SETTING_GLOBAL_SAVE_LOG, SETTING_GLOBAL_LOG_FILE, SETTING_GLOBAL_LOG_DETAILS, SETTING_GLOBAL_SHOW_MINOR_WARNINGS, SETTING_GLOBAL_EXTRA_CLI_OPTIONS, SETTING_GLOBAL_LOG_FORMAT, SETTING_GLOBAL_COLLECT_PLAYBACK_STATISTICS,
@@ -145,11 +147,14 @@ function InterfaceScreen(): ReactElement {
     <SettingsSections
       area="interface"
       sections={[
-        section("appearance", "settings.section.interface.appearance", [
-          SETTING_INTERFACE_THEME,
+        section("skin", "settings.section.interface.skin", [
+          SETTING_INTERFACE_USE_CUSTOM_SKIN, SETTING_INTERFACE_SKIN_FILE,
         ]),
         section("window", "settings.section.interface.window", [
-          SETTING_INTERFACE_START_MAXIMIZED, SETTING_INTERFACE_REMEMBER_WINDOW_GEOMETRY, SETTING_INTERFACE_WINDOW_WIDTH, SETTING_INTERFACE_WINDOW_HEIGHT, SETTING_INTERFACE_WINDOW_MIN_WIDTH, SETTING_INTERFACE_WINDOW_MIN_HEIGHT,
+          SETTING_INTERFACE_PLAY_VIDEO_IN_MAIN_WINDOW, SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO, SETTING_INTERFACE_REMEMBER_WINDOW_GEOMETRY, SETTING_INTERFACE_KEEP_ABOVE, SETTING_INTERFACE_WINDOW_DECORATIONS, SETTING_INTERFACE_FILENAME_IN_TITLE_BAR, SETTING_INTERFACE_OPEN_FULLSCREEN_ON,
+        ]),
+        section("playback-controls", "settings.section.interface.playback-controls", [
+          SETTING_INTERFACE_START_IN_COMPACT_MODE, SETTING_INTERFACE_AUTO_HIDE_CONTROLS, SETTING_INTERFACE_HIDE_CONTROLS_AFTER, SETTING_INTERFACE_SHOW_CONTROLS_IN_FULLSCREEN,
         ]),
       ]}
     />
@@ -162,9 +167,6 @@ function PrivacyScreen(): ReactElement {
     <SettingsSections
       area="privacy"
       sections={[
-        section("data", "settings.section.privacy.data", [
-          SETTING_PRIVACY_TELEMETRY, SETTING_PRIVACY_CRASH_REPORTS, SETTING_PRIVACY_USAGE_STATS, SETTING_PRIVACY_UPDATE_CHECKS,
-        ]),
         section("history", "settings.section.privacy.history", [
           SETTING_PRIVACY_SAVE_RECENT_ITEMS, SETTING_PRIVACY_REMEMBER_PLAYBACK_POSITION, SETTING_PRIVACY_NEVER_REMEMBER_MATCHING,
         ]),
@@ -199,14 +201,14 @@ function PlaybackScreen(): ReactElement {
     <SettingsSections
       area="playback"
       sections={[
-        section("tracks", "settings.section.playback.tracks", [
-          SETTING_PLAYBACK_PREFERRED_AUDIO_LANGUAGES, SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES, SETTING_PLAYBACK_SUBTITLE_MODE, SETTING_PLAYBACK_HW_DECODE_POLICY, SETTING_PLAYBACK_PREFERRED_VIDEO_QUALITY, SETTING_PLAYBACK_MENU_LANGUAGE, SETTING_PLAYBACK_DEFAULT_AUDIO_TRACK, SETTING_PLAYBACK_DEFAULT_SUBTITLE_TRACK,
-        ]),
-        section("playback", "settings.section.playback.playback", [
-          SETTING_PLAYBACK_START_PAUSED, SETTING_PLAYBACK_DEFAULT_RATE,
+        section("track-languages", "settings.section.playback.track-languages", [
+          SETTING_PLAYBACK_PREFERRED_AUDIO_LANGUAGES, SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES, SETTING_PLAYBACK_SUBTITLE_MODE,
         ]),
         section("startup", "settings.section.playback.startup", [
-          SETTING_PLAYBACK_RESUME, SETTING_PLAYBACK_PAUSE_ON_AUDIO_FOCUS,
+          SETTING_PLAYBACK_RESUME, SETTING_PLAYBACK_START_PAUSED, SETTING_PLAYBACK_DEFAULT_RATE, SETTING_PLAYBACK_PAUSE_ON_AUDIO_FOCUS,
+        ]),
+        section("tracks", "settings.section.playback.tracks", [
+          SETTING_PLAYBACK_HW_DECODE_POLICY, SETTING_PLAYBACK_PREFERRED_VIDEO_QUALITY, SETTING_PLAYBACK_MENU_LANGUAGE, SETTING_PLAYBACK_DEFAULT_AUDIO_TRACK, SETTING_PLAYBACK_DEFAULT_SUBTITLE_TRACK,
         ]),
         section("order", "settings.section.playback.order", [
           SETTING_PLAYBACK_REPEAT_MODE, SETTING_PLAYBACK_SHUFFLE, SETTING_PLAYBACK_STOP_AFTER_EACH_ITEM, SETTING_PLAYBACK_FINISH_ACTION,
@@ -252,7 +254,7 @@ function AudioScreen(): ReactElement {
           SETTING_AUDIO_ENABLE, SETTING_AUDIO_SPEAKER_SETUP,
         ]),
         section("volume", "settings.section.audio.volume", [
-          SETTING_AUDIO_MAXIMUM_VOLUME, SETTING_AUDIO_STARTUP_VOLUME, SETTING_AUDIO_VOLUME_STEP,
+          SETTING_AUDIO_MAXIMUM_VOLUME, SETTING_AUDIO_STARTUP_VOLUME, SETTING_AUDIO_STARTUP_VOLUME_MODE, SETTING_AUDIO_VOLUME_STEP,
         ]),
         section("loudness", "settings.section.audio.loudness", [
           SETTING_AUDIO_NORMALIZE_LOUDNESS, SETTING_AUDIO_TARGET_LEVEL, SETTING_AUDIO_NIGHT_MODE, SETTING_AUDIO_REPLAY_GAIN, SETTING_AUDIO_REPLAY_GAIN_PREAMP,

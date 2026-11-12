@@ -15,6 +15,7 @@ import { isMessageKey, useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b02";
 import { keys as seedKeys } from "../../i18n/keys/w26.f01";
+import { keys as gfixKeys } from "../../i18n/keys/w26.gfixB";
 import { SETTINGS_AREAS, SETTINGS_ENTRIES, SETTINGS_MSGIDS } from "./generated/schema";
 
 interface NodeFs {
@@ -101,7 +102,7 @@ describe("generated settings screens detect schema drift (4.E1 AC)", () => {
 });
 
 describe("generated schema data (committed snapshot sanity)", () => {
-  it("covers the 10 ui areas with the 97 ui entries of schemas/settings.toml", () => {
+  it("covers the 10 ui areas with the 102 ui entries of schemas/settings.toml", () => {
     // w26.b02 seed: the three NEW Figma areas (controls, recording,
     // extensions) gained [[setting]] rows; video/audio/subtitles/library/
     // network stay hand-registered (areas/index.tsx) — content areas, not
@@ -123,7 +124,7 @@ describe("generated schema data (committed snapshot sanity)", () => {
       "recording",
       "extensions",
     ]);
-    expect(SETTINGS_ENTRIES).toHaveLength(97);
+    expect(SETTINGS_ENTRIES).toHaveLength(102); // w26.gfix-B re-seed: 97 → 102
   });
 
   it("has globally unique keys with in-range defaults (D2 + range rules)", () => {
@@ -144,8 +145,11 @@ describe("generated schema data (committed snapshot sanity)", () => {
     const theme = SETTINGS_ENTRIES.find((e) => e.key === "interface.theme");
     expect(theme?.defaultValue).toBe("dark"); // product.toml defaults.theme
     expect(theme?.defaultRef).toBe("defaults.theme");
-    const width = SETTINGS_ENTRIES.find((e) => e.key === "interface.window-width");
-    expect(width?.defaultValue).toBe(1280); // product.toml window.width
+    // w26.gfix-B: interface.window-* went ui=false with the re-seed (the
+    // frame shows no window-metric rows) — a live default_ref row carries D1.
+    const geometry = SETTINGS_ENTRIES.find((e) => e.key === "interface.remember-window-geometry");
+    expect(geometry?.defaultValue).toBe(true); // product.toml window.remember_geometry
+    expect(geometry?.defaultRef).toBe("window.remember_geometry");
   });
 
   it("marks feature-gated entries unexposed per product.toml [features] (F1/F2)", () => {
@@ -156,8 +160,11 @@ describe("generated schema data (committed snapshot sanity)", () => {
 
   it("carries schema-flagged restart-required fields", () => {
     const restartKeys = SETTINGS_ENTRIES.filter((e) => e.restartRequired).map((e) => e.key);
-    expect(restartKeys).toContain("interface.start-maximized");
-    expect(restartKeys).toContain("performance.cache-demux-mib");
+    // w26.gfix-B: the ui=false window metrics left the registry; live
+    // restart-required rows carry the assertion.
+    expect(restartKeys).toContain("global.language");
+    expect(restartKeys).toContain("interface.remember-window-geometry");
+    expect(restartKeys).toContain("playback.menu-language");
     expect(restartKeys).not.toContain("interface.theme");
   });
 
@@ -169,7 +176,11 @@ describe("generated schema data (committed snapshot sanity)", () => {
     // only POST-WAVE (contract §4.5; ui/src/i18n/keys/w26.b02.ts and
     // w26.f01.ts carry them until then). Coverage = registered catalog entry
     // OR lane-key entry.
-    const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...seedKeys };
+    const laneCatalog: Readonly<Record<string, string>> = {
+      ...laneKeys,
+      ...seedKeys,
+      ...gfixKeys, // w26.gfix-B: the re-seed's relabels/moves pre-registration
+    };
     const covered = (msgid: string): boolean =>
       isMessageKey(msgid) ? m(msgid as MessageKey).length > 0 : msgid in laneCatalog;
     // SETTINGS_MSGIDS carries all 108 entries incl. ui=false engine fields

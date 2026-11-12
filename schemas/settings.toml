@@ -49,25 +49,47 @@ known = [
 
 # --- global -----------------------------------------------------------------
 
+# --- global (product.toml §2.1 defaults) ---------------------------------------
+
+# w26.gfix-B frame re-seed ("Settings - global" C1, findings w26.g10):
+# the frame's Appearance section is Interface language → Theme → Accent
+# color (SVG rects: dropdown y114 · segmented y160 · swatches y206). The
+# theme row MOVES here from the interface screen (g10-P1-2 — interface.svg
+# carries no theme control), and "Check for updates automatically" moves
+# here from privacy (g10-P2-1 / g11-P2-1: C1 Startup row 2).
+
 [[setting]]
 key = "global.language"
 type = "enum"
 enumeration = ["en-US"]        # [VERIFY] dynamic locales/ listing (doc 07 §5.4)
 default_ref = "defaults.locale"
-description = "settings.global.language"
+description = "settings.global.interface-language"   # frame C1: "Interface language"
 restart_required = true
-placement = { screen = "global", section = "language", order = 10, ui = true }
+placement = { screen = "global", section = "appearance", order = 10, ui = true }
 cli = { flag = "--global-language", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
+[[setting]]
+key = "interface.theme"
+type = "enum"
+enumeration = ["dark", "light"]
+default_ref = "defaults.theme"
+description = "settings.interface.theme"
+restart_required = false
+# w26.gfix-B (g10-P1-2): the theme row MOVED to the global screen's
+# Appearance section (the interface frame carries no theme control). The KEY
+# id stays `interface.theme` — src/theme/settingsThemeSync, onboarding and
+# the persisted-overrides store all pin it; renaming is a Lead-side product
+# decision, not a placement fix.
+placement = { screen = "global", section = "appearance", order = 20, ui = true }
+cli = { flag = "--interface-theme", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
 # --- global, w26.f01 seed extension (e05 F1/F2/F8 — "Settings - global" C1) --
-#     Frame sections appended after the pinned `language` row: Appearance
-#     (accent color; Theme + Interface language are the pinned interface.theme
-#     / global.language rows — the global-area lane composes them into
-#     Appearance), Startup, Diagnostics, and the four global-1 advanced rows
-#     behind the Advanced Options bar. Frame rows carry literal defaults
-#     (b02 staged-row pattern: no product.toml slot exists yet → D1 literal).
+#     Frame rows carry literal defaults (b02 staged-row pattern: no
+#     product.toml slot exists yet → D1 literal).
 
 [[setting]]
 key = "global.accent-color"
@@ -76,16 +98,17 @@ enumeration = ["orange", "red", "yellow", "green", "cyan", "blue", "violet", "pi
 default = "orange"        # frame: 9-swatch group, #D37918 selected (C0/C1; ids = themes/tokens.json accents)
 description = "settings.global.accent-color"
 restart_required = false
-placement = { screen = "global", section = "appearance", order = 10, ui = true }
+placement = { screen = "global", section = "appearance", order = 30, ui = true }
 cli = { flag = "--global-accent-color", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
-# Startup: "Check for updates automatically" (C1) is NOT re-seeded — it is the
-# same product decision as the pinned privacy.update-checks row
-# (telemetry.update_checks; D6 forbids a second entry on that slot). The
-# about-fold's Updates row is restyled into Startup wording by the global-area
-# lane (e05 F13 Lead decision).
+# Startup (frame C1 y280): "Show confirmation and error dialogs" OFF + "Check
+# for updates automatically" OFF. The update-checks row is the SAME product
+# decision as the former privacy.update-checks entry (telemetry.update_checks;
+# D6 forbids a second entry on that slot) — MOVED here, key renamed to its
+# frame home (w26.gfix-B; the old "Updates" fold on the global screen and the
+# privacy "Data" section both retire).
 
 [[setting]]
 key = "global.show-dialogs"
@@ -95,6 +118,17 @@ description = "settings.global.show-dialogs"
 restart_required = false
 placement = { screen = "global", section = "startup", order = 10, ui = true }
 cli = { flag = "--global-show-dialogs", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "global.update-checks"
+type = "bool"
+default_ref = "telemetry.update_checks"
+description = "settings.global.update-checks"   # frame C1: "Check for updates automatically"
+restart_required = false
+placement = { screen = "global", section = "startup", order = 20, ui = true }
+cli = { flag = "--global-update-checks", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
@@ -195,28 +229,58 @@ feature_gate = ""
 since = "0.1.0"
 advanced = true
 
-# --- interface (product.toml §2.2 window defaults + §2.4 defaults) -----------
+# --- interface (w26.gfix-B frame re-seed — "Settings - interface" C2) ---------
+#     The frame's four sections: Skin (2 rows) · Window (7 rows) · Playback
+#     Controls (4 rows) · Notifications and System Tray (header only — the
+#     hand area renders that bare header; no rows are exported below the
+#     fold). The former theme row MOVED to global/appearance (g10-P1-2); the
+#     non-frame window-metric rows (start-maximized, window-width/height,
+#     min-*) stay REAL settings but leave the UI (ui = false — CLI/config
+#     surface only; the frame shows none of them, g10-P1-1 fix direction).
+#     Frame rows carry literal defaults (D1).
 
 [[setting]]
-key = "interface.theme"
-type = "enum"
-enumeration = ["dark", "light"]
-default_ref = "defaults.theme"
-description = "settings.interface.theme"
+key = "interface.use-custom-skin"
+type = "bool"
+default = true             # frame C2 Skin: "Use a custom skin" → ON
+description = "settings.interface.use-custom-skin"
 restart_required = false
-placement = { screen = "interface", section = "appearance", order = 10, ui = true }
-cli = { flag = "--interface-theme", short = "" }
+placement = { screen = "interface", section = "skin", order = 10, ui = true }
+cli = { flag = "--interface-use-custom-skin", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
 [[setting]]
-key = "interface.start-maximized"
+key = "interface.skin-file"
+type = "path"
+default = ""              # frame C2 Skin: "Skin file" input 208×34 + Browse, empty
+description = "settings.interface.skin-file"
+restart_required = false
+placement = { screen = "interface", section = "skin", order = 20, ui = true }
+cli = { flag = "--interface-skin-file", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.play-video-in-main-window"
 type = "bool"
-default_ref = "window.start_maximized"
-description = "settings.interface.start-maximized"
-restart_required = true
+default = true            # frame C2 Window: "Play video inside main window" → ON
+description = "settings.interface.play-video-in-main-window"
+restart_required = false
 placement = { screen = "interface", section = "window", order = 10, ui = true }
-cli = { flag = "--interface-start-maximized", short = "" }
+cli = { flag = "--interface-play-video-in-main-window", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.resize-to-fit-video"
+type = "enum"
+enumeration = ["never", "always"]
+default = "never"         # frame C2 Window: "Resize window to fit video" → "Never"; [VERIFY] vocabulary
+description = "settings.interface.resize-to-fit-video"
+restart_required = false
+placement = { screen = "interface", section = "window", order = 20, ui = true }
+cli = { flag = "--interface-resize-to-fit-video", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
@@ -224,10 +288,115 @@ since = "0.1.0"
 key = "interface.remember-window-geometry"
 type = "bool"
 default_ref = "window.remember_geometry"
-description = "settings.interface.remember-window-geometry"
+description = "settings.interface.remember-window-size-position"   # frame C2 Window row 3 relabel (g10-P1-1)
 restart_required = true
-placement = { screen = "interface", section = "window", order = 20, ui = true }
+placement = { screen = "interface", section = "window", order = 30, ui = true }
 cli = { flag = "--interface-remember-window-geometry", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.keep-above"
+type = "bool"
+default = false           # frame C2 Window: "Keep window above other windows" → OFF
+description = "settings.interface.keep-above"
+restart_required = false
+placement = { screen = "interface", section = "window", order = 40, ui = true }
+cli = { flag = "--interface-keep-above", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.window-decorations"
+type = "bool"
+default = true            # frame C2 Window: "Show window decorations" → ON
+description = "settings.interface.window-decorations"
+restart_required = false
+placement = { screen = "interface", section = "window", order = 50, ui = true }
+cli = { flag = "--interface-window-decorations", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.filename-in-title-bar"
+type = "bool"
+default = true            # frame C2 Window: "Show the file name in the title bar" → ON
+description = "settings.interface.filename-in-title-bar"
+restart_required = false
+placement = { screen = "interface", section = "window", order = 60, ui = true }
+cli = { flag = "--interface-filename-in-title-bar", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.open-fullscreen-on"
+type = "enum"
+enumeration = ["current-screen", "all-screens"]
+default = "current-screen"  # frame C2 Window: "Open fullscreen on" → "Current screen"; [VERIFY] vocabulary
+description = "settings.interface.open-fullscreen-on"
+restart_required = false
+placement = { screen = "interface", section = "window", order = 70, ui = true }
+cli = { flag = "--interface-open-fullscreen-on", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.start-in-compact-mode"
+type = "bool"
+default = false           # frame C2 Playback Controls: "Start in compact mode" → OFF
+description = "settings.interface.start-in-compact-mode"
+restart_required = false
+placement = { screen = "interface", section = "playback-controls", order = 10, ui = true }
+cli = { flag = "--interface-start-in-compact-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.auto-hide-controls"
+type = "enum"
+enumeration = ["fullscreen-only", "always", "never"]
+default = "fullscreen-only"  # frame C2 Playback Controls: "Auto-hide the controls" → "In fullscreen only"
+description = "settings.interface.auto-hide-controls"
+restart_required = false
+placement = { screen = "interface", section = "playback-controls", order = 20, ui = true }
+cli = { flag = "--interface-auto-hide-controls", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.hide-controls-after"
+type = "duration-ms"
+range = { min = 0, max = 10000 }
+default = 500             # frame C2 Playback Controls: "Hide after" slider, scale 0 s / 5 s / 10 s, small fill
+description = "settings.interface.hide-controls-after"
+restart_required = false
+placement = { screen = "interface", section = "playback-controls", order = 30, ui = true }
+cli = { flag = "--interface-hide-controls-after", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "interface.show-controls-in-fullscreen"
+type = "bool"
+default = true            # frame C2 Playback Controls: "Show controls in fullscreen" → ON
+description = "settings.interface.show-controls-in-fullscreen"
+restart_required = false
+placement = { screen = "interface", section = "playback-controls", order = 40, ui = true }
+cli = { flag = "--interface-show-controls-in-fullscreen", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# Non-frame window metrics (real product decisions, CLI/config surface only —
+# the interface frame shows none of them; ui = false per g10-P1-1).
+
+[[setting]]
+key = "interface.start-maximized"
+type = "bool"
+default_ref = "window.start_maximized"
+description = "settings.interface.start-maximized"
+restart_required = true
+placement = { screen = "interface", section = "window-metrics", order = 10, ui = false }
+cli = { flag = "--interface-start-maximized", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
@@ -238,7 +407,7 @@ range = { min = 480, max = 3840 }
 default_ref = "window.width"
 description = "settings.interface.window-width"
 restart_required = true
-placement = { screen = "interface", section = "window", order = 30, ui = true }
+placement = { screen = "interface", section = "window-metrics", order = 20, ui = false }
 cli = { flag = "--interface-window-width", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -250,7 +419,7 @@ range = { min = 320, max = 2160 }
 default_ref = "window.height"
 description = "settings.interface.window-height"
 restart_required = true
-placement = { screen = "interface", section = "window", order = 40, ui = true }
+placement = { screen = "interface", section = "window-metrics", order = 30, ui = false }
 cli = { flag = "--interface-window-height", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -262,11 +431,10 @@ range = { min = 480, max = 3840 }
 default_ref = "window.min_width"
 description = "settings.interface.window-min-width"
 restart_required = true
-placement = { screen = "interface", section = "window", order = 50, ui = true }
+placement = { screen = "interface", section = "window-metrics", order = 40, ui = false }
 cli = { flag = "--interface-window-min-width", short = "" }
 feature_gate = ""
 since = "0.1.0"
-advanced = true
 
 [[setting]]
 key = "interface.window-min-height"
@@ -275,13 +443,18 @@ range = { min = 320, max = 2160 }
 default_ref = "window.min_height"
 description = "settings.interface.window-min-height"
 restart_required = true
-placement = { screen = "interface", section = "window", order = 60, ui = true }
+placement = { screen = "interface", section = "window-metrics", order = 50, ui = false }
 cli = { flag = "--interface-window-min-height", short = "" }
 feature_gate = ""
 since = "0.1.0"
-advanced = true
 
 # --- privacy (product.toml §2.6 telemetry & privacy) -------------------------
+#     w26.gfix-B (g11-P2-1): the privacy frame ("Settings - privacy" C3)
+#     carries ONLY History + Network. The telemetry rows carry no frame
+#     anywhere in the Settings family → ui = false (real product decisions,
+#     CLI/config surface only — never dropped, never invented UI). The
+#     update-checks row MOVED to global/startup (frame C1 row "Check for
+#     updates automatically"; see the global section above).
 
 [[setting]]
 key = "privacy.telemetry"
@@ -289,7 +462,7 @@ type = "bool"
 default_ref = "telemetry.enabled"
 description = "settings.privacy.telemetry"
 restart_required = false
-placement = { screen = "privacy", section = "data", order = 10, ui = true }
+placement = { screen = "privacy", section = "data", order = 10, ui = false }
 cli = { flag = "--privacy-telemetry", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -301,7 +474,7 @@ enumeration = ["off", "ask", "send"]
 default_ref = "telemetry.crash_reports"
 description = "settings.privacy.crash-reports"
 restart_required = false
-placement = { screen = "privacy", section = "data", order = 20, ui = true }
+placement = { screen = "privacy", section = "data", order = 20, ui = false }
 cli = { flag = "--privacy-crash-reports", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -312,27 +485,16 @@ type = "bool"
 default_ref = "telemetry.usage_stats"
 description = "settings.privacy.usage-stats"
 restart_required = false
-placement = { screen = "privacy", section = "data", order = 30, ui = true }
+placement = { screen = "privacy", section = "data", order = 30, ui = false }
 cli = { flag = "--privacy-usage-stats", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
-[[setting]]
-key = "privacy.update-checks"
-type = "bool"
-default_ref = "telemetry.update_checks"
-description = "settings.privacy.update-checks"
-restart_required = false
-placement = { screen = "privacy", section = "data", order = 40, ui = true }
-cli = { flag = "--privacy-update-checks", short = "" }
-feature_gate = ""
-since = "0.1.0"
-
 # --- privacy, w26.f01 seed extension (e06 F4 — "Settings - privacy" C3) ------
-#     Frame sections History + Network (last.fm) appended after the pinned
-#     telemetry `data` section. "Clear history now" is an ACTION button, not a
-#     [[setting]] row — it belongs to the privacy-area composition lane
-#     (no action type exists in the schema; cf. e06 F4 classification).
+#     Frame sections History + Network (last.fm). "Clear history now" is an
+#     ACTION button, not a [[setting]] row — it belongs to the privacy-area
+#     composition lane (no action type exists in the schema; cf. e06 F4
+#     classification).
 
 [[setting]]
 key = "privacy.save-recent-items"
@@ -430,7 +592,11 @@ type = "list<string>"
 default_ref = "playback.preferred_audio_languages"
 description = "settings.playback.preferred-audio-languages"
 restart_required = false
-placement = { screen = "playback", section = "tracks", order = 10, ui = true }
+# w26.gfix-B (g11-P2-2): the playback frame's Tracks section carries 4 rows
+# only — these three stay REAL, LIVE settings (the onboarding wizard writes
+# them) but the playback SCREEN composition hides them from the Tracks
+# section (areas/index.tsx PLAYBACK_HIDDEN_KEYS).
+placement = { screen = "playback", section = "track-languages", order = 10, ui = true }
 cli = { flag = "--playback-preferred-audio-languages", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -441,7 +607,7 @@ type = "list<string>"
 default_ref = "playback.preferred_subtitle_languages"
 description = "settings.playback.preferred-subtitle-languages"
 restart_required = false
-placement = { screen = "playback", section = "tracks", order = 20, ui = true }
+placement = { screen = "playback", section = "track-languages", order = 20, ui = true }
 cli = { flag = "--playback-preferred-subtitle-languages", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -453,7 +619,7 @@ enumeration = ["auto", "forced-only", "on", "off"]
 default_ref = "playback.subtitle_mode"
 description = "settings.playback.subtitle-mode"
 restart_required = false
-placement = { screen = "playback", section = "tracks", order = 30, ui = true }
+placement = { screen = "playback", section = "track-languages", order = 30, ui = true }
 cli = { flag = "--playback-subtitle-mode", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -475,9 +641,12 @@ advanced = true
 key = "playback.start-paused"
 type = "bool"
 default_ref = "playback.start_paused"
-description = "settings.playback.start-paused"
+# w26.gfix-B (g11-P2-2): frame C4 Startup row 2 — "Start playing as soon as a
+# file opens" → ON. The KEY keeps its start_paused semantics; the UI inverts
+# the display through the registered special widget (InvertedSwitchField).
+description = "settings.playback.start-playing"
 restart_required = false
-placement = { screen = "playback", section = "playback", order = 10, ui = true }
+placement = { screen = "playback", section = "startup", order = 20, ui = true }
 cli = { flag = "--playback-start-paused", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -487,20 +656,20 @@ key = "playback.default-rate"
 type = "float"
 range = { min = 0.25, max = 4.0 }
 default_ref = "playback.default_rate"
-description = "settings.playback.default-rate"
+# w26.gfix-B (g11-P2-2/P2-3): frame C4 Startup row 3 — "Default playback
+# speed" slider. The frame's scale is 0.25–2 (the special widget renders that
+# range; the schema keeps the engine's 0.25–4 validation domain).
+description = "settings.playback.default-speed"
 restart_required = false
-placement = { screen = "playback", section = "playback", order = 20, ui = true }
+placement = { screen = "playback", section = "startup", order = 30, ui = true }
 cli = { flag = "--playback-default-rate", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
 # --- playback, w26.f01 seed extension (e06 F5 — "Settings - playback" C4) ----
-#     Frame sections appended after the pinned tracks/playback sections:
-#     Startup, Order, Seeking. Two C4 Startup rows are NOT re-seeded —
-#     "Start playing as soon as a file opens" is the inverse of the pinned
-#     playback.start-paused and "Default playback speed" IS the pinned
-#     playback.default-rate (D2/D6); the playback-area lane composes them
-#     into the Startup section wording. Frame rows carry literal defaults.
+#     Frame section order (w26.gfix-B): Startup → Tracks → Order → Seeking
+#     (global renumber: startup 10-40, tracks 50-80, order 90-120, seeking
+#     130). Frame rows carry literal defaults.
 
 [[setting]]
 key = "playback.preferred-video-quality"
@@ -568,7 +737,7 @@ type = "bool"
 default = true             # frame: "Pause when another app uses audio" → ON
 description = "settings.playback.pause-on-audio-focus"
 restart_required = false
-placement = { screen = "playback", section = "startup", order = 20, ui = true }
+placement = { screen = "playback", section = "startup", order = 40, ui = true }
 cli = { flag = "--playback-pause-on-audio-focus", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -580,7 +749,7 @@ enumeration = ["off", "one", "all"]
 default = "off"            # frame: "Repeat" → "Off"
 description = "settings.playback.repeat-mode"
 restart_required = false
-placement = { screen = "playback", section = "order", order = 10, ui = true }
+placement = { screen = "playback", section = "order", order = 90, ui = true }
 cli = { flag = "--playback-repeat-mode", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -591,7 +760,7 @@ type = "bool"
 default = true             # frame: "Shuffle" → ON
 description = "settings.playback.shuffle"
 restart_required = false
-placement = { screen = "playback", section = "order", order = 20, ui = true }
+placement = { screen = "playback", section = "order", order = 100, ui = true }
 cli = { flag = "--playback-shuffle", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -602,7 +771,7 @@ type = "bool"
 default = true             # frame: "Stop after each item" → ON
 description = "settings.playback.stop-after-each-item"
 restart_required = false
-placement = { screen = "playback", section = "order", order = 30, ui = true }
+placement = { screen = "playback", section = "order", order = 110, ui = true }
 cli = { flag = "--playback-stop-after-each-item", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -614,7 +783,7 @@ enumeration = ["stop", "pause", "quit"]
 default = "stop"           # frame: "When playback finishes" → "Stop"; [VERIFY] vocabulary
 description = "settings.playback.finish-action"
 restart_required = false
-placement = { screen = "playback", section = "order", order = 40, ui = true }
+placement = { screen = "playback", section = "order", order = 120, ui = true }
 cli = { flag = "--playback-finish-action", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -625,7 +794,7 @@ type = "bool"
 default = true             # frame: "Seek precisely" → ON
 description = "settings.playback.seek-precisely"
 restart_required = false
-placement = { screen = "playback", section = "seeking", order = 10, ui = true }
+placement = { screen = "playback", section = "seeking", order = 130, ui = true }
 cli = { flag = "--playback-seek-precisely", short = "" }
 feature_gate = ""
 since = "0.1.0"
@@ -720,8 +889,13 @@ since = "0.1.0"
 [[setting]]
 key = "video.saturation"
 type = "int"
-range = { min = 0, max = 200 }
-default = 100              # frame: Picture "Saturation" inline slider (fill 105/320)
+# w26.gfix-B probe fix: the frame's slider sits at fill 105/320 (thumb x806)
+# — 100 of 0..200 renders at 50% (fill 160), 55px off the frame. The ffmpeg
+# eq domain is saturation 0.0–3.0 (×100): range 0..300 puts the default 100
+# at 33% = fill 107 ≈ frame 105. Honesty: the domain matches the engine's
+# saturation filter scale.
+range = { min = 0, max = 300 }
+default = 100             # frame: Picture "Saturation" inline slider (fill 105/320 → 33%)
 description = "settings.video.saturation"
 restart_required = false
 placement = { screen = "video", section = "picture", order = 40, ui = true }
@@ -732,8 +906,12 @@ since = "0.1.0"
 [[setting]]
 key = "video.gamma"
 type = "int"
-range = { min = 0, max = 200 }
-default = 100              # frame: Picture "Gamma" inline slider (fill 32/320)
+# w26.gfix-B probe fix: the frame's slider sits at fill 32/320 (thumb x730)
+# — 100 of 0..200 renders at 50% (fill 160), 128px off the frame. The ffmpeg
+# eq domain is gamma 0.1–10.0 (×100): range 0..1000 puts the default 100
+# (γ 1.0) at 10% = fill 32 = frame exact.
+range = { min = 0, max = 1000 }
+default = 100             # frame: Picture "Gamma" inline slider (fill 32/320 = 10% → γ 1.0)
 description = "settings.video.gamma"
 restart_required = false
 placement = { screen = "video", section = "picture", order = 50, ui = true }
@@ -833,10 +1011,25 @@ feature_gate = ""
 since = "0.1.0"
 
 [[setting]]
+key = "audio.startup-volume-mode"
+type = "enum"
+enumeration = ["remember-last", "always"]
+default = "remember-last"  # frame C6 Volume: Values-1 radio rows, row 1 selected (a19 B5 "Remember last volume")
+description = "settings.audio.startup-volume-mode"
+restart_required = false
+# w26.gfix-B (g12-P1-4): rendered ONLY inside the StartupVolumeField compound
+# widget on the audio screen (areas/index.tsx WIDGET_GROUPED_KEYS) — never a
+# standalone row; the search path skips it the same way.
+placement = { screen = "audio", section = "volume", order = 25, ui = true }
+cli = { flag = "--audio-startup-volume-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
 key = "audio.startup-volume"
 type = "int"
 range = { min = 0, max = 300 }
-default = 200              # frame: "Startup volume" radio-rows, nested input "200 %"; [VERIFY]
+default = 200              # frame: "Startup volume" radio-rows, nested input "200 %"
 description = "settings.audio.startup-volume"
 restart_required = false
 placement = { screen = "audio", section = "volume", order = 20, ui = true }

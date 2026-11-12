@@ -15,11 +15,15 @@ import { SETTINGS_ENTRIES } from "../generated/schema";
 describe("advancedEntries — schema-driven membership", () => {
   it("collects every advanced-flagged entry on UI screens (and no engine ui=false entry)", () => {
     const keys = advancedEntries().map((e) => e.key);
-    expect(keys).toContain("interface.window-min-width");
-    expect(keys).toContain("interface.window-min-height");
+    // w26.gfix-B: the ui=false window metrics left the registry with the
+    // re-seed; the live advanced set carries the proof (global-1 rows,
+    // the gated policy enum, the performance resources + Developer rows).
+    expect(keys).toContain("global.show-minor-warnings");
+    expect(keys).toContain("global.collect-playback-statistics");
     expect(keys).toContain("playback.hw-decode-policy");
     expect(keys).toContain("performance.cache-demux-mib");
     expect(keys).toContain("performance.max-open-sessions");
+    expect(keys).toContain("performance.encoder"); // Developer rows (g14-P2-3: flat fold)
     expect(keys.every((k) => !k.startsWith("engine."))).toBe(true);
     for (const entry of SETTINGS_ENTRIES.filter((e) => e.advanced && !e.screen.startsWith("engine"))) {
       expect(keys).toContain(entry.key);
