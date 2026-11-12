@@ -4,11 +4,12 @@
 // FLOW (all through the client transport, wire `media.*-bookmark`):
 //   * mount (per-open): `media.get-bookmarks` → the list;
 //   * create: `media.add-bookmark` with the ENGINE-REPORTED position
-//     (µs on the wire; the seam's seconds → µs here) + optional label;
+//     (µs on the wire — schema $defs/Timestamp "Microseconds since media
+//     start"; the seam's seconds → µs here, ×1e6) + optional label;
 //   * jump: the row's primary action dispatches `playback.seek` ABSOLUTE
 //     through the player state seam (`actions.seek` — the same funnel as
-//     the seekbar and the Go-to-Time dialog); the dialog stays open
-//     (management surface, VLC parity);
+//     the seekbar and the Go-to-Time dialog; wire µs → seam seconds,
+//     ÷1e6); the dialog stays open (management surface, VLC parity);
 //   * delete: `media.remove-bookmark` per row; the response's updated
 //     list is the truth, never a local guess.
 //
@@ -26,9 +27,14 @@
 // header paints first via `order: -1`) so the surface trap's initial
 // focus lands on the label input, not the ✕.
 //
-// COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
-// i18n agent (wave ownership map); central keys are the recorded
-// follow-up (same note as GotoTimeDialog).
+// ERRORS (w26.k09, j09 P2): these direct client sends bypass the
+// provider's dispatch, so the player's lastError surface never sees them
+// — load/add/delete failures surface HERE as an honest inline error line
+// (role="alert"), and a failed add never destroys the user's typed label
+// (it clears on success only).
+//
+// I18N (w26.k09, j09 P2): every user-visible string resolves through
+// useDialogsMsg (central catalog → the w26.k09 lane keys; §4.5 seam).
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -42,21 +48,17 @@ import type { Bookmark } from "../../../generated/commands";
 import { usePlayerControls } from "../context";
 import { CloseGlyph } from "./dialogIcons";
 import { compareBookmarks } from "./naturalSort";
+import { useDialogsMsg } from "./useDialogsMsg";
 import "./dialogs.css";
 
-/** The dialog's English copy (see COPY NOTE — central i18n is follow-up). */
-export const BOOKMARKS_COPY = {
-  title: "Bookmarks",
-  subtitle: "Saved positions in the current media.",
-  label: "Label (optional)",
-  placeholder: "Name this bookmark",
-  add: "Add bookmark",
-  jump: (time: string) => `Jump to ${time}`,
-  deleteBookmark: (time: string) => `Delete bookmark at ${time}`,
-  unnamed: "Unnamed bookmark",
-  empty: "No bookmarks yet — add the current position.",
-  close: "Close",
-} as const;
+/**
+ * Wire µs per seam second — the schema's unit contract
+ * (schemas/commands.schema.json $defs/Timestamp: "Microseconds since media
+ * start"; `media.add-bookmark` arg `time` and `Bookmark.time` both carry
+ * it). The player state seam speaks SECONDS (context.tsx PlayerState);
+ * every crossing lives next to this constant (j09 P1).
+ */
+const US_PER_SECOND = 1_000_000;
 
 /**
  * The Bookmarks dialog. Mount per-open (fresh list fetch), like
@@ -71,9 +73,11 @@ export function BookmarksDialog({
 }) {
   const client = useClient();
   const { state, actions } = usePlayerControls();
+  const m = useDialogsMsg();
   const [bookmarks, setBookmarks] = useState<readonly Bookmark[]>([]);
   const [labelValue, setLabelValue] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
   const titleId = useId();
   const nextRequestId = useRef(0);
   const requestId = (): number => {
@@ -81,9 +85,9 @@ export function BookmarksDialog({
     return nextRequestId.current;
   };
 
-  // Mount = open: fetch the engine's list once. Errors surface as the
-  // honest empty list + loaded flag (the row area shows the empty state;
-  // typed errors stay on the player's error surface).
+  // Mount = open: fetch the engine's list once. A failed load surfaces as
+  // the honest inline error (the empty copy would claim "no bookmarks"
+  // about a list we never saw — the error line replaces it).
   useEffect(() => {
     let cancelled = false;
     void client
@@ -91,20 +95,27 @@ export function BookmarksDialog({
       .then((response) => {
         if (cancelled) return;
         const result = response.result;
-        if ("completed" in result && result.completed.kind === "bookmarks") {
-          const initial = result.completed.bookmarks;
-          setBookmarks(initial);
+        if ("error" in result) {
+          setError(m("player.dialog.bookmarks.load-failed"));
+        } else if (
+          "completed" in result &&
+          result.completed.kind === "bookmarks"
+        ) {
+          setBookmarks(result.completed.bookmarks);
         }
         setLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setLoaded(true);
+        if (cancelled) return;
+        setError(m("player.dialog.bookmarks.load-failed"));
+        setLoaded(true);
       });
     return () => {
       cancelled = true;
     };
     // Mount-time fetch only — the list refreshes through the command
-    // responses below, never a re-render guess.
+    // responses below, never a re-render guess. `m` is the mount render's
+    // resolver; the catalogs it reads are module-level constants.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -118,8 +129,9 @@ export function BookmarksDialog({
   const onAdd = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     // The engine-reported position is the truth (never a guessed clock);
-    // the seam speaks seconds, the wire µs.
-    const timeUs = Math.round(state.position * 1000);
+    // the seam speaks seconds, the wire µs (schema $defs/Timestamp).
+    const timeUs = Math.round(state.position * US_PER_SECOND);
+    setError(undefined);
     void client
       .send({
         args: {
@@ -133,17 +145,29 @@ export function BookmarksDialog({
         // Hoist the narrowed result — narrowing does not cross the
         // setState updater closure boundary.
         const result = response.result;
+        if ("error" in result) {
+          // Honest failure: the typed error surfaces inline and the
+          // user's label survives for a retry — never a silent loss.
+          setError(m("player.dialog.bookmarks.add-failed"));
+          return;
+        }
         if ("completed" in result && result.completed.kind === "bookmark-added") {
           const added = result.completed.bookmark;
           setBookmarks((prev) => [...prev, added]);
+          // Clear the label ONLY on success (j09 P2: a failed add must
+          // not destroy what the user typed).
+          setLabelValue("");
         }
-        // Errors: the list stays what it was — never a fabricated row.
+        // Other outcomes ("accepted"): no fabricated row — the pending
+        // contract lives in the seam, not here.
       })
-      .catch(() => {});
-    setLabelValue("");
+      .catch(() => {
+        setError(m("player.dialog.bookmarks.add-failed"));
+      });
   };
 
   const onDelete = (bookmark: Bookmark): void => {
+    setError(undefined);
     void client
       .send({
         args: { id: bookmark.id },
@@ -152,17 +176,24 @@ export function BookmarksDialog({
       })
       .then((response) => {
         const result = response.result;
+        if ("error" in result) {
+          setError(m("player.dialog.bookmarks.delete-failed"));
+          return;
+        }
         if ("completed" in result && result.completed.kind === "bookmarks") {
           const next = result.completed.bookmarks;
           setBookmarks(next);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Transport failure — the row stays (the list is never guessed).
+        setError(m("player.dialog.bookmarks.delete-failed"));
+      });
   };
 
   const onJump = (bookmark: Bookmark): void => {
-    // µs wire → seconds for the shared seek funnel.
-    actions.seek(bookmark.time / 1000);
+    // Wire µs → seam seconds for the shared seek funnel (schema contract).
+    actions.seek(bookmark.time / US_PER_SECOND);
   };
 
   return (
@@ -177,12 +208,14 @@ export function BookmarksDialog({
         {/* Body first in the DOM (focus order — see module header); the
          * header paints above it via `order: -1`. */}
         <div className="player-dialog__body">
-          <p className="player-dialog__subtitle">{BOOKMARKS_COPY.subtitle}</p>
+          <p className="player-dialog__subtitle">
+            {m("player.dialog.bookmarks.subtitle")}
+          </p>
 
           <form className="player-dialog__form" onSubmit={onAdd}>
             <TextField
-              label={BOOKMARKS_COPY.label}
-              placeholder={BOOKMARKS_COPY.placeholder}
+              label={m("player.dialog.bookmarks.label")}
+              placeholder={m("player.dialog.bookmarks.placeholder")}
               value={labelValue}
               spellCheck={false}
               autoComplete="off"
@@ -191,35 +224,54 @@ export function BookmarksDialog({
               }}
             />
             <Button type="submit" variant="tinted" className="player-dialog__form-action">
-              {BOOKMARKS_COPY.add}
+              {m("player.dialog.bookmarks.add")}
             </Button>
           </form>
 
+          {error !== undefined ? (
+            <p className="player-dialog__error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
           {sortedBookmarks.length === 0 ? (
             <p className="player-dialog__empty">
-              {loaded ? BOOKMARKS_COPY.empty : ""}
+              {/* The empty copy asserts "no bookmarks yet" — suppressed
+               * while an error line explains what actually happened. */}
+              {loaded && error === undefined ? m("player.dialog.bookmarks.empty") : ""}
             </p>
           ) : (
             <ul className="player-dialog__list">
               {sortedBookmarks.map((bookmark) => {
-                const time = formatSeekTime(bookmark.time / 1000);
+                const time = formatSeekTime(bookmark.time / US_PER_SECOND);
+                const rowLabel =
+                  bookmark.label ?? m("player.dialog.bookmarks.unnamed");
+                // Accessible name carries time AND label (j09 P3): two
+                // bookmarks at the same timecode stay distinguishable.
+                const jumpLabel = m("player.dialog.bookmarks.jump")
+                  .replace("{time}", time)
+                  .replace("{label}", rowLabel);
                 return (
                   <li key={bookmark.id} className="player-dialog__row">
                     <button
                       type="button"
                       className="player-dialog__row-main"
-                      aria-label={BOOKMARKS_COPY.jump(time)}
+                      aria-label={jumpLabel}
                       onClick={() => onJump(bookmark)}
                     >
                       <span className="player-dialog__row-time">{time}</span>
-                      <span className="player-dialog__row-label">
-                        {bookmark.label ?? BOOKMARKS_COPY.unnamed}
-                      </span>
+                      <span className="player-dialog__row-label">{rowLabel}</span>
                     </button>
                     <IconButton
                       className="player-dialog__row-delete"
-                      label={BOOKMARKS_COPY.deleteBookmark(time)}
-                      title={BOOKMARKS_COPY.deleteBookmark(time)}
+                      label={m("player.dialog.bookmarks.delete").replace(
+                        "{time}",
+                        time,
+                      )}
+                      title={m("player.dialog.bookmarks.delete").replace(
+                        "{time}",
+                        time,
+                      )}
                       size="sm"
                       onClick={() => onDelete(bookmark)}
                     >
@@ -233,12 +285,12 @@ export function BookmarksDialog({
         </div>
         <div className="player-dialog__header">
           <h2 id={titleId} className="player-dialog__title">
-            {BOOKMARKS_COPY.title}
+            {m("player.dialog.bookmarks.title")}
           </h2>
           <IconButton
             className="player-dialog__close"
-            label={BOOKMARKS_COPY.close}
-            title={BOOKMARKS_COPY.close}
+            label={m("player.dialog.bookmarks.close")}
+            title={m("player.dialog.bookmarks.close")}
             size="sm"
             onClick={onClose}
           >
