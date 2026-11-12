@@ -14,6 +14,9 @@
  * carries its frame citation. Frame-vs-token deltas logged in the lane log:
  *   Folder.svg pill/row label #969696 → --color-content-secondary (#8F8F8F)
  *   Folder.svg leader dots #373737 → --color-stroke-border (#404040)
+ *   Folder/subtitle-one.svg row+pair glyph #6B6B6B →
+ *     --color-content-tertiary (#828282, Δ23) — LEAD RULING: keep the token
+ *     (WCAG wins); documented in the rules below, not changed (h17 #3)
  */
 
 /* ---------------------------------------------------- window overlay ---- */
@@ -275,7 +278,11 @@
 .lumen-plsubs-row__icon {
   display: inline-flex;
   flex: none;
-  color: var(--color-content-tertiary); /* frame glyph stroke #6B6B6B */
+
+  /* frame glyph stroke #6B6B6B; LEAD RULING (standing, h17 #3): keep
+   * --color-content-tertiary #828282 (Δ23/255) — WCAG contrast wins over the
+   * frame ink; documented, not changed (token-lane handoff stays open). */
+  color: var(--color-content-tertiary);
 }
 
 .lumen-plsubs-row__name {
@@ -342,7 +349,11 @@
 .lumen-plsubs-pair__icon {
   display: inline-flex;
   flex: none;
-  color: var(--color-content-tertiary); /* frame glyph strokes #6B6B6B */
+
+  /* frame glyph strokes #6B6B6B; LEAD RULING (standing, h17 #3): keep
+   * --color-content-tertiary #828282 (Δ23/255, unlogged pre-h17) — WCAG
+   * contrast wins over the frame ink; documented, not changed. */
+  color: var(--color-content-tertiary);
 }
 
 .lumen-plsubs-pair__name {
@@ -411,13 +422,20 @@
  * centering puts the 32px Cancel/Save back at exactly y748–780); the
  * 15-pair review keeps its static y118–718 budget (a taller footer pushed
  * rows 14–15 under the fold — g19 P2-1). The match control sits in the
- * frame's open middle span, only in the pairs mode it drives. */
+ * frame's open middle span, only in the pairs mode it drives.
+ * w26.i11 (h17 #2): min-height pins the 72px band in EVERY state — the
+ * two-button candidate/online footers measured 56px (12+32+12) with their
+ * buttons 8px low (y756–788 vs frame y748–780); the min-height centers the
+ * 32px buttons back at y748–780 (border-box: 72 − 24 padding = 48px content
+ * box, 8px centering offset = the frame's 20px band inset). */
 .lumen-plsubs__foot {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-inset);
+  box-sizing: border-box;
+  min-height: 72px; /* frame: Folder-2/-3.svg footer band 728–800 in the 800 window */
   padding: 12px 20px; /* frame: 72px band — Cancel/Save y748–780 in the 800 window */
 }
 
