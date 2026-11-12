@@ -14,15 +14,21 @@
  *     20px icon left, label ≈15px medium #8F8F8F (`right-click menu.svg`;
  *     analysis §A1 note 1 — SVG wins over spec §2's #e8e8e8), right-aligned
  *     shortcut ≈15px #6B6B6B or submenu chevron, r6 row radius
- *     (`--radius-control`), hover `--color-surface-hover`, active/selected
- *     `--color-surface-selected` + selective orange icon accent
- *     (profile/wand frames → `--color-accent-icon`).
+ *     (`--radius-control`), hover/selected `#1F1F1F` (`option.svg` hover +
+ *     selected rects — w26.i16: --color-surface-selected carries exactly
+ *     #1f1f1f, retiring the #262626 --color-surface-hover mismatch h18
+ *     measured on every non-ControlBar menu), and TWO-TONE line icons
+ *     (#8F8F8F base + #AB6314 details — the Icon.svg two-tone=yes groups;
+ *     w26.i16, h18 defect #3: iconAccent no longer forces full #D37918).
  *   Compact rows (`--density: compact`, settings dropdowns ≈ `Setting
  *     Preset.svg`): ~40px, icon 16px, label `--font-size-body`.
  *   Separators: 1px hairline ON the row boundary (frame +1px per separator,
  *     analysis §C1) — not a margined block.
- *   Dropdown: trigger r6 + 1px border + chevron; open list r6, options r6,
- *     selected option shows an orange check (`option.svg` Vector 44).
+ *   Dropdown: trigger r6 + 1px border + chevron; open list r6, 2px inset,
+ *     options 44px at 46px pitch (2px gaps) rx4, labels stay quiet on
+ *     hover/focus/selected (`option.svg` holds #8F8F8F; w26.i16 — the fill
+ *     + orange check are the state signal), selected option shows the
+ *     orange check (`option.svg` Vector 44).
  *   Viewport clamping (w26.f07): MenuPopup measures on open and flips/
  *     shifts fixed popups and submenus inside the viewport (8px margin).
  * Colors are semantic tokens ONLY (doc 08 §3.2); raw px appears solely for
@@ -133,8 +139,31 @@
   font-size: var(--font-size-body);
 }
 
+/* w26.i16 (h18 defect #4): the frame's hovered menu row fills #1F1F1F
+ * (option.svg "Property 1=hover" rect 261×48; context menu.svg row 1) — the
+ * same value gfix-C scoped to the ControlBar popovers, now the shared menu
+ * grammar so one screen never shows two hover values. --color-surface-selected
+ * carries exactly #1f1f1f (tokens.json); a later global surface-hover repin
+ * cannot drift from it. */
 .lumen-menu__item:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-surface-selected); /* frame: option.svg hover #1F1F1F */
+}
+
+/* w26.i16 — resting selected face (Profiles.svg flyout row 1: 257×48 #1F1F1F
+ * + the orange check in the icon slot). Distinct from :focus (the roving
+ * keyboard cursor) and from aria-checked radio rows (no fill in any
+ * right-click_menu.svg radio row) — hosts opt in via `entry.selected`. */
+.lumen-menu__item--selected {
+  background: var(--color-surface-selected); /* frame: Profiles.svg option_13 #1F1F1F */
+}
+
+/* w26.i16 — the selected face paints the frame's check IN THE ICON SLOT
+ * (Profiles.svg §A10 row 1: check 14×11 sw2 #D37918 @ x409–423 — the
+ * selected profile REPLACES its icon with the check; the label stays quiet
+ * #8F8F8F). Same glyph path as the checked radio/checkbox rows (orange ✓),
+ * keyed on the resting selected class instead of aria-checked. */
+.lumen-menu__item--selected > .lumen-menu__check::before {
+  content: "\2713"; /* check glyph — graphical, not an i18n string */
 }
 
 /* The roving-focus "active" row (keyboard navigation) reads as selected.
@@ -175,14 +204,17 @@
   height: 16px;
 }
 
-/* Selective orange icon accent (frames: profile / wand icons).
- * w26.g20 P1-1 Lead fix: the accent must reach the svg ITSELF - `.lumen-icon`
- * carries a direct `color: var(--color-stroke-icon)` rule that beats color
- * inheritance from the wrapper span (stroke="currentColor" resolves against
- * the svg's own color), so a wrapper-only rule painted every menu icon gray. */
+/* Selective icon-accent data flag (frames: profile / wand rows).
+ * w26.i16 (h18 defect #3): the accent is now TWO-TONE — base strokes keep the
+ * quiet #8F8F8F tone and the glyph's `lumen-icon__detail` elements paint
+ * --color-accent-strong (#AB6314) via icon.css (`.lumen-icon--two-tone`, set
+ * by MenuItem). The full-orange cascade below is retired: every menu frame
+ * (menu.svg, right-click menu.svg, file/folder/playlist context menu.svg,
+ * Profiles.svg) draws #8F8F8F bases with #AB6314 details, never solid
+ * #D37918. The class remains the row-level hook for host CSS/tests. */
 .lumen-menu__item--icon-accent .lumen-menu__icon,
 .lumen-menu__item--icon-accent .lumen-menu__icon .lumen-icon {
-  color: var(--color-accent-icon);
+  color: var(--color-stroke-icon); /* frame: two-tone icon base #8F8F8F */
 }
 
 /* Check slot — aligns labels of checked/plain rows; ✓ glyph when checked. */
@@ -217,7 +249,21 @@
   font-family: var(--font-family-sans);
   font-size: var(--font-size-section); /* ≈15px shortcuts — SAME size as the label (analysis §A1 note 2; w26.e12 F4/F9) */
   font-variant-numeric: tabular-nums;
-  color: var(--color-content-tertiary); /* frame shortcut #6B6B6B (`right-click menu.svg`) */
+
+  /* w26.i16 (h18 defect #2 — "accelerator token wrong on every menu, two
+   * waves running"): the frames pin #6B6B6B on every accelerator (menu.svg
+   * #6B6B6B×8, right-click menu.svg ×7, Profiles.svg ×8 — g20-P2-1). The
+   * WCAG-adjusted --color-content-tertiary (#828282, w26.f15) is a TEXT repin
+   * that never applied to these glyphs; a dedicated accelerator token is the
+   * token-lane seam (fallback carries the frame value until it lands). */
+  color: var(--color-content-accelerator, #6b6b6b); /* stylelint-disable-line color-no-hex -- frame: menu.svg accelerators #6B6B6B; token seam --color-content-accelerator pending (token lane, g20-P2-1/h18 #2) */
+}
+
+/* Light ramp: h18's light probe measured the flyout accelerators at #5F5F5F
+ * (gray.460, the light tertiary) — the dark frame value would over-darken
+ * the light panel. Same token seam, light fallback. */
+:root[data-theme="light"] .lumen-menu__accelerator {
+  color: var(--color-content-accelerator, #5f5f5f); /* stylelint-disable-line color-no-hex -- frame: light accel ink #5F5F5F (Player - Light ramp, h18 light probe); token seam pending (token lane) */
 }
 
 /* Submenu affordance: a "›" chevron (frame `menu.svg` Vector 27: 10px chevron,
@@ -241,7 +287,7 @@
   position: fixed;
   top: auto;
   left: auto;
-  min-width: 280px; /* context-menu frames are 265–292px wide — structural */
+  min-width: 265px; /* w26.i16 (h18 "family can't hold one width"): the context frames pin 265 — context_menu.svg 265×296, folder 265×296, playlist 265×392, file 265×584 — structural */
 }
 
 /* ---- Dropdown / Select ---- */
@@ -261,6 +307,12 @@
   box-sizing: border-box;
   min-width: 0;
   height: var(--space-item-pitch); /* 48px trigger (`Dropdown.svg`) */
+  /* w26.i16 (i08's shared-primitive proposal #2): UA `button { text-align:
+   * center }` centers the flex-grown value span; every W26 frame inks the
+   * selected value LEFT (HDR_Options.png pixels x85–150, EQ presets.svg
+   * label x39, Setting Preset.svg) — the scoped `text-align: start`
+   * overrides in equalizer.css/video.css become redundant, not conflicting. */
+  text-align: start;
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
@@ -345,6 +397,7 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
+  gap: 2px; /* w26.i16: frame row pitch 46 = 44 + 2 (`Dropdown.svg` options; the EQ/shortcuts/subtitle overrides proved the grammar) — structural */
   width: 100%;
   box-sizing: border-box;
   padding: 2px; /* frame list inset (`Dropdown.svg`) — structural */
@@ -367,34 +420,40 @@
   bottom: calc(100% + var(--space-grid));
 }
 
+/* w26.i16: the frame's option grammar (`Dropdown.svg` open state: 360×44
+ * rx4 rows at a 46px pitch inside the 364×232 list; `option.svg` holds the
+ * label at #8F8F8F on hover/selected — the #1F1F1F fill + orange check carry
+ * the state). One grammar for every host; the per-host overrides that
+ * pre-pinned it (equalizer/shortcuts/subtitles) become redundant, not
+ * conflicting. */
 .lumen-dropdown__option {
   display: flex;
   align-items: center;
   gap: var(--space-inset);
   box-sizing: border-box;
-  min-height: var(--space-item-pitch); /* 48px option rows (`option.svg`) */
+  min-height: 44px; /* frame: option rows 44px (`Dropdown.svg`) — structural */
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body);
   color: var(--color-content-secondary); /* frame option text #8F8F8F */
   cursor: pointer;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-inset); /* frame: option rows rx4 (`Dropdown.svg`) */
   transition: background-color 120ms ease, color 120ms ease;
 }
 
 .lumen-dropdown--compact .lumen-dropdown__option {
-  min-height: 40px; /* ~40px compact option rows (`Setting Preset.svg`) */
+  min-height: 40px; /* ~40px compact option rows (`Setting Preset.svg`) — structural */
 }
 
 .lumen-dropdown__option:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-content-bright);
+  background: var(--color-surface-selected); /* frame: option.svg hover #1F1F1F (w26.i16 — was surface-hover #262626) */
+  color: var(--color-content-secondary); /* frame: option.svg holds the label tone on hover */
 }
 
 /* The roving-focus option reads as active/selected. */
 .lumen-dropdown__option:focus {
   background: var(--color-surface-selected);
-  color: var(--color-content-bright);
+  color: var(--color-content-secondary); /* frame: label stays quiet */
 }
 
 .lumen-dropdown__option:focus-visible {
@@ -404,7 +463,7 @@
 
 .lumen-dropdown__option[aria-selected="true"] {
   background: var(--color-surface-selected); /* `option.svg` selected #1F1F1F */
-  color: var(--color-content-bright);
+  color: var(--color-content-secondary); /* w26.i16 (g20-P3-2): frame keeps the selected label quiet #8F8F8F — no #EAEAEA lift */
 }
 
 /* Orange check on the selected option (frame `option.svg`/`Dropdown.svg`
