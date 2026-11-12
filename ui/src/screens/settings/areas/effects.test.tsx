@@ -100,10 +100,16 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     ).toContain("Club");
   });
 
-  it("carries the frame's ⓘ affordances on the Equalizer + preset rows (F7)", () => {
+  it("carries the frame's ⓘ affordances on all six marked rows (F7 + w26.i14)", () => {
     renderArea();
+    // The frame's 6 circles (y118.5/163.5/707.5/749.5/793.5/837.5): the
+    // Equalizer + preset rows AND the four rows below the EQ panel that
+    // carried dead `note` props before w26.i14 (h10 defect #3).
     const infoDots = document.querySelectorAll(".effects-info");
-    expect(infoDots).toHaveLength(2);
+    expect(infoDots).toHaveLength(6);
+    // Accessible (role img, never aria-hidden) on every marked row.
+    const infos = screen.getAllByRole("img", { name: /Engine stage ready/ });
+    expect(infos).toHaveLength(6);
     // One on the Equalizer row, one on the Equalizer preset row.
     const eqRow = screen.getByRole("switch", { name: "Equalizer" }).closest(
       ".settings-field",
@@ -113,6 +119,19 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
       .closest(".settings-field");
     expect(eqRow?.querySelector(".effects-info")).not.toBeNull();
     expect(presetRow?.querySelector(".effects-info")).not.toBeNull();
+    // The four rows below the panel: Two-pass / Spatial audio / Spatial
+    // audio mode / Stereo widening (h10 defect #3 — the frame's ⓘ now
+    // renders where the note prop used to be dead).
+    for (const label of ["Two-pass", "Spatial audio", "Spatial audio mode", "Stereo widening"]) {
+      const row = screen.getByRole(
+        label === "Spatial audio mode" ? "button" : "switch",
+        { name: label },
+      ).closest(".settings-field");
+      expect(row?.querySelector(".effects-info"), `${label} carries the frame's ⓘ`).not.toBeNull();
+      expect(row?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+        "Engine stage ready",
+      );
+    }
     // g12-P3-8: the staged note rides the ⓘ tooltips (no in-row note lines).
     expect(eqRow?.querySelector(".effects-info")?.getAttribute("title")).toContain(
       "Engine stage ready",
@@ -156,6 +175,15 @@ describe("EffectsArea — staged rows are inert WITH REASON (the old pattern sta
     expect(
       twoPass.closest("[data-pending-command]")?.getAttribute("data-pending-command"),
     ).toBe("audio.set-eq");
+    // w26.i14: the frame's 42px row pitch (the 46px default accumulated
+    // +16px vs the frame over the four rows below the panel).
+    expect(twoPass.closest(".settings-field")).toHaveAttribute("data-kind", "switch");
+    expect(
+      screen.getByRole("switch", { name: "Stereo widening" }).closest(".settings-field"),
+    ).toHaveAttribute("data-kind", "switch");
+    expect(
+      screen.getByRole("button", { name: "Spatial audio mode" }).closest(".settings-field"),
+    ).toHaveAttribute("data-kind", "enum");
 
     const spatial = screen.getByRole("switch", { name: "Spatial audio" });
     expect(spatial).toBeDisabled();
