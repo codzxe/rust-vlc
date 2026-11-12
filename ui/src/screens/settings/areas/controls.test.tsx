@@ -46,6 +46,15 @@ describe("ControlsArea — routing + the b02 sibling contract", () => {
     expect(screen.getByRole("button", { name: "Controls" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("renders exactly ONE area root (w26.i15, g14-P3-4 class — no nested duplicates)", () => {
+    renderRouted("controls");
+    expect(document.querySelectorAll('[data-settings-area="controls"]')).toHaveLength(1);
+    // The single root is the embedded generated screen's (no-testid) root,
+    // the recording/extensions pattern — the wrapper carries only the testid.
+    expect(document.querySelector('.settings-sections[data-settings-area="controls"]:not([data-testid])')).not.toBeNull();
+    expect(document.querySelector('[data-testid="controls-area"]')?.getAttribute("data-settings-area")).toBeNull();
+  });
+
   it("hosts the retired hotkeys slug: /settings/hotkeys redirects here and mounts the fold host", () => {
     renderRouted("hotkeys");
     expect(screen.getByRole("button", { name: "Controls" })).toHaveAttribute("aria-current", "page");
@@ -81,7 +90,7 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
     ).toHaveAttribute("data-controls-action", "reset-shortcuts");
   });
 
-  it("the fold mounts the HotkeysEditor on demand and unmounts on toggle", () => {
+  it("the editor DIALOG mounts on demand and closes (w26.i15, h11 #5 — no inline slab)", () => {
     mountArea();
     expect(screen.queryByTestId("hotkeys-table")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" }));
@@ -89,13 +98,22 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
       "aria-expanded",
       "true",
     );
-    expect(screen.getByTestId("controls-hotkeys-fold")).toBeInTheDocument();
+    // A real dialog: role + modal semantics + the frame-verbatim title.
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(screen.getByText("Keyboard Shortcuts", { selector: ".hotkeys-dialog__title" })).toBeInTheDocument();
     expect(screen.getByTestId("hotkeys-table")).toBeInTheDocument();
     // Real keymap data, not a fixture: the editor's first binding renders.
     const first = HOTKEY_BINDINGS[0]!;
     expect(screen.getByTestId(`hotkeys-input-${first.id}`)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" }));
+    // Close via the ✕ — the dialog unmounts, the column never grew a slab.
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(screen.queryByTestId("hotkeys-table")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("Reset clears the persisted overrides and re-reads keymap defaults", () => {
@@ -114,19 +132,25 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
 });
 
 describe("ControlsArea — honest surface (config-never-invents)", () => {
-  it("renders the frame's Remotes section as STAGED inert rows (g13-P2-8)", () => {
+  it("renders the frame's Remotes section as STAGED inert rows (g13-P2-8; w26.i15: tooltip, no note)", () => {
     mountArea();
     // The two frame rows render (frame C8 y762) — inert with the honest
-    // staged note while the control server is Phase 5+; never dead-but-alive.
+    // reason on each row's tooltip; never dead-but-alive.
     const webRemote = screen.getByRole("switch", { name: "Web remote control" });
     expect(webRemote).toBeDisabled();
     expect(webRemote).toHaveAttribute("aria-checked", "false"); // frame: OFF
     const port = screen.getByRole("textbox", { name: "Port" }) as HTMLInputElement;
     expect(port).toBeDisabled();
     expect(port.value).toBe(""); // frame: empty
-    expect(screen.getByRole("note")).toHaveTextContent(
+    // The honest reason rides each staged row's title — the 11px visible
+    // note is gone (content the §C8 frame does not carry, h11 #3).
+    const webRemoteRow = webRemote.closest("[data-staged]");
+    expect(webRemoteRow).toHaveAttribute("data-staged", "control-server");
+    expect(webRemoteRow?.getAttribute("title")).toContain(
       "Staged — the web remote activates when the control server ships",
     );
+    expect(port.closest("[data-staged]")).toHaveAttribute("title", webRemoteRow?.getAttribute("title") ?? "");
+    expect(screen.queryByRole("note")).toBeNull();
     // No live bindings: every Remotes row awaits its schema key.
     expect(document.querySelectorAll('[data-staged="control-server"]')).toHaveLength(2);
     expect(document.querySelectorAll('[data-setting^="controls.remote"]')).toHaveLength(0);
