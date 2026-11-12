@@ -6,6 +6,7 @@ import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { ThemeProvider } from "../../../theme/ThemeProvider";
+import { UI_PACKAGE_VERSION } from "../../../build-info";
 import {
   SETTINGS_AREA_IDS,
   SETTINGS_AREA_REDIRECTS,
@@ -111,14 +112,64 @@ describe("areas layer — the 13-area registry (w26.b02)", () => {
     expect(trigger?.textContent ?? "").toMatch(/English \(United States\)/i);
   });
 
-  it("renders the global area with the about fold (w26 merge: about→global)", () => {
+  it("renders the global area frame-true: the Advanced bar is LAST; About rides behind the disclosure (w26.i13, h08 #1/#2)", () => {
     routed("/settings/global", routes);
+    // Settings - global.svg: the column ends at the Advanced Options bar —
+    // collapsed state carries NO About section in the flow (the former
+    // beforeAdvanced placement displaced the bar 141px and clipped all four
+    // expanded rows below the window fold).
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    expect(document.querySelector('[data-testid="about-area"]')).toBeNull();
+    const column = document.querySelector('[data-settings-area="global"]');
+    expect(column?.lastElementChild?.classList.contains("settings-advanced")).toBe(true);
+    // Expand: the four advanced rows render BELOW the bar (global-1), then
+    // the About fold (reachable, out of the frame-true column).
+    fireEvent.click(bar);
+    expect(bar).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Show minor warnings")).toBeInTheDocument();
+    expect(screen.getByText("Collect playback statistics")).toBeInTheDocument();
     expect(document.querySelector('[data-testid="about-area"]')).toBeTruthy();
+    expect(screen.getByTestId("about-version").textContent).toBe(UI_PACKAGE_VERSION);
+  });
+
+  it("wires the frame's ⓘ hint affordances on global — 6 + the 4 advanced rows (w26.i13, h08 #3)", () => {
+    // Circle extraction over Settings - global.svg: Startup×2 + Diagnostics×4;
+    // the Appearance rows carry NO circle. Settings - global-1.svg adds the 4
+    // advanced rows (cy 724/768/814/858).
+    routed("/settings/global", routes);
+    const info = '[data-settings-area="global"] .settings-field__info';
+    expect(document.querySelectorAll(info)).toHaveLength(6);
+    fireEvent.click(screen.getByRole("button", { name: "Advanced Options" }));
+    expect(document.querySelectorAll(info)).toHaveLength(10);
+  });
+
+  it("wires the frame's ⓘ on interface — 11 of 13 rows, the two honest absences (w26.i13, h08 #3)", () => {
+    routed("/settings/interface", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="interface"] .settings-field__info'),
+    ).toHaveLength(11);
+    expect(
+      document.querySelector('[data-setting="interface.remember-window-geometry"] .settings-field__info'),
+    ).toBeNull(); // frame cy 367 carries no circle
+    expect(
+      document.querySelector('[data-setting="interface.hide-controls-after"] .settings-field__info'),
+    ).toBeNull(); // the "Hide after" label carries none (the cy-783 ⓘ is the row below)
+  });
+
+  it("wires the frame's ⓘ on privacy — every row incl. the Clear action (w26.i13, h08 #3)", () => {
+    routed("/settings/privacy", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="privacy"] .settings-field__info'),
+    ).toHaveLength(9); // 8 schema rows + the hand Clear-history action row
   });
 
   it("renders the video area with the codecs fold (w26 merge: codecs→video)", () => {
     routed("/settings/video", routes);
     expect(document.querySelector('[data-settings-area="video"]')).toBeTruthy();
+    // w26.i14: the codecs rows sit behind the in-flow disclosure (collapsed
+    // by default) — open it, then the merged area renders.
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    fireEvent.click(bar);
     expect(document.querySelector('[data-settings-area="codecs"]')).toBeTruthy();
   });
 
