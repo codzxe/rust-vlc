@@ -568,9 +568,18 @@
   outline-offset: 2px;
 }
 
+/* w26.i12 (h08 #4 / h10 #2 / h11 #3 — the family's ONE staged-inert answer):
+ * settings actions whose capability is not wired (path-row Browse, privacy
+ * Clear, extensions toolbar) render FULL-STRENGTH while inert — the frames
+ * show live buttons at full ink, and the Remotes staged rows set the
+ * precedent the raters praised. The honesty stays in the disabled state
+ * (inert, no hover/active promotion) + each button's title/aria-describedby
+ * reason; the 0.5 dimming that made every frame affordance read as dead
+ * retires. A11y note for the areas lanes: disabled stays un-focusable — pair
+ * the reason with a visible/row-level note where discovery matters. */
 .settings-action:disabled {
-  opacity: var(--opacity-disabled); /* honest inert action (reason via note/title) */
-  cursor: default;
+  opacity: 1; /* staged-inert: frame-full ink, never dimmed (Remotes pattern) */
+  cursor: not-allowed; /* honest refusal (gfix-E disabled-thumb precedent) */
 }
 
 .settings-action:hover:not(:disabled) {
