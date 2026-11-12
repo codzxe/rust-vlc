@@ -37,6 +37,7 @@ import type { DropdownOption } from "../../../../components/menu";
 import { VideoCard } from "./VideoCard";
 import { VideoSliderRow } from "./VideoSliderRow";
 import { useVideoMsg } from "./copy";
+import { useDropdownScrollportFlip } from "./useDropdownScrollportFlip";
 import {
   FRAME_EXTRACTION_COLOR,
   FRAME_THRESHOLD_COLOR,
@@ -47,16 +48,20 @@ import type { VideoLabelKey, VideoSliderRowDef, VideoToolProps } from "./types";
 /** Frame value format: no visible value column — this feeds aria-valuetext. */
 const percent = (value: number): string => `${Math.round(value)} %`;
 
-/** Saturation / Similarity / Sepia Intensity (frame fill widths 66/66/112 of
- * a 328px track — staged display ranges land each default on the frame's
- * SVG-measured thumb position). */
+/** Saturation / Similarity / Sepia Intensity — STAGED DISPLAY RANGES: each
+ * initial is calibrated through the shared slider's flush travel (w26.i07:
+ * thumb right == fill right, `left: calc((100% - 4px) * p / 100 - 6px)` — a
+ * value v paints its thumb center at ≈ 0.988·v − 0.6 % of the track) so the
+ * PAINTED thumb lands on the frame's SVG-measured mark ("Video - Colors.svg":
+ * 20.73% / 20.73% / 33.54%; w26.i08 — the pre-flush initials 20/20/34 sat
+ * 1.3–5.3px left of the frame after i07's formula landed). */
 const SATURATION_ROW: VideoSliderRowDef = {
   id: "saturation",
   labelKey: "customize.field.saturation", // central key — reused
   min: 0,
   max: 100,
   step: 1,
-  initial: 20,
+  initial: 21.6, // paints 20.7% — frame thumb center 20.73%
   format: percent,
 };
 
@@ -66,7 +71,7 @@ const SIMILARITY_ROW: VideoSliderRowDef = {
   min: 0,
   max: 100,
   step: 1,
-  initial: 20,
+  initial: 21.6, // paints 20.7% — frame thumb center 20.73%
   format: percent,
 };
 
@@ -76,7 +81,7 @@ const SEPIA_ROW: VideoSliderRowDef = {
   min: 0,
   max: 100,
   step: 1,
-  initial: 34,
+  initial: 34.55, // paints 33.5% — frame thumb center 33.54%
   ticks: 2, // frame: 2 degree ticks @ x146/x254
   format: percent,
 };
@@ -196,6 +201,11 @@ export function ColorsTool({
   const [gradientMode, setGradientMode] = useState("gradient");
   const generatedId = useId();
   const id = idProp ?? `colors-${generatedId}`;
+  // w26.i08 (h15-P1): the sub-dropdown's list placement is clip-aware — the
+  // shared Dropdown's flip (w26.i16 container measurement) lands it inside
+  // the tools-dialog body at both contract viewports; the hook only adds
+  // the viewport escape/cap for states where no body side fits.
+  const gradientFlipRef = useDropdownScrollportFlip<HTMLDivElement>();
 
   const flip = (toggle: ColorsToggleId): void => {
     setToggles((prev) => ({ ...prev, [toggle]: !prev[toggle] }));
@@ -219,7 +229,14 @@ export function ColorsTool({
         }}
         inputId={`${id}-extraction-hex`}
       />
-      <div className="video-sep" role="separator" aria-orientation="horizontal" />
+      {/* w26.i08: per-separator modifiers — the frame's varied cadence
+         (video.css pins each gap; the former uniform 13px rhythm compressed
+         the lower half up to −26px — h15-P2/g17-P2-1). */}
+      <div
+        className="video-sep video-sep--1"
+        role="separator"
+        aria-orientation="horizontal"
+      />
       <ColorsHexRow
         label={m(FRAME_TOGGLES.threshold)}
         hex={thresholdHex}
@@ -244,7 +261,11 @@ export function ColorsTool({
           setSliders((prev) => ({ ...prev, similarity: next }));
         }}
       />
-      <div className="video-sep" role="separator" aria-orientation="horizontal" />
+      <div
+        className="video-sep video-sep--2"
+        role="separator"
+        aria-orientation="horizontal"
+      />
       <ColorsToggleRow
         label={m(FRAME_TOGGLES.negate)}
         checked={toggles.negate}
@@ -252,7 +273,11 @@ export function ColorsTool({
           flip("negate");
         }}
       />
-      <div className="video-sep" role="separator" aria-orientation="horizontal" />
+      <div
+        className="video-sep video-sep--3"
+        role="separator"
+        aria-orientation="horizontal"
+      />
       <ColorsToggleRow
         label={m(FRAME_TOGGLES.posterize)}
         checked={toggles.posterize}
@@ -260,7 +285,11 @@ export function ColorsTool({
           flip("posterize");
         }}
       />
-      <div className="video-sep" role="separator" aria-orientation="horizontal" />
+      <div
+        className="video-sep video-sep--4"
+        role="separator"
+        aria-orientation="horizontal"
+      />
       <ColorsToggleRow
         label={m(FRAME_TOGGLES.gradient)}
         checked={toggles.gradient}
@@ -268,7 +297,7 @@ export function ColorsTool({
           flip("gradient");
         }}
       />
-      <div className="video-subdropdown">
+      <div className="video-subdropdown" ref={gradientFlipRef}>
         <Dropdown
           options={GRADIENT_MODES}
           value={gradientMode}
@@ -291,7 +320,11 @@ export function ColorsTool({
           flip("cartoon");
         }}
       />
-      <div className="video-sep" role="separator" aria-orientation="horizontal" />
+      <div
+        className="video-sep video-sep--5"
+        role="separator"
+        aria-orientation="horizontal"
+      />
       <VideoSliderRow
         row={SEPIA_ROW}
         value={sliders.sepia ?? SEPIA_ROW.initial}

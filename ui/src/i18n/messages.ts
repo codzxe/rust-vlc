@@ -1113,8 +1113,8 @@ export type MessageKey =
   | "settings.value.audio-speaker-setup.mono"
   | "settings.value.audio-speaker-setup.stereo"
   | "settings.value.audio-speaker-setup.quadraphonic"
-  | "settings.value.audio-speaker-setup.5.1"
-  | "settings.value.audio-speaker-setup.7.1"
+  | "settings.value.audio-speaker-setup.5-1"
+  | "settings.value.audio-speaker-setup.7-1"
   | "settings.value.audio-replay-gain.off"
   | "settings.value.audio-replay-gain.track"
   | "settings.value.audio-replay-gain.album"
@@ -1277,7 +1277,173 @@ export type MessageKey =
   | "settings.value.interface-resize-to-fit-video.always"
   | "settings.value.interface-resize-to-fit-video.never"
   | "settings.video.reset"
-  | "settings.video.reset-picture";
+  | "settings.video.reset-picture"
+  | "convert.lane.gate"
+  | "customize.toolbar.label"
+  | "customize.toolbar.unavailable"
+  | "onboarding.library.browse"
+  | "onboarding.library.field-label"
+  | "onboarding.shortcuts.row.audio-cycle"
+  | "onboarding.shortcuts.row.file-browser"
+  | "onboarding.shortcuts.row.frame"
+  | "onboarding.shortcuts.row.fullscreen"
+  | "onboarding.shortcuts.row.item"
+  | "onboarding.shortcuts.row.play-pause"
+  | "onboarding.shortcuts.row.queue"
+  | "onboarding.shortcuts.row.record"
+  | "onboarding.shortcuts.row.seek"
+  | "onboarding.shortcuts.row.snapshot"
+  | "onboarding.shortcuts.row.subtitle-cycle"
+  | "onboarding.shortcuts.row.volume"
+  | "player.appmenu.profile.auto-name"
+  | "player.appmenu.profile.new"
+  | "player.browse.empty"
+  | "player.browse.exit"
+  | "player.browse.label"
+  | "player.canvas.menu.hide-playlists"
+  | "player.canvas.menu.show-playlists"
+  | "player.controls.queue-items"
+  | "player.controls.repeat.all"
+  | "player.controls.repeat.off"
+  | "player.controls.repeat.one"
+  | "player.controls.row.audio-language"
+  | "player.controls.row.subtitle-language"
+  | "player.controls.section.defaults"
+  | "player.controls.section.embedded-tracks"
+  | "player.controls.section.external-tracks"
+  | "player.controls.section.output-device"
+  | "player.controls.tab.bookmarks"
+  | "player.controls.tab.chapters"
+  | "player.controls.tab.subtitles"
+  | "player.dock.count-suffix"
+  | "player.dock.forward"
+  | "player.dock.forward.hint"
+  | "player.dock.hide"
+  | "player.mini.queue.add"
+  | "player.mini.queue.add-empty"
+  | "player.preview.hide"
+  | "player.preview.label"
+  | "player.preview.show"
+  | "player.preview.show.hint"
+  | "player.preview.title-empty"
+  | "settings.advanced.staged"
+  | "settings.extensions.staged"
+  | "settings.hint.audio.enable"
+  | "settings.hint.audio.night-mode"
+  | "settings.hint.audio.normalize-loudness"
+  | "settings.hint.audio.output-device"
+  | "settings.hint.audio.replay-gain"
+  | "settings.hint.audio.replay-gain-preamp"
+  | "settings.hint.audio.speaker-setup"
+  | "settings.hint.audio.startup-volume"
+  | "settings.hint.audio.target-level"
+  | "settings.hint.audio.volume-step"
+  | "settings.hint.global.collect-playback-statistics"
+  | "settings.hint.global.developer-mode"
+  | "settings.hint.global.extra-cli-options"
+  | "settings.hint.global.log-details"
+  | "settings.hint.global.log-file"
+  | "settings.hint.global.log-format"
+  | "settings.hint.global.save-log"
+  | "settings.hint.global.show-dialogs"
+  | "settings.hint.global.show-minor-warnings"
+  | "settings.hint.global.update-checks"
+  | "settings.hint.interface.auto-hide-controls"
+  | "settings.hint.interface.filename-in-title-bar"
+  | "settings.hint.interface.keep-above"
+  | "settings.hint.interface.open-fullscreen-on"
+  | "settings.hint.interface.play-video-in-main-window"
+  | "settings.hint.interface.resize-to-fit-video"
+  | "settings.hint.interface.show-controls-in-fullscreen"
+  | "settings.hint.interface.skin-file"
+  | "settings.hint.interface.start-in-compact-mode"
+  | "settings.hint.interface.use-custom-skin"
+  | "settings.hint.interface.window-decorations"
+  | "settings.hint.playback.default-audio-track"
+  | "settings.hint.playback.default-subtitle-track"
+  | "settings.hint.playback.finish-action"
+  | "settings.hint.playback.menu-language"
+  | "settings.hint.playback.pause-on-audio-focus"
+  | "settings.hint.playback.preferred-video-quality"
+  | "settings.hint.playback.repeat-mode"
+  | "settings.hint.playback.resume"
+  | "settings.hint.playback.seek-precisely"
+  | "settings.hint.playback.shuffle"
+  | "settings.hint.playback.start-paused"
+  | "settings.hint.playback.stop-after-each-item"
+  | "settings.hint.privacy.clear-history"
+  | "settings.hint.privacy.fetch-metadata-online"
+  | "settings.hint.privacy.lastfm-password"
+  | "settings.hint.privacy.lastfm-submission-url"
+  | "settings.hint.privacy.lastfm-username"
+  | "settings.hint.privacy.never-remember-matching"
+  | "settings.hint.privacy.remember-playback-position"
+  | "settings.hint.privacy.save-recent-items"
+  | "settings.hint.privacy.submit-lastfm"
+  | "settings.hint.video.aspect-ratio"
+  | "settings.hint.video.crop"
+  | "settings.hint.video.deinterlace"
+  | "settings.hint.video.deinterlace-method"
+  | "settings.hint.video.disable-screensaver"
+  | "settings.hint.video.enable"
+  | "settings.hint.video.start-fullscreen"
+  | "settings.hint.video.wallpaper"
+  | "settings.hotkeys.dialog.close"
+  | "settings.library.fetch-metadata"
+  | "settings.library.file-manager"
+  | "settings.library.folder-open"
+  | "settings.library.playlist-add"
+  | "settings.library.show-hidden"
+  | "settings.library.single-window"
+  | "settings.library.staged"
+  | "settings.library.use-media-library"
+  | "settings.library.value.folder.include-subfolders"
+  | "settings.library.value.metadata.file-only"
+  | "settings.network.buffer-size"
+  | "settings.network.cipher-preference"
+  | "settings.network.discs"
+  | "settings.network.http-proxy"
+  | "settings.network.http-proxy-password"
+  | "settings.network.live-capture"
+  | "settings.network.local-files"
+  | "settings.network.network-streams"
+  | "settings.network.staged"
+  | "settings.network.value.buffer.normal"
+  | "settings.network.value.cipher.balanced"
+  | "settings.network.value.proxy.system"
+  | "settings.network.verify-certificates"
+  | "settings.recording.cast-quality"
+  | "settings.recording.discover-cast"
+  | "settings.recording.encoding-preset"
+  | "settings.recording.include-audio"
+  | "settings.recording.include-subtitles"
+  | "settings.recording.include-video"
+  | "settings.recording.play-locally"
+  | "settings.recording.staged"
+  | "settings.recording.tuning"
+  | "settings.recording.value.cast.automatic"
+  | "settings.recording.value.directory.default"
+  | "settings.recording.value.preset.medium"
+  | "settings.recording.value.tuning.none"
+  | "settings.recording.without-reencoding"
+  | "settings.section.library.metadata-artwork"
+  | "settings.section.library.opening-files"
+  | "settings.section.network.buffering"
+  | "settings.section.network.proxy"
+  | "settings.section.network.security"
+  | "settings.section.recording.casting"
+  | "settings.section.recording.streaming"
+  | "settings.value.video-aspect-ratio.1-1"
+  | "settings.value.video-aspect-ratio.16-10"
+  | "settings.value.video-aspect-ratio.16-9"
+  | "settings.value.video-aspect-ratio.2-35-1"
+  | "settings.value.video-aspect-ratio.2-39-1"
+  | "settings.value.video-aspect-ratio.4-3"
+  | "settings.value.video-crop.1-1"
+  | "settings.value.video-crop.16-10"
+  | "settings.value.video-crop.16-9"
+  | "settings.value.video-crop.4-3";
+
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
 // generator, tests, and l10n tooling.
@@ -1540,7 +1706,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.performance.cache-demux-mib": "Demuxer cache (MiB)",
   "settings.performance.cache-network-mib": "Network cache (MiB)",
   "settings.performance.max-open-sessions": "Maximum open sessions",
-  "settings.value.global-language.en-us": "English (US)",
+  "settings.value.global-language.en-us": "English",
   "settings.value.interface-theme.dark": "Dark",
   "settings.value.interface-theme.light": "Light",
   "settings.value.privacy-crash-reports.off": "Off",
@@ -1568,7 +1734,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.hotkeys.apply": "Apply",
   "settings.hotkeys.revert": "Revert",
   "settings.hotkeys.defaults-note": "Bindings are seeded from the default keymap (keymaps/default.toml).",
-  "settings.locale.en-us": "English (United States)",
+  "settings.locale.en-us": "English",
   "settings.appearance.theme-note": "Theme changes apply instantly for preview.",
   "hotkeys.about": "About",
   "hotkeys.advanced-controls": "Advanced Controls",
@@ -2378,8 +2544,8 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.audio-speaker-setup.mono": "Mono",
   "settings.value.audio-speaker-setup.stereo": "Stereo",
   "settings.value.audio-speaker-setup.quadraphonic": "Quadraphonic",
-  "settings.value.audio-speaker-setup.5.1": "5.1",
-  "settings.value.audio-speaker-setup.7.1": "7.1",
+  "settings.value.audio-speaker-setup.5-1": "5.1",
+  "settings.value.audio-speaker-setup.7-1": "7.1",
   "settings.value.audio-replay-gain.off": "Off",
   "settings.value.audio-replay-gain.track": "Track",
   "settings.value.audio-replay-gain.album": "Album",
@@ -2544,6 +2710,171 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.interface-resize-to-fit-video.never": "Never",
   "settings.video.reset": "Reset",
   "settings.video.reset-picture": "Reset picture",
+  "convert.lane.gate": "This build exposes no conversion commands: the engine’s conversion lane is not wired into its command catalog yet, so queueing is disabled.",
+  "customize.toolbar.label": "Custom toolbar items",
+  "customize.toolbar.unavailable": "Not available yet",
+  "onboarding.library.browse": "Browse",
+  "onboarding.library.field-label": "Choose media to get started with",
+  "onboarding.shortcuts.row.audio-cycle": "Cycle Audio Track",
+  "onboarding.shortcuts.row.file-browser": "Show / Hide File Browser",
+  "onboarding.shortcuts.row.frame": "Previous / Next Frame",
+  "onboarding.shortcuts.row.fullscreen": "Toggle Fullscreen",
+  "onboarding.shortcuts.row.item": "Previous / Next Item",
+  "onboarding.shortcuts.row.play-pause": "Play / Pause",
+  "onboarding.shortcuts.row.queue": "Show / Hide Queue",
+  "onboarding.shortcuts.row.record": "Record",
+  "onboarding.shortcuts.row.seek": "Seek Backward / Forward",
+  "onboarding.shortcuts.row.snapshot": "Take a Snapshot",
+  "onboarding.shortcuts.row.subtitle-cycle": "Cycle Subtitle Track",
+  "onboarding.shortcuts.row.volume": "Increase / Decrease Volume",
+  "player.appmenu.profile.auto-name": "Profile",
+  "player.appmenu.profile.new": "New",
+  "player.browse.empty": "No items in this playlist yet.",
+  "player.browse.exit": "Back to the player",
+  "player.browse.label": "Playlist items",
+  "player.canvas.menu.hide-playlists": "Hide playlists panel",
+  "player.canvas.menu.show-playlists": "Show playlists panel",
+  "player.controls.queue-items": "items",
+  "player.controls.repeat.all": "All",
+  "player.controls.repeat.off": "Off",
+  "player.controls.repeat.one": "One",
+  "player.controls.row.audio-language": "Audio language",
+  "player.controls.row.subtitle-language": "Subtitle language",
+  "player.controls.section.defaults": "Defaults",
+  "player.controls.section.embedded-tracks": "Embedded Tracks",
+  "player.controls.section.external-tracks": "External Tracks",
+  "player.controls.section.output-device": "Output Device",
+  "player.controls.tab.bookmarks": "Bookmarks",
+  "player.controls.tab.chapters": "Chapters",
+  "player.controls.tab.subtitles": "Subtitles",
+  "player.dock.count-suffix": "items",
+  "player.dock.forward": "Forward",
+  "player.dock.forward.hint": "Forward navigation is not exposed by this build yet.",
+  "player.dock.hide": "Hide the playlists dock",
+  "player.mini.queue.add": "Add to queue",
+  "player.mini.queue.add-empty": "Nothing to add yet",
+  "player.preview.hide": "Hide the now-playing card",
+  "player.preview.label": "Now playing",
+  "player.preview.show": "Show the now-playing card",
+  "player.preview.show.hint": "Open media to see the now-playing card.",
+  "player.preview.title-empty": "No media open",
+  "settings.advanced.staged": "Staged — advanced options open once this area carries them",
+  "settings.extensions.staged": "Staged — add-on management activates when the extensions feature ships",
+  "settings.hint.audio.enable": "Play the audio track during playback.",
+  "settings.hint.audio.night-mode": "Narrow the dynamic range for quiet listening.",
+  "settings.hint.audio.normalize-loudness": "Even out loudness differences between items.",
+  "settings.hint.audio.output-device": "The device audio plays through.",
+  "settings.hint.audio.replay-gain": "How replay gain tags adjust playback volume.",
+  "settings.hint.audio.replay-gain-preamp": "Extra gain applied on top of replay gain.",
+  "settings.hint.audio.speaker-setup": "The speaker layout used for output.",
+  "settings.hint.audio.startup-volume": "The volume playback starts at.",
+  "settings.hint.audio.target-level": "The loudness level normalization aims for.",
+  "settings.hint.audio.volume-step": "How much the volume changes per step.",
+  "settings.hint.global.collect-playback-statistics": "Count plays per item for the library statistics.",
+  "settings.hint.global.developer-mode": "Unlock developer tools and extra diagnostics.",
+  "settings.hint.global.extra-cli-options": "Extra options passed to the playback engine at launch. Applied after a restart.",
+  "settings.hint.global.log-details": "How much detail the log records.",
+  "settings.hint.global.log-file": "The path of the log file.",
+  "settings.hint.global.log-format": "The file format of the saved log.",
+  "settings.hint.global.save-log": "Write a log file while the app runs.",
+  "settings.hint.global.show-dialogs": "Show a dialog to confirm actions and report errors.",
+  "settings.hint.global.show-minor-warnings": "Also record minor warnings that are usually skipped.",
+  "settings.hint.global.update-checks": "Look for app updates automatically at startup.",
+  "settings.hint.interface.auto-hide-controls": "When the playback controls fade out.",
+  "settings.hint.interface.filename-in-title-bar": "Show the playing file name in the window title.",
+  "settings.hint.interface.keep-above": "Keep this window in front of other windows.",
+  "settings.hint.interface.open-fullscreen-on": "The screen that fullscreen playback opens on.",
+  "settings.hint.interface.play-video-in-main-window": "Play videos here instead of in a separate window.",
+  "settings.hint.interface.resize-to-fit-video": "Resize the window to match the video size.",
+  "settings.hint.interface.show-controls-in-fullscreen": "Keep the controls visible during fullscreen playback.",
+  "settings.hint.interface.skin-file": "The skin file used while a custom skin is on.",
+  "settings.hint.interface.start-in-compact-mode": "Start in a compact window with only the player.",
+  "settings.hint.interface.use-custom-skin": "Load the window chrome from a skin file.",
+  "settings.hint.interface.window-decorations": "Show the system window frame around the window.",
+  "settings.hint.playback.default-audio-track": "The audio track selected by default.",
+  "settings.hint.playback.default-subtitle-track": "The subtitle track selected by default.",
+  "settings.hint.playback.finish-action": "What happens when playback reaches the end of the list.",
+  "settings.hint.playback.menu-language": "The preferred language for disc and stream menus.",
+  "settings.hint.playback.pause-on-audio-focus": "Pause playback while another app plays sound.",
+  "settings.hint.playback.preferred-video-quality": "The quality chosen when a stream offers several.",
+  "settings.hint.playback.repeat-mode": "How the playlist repeats — off, one item, or the whole list.",
+  "settings.hint.playback.resume": "Reopen the last playlist and item when the app starts.",
+  "settings.hint.playback.seek-precisely": "Jump to the exact time, which can be slower on some files.",
+  "settings.hint.playback.shuffle": "Play the playlist in random order.",
+  "settings.hint.playback.start-paused": "Start playback automatically instead of opening the file paused.",
+  "settings.hint.playback.stop-after-each-item": "Stop after each item instead of continuing.",
+  "settings.hint.privacy.clear-history": "Forget every remembered item and playback position.",
+  "settings.hint.privacy.fetch-metadata-online": "Download titles and cover art from the internet.",
+  "settings.hint.privacy.lastfm-password": "The password for the last.fm account.",
+  "settings.hint.privacy.lastfm-submission-url": "Scrobble server address — change it only for a custom server.",
+  "settings.hint.privacy.lastfm-username": "The last.fm account plays are submitted to.",
+  "settings.hint.privacy.never-remember-matching": "Items whose names contain this text are never remembered.",
+  "settings.hint.privacy.remember-playback-position": "Resume each item where you stopped.",
+  "settings.hint.privacy.save-recent-items": "Keep a list of what you played recently.",
+  "settings.hint.privacy.submit-lastfm": "Scrobble what you play to your last.fm profile.",
+  "settings.hint.video.aspect-ratio": "Force the picture into a fixed aspect ratio.",
+  "settings.hint.video.crop": "Trim the picture to a fixed shape.",
+  "settings.hint.video.deinterlace": "When interlaced video is deinterlaced.",
+  "settings.hint.video.deinterlace-method": "The filter used to clean up interlaced video.",
+  "settings.hint.video.disable-screensaver": "Keep the screen awake during playback.",
+  "settings.hint.video.enable": "Show the video track during playback.",
+  "settings.hint.video.start-fullscreen": "Open files in fullscreen mode.",
+  "settings.hint.video.wallpaper": "Show the video behind the desktop icons.",
+  "settings.hotkeys.dialog.close": "Close",
+  "settings.library.fetch-metadata": "Fetch titles and artwork",
+  "settings.library.file-manager": "Apply to files opened from the file manager",
+  "settings.library.folder-open": "When opening a folder",
+  "settings.library.playlist-add": "Add to the playlist instead of replacing it",
+  "settings.library.show-hidden": "Show hidden files",
+  "settings.library.single-window": "Only allow one VLC window",
+  "settings.library.staged": "Staged — these rows activate when the library settings schema ships",
+  "settings.library.use-media-library": "Use the media library",
+  "settings.library.value.folder.include-subfolders": "Include subfolders",
+  "settings.library.value.metadata.file-only": "From the file only",
+  "settings.network.buffer-size": "Buffering",
+  "settings.network.cipher-preference": "Cipher preference",
+  "settings.network.discs": "Discs",
+  "settings.network.http-proxy": "HTTP proxy",
+  "settings.network.http-proxy-password": "HTTP proxy password",
+  "settings.network.live-capture": "Live capture",
+  "settings.network.local-files": "Local files",
+  "settings.network.network-streams": "Network streams",
+  "settings.network.staged": "Staged — these rows activate when the network settings schema ships",
+  "settings.network.value.buffer.normal": "Normal",
+  "settings.network.value.cipher.balanced": "Balanced",
+  "settings.network.value.proxy.system": "System proxy",
+  "settings.network.verify-certificates": "Verify certificates against the system trust store",
+  "settings.recording.cast-quality": "Cast quality",
+  "settings.recording.discover-cast": "Discover cast devices",
+  "settings.recording.encoding-preset": "Encoding preset",
+  "settings.recording.include-audio": "Include audio",
+  "settings.recording.include-subtitles": "Include subtitles",
+  "settings.recording.include-video": "Include video",
+  "settings.recording.play-locally": "Play locally while streaming",
+  "settings.recording.staged": "Staged — these rows activate when recording ships in this build",
+  "settings.recording.tuning": "Tuning",
+  "settings.recording.value.cast.automatic": "Automatic",
+  "settings.recording.value.directory.default": "~/Videos",
+  "settings.recording.value.preset.medium": "Medium",
+  "settings.recording.value.tuning.none": "None",
+  "settings.recording.without-reencoding": "Record without re-encoding when possible",
+  "settings.section.library.metadata-artwork": "Metadata & Artwork",
+  "settings.section.library.opening-files": "Opening Files",
+  "settings.section.network.buffering": "Buffering",
+  "settings.section.network.proxy": "Proxy",
+  "settings.section.network.security": "Security",
+  "settings.section.recording.casting": "Casting",
+  "settings.section.recording.streaming": "Streaming",
+  "settings.value.video-aspect-ratio.1-1": "1:1",
+  "settings.value.video-aspect-ratio.16-10": "16:10",
+  "settings.value.video-aspect-ratio.16-9": "16:9",
+  "settings.value.video-aspect-ratio.2-35-1": "2.35:1",
+  "settings.value.video-aspect-ratio.2-39-1": "2.39:1",
+  "settings.value.video-aspect-ratio.4-3": "4:3",
+  "settings.value.video-crop.1-1": "1:1",
+  "settings.value.video-crop.16-10": "16:10",
+  "settings.value.video-crop.16-9": "16:9",
+  "settings.value.video-crop.4-3": "4:3",
 };
 
 export type Msg = (key: MessageKey) => string;

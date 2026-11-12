@@ -320,6 +320,24 @@ export class DemoTransport implements CommandTransport {
     // state === "playing" (the clock body checks before advancing).
     const clock = setInterval(() => this.tick(), TICK_MS);
     this.timers.add(clock);
+    // w26.i18 (h19 §3 — the unreachable volume rows): seed the device table
+    // the way a host with VolumeMonitor wired into `devices.volume-*` would,
+    // on the startup choreography (post-subscribe so boot-mounted screens
+    // receive them). /discovery's rows + its context menu become
+    // demonstrable in the dev shell; the screen itself still folds ONLY
+    // live events (no fabricated snapshot inside the screen).
+    this.emitIn(600, {
+      kind: "devices.volume-added",
+      id: "demo-media",
+      label: "Lumen demo media",
+      volumeKind: "fixed",
+    });
+    this.emitIn(1200, {
+      kind: "devices.volume-added",
+      id: "usb-fieldkit",
+      label: "Field Kit",
+      volumeKind: "removable",
+    });
   }
 
   /** Releases the clock + pending choreography (test hygiene, teardown). */

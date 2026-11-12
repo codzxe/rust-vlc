@@ -11,9 +11,12 @@
  *     with ≈12px #8F8F8F value; the 10 band columns carry the 0 dB tick);
  *   * eq-tool — the tools-dialog wrapper: the preset selector above the
  *     panel ("EQ presets.svg": two-layer 48px trigger, 44px rows @ 46
- *     pitch — w26.e10 F2). The A1 horizontal rows card (Audio -
- *     Equalizer.svg) is retired by the ruling; its row/chip/dot grammar
- *     is gone with it (w26.e07 F8 — the frame renders monochrome columns).
+ *     pitch — w26.e10 F2; w26.i06: trigger ink/alignment pinned, all-row
+ *     quiet ink, per-preset leading curve glyphs, frame 348px scrollable
+ *     list on i16's stable scrollport — h13).
+ *     The A1 horizontal rows card (Audio - Equalizer.svg) is retired by
+ *     the ruling; its row/chip/dot grammar is gone with it (w26.e07 F8 —
+ *     the frame renders monochrome columns).
  *
  * The EQSlider primitive's own anatomy (16 rx6 track, flat fill, 8×24
  * thumb; vertical fader variant) lives in components/slider/slider.css
@@ -63,16 +66,40 @@
   border-color: var(--color-surface);
 }
 
-/* The shared value span carries its own font-size rule — scope it up to the
- * frame's ≈15px trigger label (EQ presets.svg). */
+/* The trigger label — frame: EQ presets.svg path `Option` fill #8F8F8F
+ * ≈15px at x39.2 (15px inside the inner field, LEFT-aligned; the shared
+ * trigger is a <button> and inherits the UA's text-align:center — scope it
+ * back to the frame's left inset). w26.i06 (h13 #2): the ink is pinned in
+ * scope so no shared/base change can leak bright value ink onto this
+ * quiet-label control again (h13 measured #FFFFFF; verified #8F8F8F live
+ * and pinned here). */
 .eq-tool__presets .lumen-dropdown__value {
   font-size: var(--font-size-section); /* frame: trigger label ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F (h13 #2) */
+  text-align: left; /* frame: label x39.2 — left inset, not UA-centered */
 }
 
-/* frame: state=open — list rx6 #191919 + shadow, 2px inset, 44px rows at
- * 46 pitch (44 + 2px gaps), selected #1F1F1F + orange check (shared). */
+/* frame: state=open — list 362×348 rx6 #191919 (EQ presets.svg rect x22
+ * y90), 2px inset, 44px rows at 46 pitch (44 + 2px gaps), selected #1F1F1F
+ * + orange check (shared). The list box is the frame's 348px, so row 8
+ * ("Full treble") sits clipped at ~20px until the scrollport pans —
+ * exactly the frame's clip composition (~7.4 rows visible). */
 .eq-tool__presets .lumen-dropdown__list {
   gap: 2px; /* frame: row pitch 46 = 44 + 2 */
+
+  /* w26.i06 (h13 #1 — the presets-panel NO): every row must be reachable
+   * by mouse. The shared Dropdown's scrollport used to reset
+   * list.scrollTop = 0 from an unstable inline ref callback on EVERY
+   * re-render, so mousedown-focus re-renders yanked the scrollport to the
+   * top mid-click and any scroll-required row escaped the cursor (h13's
+   * "Full treble" repro: click retargeted to the list, select() never
+   * fired). The ROOT fix — stable listRef + scrollTop=0 only in an effect
+   * keyed on open — landed in Dropdown.tsx (w26.i16); this lane first
+   * shipped a 372px full-content no-scroll list as an equalizer-side
+   * workaround, now retired in favor of the frame's 348px (i16's note in
+   * Dropdown.tsx L185). Verified: real-mouse click on scroll-required
+   * row 8 lands on the row, not the list (lane log w26.i06 §verify). */
+  max-height: 348px; /* frame: EQ presets.svg list box 348px (was 372 workaround) */
 }
 
 .eq-tool__presets .lumen-dropdown__option {
@@ -80,6 +107,161 @@
   padding: 0 19px 0 15px; /* frame: label x39.2, check right x349–363 */
   font-size: var(--font-size-section); /* frame: option labels ≈15px */
   border-radius: var(--radius-inset); /* frame: rx4 rows */
+}
+
+/* Row ink — frame: EQ presets.svg paints EVERY row label #8F8F8F
+ * (Option_2 … Option_9); the selected state is carried by the #1F1F1F bg
+ * + the orange check, never by brighter ink. w26.i06 closes g15-P3-1 by
+ * pinning hover/focus/selected to the frame's quiet ink; w26.i16 later
+ * landed the same grammar in shared menu.css, so this scope is now
+ * belt-and-braces against any future shared drift (redundant, not
+ * conflicting) — the row fill stays the state signal. */
+.eq-tool__presets .lumen-dropdown__option:hover,
+.eq-tool__presets .lumen-dropdown__option:focus,
+.eq-tool__presets .lumen-dropdown__option[aria-selected="true"] {
+  color: var(--color-content-secondary); /* frame: all row labels #8F8F8F */
+}
+
+/* frame: EQ presets.svg option_3–option_9 Icon groups — every NON-selected
+ * row leads with a miniature EQ response curve at x39–62: a 22×2 #8F8F8F
+ * baseline at the row's vertical center (Vector 45, stroke 2) plus 1–3
+ * filled #D37918 deviation wedges (Vector 46/47/48, 3–12px) marking where
+ * the preset's bands sit above/below 0 dB. The SELECTED row (option_2)
+ * draws NO glyph — bg fill + orange check only. Painted as a ::before
+ * flex item so the shared Dropdown's DOM stays untouched (g15-P3-2);
+ * per-row wedges are keyed by :nth-child = EQ_PRESETS order, pinned by
+ * EqualizerTool.test ("listbox children are exactly the 8 options"). */
+.eq-tool__presets .lumen-dropdown__option::before {
+  content: "";
+  display: block;
+  flex: none;
+  width: 23px; /* frame: glyph band x39–62 (Vector 46 reaches x62) */
+  height: 16px; /* frame: wedges extend ≤8px either side of the baseline */
+  margin-right: 3px; /* frame: baseline end x61 → label x73.2 (11px incl.
+                      * the row's 8px flex gap) */
+
+  /* baseline: 22×2 at the box's vertical center (y7–9); listed LAST in
+   * every stack so it paints over wedges kissing the center line */
+  --eq-curve-baseline: linear-gradient(
+      var(--color-content-secondary),
+      var(--color-content-secondary)
+    ) 0 7px / 22px 2px no-repeat; /* frame: Vector 45 #8F8F8F stroke 2 */
+
+  background: var(--eq-curve-baseline);
+}
+
+/* The selected row carries no glyph (frame: option_2 has no Icon group). */
+.eq-tool__presets .lumen-dropdown__option[aria-selected="true"]::before {
+  display: none;
+}
+
+/* Per-preset deviation wedges — filled half-ellipses (flat side on the
+ * baseline, accent ink = the check's --color-accent-icon), geometry from
+ * the SVG path bboxes (frame coords → box: x−39, baseline y7–9):
+ *   nth 2 "Flat"            Vector 45 only — the flat response
+ *   nth 3 "Classical"       Vector 46: right end dips below (treble cut)
+ *   nth 4 "Club"            Vector 46_2: mid hump above
+ *   nth 5 "Dance"           Vector 46_3 bass hump + Vector 47 treble dip
+ *   nth 6 "Full bass"       Vector 46_4 hump + Vector 48 first-band dip
+ *                           + Vector 47_2 treble dip
+ *   nth 7 "Full bass &
+ *     treble"               Vector 46_5 mid dip + Vector 48_2 bass hump
+ *                           + Vector 47_3 treble hump
+ *   nth 8 "Full treble"     Vector 47_4 treble hump */
+
+/* Classical — Vector 46 x52–62, 2–6px BELOW the baseline. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(3)::before {
+  --eq-curve-a: radial-gradient(
+      5px 5px at 50% 0%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 13px 9px / 10px 5px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-baseline);
+}
+
+/* Club — Vector 46_2 x42–52, 2–6px above. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(4)::before {
+  --eq-curve-a: radial-gradient(
+      5px 5px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 3px 2px / 10px 5px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-baseline);
+}
+
+/* Dance — Vector 46_3 x42–48 above + Vector 47 x49–61 below. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(5)::before {
+  --eq-curve-a: radial-gradient(
+      3px 7px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 3px 0 / 6px 7px no-repeat;
+  --eq-curve-b: radial-gradient(
+      6px 6px at 50% 0%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 10px 9px / 12px 6px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-b), var(--eq-curve-baseline);
+}
+
+/* Full bass — Vector 46_4 x42–50 above + Vector 48 x39–42 and
+ * Vector 47_2 x52–61 below. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(6)::before {
+  --eq-curve-a: radial-gradient(
+      4px 7px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 3px 0 / 8px 7px no-repeat;
+  --eq-curve-b: radial-gradient(
+      1.5px 5px at 50% 0%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 0 9px / 3px 5px no-repeat;
+  --eq-curve-c: radial-gradient(
+      4.5px 6px at 50% 0%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 13px 9px / 9px 6px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-b), var(--eq-curve-c),
+    var(--eq-curve-baseline);
+}
+
+/* Full bass & treble — Vector 46_5 x42–50 below + Vector 48_2 x39–42 and
+ * Vector 47_3 x52–61 above. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(7)::before {
+  --eq-curve-a: radial-gradient(
+      4px 6px at 50% 0%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 3px 9px / 8px 6px no-repeat;
+  --eq-curve-b: radial-gradient(
+      1.5px 5px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 0 2px / 3px 5px no-repeat;
+  --eq-curve-c: radial-gradient(
+      4.5px 6px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 13px 1px / 9px 6px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-b), var(--eq-curve-c),
+    var(--eq-curve-baseline);
+}
+
+/* Full treble — Vector 47_4 x49–61, 2–7px above. */
+.eq-tool__presets .lumen-dropdown__option:nth-child(8)::before {
+  --eq-curve-a: radial-gradient(
+      6px 6px at 50% 100%,
+      var(--color-accent-icon) 99%,
+      transparent 100%
+    ) 10px 1px / 12px 6px no-repeat;
+
+  background: var(--eq-curve-a), var(--eq-curve-baseline);
 }
 
 /* ------------------------------------------------------------ the panel */
@@ -215,14 +397,17 @@
   border-radius: 1px;
 }
 
-/* Band label ≈14px #6B6B6B, centered under the track (frame: "60 Hz"
- * x121–159 on col center x140; 34px below the track bottom — 30px from the
- * fader element's foot incl. its 4px inset). */
+/* Band label ≈14px, centered under the track (frame: "60 Hz" x121–159 on
+ * col center x140; 34px below the track bottom — 30px from the fader
+ * element's foot incl. its 4px inset). INK: the frame pins #6B6B6B but the
+ * LEAD RULING (standing, w26.i06 re-confirmed) KEEPS --color-content-
+ * tertiary #828282 — 4.6:1 WCAG beats the frame value's 3.9:1; documented,
+ * not changed (g15-P2-1 stays a token-lane question by choice). */
 .eq-panel__label {
   margin: 30px 0 0; /* frame: track bottom y450 → label top ≈y484 */
   font-size: var(--font-size-body); /* frame: labels ≈14px */
   line-height: 1;
-  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B — Lead ruling: keep #828282 (WCAG) */
   text-align: center;
   white-space: nowrap;
 }

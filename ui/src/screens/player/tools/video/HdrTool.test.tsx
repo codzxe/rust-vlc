@@ -3,7 +3,7 @@
 // — no leading icons, "Auto" selected), selection via pointer + keyboard,
 // and the honest staged markers.
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { HdrTool } from "./HdrTool";
 
@@ -72,6 +72,37 @@ describe("HdrTool — open list (frame state)", () => {
     });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe("HdrTool — clip-aware list placement (w26.i08)", () => {
+  it("jsdom has no layout: the shared default holds, no escape/cap markers", async () => {
+    // Zero-geometry triggers degrade to the shared Dropdown's own in-flow
+    // placement (no data-list-escape, no data-list-direction, no inline
+    // coordinates). The live behavior — defer to the shared flip while the
+    // list fits the dialog body, position:fixed escape at the HDR rest
+    // state, cap as last resort — is pinned by resolveListPlacement unit
+    // tests (useDropdownScrollportFlip.test.ts) + the lane's Playwright
+    // probe (/tmp/cap-w26i08/).
+    render(<HdrTool />);
+    const section = screen.getByLabelText("HDR options");
+    expect(section).not.toHaveAttribute("data-list-direction");
+    expect(section).not.toHaveAttribute("data-list-escape");
+    fireEvent.click(screen.getByRole("button", { name: "HDR mode" }));
+    // The hook observes the shared Dropdown's list mount
+    // (MutationObserver — delivered on a microtask, hence waitFor).
+    await waitFor(() =>
+      expect(screen.getByRole("listbox", { name: "HDR mode" })).toBeInTheDocument(),
+    );
+    await waitFor(() => {
+      expect(section).not.toHaveAttribute("data-list-direction");
+      expect(section).not.toHaveAttribute("data-list-escape");
+    });
+    const list = screen.getByRole("listbox", { name: "HDR mode" });
+    expect(list.getAttribute("style") ?? "").not.toMatch(/position|top|left|width/);
+    // Closing unmounts the list (the shared primitive's own behavior).
+    fireEvent.keyDown(list, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });
 

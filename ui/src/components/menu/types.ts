@@ -44,6 +44,12 @@ export interface MenuEntryBase<K extends string = string> {
   disabled?: boolean;
   /** Checked state for checkable items (renders `menuitemcheckbox`). */
   checked?: boolean;
+  /**
+   * w26.i16 — resting selected face (Profiles.svg flyout row 1: #1F1F1F fill
+   * + the orange check in the icon slot; distinct from the roving-focus
+   * fill). Additive; unchecked radio/checkbox rows are unchanged.
+   */
+  selected?: boolean;
   /** Explicit item kind; `checked` without a kind implies `"checkbox"`. */
   kind?: "item" | "checkbox" | "radio";
   /** Fires on activation (click / Enter / Space) when enabled. */

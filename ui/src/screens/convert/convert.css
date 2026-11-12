@@ -1,12 +1,13 @@
 /* /convert (card 7.E3) — the conversion screen in the W26 Figma language
- * (w26.b13 rebuild; no direct frame — CONTRACT §3). Composition from the
- * design language (§2) + nearest grammars:
+ * (w26.b13 rebuild, w26.i18 fixes; no direct frame — CONTRACT §3).
+ * Composition from the design language (§2) + nearest grammars:
  *   * Settings - *.svg — the working-screen page head (15px-class
  *     semibold heading + one quiet subtitle) and the label-left /
  *     control-right row grammar;
  *   * Onboarding.svg / Settings - global.svg — the "input + Browse"
  *     source combo (label above, .lumen-browse row);
- *   * Dropdown.svg — the target picker (menu API, compact density);
+ *   * Dropdown.svg / Setting Preset.svg — the target picker (menu API,
+ *     compact density);
  *   * playlist.svg — queue rows (name + meta + right-aligned status,
  *     quiet hover fill) inside the r14 Card primitive;
  *   * Open network stream.svg — the footer action row (primary right).
@@ -15,6 +16,13 @@
  * Semantic tokens only (§3.2); raw px is structural layout only. The
  * Solstice calm-backdrop veil, glass fills, display type and tape-edge
  * scrollbar are gone (W25 §0). */
+
+/* w26.i18 (h19 §4 — the 16px drift): the SectionHeader primitive ships
+ * --font-size-label (16px) where its own doc + §2's band pin the 15px
+ * class. Usage-side pin until the surface lane retunes the primitive. */
+.convert .lumen-section-header__title {
+  font-size: var(--font-size-section);
+}
 
 .convert {
   display: flex;
@@ -37,7 +45,7 @@
 .convert__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label); /* the 15px-class section-heading scale */
+  font-size: var(--font-size-section); /* w26.i18: the 15px working-screen head (§2's 10–15px band, h19 drift fix) */
   font-weight: var(--font-weight-semibold);
   color: var(--color-content-bright);
 }
@@ -113,6 +121,13 @@
   font-size: var(--font-size-caption);
   line-height: 1.5;
   color: var(--color-content-secondary);
+}
+
+/* w26.i18 (h19 §4): the target trigger rides its rider frame — Setting
+ * Preset.svg pins the trigger at 364×42 rx6 (the compact primitive's
+ * ~40px approximation is 2px shy). */
+.convert .lumen-dropdown__trigger {
+  height: 42px; /* frame: Setting Preset.svg trigger */
 }
 
 /* --- footer — Open network stream.svg grammar: actions right, primary last */
@@ -270,4 +285,15 @@
   line-height: 1.5;
   color: var(--color-content-secondary);
   overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------- light-mode card step
+ * w26.i18 (h19 §4, cross-cutting Δ4): light surface-panel #c6c6c6 is
+ * Δ4/255 on the #c2c2c2 surface (dark's card step is Δ16) — the cards
+ * survived only via their #acacac border. Usage-side step to the raised
+ * surface (light elevation runs lighter, Player - Light.svg ramp); the
+ * pending panel-step token (theme lane i19) wins the day it lands. */
+:root[data-theme="light"] .convert__card,
+:root[data-theme="light"] .convert__queue {
+  background-color: var(--color-surface-panel-raised, var(--color-surface-raised));
 }

@@ -18,10 +18,56 @@ import "./hotkeys.css";
 // Editing writes DRAFT state; Apply commits the overrides to the persistence
 // seam; conflict detection marks every row of a duplicated (mode, combo)
 // group with an inline warning; reset-to-default is per binding.
+//
+// w26.i15 (h11 #5): the editor renders inside the controls area's DIALOG
+// (Keyboard_Shortcuts.svg window grammar — areas/controls.tsx opens it from
+// the "Edit Keyboard Shortcuts" action row). Structure: a scrollable body
+// (the table) + the dirty-gated apply bar as the dialog's footer; the old
+// inline-fold presentation (nested .settings-sections root, sentence-case
+// h2, defaults note) is gone — the dialog's top bar carries the title.
 
 /** A combo a binding currently claims: draft edit ▸ persisted override ▸ keymap default. */
 const comboOf = (binding: HotkeyBinding, draft: Readonly<Record<string, string>>): string =>
   draft[binding.id] ?? binding.key;
+
+/** Label with its trailing number stripped ("Play Bookmark 10" → "Play Bookmark"). */
+const labelPrefix = (label: string): string => label.replace(/[0-9]+\s*$/u, "").trim();
+
+/** Trailing number of a label, or -1 when it ends in no number. */
+const trailingNumber = (label: string): number => {
+  const match = /[0-9]+\s*$/u.exec(label);
+  return match === null ? -1 : Number(match[0]);
+};
+
+/**
+ * Numeric-aware ordering for NUMBERED SERIES (w26.i15, h11 #5: the table used
+ * to list "Play Bookmark 1, 10, 2…"). Only runs of consecutive rows whose
+ * labels share one prefix and end in numbers are reordered — the curated
+ * keymap order of everything else is untouched. (The same rule the
+ * /keyboard-shortcuts reference dialog applies, w26.i17.)
+ */
+export function orderBindingsNumericAware(
+  bindings: readonly HotkeyBinding[],
+  labelOf: (key: MessageKey) => string,
+): readonly HotkeyBinding[] {
+  const labels = bindings.map((b) => labelOf(b.labelMsgid as MessageKey));
+  const result = [...bindings];
+  let start = 0;
+  while (start < result.length) {
+    const prefix = labelPrefix(labels[start] ?? "");
+    let end = start + 1;
+    while (end < labels.length && labelPrefix(labels[end] ?? "") === prefix) end++;
+    if (end - start > 1) {
+      const run = result
+        .slice(start, end)
+        .map((binding, offset) => ({ binding, number: trailingNumber(labels[start + offset] ?? "") }))
+        .sort((a, b) => a.number - b.number);
+      for (let offset = 0; offset < run.length; offset++) result[start + offset] = run[offset]!.binding;
+    }
+    start = end;
+  }
+  return result;
+}
 
 export function HotkeysEditor({
   bindings = HOTKEY_BINDINGS,
@@ -37,6 +83,8 @@ export function HotkeysEditor({
   const isEdited = (id: string): boolean => (draft[id] ?? "") !== (overrides[id] ?? "");
   const dirtyIds = bindings.filter((b) => isEdited(b.id)).map((b) => b.id);
   const conflicted = detectConflicts(bindings, draft);
+  // w26.i15: numbered series (bookmarks 1..10) render in NUMERIC order.
+  const ordered = orderBindingsNumericAware(bindings, (key) => m(key));
 
   useEffect(() => {
     if (dirtyIds.length === 0) return;
@@ -48,10 +96,8 @@ export function HotkeysEditor({
   }, [dirtyIds.length]);
 
   return (
-    <div className="settings-sections" data-settings-area="hotkeys">
-      <section className="settings-section" data-section="bindings">
-        <h2 className="settings-section__title">{m("settings.section.hotkeys.bindings")}</h2>
-        <p className="settings-field__hint">{m("settings.hotkeys.defaults-note")}</p>
+    <>
+      <div className="hotkeys-editor__body">
         <table className="hotkeys-table" data-testid="hotkeys-table">
           <thead>
             <tr>
@@ -63,7 +109,7 @@ export function HotkeysEditor({
             </tr>
           </thead>
           <tbody>
-            {bindings.map((binding) => {
+            {ordered.map((binding) => {
               const combo = comboOf(binding, draft);
               const command = binding.command ?? binding.recipe ?? binding.uiAction;
               const conflict = conflicted.has(binding.id);
@@ -124,33 +170,33 @@ export function HotkeysEditor({
             })}
           </tbody>
         </table>
+      </div>
 
-        {dirtyIds.length > 0 ? (
-          <div className="settings-applybar" data-testid="hotkeys-applybar">
-            <span className="settings-applybar__count">
-              {m("settings.unsaved-changes")} ({dirtyIds.length})
-            </span>
-            <Button
-              variant="primary"
-              onClick={() => {
-                const next: Record<string, string> = {};
-                for (const b of bindings) {
-                  const combo = comboOf(b, draft);
-                  if (combo !== b.key && combo !== "") next[b.id] = combo;
-                }
-                setOverrides(next);
-                store.save(next);
-                setDraft({ ...next });
-              }}
-            >
-              {m("settings.hotkeys.apply")}
-            </Button>
-            <Button variant="default" onClick={() => setDraft({ ...overrides })}>
-              {m("settings.hotkeys.revert")}
-            </Button>
-          </div>
-        ) : null}
-      </section>
-    </div>
+      {dirtyIds.length > 0 ? (
+        <div className="settings-applybar hotkeys-editor__applybar" data-testid="hotkeys-applybar">
+          <span className="settings-applybar__count">
+            {m("settings.unsaved-changes")} ({dirtyIds.length})
+          </span>
+          <Button
+            variant="primary"
+            onClick={() => {
+              const next: Record<string, string> = {};
+              for (const b of bindings) {
+                const combo = comboOf(b, draft);
+                if (combo !== b.key && combo !== "") next[b.id] = combo;
+              }
+              setOverrides(next);
+              store.save(next);
+              setDraft({ ...next });
+            }}
+          >
+            {m("settings.hotkeys.apply")}
+          </Button>
+          <Button variant="default" onClick={() => setDraft({ ...overrides })}>
+            {m("settings.hotkeys.revert")}
+          </Button>
+        </div>
+      ) : null}
+    </>
   );
 }

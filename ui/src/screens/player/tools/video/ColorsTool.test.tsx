@@ -4,7 +4,7 @@
 // toggle lines, the Gradient sub-dropdown, the Sepia slider), separators,
 // local-state interactions, and the honest staged markers.
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ColorsTool } from "./ColorsTool";
 
@@ -69,15 +69,18 @@ describe("ColorsTool — frame rows", () => {
     const saturation = screen.getByRole("slider", { name: "Saturation" });
     expect(saturation).toHaveAttribute("aria-valuemin", "0");
     expect(saturation).toHaveAttribute("aria-valuemax", "100");
-    expect(saturation).toHaveAttribute("aria-valuenow", "20");
-    expect(saturation).toHaveAttribute("aria-valuetext", "20 %");
+    // w26.i08: staged initial calibrated through the shared flush travel so
+    // the PAINTED thumb lands on the frame mark (20.73%) — the value itself
+    // reads 21.6 (aria-valuetext rounds to "22 %").
+    expect(saturation).toHaveAttribute("aria-valuenow", "21.6");
+    expect(saturation).toHaveAttribute("aria-valuetext", "22 %");
     expect(screen.getByRole("slider", { name: "Similarity" })).toHaveAttribute(
       "aria-valuetext",
-      "20 %",
+      "22 %",
     );
     expect(
       screen.getByRole("slider", { name: "Sepia Intensity" }),
-    ).toHaveAttribute("aria-valuetext", "34 %");
+    ).toHaveAttribute("aria-valuetext", "35 %");
   });
 
   it("only the Sepia slider carries degree ticks (frame)", () => {
@@ -110,7 +113,17 @@ describe("ColorsTool — frame rows", () => {
 
   it("sections the rows with five full-width separators (frame)", () => {
     const { container } = render(<ColorsTool defaultOpen />);
-    expect(container.querySelectorAll(".video-sep")).toHaveLength(5);
+    const seps = [...container.querySelectorAll(".video-sep")];
+    expect(seps).toHaveLength(5);
+    // w26.i08: per-separator modifiers carry the frame's varied cadence
+    // (video.css pins each gap — h15-P2/g17-P2-1).
+    expect(seps.map((sep) => sep.className)).toEqual([
+      "video-sep video-sep--1",
+      "video-sep video-sep--2",
+      "video-sep video-sep--3",
+      "video-sep video-sep--4",
+      "video-sep video-sep--5",
+    ]);
   });
 });
 
@@ -149,7 +162,7 @@ describe("ColorsTool — local state", () => {
     render(<ColorsTool defaultOpen />);
     const similarity = screen.getByRole("slider", { name: "Similarity" });
     fireEvent.keyDown(similarity, { key: "ArrowRight" });
-    expect(similarity).toHaveAttribute("aria-valuetext", "21 %");
+    expect(similarity).toHaveAttribute("aria-valuetext", "23 %");
   });
 
   it("the Gradient sub-dropdown opens and selects a mode", () => {
@@ -163,6 +176,26 @@ describe("ColorsTool — local state", () => {
     expect(options).toHaveLength(3);
     fireEvent.click(screen.getByRole("option", { name: "Edge" }));
     expect(trigger).toHaveTextContent("Edge");
+  });
+
+  it("adds no escape markers in jsdom — the shared placement holds (w26.i08)", async () => {
+    // Zero-geometry jsdom degrades to the shared Dropdown's in-flow default
+    // (no data-list-escape / data-list-direction on the wrapper — the
+    // live clip-box decision is unit-pinned in
+    // useDropdownScrollportFlip.test.ts + Playwright-probed).
+    render(<ColorsTool defaultOpen />);
+    const wrapper = document.querySelector(".video-subdropdown");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.getAttribute("data-list-direction")).toBeNull();
+    expect(wrapper?.getAttribute("data-list-escape")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Gradient mode" }));
+    await waitFor(() =>
+      expect(screen.getByRole("listbox", { name: "Gradient mode" })).toBeInTheDocument(),
+    );
+    await waitFor(() => {
+      expect(wrapper?.getAttribute("data-list-direction")).toBeNull();
+      expect(wrapper?.getAttribute("data-list-escape")).toBeNull();
+    });
   });
 });
 

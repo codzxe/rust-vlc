@@ -54,6 +54,28 @@ describe("VideoArea — the frame's 4 sections (Settings - video.svg §C5)", () 
     expect(screen.getByRole("button", { name: "Crop" })).toHaveTextContent("None");
   });
 
+  it("Aspect ratio / Crop options carry real labels — never blank (w26.i14, h09 defect #1)", () => {
+    mountArea();
+    // The ship-blocker: 10 of 12 non-default options rendered EMPTY labels
+    // (unregistered msgids) and picking one blanked the trigger. Open both
+    // lists and pin every option's accessible name + a real pick.
+    fireEvent.click(screen.getByRole("button", { name: "Aspect ratio" }));
+    for (const label of ["Automatic", "1:1", "4:3", "16:9", "16:10", "2.35:1", "2.39:1"]) {
+      expect(screen.getByRole("option", { name: label }), `aspect option "${label}"`).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("option", { name: "16:9" }));
+    // The trigger reads the picked value back — the blank-trigger bug is dead.
+    expect(screen.getByRole("button", { name: "Aspect ratio" })).toHaveTextContent("16:9");
+    expect(document.querySelector('[data-setting="video.aspect-ratio"]')).toHaveAttribute("data-dirty");
+
+    fireEvent.click(screen.getByRole("button", { name: "Crop" }));
+    for (const label of ["None", "1:1", "4:3", "16:9", "16:10"]) {
+      expect(screen.getByRole("option", { name: label }), `crop option "${label}"`).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("option", { name: "4:3" }));
+    expect(screen.getByRole("button", { name: "Crop" })).toHaveTextContent("4:3");
+  });
+
   it("Picture: the five frame rows are inline sliders, never number wells (g12-P1-3)", () => {
     mountArea();
     const pictureKeys = ["video.hue", "video.brightness", "video.contrast", "video.saturation", "video.gamma"];

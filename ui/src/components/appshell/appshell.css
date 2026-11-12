@@ -5,9 +5,11 @@
  * Reference frames: design/figma/Player.svg (+ Player-1..6), sidebar.svg,
  * Miniplayer.svg. Measurements (1920×1080 frames → our 1440×900 viewport):
  *   title bar 40px → 30 (W25 spec §2 band 24–32) · rail 50px → 52 (spec
- *   48–56, ≥44px hits) · sidebar 377px → 208 (spec pins the compact
- *   200–220 band) · playlist row pitch 42px → 36 · rail icon pitch ~45 → 44
- *   (IconWrapper lg hit) · window-control pitch 36 → 30.
+ *   48–56, ≥44px hits) · sidebar 377px → 283 (the frame dock width × 0.75 —
+ *   the same pin as the player's own docked column, player.css h03; w26.i20
+ *   closed the 208px drift h20/i19 flagged) · playlist row pitch 42px → 36
+ *   · rail icon pitch ~45 → 44 (IconWrapper lg hit) · window-control pitch
+ *   36 → 30.
  *
  * Frame surfaces (Player.svg): title bar #1B1B1B → --color-surface-chrome,
  * rail #191919 → Panel default tone, sidebar #0E0E0E → Panel tone="deep".
@@ -232,12 +234,18 @@ body {
 /* ---- playlists sidebar (sidebar.svg · <Panel tone="deep" edges="end">) - */
 
 /* Deep surface fill + inline-end hairline arrive from .lumen-pane
- * (sidebar.svg: 377px #0E0E0E @95% → tone="deep" at our 208px scale). */
+ * (sidebar.svg: 377px #0E0E0E @95% → tone="deep", full frame scale). */
 .app-shell__sidebar {
   display: flex;
   flex-direction: column;
   flex: none;
-  width: 208px; /* spec §2 pins the 200–220px band (structural) */
+
+  /* frame: Player.png / Player_-_Light.png dock + sidebar.svg column both
+   * measure 377px @1920 → 283px at our 1440×900 scale (×0.75, pixel-sampled
+   * both renders: column x24..199 of the 900px render = 376px @1920). The
+   * shell column and the player's docked column (player.css, h03 pin) are
+   * ONE width — w26.i20, closing h20's "215px vs frame 377px" shame. */
+  width: 283px; /* structural: frame dock 377px @1920 × 0.75 */
   min-height: 0;
 }
 

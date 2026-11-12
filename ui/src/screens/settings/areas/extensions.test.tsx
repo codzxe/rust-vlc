@@ -5,6 +5,7 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
@@ -14,6 +15,8 @@ import { ExtensionRow, ExtensionsArea } from "./extensions";
 import type { ExtensionInfo } from "./extensions";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTINGS_ENTRIES } from "../generated/schema";
+
+const { dirname } = import.meta as ImportMeta & { dirname?: string };
 
 const renderRouted = (area: string) =>
   render(
@@ -77,12 +80,14 @@ describe("ExtensionsArea — F2 feature gate", () => {
 });
 
 describe("ExtensionsArea — the hand Add-ons surface (list + toolbar)", () => {
-  it("renders the section header, the list well and the honest empty state", () => {
+  it("renders the section header and the frame's well exactly: EMPTY (no invented copy)", () => {
     mountArea();
     expect(screen.getByRole("heading", { name: "Add-ons" })).toBeInTheDocument();
     expect(screen.getByTestId("extensions-list")).toBeInTheDocument();
-    expect(screen.getByTestId("extensions-list-empty")).toBeInTheDocument();
-    expect(screen.getByText("No add-ons installed")).toBeInTheDocument();
+    // w26.i15 (h12): the frame's well is empty — the invented empty-state
+    // copy is gone; the honest surface is the well itself.
+    expect(screen.queryByText("No add-ons installed")).toBeNull();
+    expect(screen.queryByTestId("extensions-list-empty")).toBeNull();
   });
 
   it("renders no fabricated add-on rows (the list data seam is empty)", () => {
@@ -90,14 +95,19 @@ describe("ExtensionsArea — the hand Add-ons surface (list + toolbar)", () => {
     expect(container.querySelectorAll("[data-extension]")).toHaveLength(0);
   });
 
-  it("toolbar: the frame actions render disabled-from-data with the honest reason", () => {
+  it("toolbar: the frame actions render STAGED full-strength — disabled, honest tooltip, never greyed-out (w26.i15, h12 #4)", () => {
     mountArea();
     for (const name of ["Find more extensions", "Add", "Remove"]) {
       const button = screen.getByRole("button", { name });
       expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("aria-describedby", "extensions-gate-note");
+      expect(button).toHaveAttribute("data-staged", "wasm-extensions");
+      expect(button.getAttribute("title")).toContain(
+        "Staged — add-on management activates when the extensions feature ships",
+      );
     }
-    expect(screen.getByText("Not available in this build")).toBeInTheDocument();
+    // The invented 11px gate note is gone — the reason rides the tooltips.
+    expect(screen.queryByText("Not available in this build")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("toolbar: the search input is a real local filter over the list", () => {
@@ -106,8 +116,28 @@ describe("ExtensionsArea — the hand Add-ons surface (list + toolbar)", () => {
     expect(search).toHaveValue("");
     fireEvent.change(search, { target: { value: "demo" } });
     expect(search).toHaveValue("demo");
-    // The (empty) list filters without crashing — still the honest empty state.
-    expect(screen.getByTestId("extensions-list-empty")).toBeInTheDocument();
+    // The (empty) list filters without crashing — still the empty well.
+    expect(screen.getByTestId("extensions-list")).toBeInTheDocument();
+    expect(screen.queryByText("No add-ons installed")).toBeNull();
+  });
+
+  it("staged actions paint full-strength: the [data-staged] rule in staged.css (never a 0.5-opacity apology)", () => {
+    // The staged grammar is CSS-carried (jsdom will not compute it) — pin
+    // the sheet, the TextField.test form.css pattern.
+    const stagedCss = readFileSync(`${dirname}/staged.css`, "utf8");
+    expect(stagedCss).toMatch(/\[data-staged\] \.settings-action:disabled\s*\{[^}]*opacity:\s*1/s);
+    // The placeholder rides the topbar search's token in both themes.
+    const extensionsCss = readFileSync(`${dirname}/extensions.css`, "utf8");
+    expect(extensionsCss).toMatch(
+      /\.settings-extensions-toolbar \.lumen-field__control::placeholder\s*\{[^}]*--color-stroke-border/s,
+    );
+    expect(extensionsCss).toMatch(
+      /:root\[data-theme="light"\] \.settings-extensions-toolbar \.lumen-field__control::placeholder\s*\{[^}]*--color-content-secondary/s,
+    );
+    // The light well rides the recessed-wells token, not the page bg.
+    expect(extensionsCss).toMatch(
+      /:root\[data-theme="light"\] \.settings-extensions-list\s*,\s*:root\[data-theme="light"\] \.settings-extensions-toolbar \.lumen-field__control\s*\{[^}]*--color-surface-deep/s,
+    );
   });
 });
 

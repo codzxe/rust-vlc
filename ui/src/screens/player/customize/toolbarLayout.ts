@@ -4,17 +4,27 @@
 // persistence seam (variants/variant.ts — the same localStorage pattern,
 // never throwing on unavailable hosts).
 //
-// The layout is a pure UI concern: no engine command exists for it
-// (verified against the 1.D4 catalog); the control band's consumption of
-// the saved arrangement is the controls-lane handoff recorded in the lane
-// log. Until then the customize surface's edit band renders the saved
-// arrangement (the frames' dashed-well preview grammar).
+// w26.i05 (h07 defect 1, state 7): the seam now has a CONSUMER half —
+// `useToolbarLayout()` + the `lumen:toolbar-changed` event keep every
+// mounted reader (the real ControlBar's toolbar items, toolbarItems.tsx)
+// live across Save, the same decoupled-event pattern as
+// `lumen:open-customize` (contract §4.5). The layout stays a pure UI
+// concern: no engine command exists for it (verified against the 1.D4
+// catalog).
 
+import { useEffect, useState } from "react";
 import { CUSTOMIZE_TILE_IDS, DEFAULT_TOOLBAR_LAYOUT, tileById } from "./panels";
 import type { ToolbarLayout } from "./types";
 
 /** localStorage key (mirrors the settings persistence seam's naming). */
 export const TOOLBAR_STORAGE_KEY = "lumen.player.toolbar.v1";
+
+/**
+ * Broadcast fired by {@link persistToolbarLayout} (same tab) so live
+ * consumers re-read storage — the frozen cross-component contract string
+ * pattern (`lumen:open-customize`); never rename.
+ */
+export const TOOLBAR_CHANGED_EVENT = "lumen:toolbar-changed";
 
 /** Structural equality for persisted-shape comparison (Save/Cancel). */
 export function toolbarLayoutEqual(a: ToolbarLayout, b: ToolbarLayout): boolean {
@@ -64,12 +74,18 @@ export function loadToolbarLayout(): ToolbarLayout {
   }
 }
 
-/** Persist an arrangement; failures degrade to session-only (never throw). */
+/** Persist an arrangement; failures degrade to session-only (never throw).
+ * Broadcasts {@link TOOLBAR_CHANGED_EVENT} so live consumers re-read it. */
 export function persistToolbarLayout(layout: ToolbarLayout): void {
   try {
     globalThis.localStorage?.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(layout));
   } catch {
     // Unavailable host — same honest degradation as loadToolbarLayout.
+  }
+  try {
+    globalThis.window?.dispatchEvent(new CustomEvent(TOOLBAR_CHANGED_EVENT));
+  } catch {
+    // Non-window host (worker) — no broadcast surface.
   }
 }
 
@@ -89,4 +105,25 @@ export function bandTiles(layout: ToolbarLayout): readonly (
   return layout.band
     .map((id) => tileById(id))
     .filter((tile): tile is NonNullable<typeof tile> => tile !== null);
+}
+
+/**
+ * Live reader for the persisted arrangement (w26.i05, h07 defect 1): starts
+ * from storage and re-reads on every {@link TOOLBAR_CHANGED_EVENT} (Save in
+ * this or another mounted customize surface) and `storage` (cross-tab).
+ * The real ControlBar's toolbar items consume this through
+ * toolbarItems.tsx.
+ */
+export function useToolbarLayout(): ToolbarLayout {
+  const [layout, setLayout] = useState<ToolbarLayout>(loadToolbarLayout);
+  useEffect(() => {
+    const reread = (): void => setLayout(loadToolbarLayout());
+    window.addEventListener(TOOLBAR_CHANGED_EVENT, reread);
+    window.addEventListener("storage", reread);
+    return () => {
+      window.removeEventListener(TOOLBAR_CHANGED_EVENT, reread);
+      window.removeEventListener("storage", reread);
+    };
+  }, []);
+  return layout;
 }

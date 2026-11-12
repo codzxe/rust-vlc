@@ -39,7 +39,7 @@
 // always render; cycle tiles (Playback speed, Repeat, Zoom) dispatch the
 // next option from ENGINE-CONFIRMED state only — never optimistic.
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useClient } from "../../../client/ClientProvider";
 import type {
@@ -57,7 +57,7 @@ import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as a17Keys } from "../../../i18n/keys/w26.a17";
 import { keys as gfixAKeys } from "../../../i18n/keys/w26.gfixA";
-import { useCommandCapabilities, visibleTiles } from "./capabilities";
+import { useCommandCapabilities } from "./capabilities";
 import { CUSTOMIZE_TILES, cycleArgs, tileById } from "./panels";
 import {
   loadToolbarLayout,
@@ -158,6 +158,9 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
   const t = useCustomizeMsg();
   const caps = useCommandCapabilities(wire);
   const titleId = useId();
+  // The header ✕ — Save's focus-recovery target (h07 defect 2): an
+  // always-enabled control inside the dialog.
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   // ---- engine-confirmed tile state (doc 08 §5 — never optimistic) --------
   const [engineBools, setEngineBools] = useState<Record<string, boolean | null>>({});
@@ -250,11 +253,17 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
-  /** Capability-visible tiles in the working order (the box's contents). */
-  const visibleIds = useMemo(() => {
-    const visible = new Set(visibleTiles(CUSTOMIZE_TILES, caps).map((tile) => tile.id));
-    return layout.order.filter((id) => visible.has(id));
-  }, [caps, layout.order]);
+  // The dragged tile (box tile OR band item) — drives the frame-6 ghost.
+  const dragTile = draggingId === null ? null : tileById(draggingId);
+
+  /**
+   * The box's contents (w26.i05, h07 defect 4): the frame's FULL 31-tile
+   * catalog in the working order — `Player - customize.svg`'s box is a
+   * static catalog (byte-identical across all 9 frames: rows 1–4 = 9/9/9/4
+   * at 9 columns), never a capability report. Engine truth still governs
+   * dispatch and aria-pressed (honest no-change on feature-not-exposed).
+   */
+  const boxIds = layout.order;
 
   /** Reorder the catalog arrangement ("drag items around the box"). */
   const moveTile = useCallback(
@@ -294,15 +303,15 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
         return;
       }
       if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-      const index = visibleIds.indexOf(id);
+      const index = boxIds.indexOf(id);
       const target = event.key === "ArrowLeft" ? index - 1 : index + 1;
-      const targetId = visibleIds[target];
+      const targetId = boxIds[target];
       if (targetId !== undefined) {
         event.preventDefault();
         moveTile(id, targetId);
       }
     },
-    [moveTile, removeFromBand, visibleIds],
+    [boxIds, moveTile, removeFromBand],
   );
 
   const closePanel = useCallback((): void => {
@@ -321,6 +330,32 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
     },
     [closePanel],
   );
+
+  // w26.i05 (h07 defect 2): focus recovery. A control that disables under
+  // the pointer (Save) makes Chromium blur to BODY — the in-surface
+  // keydown/Tab trap then never fires (its listener lives on the dialog
+  // node), so Escape stopped closing and Tab escaped. The Save handler
+  // moves focus synchronously BEFORE the disable commits; this keeper is
+  // the belt-and-suspenders half: any focus that dies to BODY (or
+  // escapes the dialog) while the modal is open is pulled back onto the
+  // dialog surface, keeping Escape/Tab alive from any state.
+  useEffect(() => {
+    if (!open) return;
+    const surface = (): HTMLElement | null =>
+      document.querySelector<HTMLElement>(".lumen-customize__surface");
+    const onFocusOut = (): void => {
+      window.setTimeout(() => {
+        const node = surface();
+        if (node === null) return;
+        const active = document.activeElement;
+        if (active === document.body || active === document.documentElement) {
+          node.focus(); // tabIndex=-1 on the Dialog primitive
+        }
+      }, 0);
+    };
+    document.addEventListener("focusout", onFocusOut);
+    return () => document.removeEventListener("focusout", onFocusOut);
+  }, [open]);
 
   if (!open) return null;
 
@@ -347,6 +382,7 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
               size="sm"
               className="lumen-customize__close"
               onClick={closePanel}
+              ref={closeRef}
             >
               <Icon name="close" size={10} />
             </IconButton>
@@ -374,7 +410,7 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
               setDropTargetId(null);
             }}
           >
-            {visibleIds.map((id) => {
+            {boxIds.map((id) => {
               const tile = tileById(id);
               if (tile === null) return null;
               return (
@@ -398,6 +434,15 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData(TILE_DRAG_TYPE, id);
+                      // w26.i05 (h07 defect 2, frame -6): the drag image is
+                      // the STYLED icon-only 27×27 well (the frame's ghost
+                      // grammar), not the native full-button snapshot — the
+                      // platform ghost dies here, the pinned preview ghost
+                      // renders in the band (CustomizeBand, frame -6).
+                      const well = event.currentTarget.querySelector<HTMLElement>(
+                        ".lumen-customize__tile-well",
+                      );
+                      if (well !== null) event.dataTransfer.setDragImage?.(well, 14, 14);
                       setDraggingId(id);
                     }}
                     onDragEnd={() => {
@@ -465,9 +510,16 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
               disabled={!dirty}
               onClick={() => {
                 // Keep the arrangement as the new baseline + persist it
-                // (doc 08 §4 UI-owned layout state).
+                // (doc 08 §4 UI-owned layout state; the real bar's items
+                // re-read it through the lumen:toolbar-changed seam).
                 setSaved(layout);
                 persistToolbarLayout(layout);
+                // w26.i05 (h07 defect 2): Save disabling under the pointer
+                // blurs Chromium to BODY and kills Escape/Tab (the trap
+                // listens on the dialog node). Move focus to the ✕ — an
+                // always-enabled control INSIDE the dialog — BEFORE the
+                // disable commits, so focus never leaves the surface.
+                closeRef.current?.focus();
               }}
             >
               {t("customize.save")}
@@ -479,12 +531,24 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
       {/* The control band's edit preview (frames -1..-4/-6/-7): dashed
           wells over the live strip while the modal is open. Placed
           toolbar items render as draggable wells; the band accepts tile
-          drops (place) and its wells drag back into the box (remove). */}
+          drops (place) and its wells drag back into the box (remove).
+          w26.i05 (h07 defect 3): the band composes per the g07/g09 frame
+          maps — the seek row promoted above the transport row while
+          dirty (frames -1..-6), the transport centered between split
+          slots by placed count (frames -2..-4), and the frame-6 ghost
+          pinned band-left while a drag is live. */}
       <CustomizeBand
         layout={layout}
+        dirty={dirty}
         dragging={draggingId !== null}
+        dragTile={dragTile}
         onDropTile={addToBand}
         onRemoveFromBand={removeFromBand}
+        onItemDragStart={setDraggingId}
+        onItemDragEnd={() => {
+          setDraggingId(null);
+          setDropTargetId(null);
+        }}
       />
     </>
   );
@@ -539,24 +603,80 @@ function useBandGeometry(): BandGeometry | null {
 }
 
 /**
- * The control band's dashed edit-well preview (frames -1..-4): the placed
- * toolbar items as draggable wells beside the fixed transport cluster,
- * the frame's long empty drop slot between them and the right cluster,
- * and the fixed volume/effect/subtitle/PiP/more wells. Fixed wells are
- * the preview chrome of controls this lane does not own (aria-hidden);
+ * The transport-row composition per edit state — the g07/g09 frame maps
+ * (w26.i05, h07 defect 3). Six frames, one overlay:
+ *
+ *   f0  clean — transport left; ONE long slot carrying the live seek
+ *       preview + the band timecodes (frame 0: slot 1405×35 @170.5 with
+ *       the 1238×28 track inside; timecodes 00:02:10 | 00:25:40).
+ *   f1  dirty · 0 placed — the seek promoted to a full-width row ABOVE
+ *       the transport row, the transport slot left EMPTY (frame -1:
+ *       1879×35 @20.5,981.5 + empty slot 1431×35 @155.5).
+ *   f2  dirty · 1 placed — transport CENTERED between split slots
+ *       866/551 (frame -2: cluster 895.5/933.5/995.5).
+ *   f3  dirty · 2 placed — a 130×26 well at the left edge narrows the
+ *       left slot to 729 (frame -3).
+ *   f4  dirty · ≥3 placed — the topbar well run 27/27÷23/60×27 + 130×26
+ *       before the left slot 563 (frame -4).
+ *   f5  dragging — frames -5/-6 merged: the ghost pinned band-left before
+ *       the left slot 526, the right cluster shifted 51px left with the
+ *       35×23 far-right well (frame -5), and the lifted tile's box slot
+ *       vacated (frame -6).
+ */
+type BandVariant = "f0" | "f1" | "f2" | "f3" | "f4" | "f5";
+
+/** Derive the frame variant from the edit state (see {@link BandVariant}). */
+function bandVariant(dirty: boolean, placedCount: number, dragging: boolean): BandVariant {
+  if (dragging) return "f5";
+  if (!dirty) return "f0";
+  if (placedCount <= 0) return "f1";
+  if (placedCount === 1) return "f2";
+  if (placedCount === 2) return "f3";
+  return "f4";
+}
+
+/**
+ * Split-slot flex ratios per frame (frame @1920 widths; the row is fluid,
+ * so the ratios reproduce each frame's proportions — the same
+ * frame-pinning approach as the modal's 1:1 sizes):
+ *   f2 866/551 · f3 729/551 · f4 563/551 · f5 526/499 (frames -2..-6).
+ */
+const SLOT_FLEX: Readonly<Record<"f2" | "f3" | "f4" | "f5", [number, number]>> = {
+  f2: [866, 551],
+  f3: [729, 551],
+  f4: [563, 551],
+  f5: [526, 499],
+};
+
+/**
+ * The control band's dashed edit-well preview: the placed toolbar items as
+ * draggable wells around the fixed transport cluster, the frame's drop
+ * slots, and the fixed volume/effect/subtitle/PiP/more wells. Fixed wells
+ * are the preview chrome of controls this lane does not own (aria-hidden);
  * placed wells are real buttons (click = remove — the keyboard-safe path
- * back into the box).
+ * back into the box). The seek row (frames -1..-6) rides ABOVE the real
+ * strip: the frames' bottom chrome is two frosted strips (bgblur 972..1026
+ * + 1026..1080 @1920) with the seek well in the upper one — the overlay
+ * extends 54px above the measured strip for it.
  */
 function CustomizeBand({
   layout,
+  dirty,
   dragging,
+  dragTile,
   onDropTile,
   onRemoveFromBand,
+  onItemDragStart,
+  onItemDragEnd,
 }: {
   readonly layout: ToolbarLayout;
+  readonly dirty: boolean;
   readonly dragging: boolean;
+  readonly dragTile: CustomizeTile | null;
   readonly onDropTile: (id: string) => void;
   readonly onRemoveFromBand: (id: string) => void;
+  readonly onItemDragStart: (id: string) => void;
+  readonly onItemDragEnd: () => void;
 }) {
   const t = useCustomizeMsg();
   const geometry = useBandGeometry();
@@ -565,6 +685,11 @@ function CustomizeBand({
   const placed = layout.band
     .map((id) => tileById(id))
     .filter((tile): tile is CustomizeTile => tile !== null);
+
+  const variant = bandVariant(dirty, layout.band.length, dragging);
+  const centered = variant !== "f0" && variant !== "f1";
+  const split = variant === "f2" || variant === "f3" || variant === "f4" || variant === "f5";
+  const [leftFlex, rightFlex] = split ? SLOT_FLEX[variant] : [1, 1];
 
   return (
     <div
@@ -598,12 +723,71 @@ function CustomizeBand({
         if (id !== "") onDropTile(id);
       }}
     >
+      {/* The promoted seek row (frames -1..-6): a full-width dashed well
+          above the transport row — the frames' upper chrome strip. All of
+          it is decorative preview chrome (aria-hidden): the real seekbar
+          and timecodes belong to the control bar underneath. Values are
+          frame-pinned (Current Time.svg / Duration.svg read 00:02:10 |
+          00:25:40; track 1712×28 with buffered #371F06 and the 8×24
+          accent playhead — `Player - customize-1.svg`). */}
+      {variant !== "f0" ? (
+        <div className="lumen-customize-band__seekrow" aria-hidden="true">
+          <span className="lumen-customize-band__time">00:02:10</span>
+          <span className="lumen-customize-band__seek lumen-customize-band__seek--row">
+            <span className="lumen-customize-band__seek-buffered" />
+            <span className="lumen-customize-band__seek-played" />
+          </span>
+          <span className="lumen-customize-band__time">00:25:40</span>
+        </div>
+      ) : null}
+
       <div className="lumen-customize-band__row">
+        {/* f3's left-edge 130×26 well (frame -3: @20.5, before the 729
+            slot). */}
+        {variant === "f3" ? (
+          <span className="lumen-customize-band__well lumen-customize-band__well--flat" aria-hidden="true" />
+        ) : null}
+
+        {/* f4/f5's topbar well run (frame -4: 27 @21.5 · 27 @59.5 wrapping
+            the 2×12 divider mark · 23 @87.5 · 60 @111.5 · 130×26 @184.5 —
+            the title bar's icons edited into the band). */}
+        {variant === "f4" || variant === "f5" ? (
+          <span className="lumen-customize-band__topbarrun" aria-hidden="true">
+            <span className="lumen-customize-band__well lumen-customize-band__well--27" />
+            <span className="lumen-customize-band__well lumen-customize-band__well--27">
+              <span className="lumen-customize-band__well-mark" />
+            </span>
+            <span className="lumen-customize-band__well lumen-customize-band__well--23" />
+            <span className="lumen-customize-band__well lumen-customize-band__well--60" />
+            <span className="lumen-customize-band__well lumen-customize-band__well--flat" />
+          </span>
+        ) : null}
+
+        {/* The frame-6 drag ghost: icon-only 27×27, pinned band-left just
+            before the (shrunk) left slot, z-top — outside the modal's
+            x-range, the frame's "dropped-state preview at the band's left
+            edge" (h07 state 6). The OS drag image is the same styled well
+            (setDragImage in the box tile's dragstart). */}
+        {variant === "f5" && dragTile !== null ? (
+          <span className="lumen-customize-band__well lumen-customize-band__ghost" aria-hidden="true">
+            {dragTile.icon ? <Icon name={dragTile.icon} size={18} /> : null}
+          </span>
+        ) : null}
+
+        {/* The left split slot (frames -2..-6). */}
+        {split ? (
+          <span
+            className="lumen-customize-band__slot lumen-customize-band__slot--left"
+            style={{ flexGrow: leftFlex, flexBasis: 0 }}
+            aria-label={t("customize.band.drop-hint")}
+          />
+        ) : null}
+
         {/* Fixed transport preview (frame -1, measured: prev well 29×27
             @20.5 · play well 53×33 @58.5 wrapping the 48×28 r6 accent pill
-            · next well 29×27 @120.5 — pitch 38/62) — the real controls are
-            the controls lane's. */}
-        <span className="lumen-customize-band__cluster" aria-hidden="true">
+            · next well 29×27 @120.5 — pitch 38/62; frames -2..-6 center the
+            cluster at 960). The real controls are the controls lane's. */}
+        <span className="lumen-customize-band__cluster" data-centered={centered || undefined} aria-hidden="true">
           <span className="lumen-customize-band__well">
             <Icon name="previous" size={18} />
           </span>
@@ -616,58 +800,82 @@ function CustomizeBand({
         </span>
 
         {/* Placed toolbar items — real buttons (click = remove, drag = back
-         * to the box) riding where frame -6 shows the dropped tile: after
-         * the left cluster, shrinking the long slot. */}
+         * to the box) riding after the cluster (frame -6's placement
+         * grammar, h07-blessed), shrinking the trailing slot. A lifted
+         * band item vacates its well (frame -6's mid-drag lift). */}
         {placed.map((tile) => (
           <button
             key={tile.id}
             type="button"
             className="lumen-customize-band__well"
             data-field-id={tile.id}
+            data-dragging={dragTile?.id === tile.id || undefined}
             aria-label={t("customize.band.remove").replace("{item}", t(tile.labelKey))}
             draggable
             onDragStart={(event) => {
               event.dataTransfer.effectAllowed = "move";
               event.dataTransfer.setData(BAND_DRAG_TYPE, tile.id);
+              const well = event.currentTarget;
+              event.dataTransfer.setDragImage?.(well, 14, 14);
+              onItemDragStart(tile.id);
             }}
+            onDragEnd={onItemDragEnd}
             onClick={() => onRemoveFromBand(tile.id)}
           >
             {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
           </button>
         ))}
 
-        {/* The frame's long empty drop slot (frame 0: 1405×35 dashed @170.5)
-         * — THE drop target (drop a catalog tile on the band to place it in
-         * the toolbar). Frame 0 draws the live seekbar preview INSIDE it
-         * (track 1238×28 r6 #090909, buffered #371F06, played #D37918);
-         * frames -1..-4 show it empty — the seek preview rides the clean
-         * state, drops tint over it. */}
-        <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")}>
-          <span className="lumen-customize-band__seek" aria-hidden="true">
-            <span className="lumen-customize-band__seek-buffered" />
-            <span className="lumen-customize-band__seek-played" />
+        {/* The trailing slot(s). f0 (frame 0: 1405×35 @170.5) carries the
+         * live seek preview + the band timecodes; f1 (frame -1: 1431×35
+         * @155.5) is left EMPTY — the seek moved to its own row above;
+         * f2..f5 split (see SLOT_FLEX). */}
+        {variant === "f0" ? (
+          <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")}>
+            <span className="lumen-customize-band__time" aria-hidden="true">00:02:10</span>
+            <span className="lumen-customize-band__seek" aria-hidden="true">
+              <span className="lumen-customize-band__seek-buffered" />
+              <span className="lumen-customize-band__seek-played" />
+            </span>
+            <span className="lumen-customize-band__time" aria-hidden="true">00:25:40</span>
           </span>
-        </span>
+        ) : variant === "f1" ? (
+          <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")} />
+        ) : (
+          <span
+            className="lumen-customize-band__slot lumen-customize-band__slot--right"
+            style={{ flexGrow: rightFlex, flexBasis: 0 }}
+            aria-label={t("customize.band.drop-hint")}
+          />
+        )}
 
         {/* Fixed right cluster preview (frame -1, measured: volume well
             129×35 @1591.5 · three 29×31 wells @1736.5/1778.5/1820.5 · more
-            29×31 @1870.5). */}
-        <span className="lumen-customize-band__well lumen-customize-band__well--wide" aria-hidden="true">
-          <Icon name="volume-medium" size={18} />
-          <span className="lumen-customize-band__volume-track" />
+            29×31 @1870.5; frame -5 shifts the whole run 51px left). */}
+        <span className="lumen-customize-band__right" data-shifted={variant === "f5" || undefined} aria-hidden="true">
+          <span className="lumen-customize-band__well lumen-customize-band__well--wide">
+            <Icon name="volume-medium" size={18} />
+            <span className="lumen-customize-band__volume-track" />
+          </span>
+          <span className="lumen-customize-band__well lumen-customize-band__well--tall">
+            <Icon name="equalizer" size={18} />
+          </span>
+          <span className="lumen-customize-band__well lumen-customize-band__well--tall">
+            <Icon name="subtitles" size={18} />
+          </span>
+          <span className="lumen-customize-band__well lumen-customize-band__well--tall">
+            <Icon name="pip" size={18} />
+          </span>
+          <span className="lumen-customize-band__well lumen-customize-band__well--tall">
+            <Icon name="more" size={18} />
+          </span>
         </span>
-        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
-          <Icon name="equalizer" size={18} />
-        </span>
-        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
-          <Icon name="subtitles" size={18} />
-        </span>
-        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
-          <Icon name="pip" size={18} />
-        </span>
-        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
-          <Icon name="more" size={18} />
-        </span>
+
+        {/* f5's far-right 35×23 well (frame -5: @1864.5, the window-edge
+            anchor after the 51px cluster shift). */}
+        {variant === "f5" ? (
+          <span className="lumen-customize-band__well lumen-customize-band__well--low" aria-hidden="true" />
+        ) : null}
       </div>
     </div>
   );

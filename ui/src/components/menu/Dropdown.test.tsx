@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Dropdown } from "./Dropdown";
 import type { DropdownOption } from "./Dropdown";
 
@@ -180,5 +180,53 @@ describe("Dropdown", () => {
     expect(icon).not.toBeNull();
     // Decorative: the resolved label stays the accessible name.
     expect(icon?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  // w26.i16 — preferredDirection (Setting Preset.svg pins its picker UP).
+  // jsdom rects are all-zero, so the trigger's box is stubbed per case: the
+  // clip container falls back to the viewport (nothing clips in jsdom).
+  describe("preferredDirection (w26.i16)", () => {
+    const rectSpy = (trigger: { top: number; bottom: number }) =>
+      vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue({
+          x: 0, y: trigger.top, width: 200, height: trigger.bottom - trigger.top,
+          top: trigger.top, bottom: trigger.bottom, left: 0, right: 200, toJSON: () => ({}),
+        } as DOMRect);
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it("prefers UP when the space above fits the estimated list (Setting Preset host)", () => {
+      // Trigger mid-viewport (top 400 of 768): above = 400 ≥ the 4-option
+      // estimate (4×46+8 = 192) — the preference wins even though below
+      // (336) also fits; without the prop the measured side is "down".
+      rectSpy({ top: 400, bottom: 432 });
+      render(
+        <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} preferredDirection="up" />,
+      );
+      const list = openList();
+      expect(list).toHaveAttribute("data-direction", "up");
+    });
+
+    it("the preference never clips: falls back to the measured side when the preferred side lacks room", () => {
+      // Trigger near the top: 20 above (cannot fit 192), 716 below — the
+      // measured side is "down", and the "up" preference must yield.
+      rectSpy({ top: 20, bottom: 52 });
+      render(
+        <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} preferredDirection="up" />,
+      );
+      const list = openList();
+      expect(list).toHaveAttribute("data-direction", "down");
+    });
+
+    it("default hosts keep the measured behavior (no preference)", () => {
+      // Same mid-viewport trigger, no prop: the measured side is "down".
+      rectSpy({ top: 400, bottom: 432 });
+      render(
+        <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
+      );
+      const list = openList();
+      expect(list).toHaveAttribute("data-direction", "down");
+    });
   });
 });

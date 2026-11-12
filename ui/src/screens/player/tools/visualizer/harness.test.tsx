@@ -82,3 +82,35 @@ describe("w26.c3 vision harness (dev-only)", () => {
     expect(existsSync(resolve(out, "tool-card.html"))).toBe(true);
   });
 });
+
+describe("w26.i07 frame-contract pins (visualizer.css)", () => {
+  // Regression pins for the h14 fixes — the sheet carries the frame-measured
+  // geometry + the light-theme remap (dynamics.css pins the shared grammar).
+  const css = readFileSync(
+    resolve(process.cwd(), "src/screens/player/tools/visualizer/visualizer.css"),
+    "utf8",
+  );
+
+  it("card chevron carries the family's frame right inset (h14 defect 3)", () => {
+    // Icon size 24 (VisualizerTool) + the −7.5px calibration → stroke
+    // 18.25px off the card edge (tool-card family grammar, Vector 27).
+    expect(css).toMatch(
+      /\.viz-tool__chevron\s*\{[^}]*margin-right: -7\.5px;/s,
+    );
+  });
+
+  it("light theme remaps wells through semantic tokens (h14 defect 1)", () => {
+    // Collapsed card / display well / trigger ring → the recessed step.
+    // Quiet ink keeps its role (content-tertiary — i19/h20 F1 repinned the
+    // light value to AA-passing #474747); no light ink override exists.
+    expect(css).toContain(':root[data-theme="light"] .viz-tool {');
+    expect(css).toContain(':root[data-theme="light"] .viz-display');
+    expect(css).toContain(':root[data-theme="light"] .viz-select__trigger');
+    expect(css).toMatch(
+      /\.viz-tool__toggle\s*\{[^}]*color: var\(--color-content-tertiary\);/s,
+    );
+    expect(css).not.toMatch(
+      /:root\[data-theme="light"\][^{]*\.viz-tool__(?:toggle|chevron)\s*\{/,
+    );
+  });
+});

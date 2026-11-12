@@ -6,16 +6,22 @@
 //   Hue                     thumb ≈50%  · 1 degree tick
 //   Brightness              thumb ≈50%  · 1 tick
 //   Contrast                thumb ≈50%  · 1 tick
-//   Saturation              thumb ≈34%  · 2 ticks
-//   Gamma                   thumb ≈11%  · 9 ticks
-//   Sharpen Sigma           thumb ≈2.5% · 3 ticks
+//   Saturation              thumb ≈33%  · 2 ticks
+//   Gamma                   thumb ≈10%  · 9 ticks
+//   Sharpen Sigma           thumb ≈1.5% · 3 ticks
 //   Banding Removal Radius  thumb ≈44%  · 6 ticks
-//   Film Grain Variance     thumb ≈21%  · 9 ticks
+//   Film Grain Variance     thumb ≈20%  · 9 ticks
 //
-// Staged display ranges land each default on the frame's SVG-measured thumb
-// position (frame fill widths 166/166/166/112/36/8/143/69 of a 328px track);
-// engine ranges replace them on wiring (types.ts note). Hue/Brightness/
-// Contrast/Saturation/Gamma labels REUSE the central customize.field.* keys.
+// Staged display ranges: each initial is calibrated through the shared
+// slider's flush travel (w26.i07: thumb right == fill right — a value v
+// paints its thumb center at ≈ 0.988·v − 0.6 % of the track) so the PAINTED
+// thumb lands on the frame's SVG-measured mark ("Video - Essential.svg"
+// thumb centers 50/50/50/33.5/10.4/1.8/43.0/20.4%; w26.i08 — the centered
+// rows keep their neutral values: the flush grammar's −1.2pp paint shift at
+// 50% is the shared Lead-sanctioned travel every tool slider uses).
+// Engine ranges replace these on wiring (types.ts note).
+// Hue/Brightness/Contrast/Saturation/Gamma labels REUSE the central
+// customize.field.* keys.
 //
 // Honest staging: no adjust/sharpen/gradfun/grain engine stage or catalog
 // command exists — local state + the visible staged markers (VideoCard),
@@ -68,7 +74,7 @@ const ESSENTIAL_ROWS: readonly VideoSliderRowDef[] = [
     min: 0,
     max: 3,
     step: 0.01,
-    initial: 1, // 33% ≈ frame 34%
+    initial: 1.04, // paints 33.6% — frame thumb center 33.5% (w26.i08)
     ticks: 2,
     format: (value) => value.toFixed(2),
   },
@@ -78,7 +84,7 @@ const ESSENTIAL_ROWS: readonly VideoSliderRowDef[] = [
     min: 0,
     max: 10,
     step: 0.1,
-    initial: 1.1, // 11% — the frame's measured thumb
+    initial: 1.1, // paints 10.25% — frame thumb center 10.4% (w26.i08, calibrated through the flush travel)
     ticks: 9,
     format: (value) => value.toFixed(1),
   },
@@ -88,7 +94,7 @@ const ESSENTIAL_ROWS: readonly VideoSliderRowDef[] = [
     min: 0,
     max: 2,
     step: 0.01,
-    initial: 0.05, // 2.5% ≈ frame 2.4%
+    initial: 0.05, // paints 1.86% — frame thumb center 1.8% (w26.i08)
     ticks: 3,
     format: (value) => value.toFixed(2),
   },
@@ -98,7 +104,7 @@ const ESSENTIAL_ROWS: readonly VideoSliderRowDef[] = [
     min: 0,
     max: 16,
     step: 1,
-    initial: 7, // 43.75% ≈ frame 43.6%
+    initial: 7, // paints 42.6% ≈ frame thumb center 43.0%
     ticks: 6,
     format: (value) => `${Math.round(value)} px`,
   },
@@ -108,7 +114,7 @@ const ESSENTIAL_ROWS: readonly VideoSliderRowDef[] = [
     min: 0,
     max: 100,
     step: 1,
-    initial: 21, // 21% — the frame's measured thumb
+    initial: 21, // paints 20.1% ≈ frame thumb center 20.4% (w26.i08)
     ticks: 9,
     format: (value) => `${Math.round(value)} %`,
   },

@@ -27,7 +27,7 @@
 // .lumen-vrow > wrapper fill is scoped in playlist.css (w26.f06) until the
 // menu lane ships the shared list.css rule.
 
-import { useCallback, useState, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useMsg, type MessageKey } from "../../i18n/messages";
 import { keys as c6Keys } from "../../i18n/keys/w26.c6";
@@ -37,6 +37,9 @@ import { ContextMenu } from "../../components/menu";
 import type { MenuEntry } from "../../components/menu";
 import { ListEmpty, ListRow, ROW_HEIGHTS, VirtualList } from "../../components/list";
 import { OPEN_MEDIA_EVENT } from "../open-media";
+import { useEnqueueSources, enqueueEntries } from "./enqueueSources";
+import { MenuPopup } from "../../components/menu/MenuPopup";
+import { identityResolveLabel } from "../../components/menu/types";
 import { usePlaylist, type PlaylistContextValue, type PlaylistEntry } from "./PlaylistProvider";
 import { AddSubtitlesDialog } from "./subtitles/AddSubtitlesDialog";
 import { entryDisplayTitle } from "./options/sorting";
@@ -100,6 +103,36 @@ export function PlaylistPanel({
 }) {
   const m = useMsg();
   const playlist = usePlaylist();
+  // w26.i16 Lead-landed (h18 queue dead frame): the "+" enqueue affordance —
+  // the i04 MiniPlayer seam generalized to the full queue (Miniplayer.svg
+  // queue-meta grammar). Outside-pointer dismiss + focus-restore on
+  // Escape/activation (e12 F8 pattern, the MiniPlayer caller contract).
+  const enqueueSources = useEnqueueSources();
+  const [addOpen, setAddOpen] = useState(false);
+  const [addAnchor, setAddAnchor] = useState<{ left: number; top: number } | null>(null);
+  const addTriggerRef = useRef<HTMLButtonElement>(null);
+  const panelRootRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!addOpen) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (panelRootRef.current !== null && !panelRootRef.current.contains(event.target as Node)) {
+        setAddOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [addOpen]);
+  const closeAdd = (): void => {
+    setAddOpen(false);
+    addTriggerRef.current?.focus();
+  };
+  const addEntries: MenuEntry<string>[] = enqueueEntries(
+    enqueueSources,
+    (source, title) => { playlist.playLater(source, title); closeAdd(); },
+    m("player.mini.queue.add-empty"),
+    m("player.empty.open"),
+    () => { closeAdd(); openMediaDialog(); },
+  );
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   // w26.f06 (e09 F2): the queue-row "Add subtitle tracks" entry opens the
   // Add-Subtitles flow scoped to the queue's media names.
@@ -162,7 +195,38 @@ export function PlaylistPanel({
           <IconButton label={m("playlist.controls.clear")} size="sm" onClick={() => playlist.clear()}>
             <Icon name="stop" size={TOOLBAR_ICON_SIZE} />
           </IconButton>
+          {/* w26.i16: enqueue affordance — opens the sources popup. */}
+          <IconButton
+            ref={addTriggerRef}
+            label={m("player.mini.queue.add")}
+            size="sm"
+            aria-haspopup="menu"
+            aria-expanded={addOpen}
+            onClick={() => {
+              if (addOpen) { setAddOpen(false); return; }
+              const rect = addTriggerRef.current?.getBoundingClientRect();
+              setAddAnchor(rect ? { left: rect.left, top: rect.bottom + 4 } : { left: 0, top: 0 });
+              setAddOpen(true);
+            }}
+          >
+            <Icon name="add" size={TOOLBAR_ICON_SIZE} />
+          </IconButton>
         </div>
+        {/* The enqueue popup — fixed at the trigger (the ContextMenu pointer
+            contract; fixed positioning escapes the header's overflow). */}
+        {addOpen && addAnchor !== null ? (
+          <MenuPopup
+            entries={addEntries}
+            resolveLabel={identityResolveLabel}
+            idPrefix="lumen-playlist-add"
+            density="compact"
+            className="lumen-playlist__add-popup"
+            ariaLabel={m("player.mini.queue.add")}
+            style={{ left: addAnchor.left, top: addAnchor.top }}
+            onRequestClose={closeAdd}
+            onDismissAll={closeAdd}
+          />
+        ) : null}
       </header>
 
       {/* Honesty line — plain quiet caption (no decorative chip);

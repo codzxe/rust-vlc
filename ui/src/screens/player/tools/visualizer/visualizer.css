@@ -83,9 +83,14 @@
 }
 
 /* Chevron: collapsed = frame Vector 27 (5×10 chevron-›, 1.5 stroke);
- * expanded rotates to chevron-∨ (the shared glyph at native scale). */
+ * expanded rotates to chevron-∨ (the shared glyph at native scale).
+ * w26.i07: the −7.5px pull lands the stroke ~18.25px off the card's right
+ * edge — the tool-card family's inset ("Audio - Compressor Settings.svg"
+ * Vector 27 stroke right x361.75 on the x20–380 card); the shared glyph
+ * centers in its 24px box, so without the pull it sat ~25.75px out. */
 .viz-tool__chevron {
   flex: none;
+  margin-right: -7.5px; /* frame: stroke 18.25px from the card edge */
   color: var(--color-content-tertiary); /* frame: #6B6B6B */
   transition: transform var(--motion-duration-fast) ease-out;
 }
@@ -389,4 +394,39 @@
   .viz-select__option {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------- light theme (i07)
+ *
+ * w26.i07 (h14 defect 1, g16-P2-2 — the dynamics lane's identical remap;
+ * see dynamics.css for the full derivation): the light ramp leaves the
+ * recessed-well grammar at Δ4/255 (surface #c2c2c2 on surface-panel
+ * #c6c6c6) where the frames carry a Δ16 inversion. Usage-side remap with
+ * semantic tokens (no hex — pairs with i19's light-token work):
+ *   * collapsed card / display well / trigger ring → surface-deep
+ *     (#bababa in light, Δ12 on the panel — the ramp's recessed step);
+ *   * quiet ink KEEPS its role — content-tertiary, which i19/h20 F1
+ *     repinned to #474747 (5.44:1 on the light panel, 4.79:1 on the
+ *     deep well — ≥4.5:1 AA). No light ink override; the selector label
+ *     already carries content-secondary (frame #8F8F8F). Dark keeps the
+ *     frame-pinned mappings. */
+
+:root[data-theme="light"] .viz-tool {
+  background: var(--color-surface-deep); /* recessed collapsed card */
+}
+
+/* Open card keeps the panel fill (the light base rule out-specifies the
+ * shared .viz-tool--open rule, so it is restated for light). */
+:root[data-theme="light"] .viz-tool--open {
+  background: var(--color-surface-panel);
+}
+
+/* Display well: recessed in light (Δ12) instead of Δ4. */
+:root[data-theme="light"] .viz-display {
+  background: var(--color-surface-deep);
+}
+
+/* Trigger ring: the 2px surface ring reads on the panel card in light. */
+:root[data-theme="light"] .viz-select__trigger {
+  background: var(--color-surface-deep);
 }

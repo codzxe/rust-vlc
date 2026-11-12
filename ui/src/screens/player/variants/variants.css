@@ -7,16 +7,19 @@
  * px appears solely for frame-measured structural dimensions (marked
  * `frame:`), the C1 player.css precedent.
  *
- * Miniplayer (all five artboards; geometry re-pinned by w26.f11/e04 F3):
- * floating card 391px rx14 (frame: 391×339 default / 391×689.7 queue-open,
- * fill #1B1B1B ≈ surface-panel + 1px #404040 hairline + the frame's card
- * shadow), video area 373×209 + 1px border, slim seek row 375×16 rx6 with
- * the frame's #371F06 played fill + 8×12 rx4 accent thumb, title row, meta
- * row (folder chip + queue toggle), the overlay transport on the video
- * (playing artboards), collapsible Queue panel above the video (r10,
- * drag-handle rows, tabular durations). The miniplayer card is a
- * fixed-size compact surface [PROPOSAL: window-level always-on-top is
- * host-owned; the DOM renders the compact frame inside the player root].
+ * Miniplayer (all five artboards; geometry re-pinned by w26.f11/e04 F3,
+ * vertical rhythm re-pinned by w26.i04/h06): floating card 391px rx14
+ * (frame: 391×339 default / 391×689.7 queue-open, fill #1B1B1B ≈
+ * surface-panel + 1px #404040 hairline + the frame's card shadow), video
+ * area 373×209 + 1px border, slim seek row 375×16 rx6 (bleeding 1px past
+ * the video on each side) with the frame's #371F06 played fill + 8×12 rx4
+ * accent thumb, title row, meta row (folder chip + queue toggle), the
+ * overlay transport on the video (playing artboards: close TL / expand TR
+ * + centered prev · play · next), collapsible Queue panel above the video
+ * (r10, drag-handle rows, tabular durations, the + wired to the real
+ * enqueue seam — w26.i04). The miniplayer card is a fixed-size compact
+ * surface [PROPOSAL: window-level always-on-top is host-owned; the DOM
+ * renders the compact frame inside the player root].
  *
  * Music mode (Player - Music.svg + Player - Music-1.svg): the ONE
  * theatrical screen — large centered artwork treatment (738×737 rx20 on
@@ -46,7 +49,7 @@
   box-sizing: border-box;
   width: 391px; /* frame: Miniplayer.svg card 391px on every artboard (w26.f11, e04 F3) */
   margin: auto; /* centered compact card while window-level placement is host-owned */
-  padding: 8px; /* frame: content inset 8px (seek 375 = 391 − 2×8) */
+  padding: 8px 8px 14.4px; /* frame: 9px side/top content inset; w26.i04 (h06 #2) — the Default artboard stands 339px tall (≈20px below the meta ink); the 26.4px seek→title gap below plus this bottom inset land the card at exactly 391×339 */
   background: var(--color-surface-panel); /* frame: card fill #1B1B1B */
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-card); /* frame: card rx14 */
@@ -83,12 +86,24 @@
 }
 
 /* Full-width slim seek row under the video (frame: 375×16 — spans the
- * card's content width). The frame anatomy (Miniplayer.svg Frame 21 analog,
- * mini-weighted): 16px rx6 surface well, #371F06 played fill inset 2 (12px
- * tall, rx2), 8×12 rx4 accent thumb always visible at rest. */
+ * card's content width PLUS 1px past the video on each side:
+ * Miniplayer.svg pins the seek at x=28..403 against the video's x=29..402,
+ * so the well is 375 where the video is 373; w26.i04). The frame anatomy
+ * (Miniplayer.svg Frame 21 analog, mini-weighted): 16px rx6 surface well,
+ * #371F06 played fill inset 2 (12px tall, rx2), 8×12 rx4 accent thumb
+ * always visible at rest. */
 .lumen-mini__controls .lumen-mini__seek {
+  /* w26.i04 (h06 runner-up "seek 373 vs frame 375"): the seekbar component
+   * carries a definite width:100% rule on .lumen-seekbar (slider.css), which
+   * cancels flex stretch — the −1px margins then SHIFT the 373px well left
+   * instead of bleeding it past the video (measured /tmp/cap-w26i04:
+   * 558.5..931.5 vs video 559.5..932.5). The explicit +2px widens the
+   * border box to the frame's 375 so the margins land the 1px bleed on
+   * BOTH edges (frame: seek x=28..403 vs video x=29..402). */
   align-self: stretch;
   height: 16px; /* frame: seek row 375×16 */
+  width: calc(100% + 2px); /* frame: seek 375 where the video is 373 */
+  margin-inline: -1px; /* frame: 1px bleed each side past the video (seek x=28 vs video x=29) */
 }
 
 .lumen-mini__controls .lumen-mini__seek .lumen-slider__track {
@@ -135,12 +150,15 @@
   opacity: 0;
 }
 
-/* Overlay transport on the video area (frame playing artboards: close and
- * expand as TOP-CORNER buttons, play centered mid-video). Dimmed while the
- * card rests — the frame's idle card carries no controls — and lit on hover
- * or keyboard focus; opacity never removes the buttons from the a11y tree.
- * The frame's centered |◀ ▶ ▶| row maps to the single C2 play command (the
- * compact matrix has no prev/stop — variantLayout.ts design matrix). */
+/* Overlay transport on the video area (frame playing artboards —
+ * Miniplayer.svg Variant3/Variant5): close and expand as TOP-CORNER buttons
+ * (the flex space-between row), a centered prev · play · next row at video
+ * mid-height. Dimmed while the card rests — the frame's idle card carries
+ * no controls — and lit on hover or keyboard focus; opacity never removes
+ * the buttons from the a11y tree. w26.i04 (h06 #3): prev/next are REAL
+ * playlist commands riding the same queue truth as the full bar's
+ * TransportCluster (the old single close|play|expand row was a thinner
+ * control surface than the frame drew). */
 .lumen-mini__transport {
   position: absolute;
   inset: 0;
@@ -167,6 +185,24 @@
   top: 50%;
   left: 50%;
   translate: -50% -50%;
+}
+
+/* w26.i04: the frame's centered skip row — prev/next glyph centers sit
+ * ±75px from the play center at video mid-height (Miniplayer.svg Variant3:
+ * prev 132.6..148.7 / play 209.4..223.7 / next 282.6..298.7 abs on the
+ * 391px card → card-local centers 120.7 / 196.6 / 270.7). */
+.lumen-mini__transport .lumen-mini__skip {
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+}
+
+.lumen-mini__transport .lumen-mini__skip--prev {
+  left: calc(50% - 75px); /* frame: skip center −75px of the play center */
+}
+
+.lumen-mini__transport .lumen-mini__skip--next {
+  left: calc(50% + 75px); /* frame: skip center +75px of the play center */
 }
 
 /* The orange play pill — the same primary-action language as the full
@@ -202,9 +238,12 @@
   box-shadow: inset 0 0 0 1px var(--color-stroke-border);
 }
 
-/* Title row (frame: filename, one quiet line). */
+/* Title row (frame: filename, one quiet line). w26.i04 (h06 #2): the
+ * frame's seek→title rhythm is 26.4px (seek bottom 258.9 → title ink top
+ * 285.4 card-local) — the 6px flex gap plus this margin; with the frame's
+ * bottom inset above, the card lands at its 391×339. */
 .lumen-mini__title {
-  margin: 0;
+  margin: 20.4px 0 0; /* frame: 26.4px seek→title gap minus the 6px flex gap */
   flex-shrink: 0;
   box-sizing: border-box;
   max-width: 100%;
@@ -337,6 +376,18 @@
   margin-left: auto;
 }
 
+/* w26.i04: the queue panel's add-to-queue popup — fixed at the trigger
+ * (the ContextMenu pointer contract; the queue panel's overflow:hidden
+ * cannot clip a fixed layer) and viewport-clamped by MenuPopup itself.
+ * Compact density + a context-menu-class width — structural, no token. */
+.lumen-mini__add-popup {
+  position: fixed;
+  top: auto;
+  left: auto;
+  min-width: 300px;
+  max-width: min(360px, calc(100vw - 16px));
+}
+
 .lumen-mini__queue-list {
   min-height: 0;
   overflow: auto;
@@ -349,6 +400,21 @@
 }
 
 /* ----------------------------------------------------------------- music */
+
+/* w26.i04 (h06 #5): Miniplayer.png floats the bare card on its own — the
+ * shell's playlists sidebar has no business framing it. The appshell lane's
+ * route-aware default (AppShell loadSidebarOpen) covers /player* only, so
+ * this is the documented composition seam (the player.css :has() rail-rule
+ * pattern, f08 note): while the MINIPLAYER VARIANT is up (any route), the
+ * shell's playlists sidebar does not render. The rail stays (the w26.i20
+ * one-shell ruling, App.tsx — nav + the rail-foot open-media stay reachable;
+ * the card's own close/expand affordances are the way back). Banner toggle
+ * note: its aria-expanded is shell state and may read open while suppressed
+ * — the durable fix (route-aware default for /miniplayer) is the appshell
+ * lane's, logged in docs/waves/w26/logs/w26.i04.md. */
+.app-shell__frame:has(.lumen-player[data-variant="miniplayer"]) > .app-shell__sidebar {
+  display: none;
+}
 
 /* The stage column: the art block claims the free height and anchors its
  * art+meta group in the upper-middle per the frame. (w26.f11/e03 F7: the
@@ -404,20 +470,22 @@
   min-height: 0;
   gap: 16px;
   margin: 0;
-  max-width: 520px;
+  max-width: 554px; /* w26.i04: proportional frame art 738/1920×1440 ≈ 553.5 — the stage hosts it 1:1 */
 }
 
 /* Large centered artwork treatment (frame: 738×737 rx20 on 1920×1080 —
- * roughly half the stage). The honest placeholder face until the engine
- * reports artwork; dark in BOTH themes (artwork is content, same
- * picture-frame reasoning as the video canvas). */
+ * roughly half the stage). w26.i04 (h06): the frame's art share — 738 at
+ * 1920 = 61.5vmin on the 0.75-scaled 1440×900 window (553.5px; the live
+ * 520px was 6% shy). The honest placeholder face until the engine reports
+ * artwork; dark in BOTH themes (artwork is content, same picture-frame
+ * reasoning as the video canvas). */
 .lumen-music__artwork {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: min(60vmin, 540px); /* structural: theatrical hero scale (frame art 738px @1920 ≈ 38% of window) */
+  width: min(61.5vmin, 554px); /* frame: art 738/1080 = 61.5vmin (≈553.5 at 1440×900) */
   max-width: 100%;
   aspect-ratio: 1 / 1;
   margin: 0;
@@ -601,6 +669,27 @@
   color: var(--color-content-secondary);
 }
 
+/* w26.i04 (h06 #1 — the transport tail): Player - Music.svg's Controls
+ * ends with the volume cluster (speaker + wedge) and the far-right menu
+ * glyph (1827..1893 abs ≈ the live app-menu trigger); the audio /
+ * subtitles / gear / queue triggers the FULL bar carries are not in either
+ * music frame. Reducing the right cluster to the frame's membership lets
+ * the seek well take the frame's 65% of the window (1246/1920; measured
+ * live before: 782px = 54.3%, center 44.7% — the frame centers it at
+ * 49.6%). display:none is a REAL reduction (out of the tab order and the
+ * a11y tree, not a visual fake); the same surfaces stay reachable in music
+ * mode through the canvas menu, the keymap (M/E, Ctrl+E tools) and
+ * /settings. The queue trigger is redundant here by design — the docked
+ * playlist column IS the music queue (e03 F5). Controls-lane handoff
+ * logged: a proper per-variant cluster prop on ControlBar would make this
+ * composition first-class. */
+.lumen-player__controls[data-variant="music"] [data-control="audio"],
+.lumen-player__controls[data-variant="music"] [data-control="subtitles"],
+.lumen-player__controls[data-variant="music"] [data-control="settings"],
+.lumen-player__controls[data-variant="music"] [data-control="queue"] {
+  display: none; /* frame: Player - Music.svg Controls — volume + menu only after the well */
+}
+
 /* w26.gfix-F (g06 P1-3 residual): Player - Music-1.svg window-centers the
  * artwork — art 738 at x=591, center 960/1920 = the window's midpoint —
  * even with the 377px column open; stage-centering (the flex default) left
@@ -608,16 +697,18 @@
  * negative margin: flex centering centers the MARGIN box, so -176px moves
  * the border-box center only 88px (measured art center 808 vs 720 @1440,
  * /tmp/cap-gfixF) — a relative `left` offsets the painted box without
- * re-entering the centering math. Clamped: below ~1224px window width the
+ * re-entering the centering math. Clamped: below ~1258px window width the
  * full 176px slide would push the art under the open dock (.lumen-music__art
  * clips at its left edge) — the clamp trades the last pixels of centering
  * for never clipping (rail 52 is the SHELL's pinned value, appshell lane —
  * re-pin if the rail retunes; dock 300 is this sheet's). The closed state
  * needs no shift: the rail folds (player.css :has rule) and the stage
- * already spans the window. */
+ * already spans the window. w26.i04: the clamp constant re-pinned for the
+ * proportional art (553.5 → art/2 276.75; clamp edge = dock right 352 +
+ * 276.75 = 628.75; 628.75 − 176 = 452.75 — was 436 with the 520px art). */
 .lumen-player[data-variant="music"][data-sidebar="open"] .lumen-music__stage {
   position: relative;
 
   /* frame: (rail 52 + dock 300) / 2 — Music-1 art center 960/1920; clamp: art left edge ≥ dock right edge */
-  left: max(-176px, calc(436px - 50vw));
+  left: max(-176px, calc(452.75px - 50vw));
 }

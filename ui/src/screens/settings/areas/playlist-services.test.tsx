@@ -9,11 +9,14 @@ import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { PlaylistServicesArea } from "./playlist-services";
 
-describe("PlaylistServicesArea — honest empty surface", () => {
-  it("renders the honest empty state and zero controls", () => {
+describe("PlaylistServicesArea — the seam (w26.i15: renders nothing today)", () => {
+  it("renders zero rows and no area-root claim (no schema keys — never dead controls)", () => {
     const { container } = render(<PlaylistServicesArea />);
-    expect(container.querySelector('[data-settings-area="library"]')).not.toBeNull();
-    expect(screen.getByTestId("settings-area-empty")).toBeVisible();
+    // w26.i15: the fold no longer claims the library area root — exactly ONE
+    // [data-settings-area="library"] renders per route (LibraryArea carries
+    // it); no area-empty note under the staged §C9 rows.
+    expect(container.querySelector('[data-settings-area]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-area-empty"]')).toBeNull();
     expect(container.querySelectorAll(".settings-field")).toHaveLength(0);
     expect(container.querySelectorAll("[data-setting], [data-setting-capability]")).toHaveLength(0);
   });

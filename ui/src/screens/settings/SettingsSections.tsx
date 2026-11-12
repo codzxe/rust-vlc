@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
@@ -36,6 +36,22 @@ export interface GeneratedSection {
   readonly entries: readonly SettingSectionRow[];
 }
 
+/** A section of PURE schema entries — {@link schemaSectionsOf}'s output type
+ * (w26.i12 relaunch). Narrower than GeneratedSection on purpose: the seed's
+ * sections carry ONLY SettingEntry rows (hand rows enter later, via withRows
+ * or the composed screens). The areas' hand-rendered compositions (areas'
+ * GlobalAreaScreen / PrivacyArea) iterate these entries straight off the
+ * generated schema — `entry.featureExposed`, `entry.advanced`, `entry.key`,
+ * search matches — without re-narrowing a union, so the precise type is the
+ * contract; the union widening of the dead attempt broke every such call
+ * site (tsc TS2339) and is reverted here at the type level only: the runtime
+ * shape never changed (a seed section never contained a hand row). */
+export interface SchemaSection {
+  readonly id: string;
+  readonly title: MessageKey;
+  readonly entries: readonly SettingEntry[];
+}
+
 const isSettingEntry = (row: SettingSectionRow): row is SettingEntry => "key" in row;
 
 /**
@@ -47,7 +63,7 @@ const isSettingEntry = (row: SettingSectionRow): row is SettingEntry => "key" in
  * Section titles flow through the msgid seam like the generated screens'
  * own helper (generated/Screens.tsx).
  */
-export const schemaSectionsOf = (id: string): readonly GeneratedSection[] => {
+export const schemaSectionsOf = (id: string): readonly SchemaSection[] => {
   const area = SETTINGS_AREAS.find((candidate) => candidate.id === id);
   return area === undefined
     ? []
@@ -141,6 +157,17 @@ function AdvancedDisclosure({
   children: ReactElement;
 }) {
   const t = useSectionsMsg();
+  const rowsRef = useRef<HTMLDivElement | null>(null);
+  // w26.i12 (h08 defect 1, shell half): expanding a disclosure whose bar sat
+  // near the fold pushed the revealed rows BELOW the window with scrollTop
+  // unmoved — the user got a chevron flip and an empty gap. Scroll the rows
+  // into view on expand (minimal movement, "nearest"; the bar keeps its
+  // frame position). jsdom implements no scrollIntoView — guarded like the
+  // Dropdown's own call.
+  useEffect(() => {
+    if (!open) return;
+    rowsRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [open]);
   return (
     <div className="settings-advanced">
       <button
@@ -158,7 +185,7 @@ function AdvancedDisclosure({
         />
       </button>
       {open ? (
-        <div className="settings-advanced__rows" id="settings-advanced-rows">
+        <div className="settings-advanced__rows" id="settings-advanced-rows" ref={rowsRef}>
           {children}
         </div>
       ) : null}

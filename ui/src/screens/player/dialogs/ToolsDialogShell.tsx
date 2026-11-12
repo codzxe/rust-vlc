@@ -11,10 +11,18 @@
 //     shared Dialog);
 //   * ONE collapsible card per tool: a full-width toggle bar (rx6, 48px,
 //     #090909 surface fill, "Expand Settings"/"Collapse Settings" +
-//     chevron) above the settings card (r8, #1B1B1B-band fill) when
-//     expanded;
+//     chevron) above the settings card (r8, raised fill) when expanded;
 //   * card rows — label left, control right (value chips r4 dark #090909,
 //     tabular).
+//
+// FOCUS ORDER (w26.i09, the h19 P4 dialog-semantics pattern): the body
+// renders BEFORE the header in the DOM and the header paints first via
+// `order: -1` (dialogs.css) — so the surface trap's first-focusable
+// policy lands on the first BODY control (the tab pair / the form
+// input), never on the ✕, and Enter on a fresh dialog acts on the
+// content instead of dismissing the window. The ✕ stays keyboard
+// reachable at the END of the tab cycle; the accessible name still comes
+// from aria-labelledby, which is position-independent.
 //
 // The shell stays GENERIC: it owns chrome + the card skeleton and exposes
 // slots (body → cards/rows, footer → dialog actions); the tool value of a
@@ -89,6 +97,12 @@ export function ToolsDialogShell({
       <div className={["player-dialog", "player-dialog--tools", className]
         .filter(Boolean)
         .join(" ")}>
+        {/* Body first in the DOM (focus order — see module header); the
+         * header paints above it via `order: -1`. */}
+        <div className="player-dialog__body">
+          {subtitle ? <p className="player-dialog__subtitle">{subtitle}</p> : null}
+          <div className="tools-dialog__cards">{children}</div>
+        </div>
         <div className="player-dialog__header">
           <h2 id={titleId} className="player-dialog__title">
             {title}
@@ -102,10 +116,6 @@ export function ToolsDialogShell({
           >
             <CloseGlyph size={16} />
           </IconButton>
-        </div>
-        <div className="player-dialog__body">
-          {subtitle ? <p className="player-dialog__subtitle">{subtitle}</p> : null}
-          <div className="tools-dialog__cards">{children}</div>
         </div>
         {footer ? (
           /* The Figma footer grammar — quiet action left, tinted confirm
@@ -169,7 +179,10 @@ export function ToolsCard({
         <span className="tools-card__toggle-label">
           {open ? TOOLS_DIALOG_COPY.collapse : TOOLS_DIALOG_COPY.expand}
         </span>
-        <ChevronGlyph size={16} className="tools-card__chevron" />
+        {/* 24px glyph box — frame Vector 27 measures ≈11.5×6.5 paint-
+         * inclusive at sw1.5, which a 16px box undersizes ~30% (h14 P3;
+         * the visualizer lane ships the same 24 box three cards away). */}
+        <ChevronGlyph size={24} className="tools-card__chevron" />
       </button>
       <div
         id={bodyId}

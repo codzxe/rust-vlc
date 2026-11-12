@@ -83,23 +83,288 @@
   }
 }
 
-/* ---- docked playlist sidebar (Player.png, x=50..427) --------------------
+/* ---- docked playlists browser (Player.png, x=50..427) --------------------
  * Deep surface (#0E0E0E in the frame) with ONE hairline on its canvas edge,
  * running the full height of the BODY row — Player.svg ends it (and the
- * rail) at y=1026, ABOVE the control strip. The panel content (4.D1,
- * screens/playlist) owns its own internals; this is the dock. Square-edged
- * — no radius, no float. */
+ * rail) at y=1026, ABOVE the control strip. w26.i02 (h03 #1): the dock is
+ * the playlists BROWSER (Player.png's single sidebar), 377px @1920 → 283px
+ * at our 1440 render — the h03 measurement pinned the old 216px dock at
+ * 18.6% of the window vs the frame's 22.2% left-chrome share. Square-edged
+ * — no radius, no float. The browser internals (header/meta/create/rows)
+ * follow below; the old W26 mission pin "~200–220px" is superseded by the
+ * frame measurement (contract §1: the frames are the authority). */
 .lumen-player__sidebar {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   flex: none;
-  width: 216px; /* structural: W26 mission pins the sidebar at ~200–220px */
+  width: 283px; /* structural: Player.svg sidebar 377px @1920 × 0.75 (frame-measured, h03) */
   min-width: 0;
   min-height: 0;
   overflow: auto;
   background: var(--color-surface-deep);
   border-right: 1px solid var(--color-stroke-border);
+}
+
+/* w26.i02 — the docked playlists browser internals (Player.svg sidebar:
+ * "Playlists" header / "N items" meta / "Create playlist" / rows — the same
+ * panel family as the shell's playlists sidebar (sidebar.svg), compact: no
+ * search, no sort/view modes — Player.png's sidebar carries none of them).
+ * Header grammar 14px medium; ink frame-cited (Player.svg path fills, i02
+ * measurement pass): title #8F8F8F, meta + create row #6B6B6B, rows #969696
+ * — stepped to the nearest semantic tokens (title/rows secondary, meta/create
+ * tertiary), matching the shell-sidebar family where the two frames disagree.
+ */
+.lumen-player__dock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  height: 40px; /* frame: sidebar row scale (structural) */
+  padding: 0 var(--space-grid) 0 var(--space-inset);
+}
+
+.lumen-player__dock-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-body); /* 13–14px sidebar medium (W25 §1) */
+  font-weight: var(--font-weight-medium);
+
+  /* frame: Player.svg 'Playlists' #8F8F8F (content-secondary) */
+  color: var(--color-content-secondary);
+}
+
+/* Meta row: the frame's "2 items" count (lowercase — Player.svg path id)
+ * on quiet caption ink, closed by the sidebar family's thin hairline.
+ * frame: Player.svg '2 items' #6B6B6B → tertiary (nearest token). */
+.lumen-player__dock-meta {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 36px; /* frame: row scale (structural) */
+  padding: 0 var(--space-inset);
+  border-block-end: 1px solid var(--color-stroke-border);
+}
+
+.lumen-player__dock-count {
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* "+ Create playlist" row (Player.svg: plus glyph + label, #6B6B6B →
+ * tertiary). Full-bleed row, not a chip — the dock's chrome strips are
+ * square-edged (spec §1). */
+.lumen-player__dock-create {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px; /* frame: row scale (structural) */
+  padding: 0 var(--space-inset);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.lumen-player__dock-create:hover,
+.lumen-player__dock-create:focus-visible {
+  color: var(--color-content-bright);
+  background: var(--color-surface-hover);
+}
+
+.lumen-player__dock-create:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-player__dock-create-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Rows region: the REAL saved-playlists rows (playlistsStore), 42px pitch
+ * @1920 → 32px frame-scaled; 36px matches the shell sidebar's verified row
+ * rhythm for the same panel family. Labels sit at the frame's quiet ink
+ * (Player.png rows #8F8F8F) and lift to bright on hover. */
+.lumen-player__dock-rows {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block-end: var(--space-inset);
+}
+
+.lumen-player__dock-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lumen-player__dock-empty {
+  margin: 0;
+  padding: var(--space-inset);
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-player__dock-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px; /* frame: row pitch (structural) */
+  padding: 0 var(--space-inset) 0 calc(var(--space-inset) + 2px);
+  font: inherit;
+  color: var(--color-content-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+}
+
+.lumen-player__dock-row:hover,
+.lumen-player__dock-row:focus-visible {
+  color: var(--color-content-bright);
+  background: var(--color-surface-hover);
+}
+
+.lumen-player__dock-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-player__dock-row-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  /* frame rows sit at the compact meta scale (Player.png sidebar: row
+   * labels ≈ "2 items" size, not heading size) */
+  font-size: var(--font-size-caption);
+}
+
+/* ---- dock affordance row (Player.svg Frame 20, i02 pass 2) ----------------
+ * Header: back chevron (active — collapses the dock) · forward (frame
+ * opacity 0.3 → disabled) · title · "···" (disabled, the shell sidebar's
+ * honest call). The sm IconButtons carry their own hit areas + disabled
+ * opacity (button.css); the frame's active chevron reads #8F8F8F. */
+
+.lumen-player__dock-back,
+.lumen-player__dock-forward,
+.lumen-player__dock-more {
+  flex: none;
+}
+
+/* Revealed search field (frame grammar + the shell sidebar's revealed
+ * field: quiet input on the deep surface, r4 well, caption scale). */
+.lumen-player__dock-search {
+  flex: none;
+  padding: 0 var(--space-inset) var(--space-grid);
+}
+
+.lumen-player__dock-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-grid) var(--space-inset);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-inset);
+}
+
+.lumen-player__dock-search-input::placeholder {
+  color: var(--color-content-tertiary);
+}
+
+.lumen-player__dock-search-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px; /* ring inside the bordered field */
+}
+
+/* Meta row's right cluster (frame: sort ↑↓ · list · search; the view pair
+ * completes the shell sidebar's verified mode cluster). The pressed view
+ * mode is the frame's one orange meta glyph — same in-subtree token remap
+ * the shell's modes use. */
+.lumen-player__dock-modes {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-grid) * 0.5);
+  margin-inline-start: auto;
+}
+
+.lumen-player__dock-modes .lumen-icon-button[aria-pressed="true"] {
+  --color-stroke-icon: var(--color-accent-icon);
+}
+
+/* Grid view (the shell sidebar's plgrid grammar: 2-up cards on the deep
+ * surface; 32×32 frame thumbnails, r14 cards — rounding on cards, spec §1). */
+.lumen-player__dock-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-inset);
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-inset);
+}
+
+.lumen-player__dock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-grid);
+  box-sizing: border-box;
+  padding: var(--space-grid);
+  font: inherit;
+  color: var(--color-content-primary);
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-stroke-border);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  text-align: start;
+}
+
+.lumen-player__dock-card:hover,
+.lumen-player__dock-card:focus-visible {
+  background: var(--color-surface-raised);
+}
+
+.lumen-player__dock-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-player__dock-card-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; /* frame: sidebar.svg 32×32 thumbnails (structural) */
+  height: 32px;
+  color: var(--color-content-secondary);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-inset);
+}
+
+.lumen-player__dock-card-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  width: 100%;
+  font-size: var(--font-size-caption);
 }
 
 /* ---- body row: [dock | main column | floating panels] (w26.f09, e02 F2) --
@@ -163,9 +428,9 @@
 
 /* ---- video canvas (Player.svg x=427..1920, y=40..1026) ------------------
  * Near-black in BOTH themes — the picture-frame rule (W25 spec §1: light
- * mode keeps the canvas #2b2b2b–#333). Stays a labelled region div until
- * the render engine wiring (card 4.H1); the state overlays (./states) and
- * the now-playing identity sit on it. */
+ * mode keeps the canvas #2b2b2b–#333). w26.i02 (h03 #2): the canvas hosts
+ * the real media surface (./states overlays sit above it, z-index 1); the
+ * decode/frames half stays engine-wired nowhere until 4.H1. */
 .lumen-player__canvas {
   position: relative;
   display: flex;
@@ -173,6 +438,21 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-surface);
+}
+
+/* w26.i02 (h03 #2) — the real media surface element: letterboxed over the
+ * near-black base (object-fit: contain — the video keeps its aspect, the
+ * bands read on the canvas base, exactly the frame's video-over-#090909).
+ * Presentation only: no pointer events (the transport lives in ControlBar;
+ * the canvas region owns the context menu + the accessible label). */
+.lumen-player__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 :root[data-theme="light"] .lumen-player__canvas {

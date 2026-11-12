@@ -1,5 +1,5 @@
 import "./icon.css";
-import { getIconGlyph } from "./icons";
+import { getIconGlyph, getTwoToneGlyph } from "./icons";
 import type { IconName } from "./icons";
 
 /**
@@ -15,6 +15,15 @@ import type { IconName } from "./icons";
  * existing CSS state classes — variant only changes the stroke width.
  *
  * Decorative by default (`aria-hidden`); pass `title` for a named icon.
+ *
+ * w26.i16 TWO-TONE mode (menu frames: quiet #8F8F8F base strokes + #AB6314
+ * detail elements — the sheet's `two-tone=yes` groups; h18 defect #3):
+ * `twoTone` swaps in the glyph's two-tone face (a dedicated variant where
+ * the frame adds geometry, else the shared entry) and adds
+ * `.lumen-icon--two-tone`; icon.css then paints `lumen-icon__detail`
+ * elements with `--color-accent-strong` (bright `--detail--bright` variants
+ * with `--color-accent-icon`). Mono hosts are unchanged — the markers are
+ * inert without the class.
  */
 
 /** Stroke-weight variants, mapped 1:1 to the §1.4 stroke tokens. */
@@ -33,6 +42,7 @@ export function Icon({
   className = "",
   disabled = false,
   variant = "default",
+  twoTone = false,
 }: {
   name: IconName;
   /** Width/height in px (logical, DPI-independent — doc 08 §1.6). @default 16 */
@@ -44,9 +54,12 @@ export function Icon({
   disabled?: boolean;
   /** Stroke-weight variant (§1.4 emphasis strokes). @default "default" */
   variant?: IconVariant;
+  /** w26.i16 — render the two-tone face (menu iconography; see header). @default false */
+  twoTone?: boolean;
 }) {
-  const glyph = getIconGlyph(name);
+  const glyph = twoTone ? getTwoToneGlyph(name) : getIconGlyph(name);
   const variantClass = variant === "default" ? "" : ` lumen-icon--${variant}`;
+  const twoToneClass = twoTone ? " lumen-icon--two-tone" : "";
   return (
     <svg
       viewBox="0 0 24 24"
@@ -60,7 +73,7 @@ export function Icon({
       role={title ? "img" : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
-      className={`lumen-icon${disabled ? " lumen-icon--disabled" : ""}${variantClass} ${className}`.trim()}
+      className={`lumen-icon${disabled ? " lumen-icon--disabled" : ""}${variantClass}${twoToneClass} ${className}`.trim()}
     >
       {title ? <title>{title}</title> : null}
       {glyph}

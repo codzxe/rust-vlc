@@ -82,6 +82,7 @@ const snapshotResult = (
     tracks: TrackInfo[];
     selections: Record<string, number | null>;
     durationTime: number | null;
+    playlist: { shuffle?: boolean; repeat?: "off" | "all" | "one"; current?: number | null };
   }> = {},
 ): CommandResponse["result"] => ({
   completed: {
@@ -91,7 +92,7 @@ const snapshotResult = (
       devices: [],
       duration: { kind: "known", time: extra.durationTime ?? 100 },
       muted: extra.muted ?? false,
-      playlist: {},
+      playlist: extra.playlist ?? {},
       rate: 1,
       selections: extra.selections ?? {},
       state,
@@ -678,15 +679,18 @@ describe("app menu — menu.png grammar (w26.f13, e12 F5)", () => {
     expect(rows[0]?.textContent).toBe("Nothing opened yet");
   });
 
-  it("Profile flyout holds the honest unavailable row (no profile engine seam)", () => {
+  it("Profile flyout renders the store's real rows + New (w26.i16, Profiles.png)", () => {
     renderBar(new FakeTransport());
     const menu = openAppMenu();
     click(within(menu).getByRole("menuitem", { name: "Profile" }));
     const submenu = screen.getByRole("menu", { name: "Profile" });
     const rows = within(submenu).getAllByRole("menuitem");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
-    expect(rows[0]?.textContent).toBe("unavailable");
+    // Frame-seeded store (Movies/Shows/Music/Work) + the quick-create row.
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    const labels = rows.map((r) => r.textContent ?? "");
+    expect(labels).toContain("Movies");
+    expect(labels).toContain("Music");
+    expect(labels.some((l) => /new/i.test(l))).toBe(true);
   });
 
   it("Open File(s) dispatches the shell-wide open-media event", () => {
@@ -792,7 +796,7 @@ describe("seek cluster — the frame's two timecodes (w26.f13, e02 F6)", () => {
   });
 });
 
-describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () => {
+describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6) + the frame's settings panels (w26.i03, h04 §2/§7)", () => {
   it("renders the frame's triggers: audio · subtitles · gear · queue (+ the f13 app menu)", () => {
     renderBar(new MockTransport());
     for (const name of ["Audio tracks", "Subtitle tracks", "Settings", "Queue", "Application menu"]) {
@@ -803,7 +807,7 @@ describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () =>
     expect(screen.queryByRole("button", { name: /cast/i })).toBeNull();
   });
 
-  it("audio trigger opens the engine-truth audio track list (400px popover)", async () => {
+  it("audio trigger opens the settings panel: tab header + engine-truth rows + the quiet footer", async () => {
     const fake = new FakeTransport();
     fake.respond = () => snapshotResult("playing", {
       tracks: [
@@ -815,28 +819,51 @@ describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () =>
     renderBar(fake);
     await flush();
     click(screen.getByRole("button", { name: "Audio tracks" }));
-    const menu = screen.getByRole("menu", { name: "Audio tracks" });
-    expect(within(menu).getByRole("menuitemradio", { name: "Automatic" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitemradio", { name: "English 5.1" })).toBeInTheDocument();
+    const panel = screen.getByRole("dialog", { name: "Audio tracks" });
+    // The 3-tab header (Controls.svg "audio" variant: Video · Audio · Subtitles).
+    expect(within(panel).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Video",
+      "Audio",
+      "Subtitles",
+    ]);
+    expect(within(panel).getByRole("tab", { name: "Audio" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // The frame's section header over the engine-truth radio rows.
+    expect(within(panel).getByText("Embedded Tracks")).toBeInTheDocument();
+    expect(within(panel).getByRole("radio", { name: "Automatic" })).toBeInTheDocument();
+    expect(within(panel).getByRole("radio", { name: "English 5.1" })).toBeInTheDocument();
     // The engine-reported selection is checked, never optimistic.
     expect(
-      within(menu).getByRole("menuitemradio", { name: "Commentaire" }).getAttribute("aria-checked"),
+      within(panel).getByRole("radio", { name: "Commentaire" }).getAttribute("aria-checked"),
     ).toBe("true");
-    // The frame popovers' "Show Advanced Settings" footer row is real.
-    expect(within(menu).getByRole("menuitem", { name: "Show Advanced Settings" })).toBeInTheDocument();
-    click(within(menu).getByRole("menuitemradio", { name: "English 5.1" }));
+    // The frame's Output Device section renders its honest unavailable face.
+    expect(within(panel).getByText("Output Device")).toBeInTheDocument();
+    expect(within(panel).getByText("unavailable")).toBeInTheDocument();
+    // Button.png's quiet footer (the panel's 360×32 r4 button) is real.
+    expect(within(panel).getByRole("button", { name: "Show Advanced Settings" })).toBeInTheDocument();
+    click(within(panel).getByRole("radio", { name: "English 5.1" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-audio-track");
     expect(select?.args).toEqual({ selector: { kind: "id", id: 1 } });
   });
 
-  it("idle: the track popovers open onto the honest no-media reason", async () => {
+  it("idle: the track panels open onto the honest no-media reason", () => {
     renderBar(new MockTransport());
     click(screen.getByRole("button", { name: "Subtitle tracks" }));
-    const menu = screen.getByRole("menu", { name: "Subtitle tracks" });
-    const rows = within(menu).getAllByRole("menuitem");
-    expect(rows).toHaveLength(2); // the reason row + the Advanced footer
-    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
-    expect(rows[0]?.textContent).toBe("no media open");
+    const panel = screen.getByRole("dialog", { name: "Subtitle tracks" });
+    // Subtitles tab active: Embedded Tracks + the frame's External Tracks section.
+    expect(within(panel).getByRole("tab", { name: "Subtitles" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(within(panel).getByText("Embedded Tracks")).toBeInTheDocument();
+    expect(within(panel).getAllByText("no media open")).toHaveLength(1);
+    expect(within(panel).getByText("External Tracks")).toBeInTheDocument();
+    // No fabricated rows anywhere.
+    expect(within(panel).queryByRole("radio")).toBeNull();
+    // The footer still routes to the real tools surface.
+    expect(within(panel).getByRole("button", { name: "Show Advanced Settings" })).toBeInTheDocument();
   });
 
   it("queue trigger lists the real queue, marks the current item, plays the pick", async () => {
@@ -853,9 +880,17 @@ describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () =>
       fake.emit({ seq: 2, kind: "playlist.changed", change: { kind: "current-changed", id: 7 } });
     });
     click(screen.getByRole("button", { name: "Queue" }));
-    const menu = screen.getByRole("menu", { name: "Queue" });
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    // The Queue · Bookmarks · Chapters tab header (Controls.svg queue variant).
+    expect(within(panel).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Queue",
+      "Bookmarks",
+      "Chapters",
+    ]);
+    // The frame's "4 items" meta row, over the real count.
+    expect(within(panel).getByText("2 items")).toBeInTheDocument();
     // Honest unknown titles (no playlist.list seam) — never fabricated.
-    const rows = within(menu).getAllByRole("menuitemradio");
+    const rows = within(panel).getAllByRole("radio");
     expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toBe("Unknown title");
     expect(rows[0]?.getAttribute("aria-checked")).toBe("true");
@@ -867,37 +902,55 @@ describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () =>
   it("idle queue: the honest empty reason — never a fabricated list", () => {
     renderBar(new MockTransport());
     click(screen.getByRole("button", { name: "Queue" }));
-    const menu = screen.getByRole("menu", { name: "Queue" });
-    const rows = within(menu).getAllByRole("menuitem");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
-    expect(rows[0]?.textContent).toBe("Nothing in the queue");
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    expect(within(panel).getByText("Nothing in the queue")).toBeInTheDocument();
+    expect(within(panel).queryByRole("radio")).toBeNull();
   });
 
-  it("gear trigger carries the Playback/Video/Audio/Subtitle families + the Advanced footer", async () => {
+  it("gear opens the 4-tab settings panel; Playback carries the real shuffle/repeat seams", async () => {
     const fake = new FakeTransport();
-    fake.respond = () => snapshotResult("playing");
+    fake.respond = () =>
+      snapshotResult("playing", {
+        tracks: [track(2, "audio", "Commentaire", "fr", true)],
+        selections: { audio: 2 },
+        playlist: { shuffle: false, repeat: "off" },
+      });
     renderBar(fake);
     await flush();
     click(screen.getByRole("button", { name: "Settings" }));
-    const menu = screen.getByRole("menu", { name: "Settings" });
-    for (const label of ["Playback", "Video", "Audio", "Subtitle", "Show Advanced Settings"]) {
-      expect(within(menu).getByRole("menuitem", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
-    }
-    // The Playback family: shuffle + the repeat radios over real seams.
-    click(within(menu).getByRole("menuitem", { name: /^Playback/ }));
-    const playback = screen.getByRole("menu", { name: "Playback" });
-    click(within(playback).getByRole("menuitemcheckbox", { name: "Shuffle" }));
+    const panel = screen.getByRole("dialog", { name: "Settings" });
+    // The 4-tab header (the "playback"/"* settings" variants add Playback).
+    expect(within(panel).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Playback",
+      "Video",
+      "Audio",
+      "Subtitles",
+    ]);
+    // Audio tab active (the "audio settings" variant): the Defaults
+    // label/value rows over the same engine data + the track section.
+    expect(within(panel).getByText("Defaults")).toBeInTheDocument();
+    expect(within(panel).getByText("Audio track")).toBeInTheDocument();
+    // "Commentaire" paints twice over the same engine truth: the Defaults
+    // value row AND the checked radio row.
+    expect(within(panel).getAllByText("Commentaire")).toHaveLength(2);
+    expect(within(panel).getByText("Embedded Tracks")).toBeInTheDocument();
+    // Switch to Playback: the real seams — Toggle.png switch + the
+    // Values.png segmented control (h04 §8/§9 flow-coherence gaps).
+    click(within(panel).getByRole("tab", { name: "Playback" }));
+    click(within(panel).getByRole("switch", { name: "Shuffle" }));
     expect(fake.sent.some((r) => r.cmd === "playlist.set-shuffle")).toBe(true);
+    click(within(panel).getByRole("radio", { name: "All" }));
+    const repeat = fake.sent.find((r) => r.cmd === "playlist.set-repeat");
+    expect(repeat?.args).toEqual({ mode: "all" });
   });
 
-  it("popover Escape restores focus to its trigger (e12 F8 pattern)", () => {
+  it("panel Escape restores focus to its trigger (e12 F8 pattern)", () => {
     renderBar(new MockTransport());
     const trigger = screen.getByRole("button", { name: "Queue" });
     click(trigger);
-    const menu = screen.getByRole("menu", { name: "Queue" });
-    fireEvent.keyDown(menu, { key: "Escape" });
-    expect(screen.queryByRole("menu")).toBeNull();
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    fireEvent.keyDown(panel, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 });

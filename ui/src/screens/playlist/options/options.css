@@ -37,12 +37,19 @@
  * pins the 400px player-menu width, overridden here. w26.gfix-E (g19
  * P1-1): the scrollport caps tall panels inside the viewport (the 16-row
  * sorting list) — max-height arrives inline from the open-time measurement
- * in PlaylistOptionsMenu (flip first, cap as a last resort). */
+ * in PlaylistOptionsMenu (flip first, cap as a last resort).
+ * w26.i11 (h17 chrome + row-crush): both option frames are BORDERLESS r10
+ * panels — no hairline, 4px inset only (rows 257px in the 265px frame; the
+ * shared 1px border shaved them to 255 with a 5px inset). The shadow token
+ * is the frame's own dy8/blur7.5 drop shadow as mapped by the token lane
+ * (--shadow-overlay, the same value the Folder dialogs use). */
 .lumen-plo .lumen-plo__menu {
   min-width: 265px; /* frame: Sorting Options.svg / View Options.svg 265 */
   margin-top: var(--space-grid);
   overflow-y: auto;
   overscroll-behavior: contain;
+  border: none; /* frame: Sorting/View Options.svg — borderless panel */
+  border-radius: 10px; /* frame rx10 — no r10 token (radius-menu is r12); structural */
 }
 
 .lumen-plo .lumen-plo__menu--end {
@@ -59,8 +66,13 @@
 
 /* 48px rows (option.svg grammar at the option frames' scale) — the shared
  * comfortable height is 58px. Right padding 19px puts the check's right
- * edge 19px from the row edge (frame: check x228–242 in a 4–261 row). */
+ * edge 19px from the row edge (frame: check x228–242 in a 4–261 row).
+ * w26.i11 (h17 #1 — the flex-crush): the shared .lumen-menu is a flex
+ * COLUMN, so a max-height scrollport cap shrank every row (46.5px @1440,
+ * 38.25px @1024 — the panel never scrolled, it crushed the 48px pitch).
+ * flex:none pins the frame pitch; the capped panel scrolls instead. */
 .lumen-plo .lumen-plo__item {
+  flex: none; /* frame: 48px rows never shrink — the scrollport scrolls (h17 #1) */
   height: var(--space-item-pitch); /* 48px (Sorting/View Options.svg rows) */
   padding-right: 19px; /* frame: option check inset */
   color: var(--color-content-secondary); /* frame labels #8F8F8F */

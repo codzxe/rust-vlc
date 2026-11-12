@@ -10,8 +10,14 @@
 //     rates hold their columns);
 //   * ListEmpty — the quiet empty state (no artwork; lists stay calm).
 //
-// Rendered both inside the player shell's `media-info` region (PlayerScreen
-// wiring) and as the /media-info route body (MediaInfoScreen).
+// w26.i18 (h19 §5 — "a surface with no demonstrable body"): the honest
+// empty / not-exposed states now ride the SAME r14 Card grammar as the
+// populated sections (never a bare heading over one line), and the empty
+// state carries the one real path to a populated body: the "Open media"
+// action firing the shell-wide open-media event (the app's ONE add-file
+// funnel — the player empty-hero CTA and the discovery volume-row menu use
+// the same seam). Opening routes to the player; returning here re-seeds
+// from `media.get-info` (session-scoped) and the section cards render.
 //
 // HONESTY (the card's AC): every absent field renders the i18n "Unknown" —
 // `null`/`undefined`/empty never becomes a value that looks real. Streams
@@ -23,10 +29,12 @@
 
 import { useMsg } from "../../i18n/messages";
 import type { MediaInfo, TrackInfo } from "../../client/transport";
+import { Button } from "../../components/button/Button";
 import { Card, SectionHeader } from "../../components/surface/Surface";
 import { ListEmpty } from "../../components/list/Empty";
 import { Icon } from "../../components/icon/Icon";
 import type { IconName } from "../../components/icon/icons";
+import { OPEN_MEDIA_EVENT } from "../open-media";
 import { useMediaInfo } from "./MediaInfoProvider";
 import { codecLabel, formatDuration, sourceLocation } from "./format";
 import "./media-info.css";
@@ -81,13 +89,16 @@ export function MediaInfoPanel({
         data-state="not-exposed"
       >
         {showTitle ? <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2> : null}
-        <p className="lumen-mi__note">{m("media-info.panel.not-exposed")}</p>
+        <Card as="div" className="lumen-mi__state-card" data-testid="media-info-not-exposed">
+          <p className="lumen-mi__note">{m("media-info.panel.not-exposed")}</p>
+        </Card>
       </section>
     );
   }
 
   if (info === null) {
-    // Honest empty state: nothing open / nothing reported — quiet, no art.
+    // Honest empty state: nothing open / nothing reported — quiet, no art,
+    // but with a REAL path to the populated body (the app's one open seam).
     return (
       <section
         className={`lumen-mi ${className}`.trim()}
@@ -95,12 +106,23 @@ export function MediaInfoPanel({
         data-state="empty"
       >
         {showTitle ? <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2> : null}
-        <ListEmpty
-          className="lumen-mi__empty"
-          data-testid="media-info-empty"
-          title={m("media-info.empty.title")}
-          body={m("media-info.empty.body")}
-        />
+        <Card as="div" className="lumen-mi__state-card" data-testid="media-info-empty-card">
+          <ListEmpty
+            className="lumen-mi__empty"
+            data-testid="media-info-empty"
+            title={m("media-info.empty.title")}
+            body={m("media-info.empty.body")}
+            action={
+              <Button
+                variant="primary"
+                data-testid="media-info-open"
+                onClick={() => window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT))}
+              >
+                {m("player.empty.open")}
+              </Button>
+            }
+          />
+        </Card>
       </section>
     );
   }

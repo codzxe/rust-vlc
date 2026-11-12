@@ -27,8 +27,10 @@
 //
 // W26 shell facts (Player.svg at 1920×1080 → our 1440×900 viewport):
 //   title bar 40 → 30px (W25 spec §2 allows 24–32) · rail 50 → 52px wide
-//   (spec: 48–56; 44px+ hits) · sidebar 377 → 208px (spec pins 200–220) ·
-//   playlist rows 42px pitch → 36px · active nav icon = THE orange accent.
+//   (spec: 48–56; 44px+ hits) · sidebar 377 → 283px (frame dock width ×0.75
+//   — ONE width with the player's own docked column, player.css h03 pin;
+//   w26.i20) · playlist rows 42px pitch → 36px · active nav icon = THE
+//   orange accent.
 //
 // The Solstice menubar is GONE (no W25 frame carries one): navigation
 // lives in the rail + breadcrumb; open-media stays shell-owned (the ONE
@@ -182,11 +184,17 @@ function loadSidebarOpen(pathname: string): boolean {
   try {
     const stored = globalThis.localStorage?.getItem(SIDEBAR_STORAGE_KEY);
     if (stored === "open" || stored === "closed") return stored === "open";
-    // w26.g03 P1-1 Lead fix (the f08 seam, never landed): with NO stored
-    // preference the default is route-aware — the player composes its OWN
-    // docked sidebar surface, so the shell's playlists sidebar starts CLOSED
-    // there (one-sidebar rule, Player.png); everywhere else it starts open.
-    return !pathname.startsWith("/player");
+    // w26.g03 P1-1 Lead fix + w26.i20 extension (the f08 seam, never landed;
+    // i04's h06-#5 durable fix): with NO stored preference the default is
+    // route-aware — the PLAYER family composes its OWN docked sidebar
+    // surface, so the shell's playlists sidebar starts CLOSED there
+    // (one-sidebar rule, Player.png); the MINIPLAYER floats its card
+    // rail-less (Miniplayer.png — variants.css suppresses the column while
+    // the variant is up), so it starts CLOSED there too, keeping the
+    // toggle's aria-expanded honest; everywhere else it starts open.
+    if (pathname.startsWith("/player")) return false;
+    if (pathname.startsWith("/miniplayer")) return false;
+    return true;
   } catch {
     return true; // storage unavailable — session default (open)
   }
@@ -316,23 +324,32 @@ export function AppShell({
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  // w26.g03 P1-1 / g06 P1-3 Lead fix: the one-sidebar rule on ROUTE CHANGE —
-  // entering /player with the shell sidebar open AND the player's own dock
-  // open collapses the SHELL sidebar for that visit (session-only, never
-  // persisted — the user's stored preference survives for other routes).
+  // w26.g03 P1-1 / g06 P1-3 Lead fix + w26.i20 extension: the one-sidebar
+  // rule on ROUTE CHANGE —
+  //   * entering the player family with the player's own dock open
+  //     collapses the SHELL sidebar for that visit (session-only, never
+  //     persisted — the user's stored preference survives for other routes);
+  //   * entering /miniplayer collapses it unconditionally: the mini variant
+  //     suppresses the column while it is up (variants.css :has() seam, i04
+  //     h06 #5), so the collapsed state is the honest one — aria-expanded
+  //     never claims a column the variant is not showing.
   const onPlayerRoute = location.pathname.startsWith("/player");
+  const onMiniplayerRoute = location.pathname.startsWith("/miniplayer");
   useEffect(() => {
-    if (!onPlayerRoute || !sidebarOpen) return;
-    if (document.querySelector(".lumen-player[data-sidebar='open']") !== null) {
+    if (!sidebarOpen) return;
+    if (onPlayerRoute) {
+      if (document.querySelector(".lumen-player[data-sidebar='open']") !== null) {
+        setSidebarOpen(false);
+      }
+    } else if (onMiniplayerRoute) {
       setSidebarOpen(false);
     }
-    // Runs on route entry only; sidebarOpen read live via the query.
+    // Runs on route entry only; sidebarOpen read live via the guard above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onPlayerRoute]);
+  }, [onPlayerRoute, onMiniplayerRoute]);
 
   // ---- window controls ----------------------------------------------------
   const [fullscreenActive, toggleFullscreen] = useShellFullscreen();
-  const onMiniplayerRoute = location.pathname.startsWith("/miniplayer");
   const onWindowMinimize = useCallback((): void => {
     navigate("/miniplayer");
   }, [navigate]);

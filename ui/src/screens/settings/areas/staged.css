@@ -1,0 +1,83 @@
+/* Staged surfaces (w26.i15) — the honest-empty grammar for the schema-blocked
+ * settings areas, extending the Remotes precedent (settings.css already
+ * un-dims [data-staged] form controls; these rules carry the same
+ * full-strength-while-inert grammar to actions and the Advanced bar, plus the
+ * frames' own disabled-row presentation).
+ *
+ * Frame truth (tools-settings.md §C0 control inventory):
+ *   "Disabled row | whole row group @ opacity 0.3 (library/network)"
+ *   Advanced bar 784×38 r2 #191919@95% collapsed › — never a live disclosure
+ *   with nothing behind it. */
+
+/* Staged actions (Browse companions, the extensions toolbar) render
+ * full-strength while inert — the [data-staged] form-control rule in
+ * settings.css, applied to .settings-action. */
+[data-staged] .settings-action:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* The staged Advanced bar keeps its collapsed looks; disabled kills the
+ * affordance (cursor + hover) without dimming the bar. */
+[data-staged] .settings-advanced__bar:disabled {
+  cursor: default;
+}
+
+[data-staged] .settings-advanced__bar:disabled:hover {
+  background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
+  color: var(--color-content-secondary);
+}
+
+/* The frames' disabled-row groups @0.3 (§C0) — the dimmed presentation is
+ * the frame's own, so it rides the muted opacity token. */
+.settings-field[data-staged-dimmed="true"] {
+  opacity: var(--opacity-muted);
+}
+
+/* w26.i15 (h11/h12): the staged Advanced bar CLOSES the column like the
+ * frames do (§C9 y490 / §C10 y669 / §C12 y685) — the last section before it
+ * drops its trailing margin, so the bar lands one row-margin + its own 15px
+ * margin-top below the last row (the last section is not the :last-child of
+ * the column while a bar div follows it, so the sheet's :last-child zeroing
+ * never fires — measured +28px on every staged area before this rule). */
+.settings-sections[data-advanced-staged] > section:last-of-type {
+  margin-bottom: 0;
+}
+
+/* w26.i15 (§C10 frame): the buffering input rows ride pitch 48 (not the
+ * sheet's 46) — +2 on the four leading rows lands the Proxy header on its
+ * frame y380 and the bar on y669. The dimmed rows are the frame's own
+ * disabled group @0.3 and keep the §C0 grammar. */
+[data-testid="network-area"] [data-section="buffering"] .settings-field:not(:last-child) .settings-field__row {
+  margin-bottom: 12px; /* frame: 36 + 12 = 48 */
+}
+
+/* Same frame arithmetic for the Proxy inputs: +2 on the leading row lands
+ * Security on y535 and the bar on y669. */
+[data-testid="network-area"] [data-section="proxy"] .settings-field:not(:last-child) .settings-field__row {
+  margin-bottom: 12px; /* frame: 36 + 12 = 48 */
+}
+
+/* w26.i15 (SVG rect anchors, fonts-settled measurement): each frame pins
+ * its own header→first-row gap, and the sheet base (settings.css title mb 7px
+ * + 22.5px block = 29.5) is 1.5 short of the 31px the §C9/§C10/§C12 frames
+ * carry at their section starts — while §C10 Proxy (380→413) and §C12
+ * Recording (83→116) run 33. Per-section title margins land every row on its
+ * frame y (see the lane log §geometry for the full derivation):
+ *   library  31 → 8.5px   (rows y114..433, bar y490 — Δ0.0 after)
+ *   network  31/33/31 → 8.5/10.5/8.5px (rows y114..608, bar y669)
+ *   recording 33/31/31 → 10.5/8.5/8.5px (rows y116..624, bar y685)
+ * The frames' own ±2 section-gap variance is in the SVG, not a bug. */
+[data-testid="library-area"] [data-section="opening-files"] .settings-section__title,
+[data-testid="library-area"] [data-section="metadata-artwork"] .settings-section__title,
+[data-testid="network-area"] [data-section="buffering"] .settings-section__title,
+[data-testid="network-area"] [data-section="security"] .settings-section__title,
+[data-testid="recording-area"] [data-section="casting"] .settings-section__title,
+[data-testid="recording-area"] [data-section="streaming"] .settings-section__title {
+  margin-bottom: 8.5px; /* frame: 22.5 block + 8.5 = 31 header→row */
+}
+
+[data-testid="network-area"] [data-section="proxy"] .settings-section__title,
+[data-testid="recording-area"] [data-section="recording"] .settings-section__title {
+  margin-bottom: 10.5px; /* frame: 22.5 block + 10.5 = 33 header→row */
+}

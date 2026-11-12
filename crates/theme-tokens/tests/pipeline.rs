@@ -48,9 +48,9 @@ fn committed_source_parses_with_the_documented_shape() -> Result<(), Box<dyn std
     // W25/W26 truth (figma-fidelity-spec + waves a-f/gfix): the Figma
     // redesign's orange is the default accent; counts follow the current
     // committed source (light-ramp repins included).
-    assert_eq!(counts.primitives, 118, "primitive-layer token count");
-    assert_eq!(counts.aliases, 80, "alias-layer token count");
-    assert_eq!(counts.semantic, 80, "semantic-layer token count");
+    assert_eq!(counts.primitives, 122, "primitive-layer token count");
+    assert_eq!(counts.aliases, 84, "alias-layer token count");
+    assert_eq!(counts.semantic, 84, "semantic-layer token count");
     assert_eq!(set.modes(), ["dark", "light"]);
     assert_eq!(set.default_mode(), "dark");
     assert_eq!(

@@ -5,7 +5,7 @@
 // music-mode LEFT-docked playlist column with the closable no-column state
 // (w26.f11, e03 F5/F6/F8) + honest art placeholder (Player - Music.svg).
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
@@ -27,8 +27,10 @@ import {
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
 const variantsCss = readFileSync(`${dirname}/variants.css`, "utf8");
 
-const renderWithClient = (ui: React.ReactElement) =>
-  render(<ClientProvider transport={new MockTransport()}>{ui}</ClientProvider>);
+const renderWithClient = (ui: React.ReactElement, transport = new MockTransport()) => {
+  const view = render(<ClientProvider transport={transport}>{ui}</ClientProvider>);
+  return { ...view, transport };
+};
 
 function pressKey(key: string): void {
   act(() => {
@@ -124,7 +126,10 @@ describe("full variant (default first run)", () => {
     );
     const root = screen.getByRole("region", { name: "Video canvas" }).closest(".lumen-player");
     expect(root).toHaveAttribute("data-variant", "full");
-    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+    // w26.i02 (h03 #1): the player's docked sidebar is the playlists
+    // BROWSER ("Playlists" — Player.png's single sidebar), not the queue
+    // panel; adapted from the pre-i02 "Playlist" name.
+    expect(screen.getByRole("complementary", { name: "Playlists" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Miniplayer" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Album art" })).toBeNull();
     // has-media regions exist in the layout, but nothing opens until asked.
@@ -160,6 +165,23 @@ describe("miniplayer variant", () => {
     expect(within(bar).queryByLabelText("Mute")).toBeNull();
     expect(screen.queryByRole("banner")).toBeNull();
     expect(screen.queryByRole("complementary")).toBeNull();
+  });
+
+  it("w26.i04: the overlay carries the frame's centered prev · play · next row (h06 #3)", () => {
+    renderWithClient(<PlayerScreen variant="miniplayer" />);
+    const mini = screen.getByRole("region", { name: "Miniplayer" });
+    // Miniplayer.svg Variant3: prev/play/next at video mid, close TL, expand TR.
+    const prev = within(mini).getByRole("button", { name: "Previous — no media open" });
+    const next = within(mini).getByRole("button", { name: "Next — no media open" });
+    // Honest disabled with the reason while the queue is empty (C2 truth).
+    expect(prev).toBeDisabled();
+    expect(next).toBeDisabled();
+    expect(prev.className).toContain("lumen-mini__skip--prev");
+    expect(next.className).toContain("lumen-mini__skip--next");
+    // The corners keep their frame slots; the play stays centered.
+    expect(within(mini).getByRole("button", { name: "Close miniplayer" })).toBeInTheDocument();
+    expect(within(mini).getByRole("button", { name: "Expand to full player" })).toBeInTheDocument();
+    expect(within(mini).getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
   it("reuses C2's engine-state mapping: idle ⇒ honest disabled play + disabled seek", () => {
@@ -210,6 +232,35 @@ describe("miniplayer variant", () => {
     ).toBe(true);
     expect(within(queue).getByText("Nothing in the queue")).toBeInTheDocument();
   });
+
+  it("w26.i04: the queue's + enqueues a picked source through playlist.enqueue (the g20-P2-3 seam)", async () => {
+    const { transport } = renderWithClient(<PlayerScreen variant="miniplayer" />);
+    const mini = screen.getByRole("region", { name: "Miniplayer" });
+    fireEvent.click(within(mini).getByRole("button", { name: "Toggle queue" }));
+    const queue = within(mini).getByRole("region", { name: "Queue" });
+
+    // The + opens the add-to-queue popup (aria-expanded + haspopup honest).
+    const add = within(queue).getByRole("button", { name: "Add to queue" });
+    expect(add).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(add);
+    expect(add).toHaveAttribute("aria-expanded", "true");
+
+    // The demo clips the open-media dialog offers — real transport-backed
+    // sources, deduplicated; the ONE open-media funnel rides as the footer.
+    const menu = screen.getByRole("menu", { name: "Add to queue" });
+    expect(within(menu).getByRole("menuitem", { name: /Big Buck Bunny/ })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Open media" })).toBeInTheDocument();
+
+    // Picking a clip issues the REAL enqueue command through the playlist
+    // context (playLater = playlist.enqueue) — the first UI caller the
+    // enqueue seam has ever had (h06 #4).
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /Big Buck Bunny/ }));
+    await waitFor(() =>
+      expect(transport.sent.some((request) => request.cmd === "playlist.enqueue")).toBe(true),
+    );
+    const enqueued = transport.sent.find((request) => request.cmd === "playlist.enqueue");
+    expect(enqueued?.args).toMatchObject({ source: { kind: "file", path: "/media/demo/big-buck-bunny.mkv" } });
+  });
 });
 
 describe("music variant", () => {
@@ -233,9 +284,10 @@ describe("music variant", () => {
     renderWithClient(<PlayerScreen variant="music" />);
     const root = document.querySelector(".lumen-player");
     expect(root).toHaveAttribute("data-sidebar", "open");
-    const playlist = screen.getByRole("complementary", { name: "Playlist" });
-    // Player - Music-1.svg: the 377px column docks LEFT of the stage — the
+    // w26.i02 (h03 #1): the docked column is the playlists BROWSER —
+    // Player - Music-1.svg's 377px column rendered through the same
     // docked-sidebar seam (not the old right-anchored emphasized panel).
+    const playlist = screen.getByRole("complementary", { name: "Playlists" });
     expect(playlist).toHaveAttribute("data-region-id", "playlist");
     expect(playlist.className).toContain("lumen-player__sidebar");
     expect(playlist.getAttribute("data-emphasized")).toBeNull();
@@ -255,7 +307,7 @@ describe("music variant", () => {
     renderWithClient(<PlayerScreen variant="music" />);
     const root = document.querySelector(".lumen-player");
     // Open by default (Player - Music-1.svg composition)...
-    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Playlists" })).toBeInTheDocument();
 
     // ...the shell's toggle event closes the column — the no-column state
     // (Player - Music.png) is reachable. Async act: MusicMode mirrors the
@@ -265,37 +317,33 @@ describe("music variant", () => {
       window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
     });
     expect(root).toHaveAttribute("data-sidebar", "closed");
-    expect(screen.queryByRole("complementary", { name: "Playlist" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Playlists" })).toBeNull();
     expect(screen.getByRole("region", { name: "Album art" })).toBeInTheDocument();
 
     // The stage's quiet toggle re-opens it (MusicMode) — the column is
-    // reachable in BOTH directions from inside music mode.
-    const toggle = await screen.findByRole("button", { name: "Show queue panel" });
+    // reachable in BOTH directions from inside music mode. w26.i02: the
+    // dock is the playlists browser, so the toggle says playlists.
+    const toggle = await screen.findByRole("button", { name: "Show playlists panel" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await act(async () => {
       fireEvent.click(toggle);
     });
     expect(root).toHaveAttribute("data-sidebar", "open");
-    const reopened = await screen.findByRole("complementary", { name: "Playlist" });
-    expect(within(reopened).getByRole("button", { name: "Open media" })).toBeInTheDocument();
-    const openToggle = await screen.findByRole("button", { name: "Hide queue panel" });
+    const reopened = await screen.findByRole("complementary", { name: "Playlists" });
+    expect(within(reopened).getByRole("button", { name: "Create playlist" })).toBeInTheDocument();
+    const openToggle = await screen.findByRole("button", { name: "Hide playlists panel" });
     expect(openToggle).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("v2 audit — the docked music-mode playlist column carries the panel's Open-media CTA", () => {
-    // The docked music-mode playlist is never a dead box: the playlist
-    // panel's own empty-state CTA (card 4.D1, screens/playlist) dispatches
-    // the shell-wide `lumen:open-media` event — the composition assertion
-    // here pins that the docked music-mode column actually exposes it.
+  it("v2 audit — the docked music-mode column is the live playlists browser (w26.i02 dock, real store rows)", () => {
+    // The docked music-mode column is never a dead box: since w26.i02
+    // (h03 #1) it is the shell's playlists browser over the REAL
+    // saved-playlists store (the same seam as /playlist and the shell
+    // sidebar — seeds "Cool Playlist"/"Cool Songs"/"Anime to Watch").
     renderWithClient(<PlayerScreen variant="music" />);
-    const playlist = screen.getByRole("complementary", { name: "Playlist" });
-    const cta = within(playlist).getByRole("button", { name: "Open media" });
-    expect(cta).toBeInTheDocument();
-    const heardOpenMedia = vi.fn();
-    window.addEventListener("lumen:open-media", heardOpenMedia);
-    fireEvent.click(cta);
-    expect(heardOpenMedia).toHaveBeenCalledTimes(1);
-    window.removeEventListener("lumen:open-media", heardOpenMedia);
+    const playlist = screen.getByRole("complementary", { name: "Playlists" });
+    expect(within(playlist).getByRole("button", { name: "Create playlist" })).toBeInTheDocument();
+    expect(within(playlist).getByRole("button", { name: "Cool Playlist" })).toBeInTheDocument();
   });
 });
 
@@ -397,11 +445,75 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
     // (rail 52 + dock 300) / 2 = 176px slide to the window midpoint, as a
     // relative left (a negative margin only shifts the center half as far —
     // flex centers the MARGIN box), clamped so the art never slides under
-    // the open dock on narrow windows.
+    // the open dock on narrow windows. w26.i04: the clamp constant is
+    // re-pinned for the proportional art (553.5px): clamp edge = dock right
+    // 352 + art/2 276.75 = 628.75; 628.75 − 176 = 452.75 (was 436 @520 art).
     const stage = rule(
       '.lumen-player[data-variant="music"][data-sidebar="open"] .lumen-music__stage',
     );
     expect(stage).toContain("position: relative");
-    expect(stage).toContain("left: max(-176px, calc(436px - 50vw))");
+    expect(stage).toContain("left: max(-176px, calc(452.75px - 50vw))");
+  });
+});
+
+// ------------------------------------------------------- w26.i04 pins ---
+// The h06 fix-cycle frame pins: the mini card's vertical rhythm (h06 #2),
+// the overlay skip row (h06 #3), the music transport-tail reduction (h06
+// #1) and the miniplayer shell-sidebar seam (h06 #5). CSS-rule guards so
+// the next refactor cannot silently drop a pin back to the pre-fix state.
+describe("w26.i04 frame pins (variants.css)", () => {
+  /** Line-anchored single-rule extractor (the gfix-F pattern above). */
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return variantsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+  };
+
+  it("mini card vertical rhythm: 26.4px seek→title gap + the 339px card bottom inset (h06 #2)", () => {
+    expect(rule(".lumen-mini__title")).toContain("margin: 20.4px 0 0");
+    // Line-anchored on the bare card selector (the shared rule() prefix would
+    // match the earlier .lumen-mini .lumen-icon-button wrapper rule).
+    const card = variantsCss.match(/\n\.lumen-mini \{([^}]*)\}/)?.[1] ?? "";
+    expect(card).toContain("padding: 8px 8px 14.4px");
+    // The seek bleeds 1px past the video each side (frame 375 vs 373). The
+    // explicit width is REQUIRED: slider.css's `.lumen-seekbar { width: 100% }`
+    // is a definite width, so the −1px margins alone only SHIFT the 373px
+    // well left (measured /tmp/cap-w26i04) — calc(100% + 2px) restores the
+    // frame's 375px well with the bleed on both edges.
+    const seek = rule(".lumen-mini__controls .lumen-mini__seek");
+    expect(seek).toContain("margin-inline: -1px");
+    expect(seek).toContain("width: calc(100% + 2px)");
+  });
+
+  it("overlay skip row: prev/next centers ±75px of the play center at video mid (h06 #3)", () => {
+    expect(rule(".lumen-mini__transport .lumen-mini__skip")).toContain("top: 50%");
+    expect(rule(".lumen-mini__transport .lumen-mini__skip--prev")).toContain(
+      "left: calc(50% - 75px)",
+    );
+    expect(rule(".lumen-mini__transport .lumen-mini__skip--next")).toContain(
+      "left: calc(50% + 75px)",
+    );
+  });
+
+  it("music transport tail reduces to the frame's clusters; the well takes its 65% share (h06 #1)", () => {
+    // Player - Music.svg Controls ends with volume + the far-right menu —
+    // the audio/subtitles/settings/queue triggers drop out under the music
+    // variant (a REAL reduction: display:none leaves the a11y tree).
+    for (const control of ["audio", "subtitles", "settings", "queue"]) {
+      const body = variantsCss.match(
+        new RegExp(`\\.lumen-player__controls\\[data-variant="music"\\] \\[data-control="${control}"\\][^{]*\\{([^}]*)\\}`),
+      )?.[1];
+      expect(body, `music variant must pin [data-control=${control}]`).toContain("display: none");
+    }
+  });
+
+  it("miniplayer variant suppresses the shell playlists sidebar (h06 #5, the :has() composition seam)", () => {
+    expect(variantsCss).toContain(
+      '.app-shell__frame:has(.lumen-player[data-variant="miniplayer"]) > .app-shell__sidebar',
+    );
+  });
+
+  it("music art claims the frame's proportional share: 61.5vmin ≈ 553.5px at 1440×900 (h06)", () => {
+    expect(rule(".lumen-music__artwork")).toContain("width: min(61.5vmin, 554px)");
+    expect(rule(".lumen-music__stage")).toContain("max-width: 554px");
   });
 });

@@ -1,6 +1,7 @@
-/* /discovery (w26.b12) — the device-discovery panel in the W26 Figma
- * language. No direct frame exists for this route (CONTRACT §3): the
- * composition follows the design language (§2) with the nearest grammars —
+/* /discovery (w26.b12; w26.i18 fixes) — the device-discovery panel in the
+ * W26 Figma language. No direct frame exists for this route (CONTRACT §3):
+ * the composition follows the design language (§2) with the nearest
+ * grammars —
  *   * playlist.svg — row anatomy (icon · title · meta · trailing, r10
  *     hover fill, quiet #8f8f8f-gray text that brightens on hover);
  *   * thumbnail.svg — the r14 #191919 card with the 1px #404040 hairline;
@@ -10,6 +11,13 @@
  * Working-screen density: a compact top-anchored column on the near-black
  * surface — no vertical centering, the shell main region scrolls.
  * Semantic tokens only (§3.2); raw px is structural layout only. */
+
+/* w26.i18 (h19 §3 — the 16px drift): the SectionHeader primitive ships
+ * --font-size-label (16px) where its own doc + §2's band pin the 15px
+ * class. Usage-side pin until the surface lane retunes the primitive. */
+.discovery .lumen-section-header__title {
+  font-size: var(--font-size-section);
+}
 
 .discovery {
   display: flex;
@@ -32,7 +40,7 @@
 .discovery__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label); /* the 15px-class section-heading scale */
+  font-size: var(--font-size-section); /* w26.i18: the 15px working-screen head (§2's 10–15px band, h19 drift fix) */
   font-weight: var(--font-weight-semibold);
   color: var(--color-content-bright);
 }
@@ -99,4 +107,14 @@
   margin: 0;
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
+}
+
+/* ------------------------------------------------- light-mode card step
+ * w26.i18 (h19 §3, cross-cutting Δ4): light surface-panel #c6c6c6 is
+ * Δ4/255 on the #c2c2c2 surface (dark's card step is Δ16) — the panels
+ * survived only via their #acacac border. Usage-side step to the raised
+ * surface (light elevation runs lighter, Player - Light.svg ramp); the
+ * pending panel-step token (theme lane i19) wins the day it lands. */
+:root[data-theme="light"] .discovery__panel {
+  background-color: var(--color-surface-panel-raised, var(--color-surface-raised));
 }

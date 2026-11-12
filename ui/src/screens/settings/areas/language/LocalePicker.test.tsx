@@ -27,7 +27,7 @@ describe("LocalePicker (global.language)", () => {
     const trigger = screen.getByRole("button", { name: "Interface language" });
     expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(trigger).toHaveTextContent("English (United States)");
+    expect(trigger).toHaveTextContent("English");
     // Closed by default — no open listbox until the user opens it.
     expect(screen.queryByRole("listbox")).toBeNull();
   });
@@ -37,7 +37,7 @@ describe("LocalePicker (global.language)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Interface language" }));
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(AVAILABLE_LOCALES.length);
-    expect(screen.getByRole("option", { name: /English \(United States\)/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /English/i })).toBeTruthy();
     // en-US is the only shipped catalog today.
     expect(AVAILABLE_LOCALES).toEqual(["en-US"]);
   });
@@ -60,16 +60,16 @@ describe("LocalePicker (global.language)", () => {
     // proven by the trigger carrying the schema key's current value and the
     // selected option staying bound after re-selecting it.
     const trigger = screen.getByRole("button", { name: "Interface language" });
-    expect(trigger).toHaveTextContent("English (United States)");
+    expect(trigger).toHaveTextContent("English");
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("option", { name: /English \(United States\)/i }));
+    fireEvent.click(screen.getByRole("option", { name: /English/i }));
     expect(latest).toBe("en-US");
     expect(screen.getByRole("button", { name: "Interface language" })).toHaveFocus(); // close restores focus
   });
 
   it("labels the reference locale through the i18n catalog", () => {
     const m = useMsg();
-    expect(localeLabel(REFERENCE_LOCALE, m)).toBe("English (United States)");
+    expect(localeLabel(REFERENCE_LOCALE, m)).toBe("English");
     expect(localeLabel("fr-FR", m)).toBe("fr-FR"); // no catalog copy → raw tag
   });
 });

@@ -395,6 +395,14 @@
   margin-bottom: 23px;
 }
 
+/* w26.i13 (g10-P3-3, Lead-landed): the global frame sets the Advanced bar
+ * at y645 (measured 673 — 28px low): inter-section class gap 43→25 via -9px
+ * per boundary + the diagnostics block ends at 620 (was 630). Bar lands
+ * frame-exact in the default state; expanded state was already 647 (2px). */
+.settings-sections[data-settings-area="global"] .settings-section {
+  margin-bottom: 9px; /* Lead-calibrated live: bar 675→645 with 3 sections (3×-10) */
+}
+
 /* w26.gfix-B (g13-P1-1): the frames end the column at the last control —
  * trailing section/row margins must not invent scroll past it (placed AFTER
  * the scoped shaves so the equal-specificity last-child rule wins; the
@@ -568,9 +576,18 @@
   outline-offset: 2px;
 }
 
+/* w26.i12 (h08 #4 / h10 #2 / h11 #3 — the family's ONE staged-inert answer):
+ * settings actions whose capability is not wired (path-row Browse, privacy
+ * Clear, extensions toolbar) render FULL-STRENGTH while inert — the frames
+ * show live buttons at full ink, and the Remotes staged rows set the
+ * precedent the raters praised. The honesty stays in the disabled state
+ * (inert, no hover/active promotion) + each button's title/aria-describedby
+ * reason; the 0.5 dimming that made every frame affordance read as dead
+ * retires. A11y note for the areas lanes: disabled stays un-focusable — pair
+ * the reason with a visible/row-level note where discovery matters. */
 .settings-action:disabled {
-  opacity: var(--opacity-disabled); /* honest inert action (reason via note/title) */
-  cursor: default;
+  opacity: 1; /* staged-inert: frame-full ink, never dimmed (Remotes pattern) */
+  cursor: not-allowed; /* honest refusal (gfix-E disabled-thumb precedent) */
 }
 
 .settings-action:hover:not(:disabled) {

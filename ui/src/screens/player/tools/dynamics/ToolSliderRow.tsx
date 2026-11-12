@@ -64,6 +64,13 @@ export function ToolSliderRow({ row, value, onChange }: ToolSliderRowProps): Rea
             {Array.from({ length: ticks }, (_, index) => {
               // Frame degree marks: evenly stepped, one step in from each
               // end (i/(n+1)) — the default value sits exactly on a tick.
+              // w26.i07: the marks live on the FILL domain (2px inset +
+              // (track − 4px)·i/(n+1)), exactly where the frames draw them
+              // ("Audio - Spatializer Settings.svg" Size row: x = 38 +
+              // 324·i/11 — 67.45…332.55 on the x36–364 track) and where the
+              // flush thumb travels — the old full-width percent drifted up
+              // to 1.7px. `percent` shares the domain, so the covered-tick
+              // band below compares like with like.
               const left = ((index + 1) / (ticks + 1)) * 100;
               const covered = Math.abs(left - percent) <= COVERED_TICK_BAND;
               return (
@@ -74,7 +81,7 @@ export function ToolSliderRow({ row, value, onChange }: ToolSliderRowProps): Rea
                       ? "dynamics-slider__tick dynamics-slider__tick--covered"
                       : "dynamics-slider__tick"
                   }
-                  style={{ left: `${left.toFixed(3)}%` }}
+                  style={{ left: `calc(2px + (100% - 4px) * ${left.toFixed(3)} / 100)` }}
                 />
               );
             })}

@@ -1,9 +1,10 @@
 // w26.c4 — HdrTool (frame: "HDR Options.svg", 406×422): a bare dropdown —
 // the ONLY tool frame without a card. Trigger 362×48 rx6 (label "Auto",
-// #8F8F8F ≈15px, chevron-down); open list 362×278 rx6 #191919 with 6 plain
-// rows (44px @ 46px pitch — the shared components/menu Dropdown grammar,
-// a19 A9), row 1 "Auto" selected (#1F1F1F + orange check 14×11 sw2), NO
-// leading icons:
+// #8F8F8F ≈15px, chevron-down; two-layer rim: #090909 outer + #191919
+// 358×44 rx4 inset well); open list 362×278 rx6 #191919 with 6 plain rows
+// (44px @ 46px pitch — the SHARED Dropdown grammar since w26.i16, no
+// scoped override), row 1 "Auto" selected (#1F1F1F + orange check 14×11
+// sw2 — the frame's Vector 44, not a text glyph), NO leading icons:
 //
 //   Auto (selected) · Off · HDR10 · HDR10+ · Dolby Vision · HLG
 //
@@ -15,6 +16,14 @@
 // exists — local state + the visible staged markers, the control fully
 // interactive (the shared Dropdown: roving listbox, arrows/Home/End,
 // Enter/Space, Escape/Tab, typeahead).
+//
+// w26.i08 (h15-P1): list placement is clip-aware — the shared Dropdown's
+// own flip (w26.i16 container measurement) lands every state where the
+// list fits one side of the dialog body; useDropdownScrollportFlip adds
+// the viewport ESCAPE for the frame's own rest state (the 6-row list fits
+// neither side of the content-sized body — fixed positioning paints all
+// six options where the frame puts them, below the trigger), capping as
+// the last resort.
 
 import { useId, useState } from "react";
 import type { ReactElement } from "react";
@@ -22,6 +31,7 @@ import { Dropdown } from "../../../../components/menu";
 import type { DropdownOption } from "../../../../components/menu";
 import { useVideoMsg } from "./copy";
 import type { HdrToolProps, VideoLabelKey } from "./types";
+import { useDropdownScrollportFlip } from "./useDropdownScrollportFlip";
 import "./video.css";
 
 /** The frame's six modes, in frame order (vision-confirmed labels). Mutably
@@ -42,9 +52,11 @@ export function HdrTool({ id: idProp }: HdrToolProps): ReactElement {
   const [mode, setMode] = useState("auto"); // frame: "Auto" selected
   const generatedId = useId();
   const id = idProp ?? `hdr-${generatedId}`;
+  const flipRef = useDropdownScrollportFlip<HTMLElement>();
 
   return (
     <section
+      ref={flipRef}
       className="video-hdr"
       id={id}
       data-tool="hdr"

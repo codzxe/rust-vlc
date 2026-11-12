@@ -54,6 +54,7 @@ export function VisualizerModeSelect({
   const rootId = idProp ?? autoId;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -93,9 +94,20 @@ export function VisualizerModeSelect({
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
   };
 
-  // Focus the selected option when the list opens (WAI-ARIA listbox).
+  // Focus the selected option when the list opens (WAI-ARIA listbox) —
+  // and reveal the WHOLE list first: inside the scrolling tools-dialog body
+  // the absolutely-positioned list can open with its tail below the fold
+  // (w26.i07, h14 defect 4: measured 164px under the body's clip — 3.5 of 5
+  // options invisible to pointer users). `block: "nearest"` scrolls the
+  // minimum needed and is a no-op when the list already fits; focusing the
+  // option afterwards cannot re-scroll (it is on screen by then). jsdom has
+  // no scrollIntoView — guarded so tests keep running.
   useEffect(() => {
     if (!open) return;
+    const list = listRef.current;
+    if (list !== null && typeof list.scrollIntoView === "function") {
+      list.scrollIntoView({ block: "nearest" });
+    }
     if (activeIndex >= 0) optionRefs.current[activeIndex]?.focus();
     // Open-transition only — later activeIndex changes focus themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,6 +183,9 @@ export function VisualizerModeSelect({
       </button>
       {open && (
         <div
+          ref={(node) => {
+            listRef.current = node;
+          }}
           role="listbox"
           aria-label={label}
           className="viz-select__list"

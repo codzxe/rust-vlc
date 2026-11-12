@@ -18,7 +18,7 @@
 // Copy resolves through the lane seam (usePlaylistMsg) — the keys are
 // registered into the catalog by the Lead post-wave (contract §4.5).
 
-import { useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { Button, IconButton } from "../../components/button";
 import { Icon } from "../../components/icon";
 import { Dialog, Separator } from "../../components/surface";
@@ -39,9 +39,23 @@ export function NewPlaylistDialog({
   const helperId = useId();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [fileNames, setFileNames] = useState<readonly string[]>([]);
   const [dropOver, setDropOver] = useState(false);
+
+  // w26.i10 (h16 dialog nit): initial focus lands on the TITLE INPUT — the
+  // dialog's primary control (APG dialog pattern; the network-stream lane's
+  // url-field precedent), not the shared trap's default first-focusable
+  // (the header ✕). The dialog CONTENT mounts inside the child Dialog, so
+  // dev StrictMode double-invokes the child's trap effect AFTER this
+  // component's update effect — the refocus rides a macrotask so it lands
+  // after every effect pass (first field wins, Enter types, not dismisses).
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => titleInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   if (!open) return null;
 
@@ -109,6 +123,7 @@ export function NewPlaylistDialog({
         </p>
         <div className="lumen-plnew__row">
           <input
+            ref={titleInputRef}
             id={`${titleId}-input`}
             className="lumen-field__control lumen-plnew__input"
             type="text"

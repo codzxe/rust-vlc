@@ -9,8 +9,11 @@ import { expect, test } from "@playwright/test";
 // authoritative default, dark + ORANGE (#d37918) — the W25 Figma redesign
 // accent (docs/waves/w26/CONTRACT.md §2). The earlier yellow #f2c41d was
 // the dead Solstice skin. Light-mode accent-bright values follow the
-// w26.f15 WCAG contrast repin (e.g. orange light bright #b35f0d, 4.2:1)
-// and the yellow/gray ramps were re-mined from the Figma frames. Truth
+// w26.f15 repin (orange light bright #b35f0d) — since w26.i19 documented
+// honestly as a FILL/hover step only (it measures 2.59:1 on #c2c2c2 /
+// 2.70:1 on #c6c6c6, the old "4.2:1" claim was false — h20 F2; light
+// accent text uses content-primary on tinted fills per w26.d2). The
+// yellow/gray ramps were re-mined from the Figma frames. Truth
 // source: themes/generated/tokens.css (pipeline output of themes/tokens.json).
 
 test("default theme lands on <html> as dark + orange", async ({ page }) => {

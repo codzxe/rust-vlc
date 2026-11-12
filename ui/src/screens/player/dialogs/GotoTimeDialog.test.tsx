@@ -55,6 +55,18 @@ function renderDialog(transport: CommandTransport, onClose = vi.fn()) {
 }
 
 describe("GotoTimeDialog — the seek funnel", () => {
+  it("initial focus lands on the Time input, never the header ✕ (h19 P4)", () => {
+    // w26.i09: body renders before the header in the DOM (the header
+    // paints first via `order: -1`), so the surface trap's first-focusable
+    // lands on the Time input — Enter on a fresh dialog submits the seek
+    // instead of dismissing the window.
+    renderDialog(new RecordingTransport());
+    expect(screen.getByLabelText(GOTO_COPY.label)).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: GOTO_COPY.close }),
+    ).not.toHaveFocus();
+  });
+
   it("renders the dialog with the engine-reported position prefilled", () => {
     renderDialog(new RecordingTransport());
     expect(screen.getByRole("heading", { name: GOTO_COPY.title })).toBeInTheDocument();

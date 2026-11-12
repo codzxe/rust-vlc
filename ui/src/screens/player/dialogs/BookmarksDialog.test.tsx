@@ -95,6 +95,17 @@ function renderDialog(transport: CommandTransport) {
 }
 
 describe("BookmarksDialog — create / jump / delete", () => {
+  it("initial focus lands on the label input, never the header ✕ (h19 P4)", () => {
+    // w26.i09: body renders before the header in the DOM (the header
+    // paints first via `order: -1`), so the surface trap's first-focusable
+    // lands on the label field, not the close chrome.
+    renderDialog(new BookmarkTransport());
+    expect(screen.getByLabelText(BOOKMARKS_COPY.label)).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: BOOKMARKS_COPY.close }),
+    ).not.toHaveFocus();
+  });
+
   it("mount fetches the engine's list (media.get-bookmarks) and renders rows", async () => {
     const transport = new BookmarkTransport();
     renderDialog(transport);

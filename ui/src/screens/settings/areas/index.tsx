@@ -1,14 +1,19 @@
 import type { ReactElement } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import type { MessageKey } from "../../../i18n/messages";
+import { useMsg } from "../../../i18n/messages";
+import { Icon } from "../../../components/icon/Icon";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b02";
+import { keys as i13Keys } from "../../../i18n/keys/w26.i13";
 import { GENERATED_AREA_IDS } from "../generated/Screens";
 import { GENERATED_AREA_TITLES } from "../generated/Screens";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTINGS_ENTRIES } from "../generated/schema";
 import type { SettingEntry } from "../generated/schema";
-import { SettingsSections } from "../SettingsSections";
 import { schemaSectionsOf } from "../SettingsSections";
+import { SettingField } from "../SettingField";
+import { useSettingsSearch } from "../search";
 import { InvertedSwitchField } from "../SettingWidgets";
 import { SettingsSliderField } from "../SettingWidgets";
 import { StartupVolumeField } from "../SettingWidgets";
@@ -17,10 +22,11 @@ import { ThemeModePicker } from "./appearance/ThemeModePicker";
 import { AccentColorPicker } from "./appearance/AccentColorPicker";
 import { InterfaceArea } from "./interface";
 import { AboutArea } from "./updates-about";
-import { CodecsArea } from "./codecs";
 import { EffectsArea } from "./effects";
 import { VideoArea } from "./video";
+import { CodecsFold } from "./video";
 import { AudioArea } from "./audio";
+import { PlaybackArea } from "./playback";
 import { PrivacyArea } from "./privacy";
 import { SubtitlesArea } from "./subtitles";
 import { NetworkArea } from "./privacy-network";
@@ -86,24 +92,114 @@ type LaneKey = keyof typeof laneKeys;
 
 const laneMsg = (key: LaneKey): MessageKey => key as string as MessageKey;
 
-/** Global = schema sections + the About fold BEFORE the Advanced bar (g10-P2-3). */
+/** ⓘ hint msgids per global row (w26.i13, h08 #3 — Settings - global.svg
+ * circles: Startup×2 + Diagnostics×4; Settings - global-1.svg adds the 4
+ * advanced rows; the Appearance rows carry NO circle — honest absence). */
+const GLOBAL_HINTS: Readonly<Record<string, keyof typeof i13Keys>> = {
+  "global.show-dialogs": "settings.hint.global.show-dialogs",
+  "global.update-checks": "settings.hint.global.update-checks",
+  "global.developer-mode": "settings.hint.global.developer-mode",
+  "global.save-log": "settings.hint.global.save-log",
+  "global.log-file": "settings.hint.global.log-file",
+  "global.log-details": "settings.hint.global.log-details",
+  "global.show-minor-warnings": "settings.hint.global.show-minor-warnings",
+  "global.extra-cli-options": "settings.hint.global.extra-cli-options",
+  "global.log-format": "settings.hint.global.log-format",
+  "global.collect-playback-statistics": "settings.hint.global.collect-playback-statistics",
+};
+
+/**
+ * Global — hand-composed (w26.i13, h08 defects #1/#2 — the family's only NO
+ * verdict). Frame truth (Settings - global.svg): the column is Appearance ·
+ * Startup · Diagnostics · the Advanced Options bar at y645 LAST — no frame
+ * state shows an About section. The g10-P2-3 `beforeAdvanced` placement put
+ * 113px of About rows between Diagnostics and the bar, displacing it 141px
+ * (y786 vs y645), so expanding revealed all 4 advanced rows below the 865px
+ * window fold (`visible:false`, scrollTop unmoved — “expanding reveals
+ * nothing”). Fix: the bar is the column's last element again; the About fold
+ * rides BEHIND the disclosure (after the advanced rows — the h08-sanctioned
+ * option; the default state is frame-exact, global-1's four rows land at
+ * y690–851 inside the window, About scrolls below them), and expanding
+ * scrolls the revealed rows into view (the i12 shell pattern).
+ */
 function GlobalAreaScreen(): ReactElement {
+  const m = useMsg();
+  const { matches } = useSettingsSearch();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedRowsRef = useRef<HTMLDivElement | null>(null);
+
+  // w26.i12's shell fix, mirrored for this hand-rendered disclosure: reveal
+  // the rows on expand (jsdom implements no scrollIntoView — guarded).
+  useEffect(() => {
+    if (!advancedOpen) return;
+    advancedRowsRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [advancedOpen]);
+
+  const split = schemaSectionsOf("global").map((section) => {
+    // Pure-schema sections (this screen splices no SettingRowNode hands):
+    // narrow the row union so the schema-entry fields type-check below.
+    const entries = section.entries.filter((row): row is SettingEntry => "key" in row);
+    const visible = entries.filter((entry) => entry.featureExposed && matches(entry));
+    return {
+      section,
+      normal: visible.filter((entry) => !entry.advanced),
+      advanced: visible.filter((entry) => entry.advanced),
+    };
+  });
+  const visibleSections = split.filter(({ normal }) => normal.length > 0);
+  // Advanced rows keep schema order across sections (flat list, no headers).
+  const advancedEntries = split.flatMap(({ advanced }) => advanced);
+
   return (
-    <SettingsSections
-      area="global"
-      sections={schemaSectionsOf("global")}
-      beforeAdvanced={<AboutArea />}
-    />
+    <div className="settings-sections" data-settings-area="global">
+      {visibleSections.map(({ section, normal }) => (
+        <section key={section.id} className="settings-section" data-section={section.id}>
+          <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
+          {normal.map((entry) => (
+            <SettingField key={entry.key} entry={entry} hint={GLOBAL_HINTS[entry.key]} />
+          ))}
+        </section>
+      ))}
+      {advancedEntries.length > 0 ? (
+        <div className="settings-advanced">
+          <button
+            type="button"
+            className="settings-advanced__bar"
+            aria-expanded={advancedOpen}
+            aria-controls="settings-advanced-rows"
+            onClick={() => setAdvancedOpen((open) => !open)}
+          >
+            <span className="settings-advanced__label">{m("settings.advanced-options")}</span>
+            <Icon
+              name={advancedOpen ? "chevron-down" : "chevron-right"}
+              size={14}
+              className="settings-advanced__chevron"
+            />
+          </button>
+          {advancedOpen ? (
+            <div className="settings-advanced__rows" id="settings-advanced-rows" ref={advancedRowsRef}>
+              {advancedEntries.map((entry) => (
+                <SettingField key={entry.key} entry={entry} hint={GLOBAL_HINTS[entry.key]} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {/* w26.i13 (h08 #2): the About fold renders BEHIND the disclosure —
+       * reachable, honest, and out of the frame-true column. */}
+      {advancedOpen ? <AboutArea /> : null}
+    </div>
   );
 }
 
 /** Video = VideoArea (the frame's 4 sections + Reset picture, areas/video)
- * + the folded codecs rows (codecs→video) — g12-P0-1. */
+ * + the folded codecs rows behind an in-flow disclosure (codecs→video,
+ * w26.i14 — g12-P0-1 composition + the h09 defect #5 fold honesty). */
 function VideoAreaScreen(): ReactElement {
   return (
     <>
       <VideoArea />
-      <CodecsArea />
+      <CodecsFold />
     </>
   );
 }
@@ -121,27 +217,10 @@ function AudioAreaScreen(): ReactElement {
 }
 
 /**
- * Playback rows the frame's Tracks section does not carry (g11-P2-2): the
- * three language/mode rows stay REAL, LIVE settings (the onboarding wizard
- * writes them; search still finds them) — the playback screen's own
- * composition just hides them from the frame's 4-row Tracks section.
+ * Playback rows the frame's Tracks section does not carry live in
+ * areas/playback.tsx (g11-P2-2) — the screen composes there, hand-rendered
+ * with per-row ⓘ hints (w26.i14, h09 #2).
  */
-const PLAYBACK_HIDDEN_KEYS: ReadonlySet<string> = new Set([
-  "playback.preferred-audio-languages",
-  "playback.preferred-subtitle-languages",
-  "playback.subtitle-mode",
-]);
-
-/** Playback = the generated frame sections minus the non-frame Tracks rows. */
-function PlaybackAreaScreen(): ReactElement {
-  const sections = schemaSectionsOf("playback").map((section) => ({
-    ...section,
-    entries: section.entries.filter(
-      (row) => !("key" in row && PLAYBACK_HIDDEN_KEYS.has(row.key)),
-    ),
-  }));
-  return <SettingsSections area="playback" sections={sections} />;
-}
 
 export type SettingsAreaId =
   | (typeof GENERATED_AREA_IDS)[number]
@@ -199,11 +278,11 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   ...GENERATED_SCREENS,
   // w26.gfix-B compositions (the frame inventories interleave hand rows
   // with the schema sections — the helpers at the top of this file):
-  global: GlobalAreaScreen, // schema sections + About fold BEFORE the Advanced bar
-  // w26.gfix-B (g11-P2-2): playback composes HERE (the frame's 4-row Tracks
-  // section — the non-frame language/mode rows render via search/onboarding
-  // only, PLAYBACK_HIDDEN_KEYS above).
-  playback: PlaybackAreaScreen,
+  global: GlobalAreaScreen, // schema sections + the Advanced bar LAST (frame); About behind the disclosure (w26.i13)
+  // w26.gfix-B (g11-P2-2) + w26.i14 (h09 #2): playback composes in
+  // areas/playback — the frame's 4-row Tracks section with per-row ⓘ hints;
+  // the non-frame language/mode rows render via search/onboarding only.
+  playback: PlaybackArea,
   // w26.f03 (e05 F3/F7): interface is HAND-AUTHORED — the Figma frame
   // (Settings - interface.svg) carries no "Advanced Options" bar, so the
   // schema sections render flat (areas/interface.tsx); sections stay
@@ -220,7 +299,7 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   recording: RecordingArea,
   extensions: ExtensionsArea,
   // existing content files, registry-folded (siblings own the files):
-  video: VideoAreaScreen, // generated frame sections + Reset picture + codecs fold
+  video: VideoAreaScreen, // generated frame sections + Reset picture + codecs fold (disclosure)
   audio: AudioAreaScreen, // generated frame sections + Output device row + effects/EQ fold
   subtitles: SubtitlesArea,
   library: LibraryArea, // playlist-services fold (b07/b08)

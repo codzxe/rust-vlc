@@ -4,7 +4,7 @@
 // while `recording` is off), and the honest-surface rule for the frame's
 // schema-less Casting/Streaming rows.
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ClientProvider } from "../../../client/ClientProvider";
@@ -68,33 +68,68 @@ describe("RecordingArea — routing + the b02 sibling contract", () => {
   });
 });
 
-describe("RecordingArea — F2 feature gate + honest surface", () => {
+describe("RecordingArea — F2 feature gate + the staged §C12 rows (w26.i15)", () => {
   it("keeps the gated rows hidden + inert while `recording` is off (Phase 7, rule F2)", () => {
     const { container } = mountArea();
     expect(RECORDING_ENTRIES.every((entry) => !entry.featureExposed)).toBe(true);
     expect(container.querySelector('[data-setting="recording.directory"]')).toBeNull();
     expect(container.querySelector('[data-setting="recording.format"]')).toBeNull();
-    // The area shows the honest empty state instead of dead controls.
-    expect(container.querySelector('[data-testid="settings-area-empty"]')).not.toBeNull();
+    // The staged §C12 rows render instead of an empty-area note — the frame's
+    // 10 rows, visible, honest about the seam.
+    expect(container.querySelector('[data-testid="settings-area-empty"]')).toBeNull();
+    expect(container.querySelectorAll("[data-staged-row]")).toHaveLength(10);
   });
 
-  it("renders NO dead Casting/Streaming controls (no schema keys, no catalog commands)", () => {
-    mountArea();
-    const frameLabels = [
+  it("renders the §C12 Casting/Streaming rows STAGED inert, frame-verbatim (never live bindings)", () => {
+    const { container } = mountArea();
+    // Recording (§C12 y83): the path row + Browse companion + the ON switch.
+    expect(screen.getByText("Save recordings to")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("~/Videos")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Browse" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Record without re-encoding when possible" })).toBeDisabled();
+    // Casting (§C12 y232) + Streaming (§C12 y379), values verbatim.
+    for (const label of [
       "Discover cast devices",
       "Cast quality",
       "Play locally while streaming",
       "Include audio",
       "Include video",
-      "Include subtitles",
+      "Include subtitles", // the frame's [sic lowercase in layer] reads as the layer's typo; sibling rows capitalize
       "Encoding preset",
       "Tuning",
-    ];
-    for (const label of frameLabels) {
-      expect(
-        screen.queryByText(label),
-        `frame row "${label}" has no schema key → renders nothing`,
-      ).toBeNull();
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
     }
+    expect(screen.getByText("Automatic")).toBeInTheDocument();
+    expect(screen.getByText("Medium")).toBeInTheDocument();
+    expect(screen.getByText("None")).toBeInTheDocument();
+    // Every staged row: the honest tooltip + its seam marker (the Recording
+    // rows await the feature gate; Casting/Streaming the schema seed).
+    for (const row of container.querySelectorAll("[data-staged-row]")) {
+      expect(row.getAttribute("title")).toContain("Staged");
+    }
+    expect(container.querySelectorAll("[data-setting], [data-setting-capability]")).toHaveLength(0);
+  });
+
+  it("carries the frame's ⓘ census (4/10 rows), operable — never the plain rows", () => {
+    const { container } = mountArea();
+    // SVG circle census (Settings - recording.svg): 4 r7.5 circles —
+    // directory, cast-quality, encoding-preset, tuning. The frame's other
+    // six rows carry none; controls + extensions frames carry zero total.
+    const dots = container.querySelectorAll(".settings-field__info");
+    expect(dots).toHaveLength(4);
+    const withInfo = new Set(
+      [...dots].map((d) => d.closest(".settings-field")?.getAttribute("data-staged-row")),
+    );
+    expect(withInfo).toEqual(
+      new Set(["recording.directory", "recording.cast-quality", "recording.encoding-preset", "recording.tuning"]),
+    );
+    fireEvent.click(dots[0]!);
+    expect(dots[0]!.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".settings-field__hinttext")?.textContent).toContain(
+      "recording ships",
+    );
+    fireEvent.click(dots[0]!);
+    expect(container.querySelector(".settings-field__hinttext")).toBeNull();
   });
 });

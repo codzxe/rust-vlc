@@ -42,6 +42,17 @@
   overflow: hidden; /* the title bar + footer pin while the body scrolls */
 }
 
+/* w26.i09 (h15-P3, card inflation): every tool frame is a 400-wide panel
+ * with 20px content insets — mounting the TOOLS dialog at the frame width
+ * makes each tool card land frame-exact (360px cards, 328px rails;
+ * "Audio - Compressor Settings.svg" 360×48 toggle at x20, 328 track at
+ * x36). Go-to-Time and Bookmarks keep the 440px compact-dialog pin above
+ * (no frame pins them). :has() is already this sheet's idiom (the EQ
+ * staged-note rule below). */
+.lumen-dialog.player-dialog__surface:has(> .player-dialog--tools) {
+  width: min(400px, 92vw);
+}
+
 .player-dialog {
   display: flex;
   flex-direction: column;
@@ -53,8 +64,14 @@
 }
 
 /* Title-bar strip (frame: the #090909 path spanning 0–50px with the
- * panel's r14 top corners; no hairline — the fill step separates). */
+ * panel's r14 top corners; no hairline — the fill step separates).
+ *
+ * w26.i09 FOCUS ORDER (h19-P4 dialog semantics): the hosts render the
+ * body BEFORE the header in the DOM; `order: -1` paints the header back
+ * on top so the surface trap's first-focusable lands on a body control,
+ * never the ✕ (and Enter submits the form instead of dismissing). */
 .player-dialog__header {
+  order: -1; /* paints first; DOM-last for the focus order (see above) */
   display: flex;
   flex: none;
   align-items: center;
@@ -63,6 +80,18 @@
   height: 50px; /* frame: Open network stream.svg — 50px strip */
   padding: 0 20px; /* frame: ✕ sits 20px off the right edge, title 20px left */
   background: var(--color-surface);
+}
+
+/* w26.i09 (h19-P3 pattern, usage-side): the recessed-well grammar
+ * collapses in light mode where the well token equals the panel's step —
+ * --color-surface #c2c2c2 on the panel #c6c6c6 is Δ4/255 where the dark
+ * pair reads Δ16/255, so the strip all but vanishes. The light override
+ * re-recesses the wells onto --color-surface-deep (#bababa, Δ12 on the
+ * panel) — AA-safe pairs, dark stays frame-pinned #090909. The durable
+ * fix is the light token ramp itself (i19's supply); this is the
+ * shell's usage-side hold for every player dialog. */
+:root[data-theme="light"] .player-dialog__header {
+  background: var(--color-surface-deep);
 }
 
 .player-dialog__title {
@@ -283,6 +312,16 @@
   gap: calc(var(--space-inset) * 1.5);
 }
 
+/* w26.i09 (tab grammar): no frame in the set carries a pill tab (no
+ * rx ≥ h/2 control exists anywhere in design/figma) — §2 rounds CONTROLS
+ * at r6 ("r6 buttons/menu items"), and the Tabs primitive's r12 panel
+ * radius on a 28px tab reads as a half-pill. Scope the pair onto the
+ * control radius; semantics (tablist/tab/tabpanel, roving tabindex,
+ * arrows, aria-selected) are the primitive's and stay untouched. */
+.tools-dialog__tablist .lumen-tabs__tab {
+  border-radius: var(--radius-control);
+}
+
 /* The primitive's panel padding is list-flow; the dialog column spacing is
  * the card gap alone (tablist above, cards below). */
 .tools-dialog__tabs .lumen-tabs__panel {
@@ -388,8 +427,13 @@
   /* frame: settings card 360×1048, content inset 16px (x 36 − card 20) */
   padding: calc(var(--space-inset) * 2);
 
-  /* frame: #1B1B1B card — nearest token is surface-panel (#191919) */
-  background: var(--color-surface-panel);
+  /* w26.i09 (h14: the expanded card was Δ0 against the dialog body in
+   * BOTH themes — expanding a card deleted its edge). The frames carry a
+   * fill step (frame rect #1B1B1B ≈ +2 on the #191919 body); the ramp has
+   * no +2 step, so the card rides the nearest ELEVATED one — surface-
+   * raised (#222222 dark, +9; #dedede light, +24) — keeping the edge
+   * readable in both themes. Token-lane note logged (w26.i09). */
+  background: var(--color-surface-raised);
 
   /* mission/spec r8 card (frame rect reads rx6 — 2px delta, logged) */
   border-radius: var(--radius-thumbnail);
@@ -457,6 +501,19 @@
   background: var(--color-surface);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-inset);
+}
+
+/* w26.i09 (h19-P3 light-well pattern — see the header rule above): the
+ * chip well re-recesses onto the deep surface in light mode so it does
+ * not merge into the card fill (Δ4 → Δ12 on the panel). */
+:root[data-theme="light"] .tools-row__value {
+  background: var(--color-surface-deep);
+}
+
+/* Same light-well hold for the shell's card toggle (frame: the 360×48
+ * #090909 bar recessed on the dialog body — dark stays frame-exact). */
+:root[data-theme="light"] .tools-card__toggle {
+  background: var(--color-surface-deep);
 }
 
 /* --------------------------------------------------------------------------

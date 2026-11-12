@@ -8,6 +8,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { VisualizerTool } from "./VisualizerTool";
+import { RESTING_LEVELS } from "./types";
 
 afterEach(cleanup);
 
@@ -93,6 +94,30 @@ describe("VisualizerTool — the frame's mode dropdown (§A7)", () => {
     expect(selected.querySelector(".viz-select__check")).not.toBeNull();
   });
 
+  it("reveals the whole open list to scrolling hosts (w26.i07 fold fix)", () => {
+    // h14 defect 4: inside the tools-dialog body the list opened with its
+    // tail 164px below the fold — only the focused option auto-scrolled.
+    // jsdom has no scrollIntoView; install a spy and pin the reveal call.
+    const spy = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = spy as unknown as typeof original;
+    try {
+      render(<VisualizerTool defaultOpen />);
+      openSelector();
+      const list = screen.getByRole("listbox", { name: "Visualizer" });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ block: "nearest" });
+      expect(spy.mock.instances[0]).toBe(list);
+    } finally {
+      if (original === undefined) {
+        delete (Element.prototype as Partial<{ scrollIntoView?: unknown }>)
+          .scrollIntoView;
+      } else {
+        Element.prototype.scrollIntoView = original;
+      }
+    }
+  });
+
   it("selects a mode on click: trigger label, display, onChange seam", () => {
     const onChange = vi.fn();
     render(<VisualizerTool defaultOpen onChange={onChange} />);
@@ -147,12 +172,27 @@ describe("VisualizerTool — honest display (levels contract)", () => {
       "aria-label",
       "Spectrum — Waiting for audio data",
     );
-    // The frame icon's six bars (5/14/12/19/13/8 of 19).
+    // The frame icon's six bars (5/14/12/16/13/8 of 16 — w26.i07 corrected
+    // bar 4 from the 19 typo to the frame's 16, Vector 87_2).
     expect(container.querySelectorAll(".viz-display__bar")).toHaveLength(6);
-    expect(bar(container, 0)).toHaveAttribute("data-level", "0.263");
+    expect(bar(container, 0)).toHaveAttribute("data-level", "0.313");
     expect(bar(container, 3)).toHaveAttribute("data-level", "1.000");
+    // Frame proportions render at the h14-measured heights (13/36/31/41/
+    // 33/21 — every non-max bar was ~16% short before the fix).
+    const heights = Array.from(
+      container.querySelectorAll<HTMLElement>(".viz-display__bar"),
+      (el) => el.style.height,
+    );
+    expect(heights).toEqual(["13px", "36px", "31px", "41px", "33px", "21px"]);
     // Spectrum carries a peak dot per bar (frame Vector 91–97).
     expect(container.querySelectorAll(".viz-display__peak")).toHaveLength(6);
+  });
+
+  it("RESTING_LEVELS transcribes the frame icon exactly (bar 4 = 16)", () => {
+    // Data pin (h14 defect 5 / g16-P3-4): the frame's Spectrum icon bars.
+    expect(RESTING_LEVELS.spectrum).toEqual([5, 14, 12, 16, 13, 8]);
+    expect(RESTING_LEVELS.scope).toEqual([5, 14, 12, 16, 13, 8]);
+    expect(RESTING_LEVELS.waveform).toEqual([2, 7, 5, 9, 6, 4]);
   });
 
   it("renders NOTHING while Disabled — even with levels (frame default)", () => {

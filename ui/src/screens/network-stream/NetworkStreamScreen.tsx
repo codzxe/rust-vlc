@@ -7,10 +7,12 @@
 //   * header — 50px #090909 strip, title 15px semibold #8F8F8F, ✕ close
 //     20px off the right edge (same grammar the player dialogs lane w26.a18
 //     extracted from this frame family);
-//   * "Network URL" section — label #C6C6C6 + helper #6B6B6B ("You can
-//     enter multiple links to load.") over the 192px rx5 #090909 textarea
-//     with the quiet #404040-class placeholder;
-//   * full-bleed hairline divider;
+//   * "Network URL" section — label #C6C6C6 + helper (frame #6B6B6B; ships
+//     --color-content-tertiary #828282 per the Lead WCAG ruling — body-tertiary
+//     TEXT keeps AA; only the DIVIDER decoration matches the frame) over the
+//     192px rx5 #090909 textarea with the quiet placeholder;
+//   * the section rule — 1px #222222 at 20px insets on BOTH panel edges
+//     (frame Vector: M20 364 H1028; the w26.i17 divider fix, see the css);
 //   * "Playlist Name (optional)" section — two-tone label + helper ("The
 //     playlist will be saved and displayed with this title.") + 35px input;
 //   * footer — Cancel (default button, frame #1B1B1B) left, Open (tinted
@@ -37,7 +39,7 @@
 // The screen renders NO <main> of its own — the AppShell provides it; the
 // dialog's scrim veils the shell.
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, IconButton } from "../../components/button";
 import { Icon } from "../../components/icon";
@@ -96,6 +98,7 @@ export function NetworkStreamScreen() {
   const [recents, setRecents] = useState<readonly string[]>(() => loadRecentStreams());
   const [opening, setOpening] = useState(false);
   const nextRequestId = useRef(0);
+  const urlFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const titleId = useId();
   const urlId = useId();
   const urlHintId = useId();
@@ -109,6 +112,16 @@ export function NetworkStreamScreen() {
   const exit = (): void => {
     navigate("/player");
   };
+
+  // w26.i17 (h19 shame #4): the shared trap's first-focusable policy lands
+  // initial focus on the ✕ glyph (first in DOM order) and :focus-visible
+  // painted an orange ring at rest — every fresh opening showed a ringed
+  // close glyph and Enter dismissed instead of submitting. Dialog focus
+  // semantics belong on the FIRST FIELD (the URL well, the frame's rest
+  // state). Runs after the child Dialog's trap effect, so the field wins.
+  useEffect(() => {
+    urlFieldRef.current?.focus();
+  }, []);
 
   const openStream = (target: string): void => {
     if (!isValidNetworkUrl(target)) {
@@ -178,6 +191,7 @@ export function NetworkStreamScreen() {
                 {m("stream.url.hint")}
               </p>
               <textarea
+                ref={urlFieldRef}
                 id={urlId}
                 className="lumen-field__control network-stream__urls"
                 placeholder={m("stream.url.example")}
@@ -232,7 +246,8 @@ export function NetworkStreamScreen() {
               </section>
             </section>
 
-            {/* Frame: the full-bleed hairline between the two sections. */}
+            {/* Frame: the section rule — 1px #222222 at 20px insets on
+                both panel edges (Vector M20 364 H1028); see the css. */}
             <Separator className="network-stream__rule" />
 
             <section className="network-stream__section">
@@ -259,7 +274,11 @@ export function NetworkStreamScreen() {
           {/* Footer — frame Frame 225: Cancel left (default button), Open
               right (the tinted confirm), both 100×32 r6 on the panel fill. */}
           <footer className="network-stream__actions">
-            <Button onClick={exit} data-testid="network-stream-back">
+            <Button
+              onClick={exit}
+              className="network-stream__cancel"
+              data-testid="network-stream-back"
+            >
               {m("open.cancel")}
             </Button>
             <Button

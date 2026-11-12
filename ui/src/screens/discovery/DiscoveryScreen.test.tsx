@@ -147,6 +147,23 @@ describe("DiscoveryScreen (/discovery)", () => {
     expect(transport.sent).toHaveLength(0);
   });
 
+  it("w26.i18: the empty state carries the one real action — Add file… fires the shell open-media event", () => {
+    renderScreen();
+    const cta = screen.getByTestId("discovery-add-file");
+    expect(cta.textContent).toBe("Add file…");
+    const seen: string[] = [];
+    const onEvent = (event: DomEvent): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(OPEN_MEDIA_EVENT, onEvent);
+    try {
+      fireEvent.click(cta);
+    } finally {
+      window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
+    }
+    expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+  });
+
   it("folds live devices.volume-added events into rows through the real subscribe seam", () => {
     const { transport } = renderScreen();
     act(() => {

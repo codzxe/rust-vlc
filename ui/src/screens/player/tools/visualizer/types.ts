@@ -81,16 +81,20 @@ export const VISUALIZER_MODES: readonly VisualizerModeDef[] = [
 /**
  * The display's RESTING depiction of each bar mode — the frame's own icon
  * geometry read off "Audio Visualizer.svg" (Scope bars 5/14/12/16/13/8 from
- * the y215 baseline, Spectrum bars 5/14/12/19/13/8 from y261, Waveform
+ * the y215 baseline, Spectrum bars 5/14/12/16/13/8 from y261, Waveform
  * half-heights 2/7/5/9/6/4 around the y298 midline), normalized to each
  * icon's tallest bar. Static by construction: the honest no-data state,
  * never animated (the frame shows no idle motion).
+ *
+ * w26.i07 (h14 defect 5, g16-P3-4): spectrum bar 4 was transcribed 19
+ * (frame Vector 87_2 = 16 — the same 5/14/12/16/13/8 set ModeIcons carries);
+ * the wrong max skewed every other bar's normalization ~16% short.
  */
 export const RESTING_LEVELS: Readonly<
   Record<"scope" | "spectrum" | "waveform", readonly number[]>
 > = {
   scope: [5, 14, 12, 16, 13, 8],
-  spectrum: [5, 14, 12, 19, 13, 8],
+  spectrum: [5, 14, 12, 16, 13, 8],
   waveform: [2, 7, 5, 9, 6, 4],
 };
 

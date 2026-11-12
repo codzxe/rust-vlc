@@ -22,13 +22,25 @@ const cssRaw = TOKENS_CSS;
 
 // Update ONLY together with `cargo xtask tokens` + `npm run tokens:generate`
 // in the same commit — schema drift must never slip in silently.
-// (w26.f15 WCAG repin 2026-11-12: dark tertiary #6b6b6b→#828282, light tertiary
-// #9a9a9a→#767676, light accent-bright #e8851a→#b35f0d — e17 F1/F2, e19 F3;
-// deviation documented in themes/tokens.json primitive descriptions. Prior:
-// (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
+// (w26.i19 light WCAG repin 2026-11-12, theme/token lane: light secondary
+// #4e4e4e→#3a3a3a, light tertiary #5f5f5f→#474747 (doc/ship split-brain closed
+// — h05 F3 + h20 F1), light border #acacac→#9a9a9a (ΔRGB-1-from-chrome
+// collision, h05 F5), NEW --color-focus-ring (dark #d37918 / light #824505,
+// h05 F1). Same session: dark surface-chrome re-pointed #161616→#1b1b1b
+// (gray.775 — Player.svg topbar, w26.i02 ruling text in tokens.json;
+// concurrent Lead edit adopted here). Prior: w26.f15 WCAG repin (dark
+// tertiary #6b6b6b→#828282, light accent-bright #e8851a→#b35f0d) and the
+// W25 Figma redesign, 2026-11-11 (neutral near-black surfaces, orange
 // default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
 // Solstice groups removed; eq band accents added.)
-const PINNED_SHA256 = "42ec55b9a8160593d8f16348d923c537f6c106b7ee06b28e2cd877780a7d96c4";
+// w26.i19 relaunch additions: NEW --color-content-quiet (dark #6b6b6b /
+// light #5f5f5f — the frames' quiet band, decorative/inactive scope, i07
+// three-wave ask + i13 arbitration: NOT tertiary, #6b6b6b as text is 3.30:1
+// on #191919, sub-AA), NEW --color-surface-elevated (dark #1b1b1b panel+2 /
+// light #c9c9c9 panel+3 — i09's +2 elevated-panel step ask), and
+// --font-size-label 16px→15px (CONTRACT §2 10–15px band, h19/h20 violation,
+// a18/i09 15px-token ask).)
+const PINNED_SHA256 = "be4f9ccdc2936e98916763a6700a0f122314619abb91b1b62fda995eeb386c30"; /* w26.i19+i16 Lead repin: content.accelerator (+1 alias/+1 semantic — 122/84/84) */
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -107,8 +119,11 @@ describe("generated token snapshot (doc 08 §3)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     const cssNames = [...rootBlock.matchAll(/--[A-Za-z0-9-]+(?=\s*:)/g)].map((m) => m[0]);
     expect(new Set(cssNames)).toEqual(new Set(SEMANTIC_TOKEN_NAMES));
-    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(80);
+    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(84); // w26.i19+i16 Lead: +content.quiet, +content.accelerator (84 semantic — 122/84/84) // w26.i19: +content-quiet +surface-elevated
     expect(tokenVar("--color-surface-raised")).toBe("var(--color-surface-raised)");
+    expect(tokenVar("--color-focus-ring")).toBe("var(--color-focus-ring)");
+    expect(tokenVar("--color-content-quiet")).toBe("var(--color-content-quiet)");
+    expect(tokenVar("--color-surface-elevated")).toBe("var(--color-surface-elevated)");
   });
 
   it("keeps the semantic layer free of value-named tokens (roles, not values)", () => {
@@ -123,7 +138,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(rootDecl("--color-surface")).toBe("#090909");
     expect(rootDecl("--color-surface-deep")).toBe("#0e0e0e");
     expect(rootDecl("--color-surface-panel")).toBe("#191919");
-    expect(rootDecl("--color-surface-chrome")).toBe("#161616");
+    expect(rootDecl("--color-surface-chrome")).toBe("#1b1b1b"); // w26.i02 gray.775 re-point (Player.svg topbar), adopted w26.i19
     expect(rootDecl("--color-surface-raised")).toBe("#222222");
     expect(rootDecl("--color-surface-hover")).toBe("#262626");
     expect(rootDecl("--color-surface-selected")).toBe("#1f1f1f");
@@ -132,6 +147,9 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(rootDecl("--color-content-primary")).toBe("#c6c6c6");
     expect(rootDecl("--color-content-secondary")).toBe("#8f8f8f");
     expect(rootDecl("--color-content-tertiary")).toBe("#828282");
+    expect(rootDecl("--color-content-quiet")).toBe("#6b6b6b"); // w26.i19: frames' quiet band, decorative/inactive only (3.30:1 as text — NOT tertiary)
+    expect(rootDecl("--color-surface-elevated")).toBe("#1b1b1b"); // w26.i19: panel+2 elevated step (i09 ask)
+    expect(rootDecl("--font-size-label")).toBe("15px"); // w26.i19: §2 10–15px band (was 16px, h19/h20)
     expect(rootDecl("--color-content-bright")).toBe("#eaeaea");
     // The orange accent family (default accent).
     expect(rootDecl("--color-accent")).toBe("#d37918");
@@ -144,10 +162,15 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(lightDecl("--color-surface-chrome")).toBe("#ababab");
     expect(lightDecl("--color-surface-panel")).toBe("#c6c6c6");
     expect(lightDecl("--color-content-primary")).toBe("#161616");
-    expect(lightDecl("--color-content-secondary")).toBe("#4e4e4e"); // WCAG 4.5:1 on the #c2c2c2 ramp
-    expect(lightDecl("--color-stroke-border")).toBe("#acacac");
+    expect(lightDecl("--color-content-secondary")).toBe("#3a3a3a"); // w26.i19 WCAG: AA (≥4.5:1) on EVERY light surface incl. chrome (4.95:1)
+    expect(lightDecl("--color-content-tertiary")).toBe("#474747"); // w26.i19: split-brain closed — AA on surface/panel/deep/muted/raised
+    expect(lightDecl("--color-stroke-border")).toBe("#9a9a9a"); // w26.i19: ΔRGB 17 from chrome (was #acacac, ΔRGB 1 — dead separators)
     expect(lightDecl("--color-stroke-icon")).toBe("#6b6b6b");
-    expect(lightDecl("--color-accent-bright")).toBe("#b35f0d");
+    expect(lightDecl("--color-accent-bright")).toBe("#b35f0d"); // fills/hover only — NOT certified as light text (2.5–2.8:1, h20 F2)
+    expect(lightDecl("--color-focus-ring")).toBe("#824505"); // w26.i19: WCAG 2.2 3:1 vs every light surface (h05 F1)
+    expect(lightDecl("--color-content-quiet")).toBe("#5f5f5f"); // w26.i19: ≥3:1 non-text on surface/panel/deep/muted
+    expect(lightDecl("--color-surface-elevated")).toBe("#c9c9c9"); // w26.i19: panel+3 — smallest designated light lift
+    expect(rootDecl("--color-focus-ring")).toBe("#d37918"); // dark ring = the accent, unchanged
   });
 
   it("carries the 7 EQ band accents with frame provenance (W25 §1)", () => {

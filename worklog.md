@@ -1552,3 +1552,17 @@ Work Log:
 
 Stage Summary:
 - Wave H closed (issue #61 → closed). Next: wave I — 20 fixer lanes per the scoreboard routing; Lead handles i18n key registration + the #828282/#6B6B6B ruling + light-token pins with i19.
+
+---
+Task ID: w26.lead-wave-i-close
+Agent: Lead (wave-26 orchestration)
+Task: Wave I integration (issue #62) — 20/20 fixer lanes + Lead NEEDS-FROM-LEAD items
+
+Work Log:
+- 20/20 lanes landed after infrastructure turbulence (backend context-deadline failures killed 19 lanes' result-returns at launch; dead attempts left substantial partial work in the tree — relaunch lanes assessed and completed it; i02 needed 5 attempts, 773-line partial kept + completed). All lanes self-pushed branches w26/i<nn> (PUT contents API with blob shas); one transient 401 retried OK.
+- Lead NEEDS-FROM-LEAD items landed: (1) i18n registration — 165 w26.i keys merged (messages.ts union+catalog via scripts/merge-i18n-keys.py, 1401 keys total); colon msgid grammar fix (generator value-segment sanitization in gen-settings-screens.mjs: "16:10"→"16-10", "5.1"→"5-1"; schema.ts + messages.ts + key files renamed; settings:generate re-run, 121 entries). (2) content.accelerator token added to tokens.json (i16's two-wave accelerator shame; #6b6b6b dark/#5f5f5f light) — full pipeline re-run: 122/84/84, pins repinned (pipeline.rs + tokens.test.ts sha be4f9ccd + semantic-length 84), ui/src/tokens regenerated. (3) English locale values ("English") + LocalePicker/areas test pins. (4) settings.css global gap calibrated live (Advanced bar 675→645 exact; i13's g10-P3-3). (5) Hide-after slider already 19 ticks (dead i12 attempt had landed it). (6) i16 proposals #1-#3 landed: ControlBar Profiles flyout mounted (buildProfileFlyout + useMediaProfiles; stub test re-pinned to real rows), PlaylistPanel enqueue affordance (enqueueSources.ts + MiniPlayer-pattern fixed popup — the i04 seam generalized), convert picker preferredDirection="up". (7) i18 demo-transport volume seeding (2 emitIn events — /discovery rows + context menu demonstrable). (8) i02 useChromeAutoHide activity-restart fix (activity nonce — chrome no longer flickers at 3s mid-interaction). (9) stylelint sweep (2 comment-empty-line fixes). (10) dev-shots.mjs eslint window annotations (both copies).
+- Battery: tsc 0 errors; eslint 0 errors; stylelint clean; vitest 1465/1465 (127 files); e2e 38/38; l10n PASS 1401/1401; tokens:check PASS (84 semantic, sha be4f9ccdc293); settings:check PASS (121 entries); cargo test green (theme-tokens 22+12, settings-schema 8, desktop 7). Visual PR-lite: 30 drift-expected failures (wave I visual changes; re-seed deferred to wave L per program §4 — issue #65 lane l13).
+- CI: still Actions-quota-blocked (issue #68 diagnosis stands); local battery is the verification line.
+
+Stage Summary:
+- Wave I closed. Rating families from wave H: light tokens + settings-C gaps closed (expected >= 8.0 vs 6.8/6.9). Next: wave J — 20 harsh UI code reviewers (issue #63).

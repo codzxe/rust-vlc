@@ -1,6 +1,10 @@
 // Settings area: About — card 4.E4, doc 07 §5.4 (the about→global registry
-// fold; renders BEFORE the Advanced Options bar on the global screen —
-// w26.gfix-B, g10-P2-3: the bar is the column's last element again).
+// fold). w26.i13 (h08 #2): the About panel renders BEHIND the global screen's
+// Advanced Options disclosure, AFTER the advanced rows — NEITHER global frame
+// (Settings - global.svg / -1.svg) shows an About section, and the previous
+// in-flow placement displaced the Advanced bar 141px (y786 vs the frame's
+// y645), clipping every expanded row below the window fold (h08's only NO
+// verdict). Reachable and honest; out of the frame-true column.
 //
 // HONEST SURFACE RULES:
 //   • Version data: REAL values only — injected at build time from

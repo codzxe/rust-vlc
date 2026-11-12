@@ -42,6 +42,13 @@
 //     add, no rescan command — the table is event-driven — and no
 //     volume-info command) and renders disabled — the screen's honest-
 //     capability posture, never theater.
+//   * w26.i18 (h19 §3 — "a working screen whose working parts cannot work
+//     is a museum piece"): the empty state surfaces the ONE real action
+//     ("Add file…", the same open-media seam the volume-row menu's enabled
+//     row fires) so the screen has a working affordance today; the volume
+//     rows themselves still come ONLY from live devices.volume-* events
+//     (the demo-transport seam proposal for demonstrable rows is in the
+//     lane log — a fabricated default snapshot stays forbidden).
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
@@ -52,6 +59,7 @@ import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b12";
 import { keys as c6Keys } from "../../i18n/keys/w26.c6";
+import { Button } from "../../components/button/Button";
 import { Icon } from "../../components/icon";
 import type { IconName } from "../../components/icon";
 import { ContextMenu } from "../../components/menu";
@@ -231,6 +239,18 @@ export function DiscoveryScreen() {
               data-testid="discovery-volumes-empty"
               title={t("discovery.volumes.empty-title")}
               body={t("discovery.volumes.empty-body")}
+              action={
+                /* w26.i18 (h19 §3): the one real action, reachable without a
+                 * volume row — the same open-media seam the context menu's
+                 * enabled row fires. Quiet default variant: no orange at
+                 * rest on this screen (nothing is selected/active). */
+                <Button
+                  data-testid="discovery-add-file"
+                  onClick={() => window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT))}
+                >
+                  {t("discovery.menu.add-file")}
+                </Button>
+              }
             />
           ) : (
             /* Live region: mount/unmount announcements for volume changes

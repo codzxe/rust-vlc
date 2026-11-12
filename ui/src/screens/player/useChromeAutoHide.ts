@@ -119,6 +119,8 @@ export function useChromeAutoHide({
   const lockedEffective = locked || overlayOpen;
 
   const [hidden, setHidden] = useState(false);
+  // w26.i02: activity nonce — see onActivity below.
+  const [activityNonce, setActivityNonce] = useState(0);
   const show = useCallback(() => {
     setHidden(false);
   }, []);
@@ -136,12 +138,21 @@ export function useChromeAutoHide({
     if (!armed || lockedEffective || hidden) return;
     const timer = setTimeout(() => setHidden(true), delayMs);
     return () => clearTimeout(timer);
-  }, [armed, lockedEffective, hidden, delayMs]);
+    // w26.i02: activityNonce in deps = activity restarts the countdown
+    // (clearTimeout + re-arm on every reveal, including while visible).
+  }, [armed, lockedEffective, hidden, delayMs, activityNonce]);
 
   // Activity reveals chrome: any pointer move/down or key press.
   useEffect(() => {
     if (!armed || lockedEffective) return;
-    const onActivity = () => setHidden(false);
+    // w26.i02 (Lead-landed): activity while VISIBLE must also restart the
+    // countdown — setHidden(false) is a no-op then, so the 3s deadline kept
+    // its original start and the chrome flickered away mid-interaction.
+    // The activity nonce re-runs the idle-timer effect (clear + re-arm).
+    const onActivity = () => {
+      setHidden(false);
+      setActivityNonce((n) => n + 1);
+    };
     window.addEventListener("pointermove", onActivity);
     window.addEventListener("pointerdown", onActivity);
     window.addEventListener("keydown", onActivity);

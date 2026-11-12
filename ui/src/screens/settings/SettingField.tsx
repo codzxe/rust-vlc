@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Dropdown } from "../../components/menu/Dropdown";
 import { Icon } from "../../components/icon/Icon";
 import { NumberField } from "../../components/form/NumberField";
@@ -11,6 +11,14 @@ import { keys as laneKeys } from "../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../i18n/keys/w26.b02";
 import { keys as f02Keys } from "../../i18n/keys/w26.f02";
 import { keys as fixerKeys } from "../../i18n/keys/w26.gfixB";
+// w26.i13 (h08 #3): the global/interface/privacy rows' ⓘ hint copy — same
+// pre-registration seam as the four catalogs below (added here, not in the
+// area files, because the hint prop resolves inside this component).
+import { keys as i13Keys } from "../../i18n/keys/w26.i13";
+// w26.i14 (h09 defect #1, ship-blocker): the video Aspect-ratio / Crop enum
+// msgids (10 unregistered ratio labels) — resolved from the lane file until
+// the Lead registers them post-wave; identical output either way.
+import { keys as i14Keys } from "../../i18n/keys/w26.i14";
 import type { SettingEntry } from "./generated/schema";
 import { SPECIAL_FIELD_WIDGETS } from "./areas";
 import { WIDGET_GROUPED_KEYS } from "./SettingWidgets";
@@ -46,6 +54,12 @@ import "./setting-field.css";
 // e06 F11): rendered ONLY where a hint text exists — the `hint` prop first,
 // then the generated seed's future `hint` msgid field (read defensively; the
 // current schema seed carries none — b01 log item 2). No hint → no ⓘ, honest.
+// w26.i12: the glyph is the shared Icon "info" sheet at size 18 — its 24-unit
+// viewBox (circle r10, stem/dot sw2) lands at exactly the frame's r7.5 circle
+// + 1.125px ring + sw1.5 i-glyph (Settings - *.svg "Ellipse 9"/"Vector 98/99"
+// family; h08 #3 / h09 #2 / h10 #1 — the 26-missing-Ⓘ shame). The areas
+// (i13/i14/i15) wire per-row hints + the Lead's copy; the grammar is
+// SettingInfoDot below, exported for their hand rows.
 
 const labelOf = (entry: SettingEntry): MessageKey => entry.description as MessageKey;
 
@@ -53,19 +67,23 @@ type LaneKey = keyof typeof laneKeys;
 type RegistryKey = keyof typeof registryKeys;
 type F02Key = keyof typeof f02Keys;
 type FixerKey = keyof typeof fixerKeys;
-/** Pre-registration seam: b01 + b02 (registry/seed) + f02 + gfixB lane keys —
- * identical output once the Lead registers them post-wave (b19). */
+type I13Key = keyof typeof i13Keys;
+type I14Key = keyof typeof i14Keys;
+/** Pre-registration seam: b01 + b02 (registry/seed) + f02 + gfixB + i13 + i14
+ * lane keys — identical output once the Lead registers them post-wave (b19). */
 const laneCatalog: Readonly<Record<string, string>> = {
   ...registryKeys,
   ...laneKeys,
   ...f02Keys,
   ...fixerKeys,
+  ...i13Keys,
+  ...i14Keys,
 };
 
 /** useFieldMsg — useMsg + the settings lanes' pre-registration keys. */
 function useFieldMsg() {
   const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey): string =>
+  return (key: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey | I13Key | I14Key): string =>
     m(key as MessageKey) ?? laneCatalog[key];
 }
 
@@ -98,6 +116,50 @@ const parseDurationMs = (key: string, text: string): number | null => {
 const formatFloatValue = (value: number): string =>
   Number.isInteger(value) ? value.toFixed(1) : String(value);
 
+/** The ⓘ glyph's accessible-name msgid (shared by SettingField + areas). */
+const INFO_LABEL_KEY = "settings.field.more-info" as const;
+
+/**
+ * SettingInfoDot — the frame's ⓘ row affordance as ONE reusable grammar
+ * (w26.i12; Settings - *.svg "Ellipse 9" family: r7.5 circle stroke #404040
+ * sw1.125 + i-glyph sw1.5, ~13px after the row label — h08 #3 / h09 #2 /
+ * h10 #1: 26 frame ⓘ glyphs the app rendered zero of because the grammar
+ * lived only inside SettingField's hint branch).
+ *
+ * Contract: a real `<button>` (keyboard reachable, `aria-label` name, tooltip
+ * via `title`) carrying the frame-exact 18px glyph; optional `expanded` /
+ * `onToggle` wire the reveal caption (`.settings-field__hinttext`) the way
+ * SettingField does. The areas' hand rows (i13/i14/i15) import this instead
+ * of local copies (the effects-area InfoDot divergence, h10 #3).
+ */
+export function SettingInfoDot({
+  note,
+  label,
+  expanded,
+  onToggle,
+}: {
+  /** Hint / staged-reason text — the tooltip (and revealed caption when toggled). */
+  note: string;
+  /** Accessible name for the glyph button. */
+  label: string;
+  /** Reveal state (aria-expanded) — omit for a tooltip-only affordance. */
+  expanded?: boolean;
+  onToggle?: () => void;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      className="settings-field__info"
+      aria-expanded={expanded}
+      aria-label={label}
+      title={note}
+      onClick={onToggle}
+    >
+      <Icon name="info" size={18} />
+    </button>
+  );
+}
+
 export interface SettingFieldProps {
   entry: SettingEntry;
   /**
@@ -105,7 +167,7 @@ export interface SettingFieldProps {
    * the row label. `undefined` (today's seed carries no hint text) renders
    * no ⓘ — honest absence, never a fabricated description.
    */
-  hint?: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey;
+  hint?: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey | I13Key;
 }
 
 /** SettingField — one schema entry as a labeled, dirty-tracked control row. */
@@ -153,6 +215,12 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
     // #191919, value #8F8F8F ≈15px — skinned in setting-field.css. Option
     // labels arrive pre-resolved through the labelKey + identity resolver
     // seam (the component's i18n contract stays key-driven for other hosts).
+    // w26.i12 (h09 defect 1, shell half): an option msgid the catalog has not
+    // registered resolved to undefined — a BLANK listbox option, and picking
+    // one blanked the TRIGGER (10 video aspect/crop msgids). Unregistered
+    // msgids fall back to the RAW enum value: never empty, honest, and exactly
+    // the frame's label for the ratio/crop enums ("1:1", "16:9", …). The
+    // proper msgid registration is i14's + the Lead's post-wave merge.
     kind = "enum";
     control = (
       <Dropdown
@@ -161,7 +229,8 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         label={rowLabel}
         options={entry.enumeration.map((o) => ({
           value: o.value,
-          labelKey: m(o.msgid as MessageKey | LaneKey | RegistryKey | F02Key | FixerKey),
+          labelKey:
+            m(o.msgid as MessageKey | LaneKey | RegistryKey | F02Key | FixerKey) || o.value,
         }))}
         value={String(current)}
         onChange={(next) => setValue(entry.key, next)}
@@ -318,16 +387,12 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
             {rowLabel}
           </span>
           {hasHint ? (
-            <button
-              type="button"
-              className="settings-field__info"
-              aria-expanded={hintOpen}
-              aria-label={m("settings.field.more-info")}
-              title={hintText}
-              onClick={() => setHintOpen((open) => !open)}
-            >
-              <Icon name="info" size={14} />
-            </button>
+            <SettingInfoDot
+              note={hintText ?? ""}
+              label={m(INFO_LABEL_KEY)}
+              expanded={hintOpen}
+              onToggle={() => setHintOpen((open) => !open)}
+            />
           ) : null}
           {restartBadge ? (
             <span className="settings-badge settings-badge--restart">{m("settings.restart-required")}</span>

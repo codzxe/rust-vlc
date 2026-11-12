@@ -39,6 +39,29 @@
   color: var(--color-content-bright);
 }
 
+/* w26.i16 — TWO-TONE menu iconography (h18 defect #3). Every menu frame
+ * paints its row icons quiet-base + accent-detail (#8F8F8F strokes with
+ * #AB6314 details — Icon.svg's `two-tone=yes` groups; the mono hosts keep
+ * the plain stroke face). The mode is per-instance: Icon.tsx adds
+ * `.lumen-icon--two-tone` when its host (MenuItem) opts in; base elements
+ * keep inheriting the host-driven `currentColor`, detail elements repaint
+ * through their own `color` so both stroked and filled marks follow.
+ * Light ramp: Player_-_Light pins icon accents at #C2711A (--color-accent-icon
+ * light) — the sheet's #AB6314 is a dark-mode value. */
+.lumen-icon--two-tone .lumen-icon__detail {
+  color: var(--color-accent-strong); /* frame: Icon.svg two-tone=yes details #AB6314 */
+}
+
+:root[data-theme="light"] .lumen-icon--two-tone .lumen-icon__detail {
+  color: var(--color-accent-icon); /* frame: Player - Light.svg accent tints #C2711A */
+}
+
+/* Bright detail — the frame's rare #D37918 icon marks (right-click menu.svg
+ * option_8 Subtract, the video screen highlight). */
+.lumen-icon--two-tone .lumen-icon__detail--bright {
+  color: var(--color-accent-icon); /* frame: #D37918 */
+}
+
 /* stylelint-disable no-descending-specificity -- disabled is documented last in the state narrative; :hover/:focus-visible outrank it by specificity either way */
 
 /* Emphasis stroke variants (issue #35, doc 08 §1.4 "stroke-width 1.5; 2 and 3

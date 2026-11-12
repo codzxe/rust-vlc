@@ -294,7 +294,7 @@ export function buildModel(schemaToml, productToml) {
       }
       enumeration = raw.enumeration.map((value) => ({
         value: String(value),
-        msgid: `settings.value.${String(raw.key).replace(/\./g, "-")}.${String(value).toLowerCase()}`,
+        msgid: `settings.value.${String(raw.key).replace(/\./g, "-")}.${String(value).toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`, // w26 Lead: value-segment sanitization (doc 07 §6.1 grammar — colons/dots in values become hyphens; "16:10"→"16-10", "5.1"→"5-1")
       }));
       if (!enumeration.some((o) => o.value === defaultValue)) {
         throw new TomlError(`${where}: default "${defaultValue}" not in enumeration`);

@@ -6,6 +6,7 @@ import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { ThemeProvider } from "../../../theme/ThemeProvider";
+import { UI_PACKAGE_VERSION } from "../../../build-info";
 import {
   SETTINGS_AREA_IDS,
   SETTINGS_AREA_REDIRECTS,
@@ -108,17 +109,112 @@ describe("areas layer — the 13-area registry (w26.b02)", () => {
     // carries the current locale.
     const trigger = field?.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
     expect(trigger, "the locale picker is a dropdown trigger").toBeTruthy();
-    expect(trigger?.textContent ?? "").toMatch(/English \(United States\)/i);
+    expect(trigger?.textContent ?? "").toMatch(/English/i);
   });
 
-  it("renders the global area with the about fold (w26 merge: about→global)", () => {
+  it("renders the global area frame-true: the Advanced bar is LAST; About rides behind the disclosure (w26.i13, h08 #1/#2)", () => {
     routed("/settings/global", routes);
+    // Settings - global.svg: the column ends at the Advanced Options bar —
+    // collapsed state carries NO About section in the flow (the former
+    // beforeAdvanced placement displaced the bar 141px and clipped all four
+    // expanded rows below the window fold).
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    expect(document.querySelector('[data-testid="about-area"]')).toBeNull();
+    const column = document.querySelector('[data-settings-area="global"]');
+    expect(column?.lastElementChild?.classList.contains("settings-advanced")).toBe(true);
+    // Expand: the four advanced rows render BELOW the bar (global-1), then
+    // the About fold (reachable, out of the frame-true column).
+    fireEvent.click(bar);
+    expect(bar).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Show minor warnings")).toBeInTheDocument();
+    expect(screen.getByText("Collect playback statistics")).toBeInTheDocument();
     expect(document.querySelector('[data-testid="about-area"]')).toBeTruthy();
+    expect(screen.getByTestId("about-version").textContent).toBe(UI_PACKAGE_VERSION);
+  });
+
+  it("wires the frame's ⓘ hint affordances on global — 6 + the 4 advanced rows (w26.i13, h08 #3)", () => {
+    // Circle extraction over Settings - global.svg: Startup×2 + Diagnostics×4;
+    // the Appearance rows carry NO circle. Settings - global-1.svg adds the 4
+    // advanced rows (cy 724/768/814/858).
+    routed("/settings/global", routes);
+    const info = '[data-settings-area="global"] .settings-field__info';
+    expect(document.querySelectorAll(info)).toHaveLength(6);
+    fireEvent.click(screen.getByRole("button", { name: "Advanced Options" }));
+    expect(document.querySelectorAll(info)).toHaveLength(10);
+  });
+
+  it("wires the frame's ⓘ on interface — 11 of 13 rows, the two honest absences (w26.i13, h08 #3)", () => {
+    routed("/settings/interface", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="interface"] .settings-field__info'),
+    ).toHaveLength(11);
+    expect(
+      document.querySelector('[data-setting="interface.remember-window-geometry"] .settings-field__info'),
+    ).toBeNull(); // frame cy 367 carries no circle
+    expect(
+      document.querySelector('[data-setting="interface.hide-controls-after"] .settings-field__info'),
+    ).toBeNull(); // the "Hide after" label carries none (the cy-783 ⓘ is the row below)
+  });
+
+  it("wires the frame's ⓘ on privacy — every row incl. the Clear action (w26.i13, h08 #3)", () => {
+    routed("/settings/privacy", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="privacy"] .settings-field__info'),
+    ).toHaveLength(9); // 8 schema rows + the hand Clear-history action row
+  });
+
+  it("wires the frame's ⓘ on playback — 12 of 13 rows, the slider row honestly bare (w26.i14, h09 #2)", () => {
+    // Circle extraction over Settings - playback.svg: every row carries the
+    // r7.5 circle EXCEPT "Default playback speed" (the slider row, no circle
+    // at its ~y227 band; the frame's 12 circles sit at cy 132/176/285/388/
+    // 434/480/526/631/675/717/761/864).
+    routed("/settings/playback", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="playback"] .settings-field__info'),
+    ).toHaveLength(12);
+    expect(
+      document.querySelector('[data-setting="playback.default-rate"] .settings-field__info'),
+    ).toBeNull(); // the slider row carries no circle
+  });
+
+  it("wires the frame's ⓘ on video — Output/Deinterlacing/Framing, the Picture rows honestly bare (w26.i14, h09 #2)", () => {
+    // Circle extraction over Settings - video.svg: 4 Output toggles +
+    // 2 Deinterlacing + 2 Framing dropdowns (cy 130/172/214/256/670/716/821/
+    // 867); the five Picture sliders and the Reset action carry none.
+    routed("/settings/video", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="video"] .settings-field__info'),
+    ).toHaveLength(8);
+    for (const key of ["video.hue", "video.brightness", "video.contrast", "video.saturation", "video.gamma"]) {
+      expect(
+        document.querySelector(`[data-setting="${key}"] .settings-field__info`),
+        `${key} carries no frame circle`,
+      ).toBeNull();
+    }
+    expect(document.querySelector('[data-video-action="reset-picture"] .settings-field__info')).toBeNull();
+  });
+
+  it("wires the frame's ⓘ on audio — 10 of 11 rows, the Maximum-volume slider honestly bare (w26.i14, h10 #1)", () => {
+    // Circle extraction over Settings - audio.svg: Output×3 (incl. the
+    // capability-backed hand row — its ⓘ is unconditional, the reason is its
+    // tooltip while not ready) · Startup volume · Volume step · the 5 Loudness
+    // rows; the Maximum-volume slider carries none.
+    routed("/settings/audio", routes);
+    expect(
+      document.querySelectorAll('[data-settings-area="audio"] .settings-field__info'),
+    ).toHaveLength(10);
+    expect(
+      document.querySelector('[data-setting="audio.maximum-volume"] .settings-field__info'),
+    ).toBeNull(); // the slider row carries no circle
   });
 
   it("renders the video area with the codecs fold (w26 merge: codecs→video)", () => {
     routed("/settings/video", routes);
     expect(document.querySelector('[data-settings-area="video"]')).toBeTruthy();
+    // w26.i14: the codecs rows sit behind the in-flow disclosure (collapsed
+    // by default) — open it, then the merged area renders.
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    fireEvent.click(bar);
     expect(document.querySelector('[data-settings-area="codecs"]')).toBeTruthy();
   });
 

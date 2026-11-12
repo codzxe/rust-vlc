@@ -3,17 +3,20 @@
 // type renders the visible left label, and the ⓘ hint affordance exists
 // ONLY where a hint text resolves (honest absence otherwise — the schema
 // seed carries no hint text today).
+// w26.i12 — the enum label fallback (never a blank option/trigger, h09 #1)
+// and the frame-exact ⓘ glyph grammar (h08 #3 / h09 #2 / h10 #1).
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
-import { SettingField } from "./SettingField";
+import { SettingField, SettingInfoDot } from "./SettingField";
 import { SettingsProvider, useSettings } from "./SettingsProvider";
 import {
   SETTING_CONTROLS_SKIP_VERY_SHORT,
   SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO,
   SETTING_PLAYBACK_PREFERRED_AUDIO_LANGUAGES,
   SETTING_PRIVACY_CRASH_REPORTS,
+  SETTING_VIDEO_ASPECT_RATIO,
 } from "./generated/schema";
 
 const mount = (ui: ReactElement) => render(<SettingsProvider>{ui}</SettingsProvider>);
@@ -45,6 +48,40 @@ describe("SettingField — enum rows are closed dropdowns (e06/e08 F1)", () => {
     expect(document.querySelector('[data-setting="interface.resize-to-fit-video"]')).toHaveAttribute(
       "data-dirty",
     );
+  });
+
+  it("falls back to the RAW enum value when an option msgid is unregistered (w26.i12, h09 #1)", () => {
+    // The video aspect/crop enums carried 10 msgids the catalog had not
+    // registered — they rendered BLANK options, and picking one left the
+    // trigger empty (the h09 repro). The lane seam (w26.i14) now registers
+    // the real labels; the raw-value fallback below stays as the grammar's
+    // floor — a catalog gap can never blank an option or trigger again.
+    const entry = {
+      ...SETTING_VIDEO_ASPECT_RATIO,
+      key: "video.aspect-ratio-fallback-probe",
+      enumeration: [
+        { value: "automatic", msgid: "settings.value.video-aspect-ratio.automatic" },
+        { value: "21:9", msgid: "settings.value.video-aspect-ratio.21:9" }, // registered nowhere
+      ],
+    };
+    mount(<SettingField entry={entry} />);
+    const trigger = screen.getByRole("button", { name: "Aspect ratio" });
+    fireEvent.click(trigger);
+    // Every option carries an accessible name — no blank listbox rows.
+    expect(screen.getByRole("option", { name: "21:9" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "21:9" }));
+    // The trigger shows the picked value — never blank (the h09 repro).
+    expect(trigger).toHaveTextContent("21:9");
+    expect(trigger.textContent ?? "").not.toBe("");
+  });
+
+  it("renders the frame's video aspect labels end-to-end and keeps the trigger after pick (h09 repro)", () => {
+    mount(<SettingField entry={SETTING_VIDEO_ASPECT_RATIO} />);
+    const trigger = screen.getByRole("button", { name: "Aspect ratio" });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("option", { name: "16:9" }));
+    expect(trigger).toHaveTextContent("16:9");
+    expect(trigger.textContent ?? "").not.toBe("");
   });
 });
 
@@ -104,5 +141,24 @@ describe("SettingField — ⓘ hint affordance (e06 F11)", () => {
     expect(
       screen.getByText("More info", { selector: ".settings-field__hinttext" }),
     ).toBeInTheDocument();
+  });
+
+  it("carries the frame-exact ⓘ glyph: 18px info sheet = r7.5 circle + 1.125px ring (w26.i12)", () => {
+    // Settings - *.svg "Ellipse 9": circle r7.5 stroke #404040 sw1.125 +
+    // i-glyph sw1.5. The shared "info" sheet (24-unit viewBox, circle r10,
+    // sw2 stem/dot) at size 18 lands exactly on those frame metrics — the
+    // glyph the 26 missing frame ⓘ affordances inherit (h08 #3 / h09 #2 /
+    // h10 #1).
+    const { container } = render(<SettingInfoDot note="Staged" label="More info" />);
+    const glyph = container.querySelector(".settings-field__info svg.lumen-icon");
+    expect(glyph).not.toBeNull();
+    expect(glyph).toHaveAttribute("width", "18");
+    expect(glyph).toHaveAttribute("height", "18");
+    expect(glyph).toHaveAttribute("aria-hidden", "true"); // the button carries the name
+    // Uncontrolled use (the areas' staged rows): no aria-expanded promise.
+    expect(screen.getByRole("button", { name: "More info" })).not.toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 });

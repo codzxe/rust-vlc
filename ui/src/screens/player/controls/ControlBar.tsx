@@ -26,12 +26,16 @@
 //           89px level wedge (volume.svg: green→yellow→orange→red gradient
 //           anchored to the FULL track, revealed to the level) · audio ·
 //           subtitles · gear · queue — the Controls.svg Frame 23 right
-//           cluster, each trigger opening its 400px popover UP from the
-//           strip (w26.gfix-C Lead ruling: popovers over the full-width
-//           strip must open and be reachable; MenuPopup primitive +
-//           scrollport cap, submenus flip left). The app menu (w26.f13
-//           ruling: it lives in the bar until f08 relocates the trigger to
-//           the shell title bar) stays as the cluster's documented extra.
+//           cluster. w26.i03 (h04 §2/§7, replacing the gfix-C MenuPopup
+//           mounts): each trigger opens the frame's SETTINGS PANEL — a
+//           400 r10 #0E0E0E@95% tabbed panel floating ABOVE the strip
+//           (never over its own trigger — h04 defect #1), 50px #090909 tab
+//           header with the #D37918 active underline, section headers,
+//           engine-truth radio rows, and Button.png's 360×32 r4 quiet
+//           footer ("Show Advanced Settings" → the real tools surface).
+//           The app menu (w26.f13 ruling: it lives in the bar until f08
+//           relocates the trigger to the shell title bar) stays as the
+//           cluster's documented extra — menu.png grammar, MenuPopup.
 //
 // Behavior contract UNCHANGED (state-mapping.ts is the doc 08 §5 mapping —
 // play/pause/seek/volume/mute wiring below is a restyle of the same
@@ -41,7 +45,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
-import { Button, IconButton, Icon, Seekbar, VolumeSlider } from "../../../components";
+import { Button, IconButton, Icon, Seekbar, SegmentedControl, VolumeSlider } from "../../../components";
 import { MenuPopup } from "../../../components/menu/MenuPopup";
 import { identityResolveLabel } from "../../../components/menu/types";
 import type { MenuEntry } from "../../../components";
@@ -49,6 +53,9 @@ import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as f13Keys } from "../../../i18n/keys/w26.f13";
 import { keys as gfixCKeys } from "../../../i18n/keys/w26.gfixC";
+import { keys as i03Keys } from "../../../i18n/keys/w26.i03";
+import { keys as i16Keys } from "../../../i18n/keys/w26.i16";
+import { buildProfileFlyout, createProfile, selectProfile, useMediaProfiles } from "../../../components/menu";
 import { useClient } from "../../../client/ClientProvider";
 import { isDemoTransport } from "../../../client/demo-transport";
 import { openPathRequest, openPathRoute } from "../../../client/open-path";
@@ -57,8 +64,20 @@ import { usePlayerControls } from "../context";
 import type { PlayerControls } from "../context";
 import { selectedTrackId, trackDisplayName, tracksOfKind } from "../context";
 import { usePlaylist } from "../../playlist";
+import { formatDuration } from "../../playlist";
+import { CustomizeToolbarItems } from "../customize/toolbarItems";
 import { GotoTimeDialog, openToolsDialog } from "../dialogs";
 import { mapTransportControls, seekDisableReason } from "./state-mapping";
+import { SettingsPanel } from "./SettingsPanel";
+import type { SettingsPanelTab } from "./SettingsPanel";
+import {
+  PanelRadioRow,
+  PanelReasonRow,
+  PanelSection,
+  PanelToggleRow,
+  PanelValueRow,
+  QuietButton,
+} from "./SettingsPanel";
 import "./controls.css";
 
 /**
@@ -66,19 +85,20 @@ import "./controls.css";
  * catalog first, lane copy while the Lead's post-wave merge is pending
  * (PlayerScreen's c6/f09 seam-first pattern; identical before/after).
  */
-const f13Catalog: Readonly<Record<string, string>> = f13Keys;
+const f13Catalog: Readonly<Record<string, string>> = { ...f13Keys, ...i16Keys };
 
 /** w26.f13 lane key ids (typed for the seam resolver below). */
-type F13LaneKey = keyof typeof f13Keys;
+type F13LaneKey = keyof typeof f13Keys | keyof typeof i16Keys;
 
-/** w26.gfixC lane keys (this lane's labels) — same seam-first pattern. */
-const gfixCCatalog: Readonly<Record<string, string>> = gfixCKeys;
+/** w26.gfixC lane keys (the gfix-C labels, since merged into the catalog) +
+ * the w26.i03 panel labels — same seam-first pattern. */
+const laneCatalog: Readonly<Record<string, string>> = { ...gfixCKeys, ...i03Keys };
 
-/** w26.gfixC lane key ids (typed for the seam resolver below). */
-type GfixCLaneKey = keyof typeof gfixCKeys;
+/** w26.i03 lane key ids (typed for the seam resolver below). */
+type I03LaneKey = keyof typeof i03Keys;
 
 /** A resolver key: a registered MessageKey or one of this lane's ids. */
-type LaneMessageKey = MessageKey | GfixCLaneKey;
+type LaneMessageKey = MessageKey | I03LaneKey;
 
 /** The lane-key resolver factory (contract §4.5): catalog first, lane copy
  * while unregistered — identical before/after the Lead's merge. */
@@ -175,6 +195,12 @@ export function ControlBar({ className = "" }: ControlBarProps) {
       data-engine-reported={state.engineReported}
     >
       <TransportCluster />
+      {/* w26.i05's cross-lane wiring (h07 defect 1's last mile, taken
+       * verbatim from its lane log): the saved customize band rendered in
+       * the real strip, directly after the transport — frame -7's position.
+       * Renders nothing while the band is empty (frame -1's clean
+       * baseline), so the untouched bar's DOM is unchanged. */}
+      <CustomizeToolbarItems />
       <SeekCluster />
       <RightCluster />
       <ErrorSurface />
@@ -183,46 +209,49 @@ export function ControlBar({ className = "" }: ControlBarProps) {
 }
 
 /**
- * The engine-truth track list for one kind — PlayerScreen's
- * canvasTrackSubmenu logic restated (that helper is not exported; the bar's
- * audio/subtitles popovers and the gear's submenus carry the same honest
- * rows as the canvas menu): no honest track data → the single disabled
- * no-media reason row; else Automatic / Disabled / real engine ids, the
- * engine-reported selection checked (never optimistic).
+ * The engine-truth radio rows for one track kind (w26.i03: the same honest
+ * content the gfix-C menus carried, as PanelRadioRow descriptors): no honest
+ * track data → empty (the caller renders the no-media reason row); else
+ * Automatic / Disabled / real engine ids, the engine-reported selection
+ * checked (never optimistic).
  */
-function trackMenuEntries(
+interface TrackRow {
+  readonly key: string;
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onSelect: () => void;
+}
+
+function trackRows(
   kind: "video" | "audio" | "subtitle",
   controls: PlayerControls,
   m: (key: MessageKey) => string,
-): MenuEntry<string>[] {
+): TrackRow[] {
   const { state, actions } = controls;
   const tracks = tracksOfKind(state.tracks, kind);
   const selected = selectedTrackId(state.tracks, state.selections, kind);
   const unreported = !state.engineReported && tracks.length === 0;
   const noMedia = state.playbackState === "idle" || state.playbackState === "opening" || unreported;
   if (noMedia) {
-    return [{ id: `track-${kind}-no-media`, labelKey: m("player.controls.reason.no-media"), disabled: true }];
+    return [];
   }
   return [
     {
-      id: `track-${kind}-auto`,
-      labelKey: m("player.track.auto"),
-      kind: "radio",
+      key: `${kind}-auto`,
+      label: m("player.track.auto"),
       /* "Automatic" is an action, never the reported selection. */
       checked: false,
       onSelect: () => actions.selectTrack(kind, { kind: "auto" }),
     },
     {
-      id: `track-${kind}-none`,
-      labelKey: m("player.track.disable"),
-      kind: "radio",
+      key: `${kind}-none`,
+      label: m("player.track.disable"),
       checked: selected === null,
       onSelect: () => actions.selectTrack(kind, { kind: "none" }),
     },
-    ...tracks.map((track, index): MenuEntry<string> => ({
-      id: `track-${kind}-id-${track.id}`,
-      labelKey: trackDisplayName(track, m("player.track.unknown"), index),
-      kind: "radio",
+    ...tracks.map((track, index): TrackRow => ({
+      key: `${kind}-id-${track.id}`,
+      label: trackDisplayName(track, m("player.track.unknown"), index),
       checked: selected === track.id,
       onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
     })),
@@ -309,7 +338,7 @@ function TransportCluster() {
 function SeekCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
-  const tm = laneResolver(m, gfixCCatalog);
+  const tm = laneResolver(m, laneCatalog);
   const mapped = mapTransportControls(state);
   const reason = seekDisableReason(state);
   const [editing, setEditing] = useState(false);
@@ -373,7 +402,7 @@ function RightCluster() {
 function DurationTimecode() {
   const { state } = usePlayerControls();
   const m = useMsg();
-  const tm = laneResolver(m, gfixCCatalog);
+  const tm = laneResolver(m, laneCatalog);
   const [remaining, setRemaining] = useState(false);
   const known = state.durationSeconds !== null && state.durationSeconds > 0;
   const face = !known
@@ -441,91 +470,224 @@ function VolumeCluster() {
  * w26.gfix-C (g04 P1-6): the cluster is Controls.svg Frame 23's composition
  * — the frame's three tool triggers + queue replace the pre-fix
  * fullscreen/cast/menu-then-gear row (fullscreen stays reachable through
- * the keymap's F binding PlayerScreen wires; cast never had a surface). */
+ * the keymap's F binding PlayerScreen wires; cast never had a surface).
+ * w26.i03 (h04 §2/§7): the popovers are the frame's SETTINGS PANELS, not
+ * menus — see the header comment and SettingsPanel.tsx. */
 function OutputCluster() {
   const m = useMsg();
-  const tm = laneResolver(m, gfixCCatalog);
+  const tm = laneResolver(m, laneCatalog);
   const controls = usePlayerControls();
   const playlist = usePlaylist();
 
-  // The gear popover: the frame's tabbed settings popover (Playback / Video
-  // / Audio / Subtitles + the Advanced footer) as menu rows — the four
-  // families as submenus over the same engine-truth builders the canvas
-  // menu carries (shuffle/repeat under Playback; the track lists), plus the
-  // frame's 360×32 "Show Advanced Settings" footer wired to the real A/V
-  // tools surface (w26.c5).
-  const settingsEntries: MenuEntry<string>[] = [
-    {
-      id: "settings-playback",
-      labelKey: m("menu.playback"),
-      icon: "equalizer",
-      submenu: [
-        {
-          id: "playback-shuffle",
-          labelKey: m("menu.playback.shuffle"),
-          kind: "checkbox",
-          checked: playlist.shuffle === true,
-          onSelect: () => playlist.setShuffle(!(playlist.shuffle === true)),
-        },
-        ...(["off", "all", "one"] as const).map(
-          (mode): MenuEntry<string> => ({
-            id: `playback-repeat-${mode}`,
-            labelKey: m(`playlist.controls.repeat.${mode}`),
-            kind: "radio",
-            checked: playlist.repeat === mode,
-            onSelect: () => playlist.setRepeat(mode),
-          }),
-        ),
-      ],
-    },
-    {
-      id: "settings-video",
-      labelKey: m("player.canvas.menu.video"),
-      icon: "pip",
-      submenu: trackMenuEntries("video", controls, m),
-    },
-    {
-      id: "settings-audio",
-      labelKey: m("player.canvas.menu.audio"),
-      icon: "audio",
-      submenu: trackMenuEntries("audio", controls, m),
-    },
-    {
-      id: "settings-subtitle",
-      labelKey: m("player.canvas.menu.subtitle"),
-      icon: "subtitles",
-      submenu: trackMenuEntries("subtitle", controls, m),
-    },
-    { id: "settings-sep-advanced", kind: "separator" },
-    {
-      id: "settings-advanced",
-      labelKey: tm("player.controls.advanced-settings"),
-      onSelect: () => openToolsDialog("audio"),
-    },
+  // The tab descriptors (Controls.svg Frame 241: icon + label). The audio
+  // and subtitles triggers share the 3-tab track panel ("audio"/"subtitles"
+  // variants: Video · Audio · Subtitles); the gear carries the 4-tab
+  // settings panel ("playback"/"* settings" variants add Playback); the
+  // queue trigger carries the Queue · Bookmarks · Chapters panel.
+  const trackTabs: SettingsPanelTab[] = [
+    { id: "video", label: m("player.canvas.menu.video"), icon: "tv" },
+    { id: "audio", label: m("player.canvas.menu.audio"), icon: "audio" },
+    { id: "subtitle", label: tm("player.controls.tab.subtitles"), icon: "subtitles" },
+  ];
+  const settingsTabs: SettingsPanelTab[] = [
+    { id: "playback", label: m("menu.playback"), icon: "playback" },
+    ...trackTabs,
+  ];
+  const queueTabs: SettingsPanelTab[] = [
+    { id: "queue", label: tm("player.controls.queue"), icon: "queue" },
+    { id: "bookmarks", label: tm("player.controls.tab.bookmarks"), icon: "bookmark" },
+    { id: "chapters", label: tm("player.controls.tab.chapters"), icon: "chapters" },
   ];
 
-  // The queue popover: the frame's Queue tab as menu rows — the playlist
-  // context's real entries (click plays; the engine-reported current row
-  // checked), or the honest empty reason; the docked queue panel itself is
-  // the canvas menu's "Playlist" seam (PLAYER_TOGGLE_SIDEBAR_EVENT).
-  const queueEmpty = playlist.notExposed || playlist.entries.length === 0;
-  const queueEntries: MenuEntry<string>[] = queueEmpty
-    ? [
-        {
-          id: "queue-empty",
-          labelKey: tm(
+  /** The Playback tab — the REAL playback seams the bar owns (playlist
+   * context): Shuffle as a Toggle.png switch, Repeat as the Values.png
+   * segmented control. Honest disabled while the engine has not reported. */
+  const renderPlaybackTab = (): ReactNode => (
+    <div className="lumen-controls__panel-section">
+      <PanelToggleRow
+        label={m("menu.playback.shuffle")}
+        checked={playlist.shuffle === true}
+        disabled={playlist.shuffle === null}
+        onChange={(next) => playlist.setShuffle(next)}
+      />
+      <div className="lumen-controls__panel-field">
+        <span className="lumen-controls__panel-field-label">{m("menu.playback.repeat")}</span>
+        <SegmentedControl
+          className="lumen-controls__panel-segmented"
+          label={m("menu.playback.repeat")}
+          options={[
+            { value: "off", label: tm("player.controls.repeat.off") },
+            { value: "all", label: tm("player.controls.repeat.all") },
+            { value: "one", label: tm("player.controls.repeat.one") },
+          ]}
+          value={playlist.repeat ?? ""}
+          disabled={playlist.repeat === null}
+          onChange={(mode) => playlist.setRepeat(mode as "off" | "all" | "one")}
+        />
+      </div>
+    </div>
+  );
+
+  /** One track-kind tab — the "audio"/"subtitles" panel anatomy: Embedded
+   * Tracks section (+ the kind's second frame section), and on the gear's
+   * settings panel the Defaults label/value rows over the same engine data
+   * ("audio settings" variant: Audio Track → "1", Audio Language →
+   * "English"). Sections separate by SPACING only — the variant panels
+   * carry no divider lines (verified: zero hairline rects/lines inside the
+   * panel x-range in any Controls.svg variant group). */
+  const renderTrackTab = (
+    kind: "video" | "audio" | "subtitle",
+    withDefaults: boolean,
+  ): ReactNode => {
+    const rows = trackRows(kind, controls, m);
+    const tracks = tracksOfKind(controls.state.tracks, kind);
+    const selected = selectedTrackId(controls.state.tracks, controls.state.selections, kind);
+    const selectedTrack = tracks.find((track) => track.id === selected) ?? null;
+    const noMedia = rows.length === 0;
+    const trackSection = (
+      <PanelSection title={tm("player.controls.section.embedded-tracks")}>
+        {noMedia ? (
+          <PanelReasonRow reason={m("player.controls.reason.no-media")} />
+        ) : (
+          rows.map((row) => (
+            <PanelRadioRow
+              key={row.key}
+              label={row.label}
+              checked={row.checked}
+              onSelect={row.onSelect}
+            />
+          ))
+        )}
+      </PanelSection>
+    );
+    return (
+      <>
+        {withDefaults && kind !== "video" ? (
+          <PanelSection title={tm("player.controls.section.defaults")}>
+            <PanelValueRow
+              label={m(`player.track.${kind}`)}
+              value={
+                noMedia
+                  ? m("player.controls.reason.no-media")
+                  : selectedTrack !== null
+                    ? trackDisplayName(selectedTrack, m("player.track.unknown"), 0)
+                    : m("player.track.disable")
+              }
+            />
+            <PanelValueRow
+              label={tm(
+                kind === "subtitle"
+                  ? "player.controls.row.subtitle-language"
+                  : "player.controls.row.audio-language",
+              )}
+              value={selectedTrack?.language ?? m("player.controls.reason.unknown")}
+            />
+          </PanelSection>
+        ) : null}
+        {trackSection}
+        {kind === "audio" ? (
+          /* No output-device seam exists in any transport — the frame's
+           * section renders its honest unavailable face, never a fabricated
+           * device list (doc 08 §4.4). The frame's right-aligned rescan
+           * glyph (audio variant, Vector 19/20 x1870–1890) rides the header
+           * inert — no seam to wire. */
+          <PanelSection
+            title={tm("player.controls.section.output-device")}
+            trailingIcon="refresh"
+          >
+            <PanelReasonRow reason={m("player.controls.reason.unknown")} />
+          </PanelSection>
+        ) : null}
+        {kind === "subtitle" ? (
+          /* External sidecar tracks have no engine seam either (the Add
+           * Subtitles flow is the playlist dialogs lane's surface). */
+          <PanelSection title={tm("player.controls.section.external-tracks")}>
+            <PanelReasonRow reason={m("player.controls.reason.unknown")} />
+          </PanelSection>
+        ) : null}
+      </>
+    );
+  };
+
+  /** The Queue tab — the playlist context's real entries (click plays; the
+   * engine-reported current row checked, the entry's duration right-aligned
+   * — the queue variant's "The Wand_S01E11.mp4 … 23:06" rows), the frame's
+   * "4 items - 2h 3m" meta row, or the honest empty reason; the docked queue
+   * panel itself stays the canvas menu's "Playlist" seam
+   * (PLAYER_TOGGLE_SIDEBAR_EVENT). */
+  const renderQueueTab = (): ReactNode => {
+    const queueEmpty = playlist.notExposed || playlist.entries.length === 0;
+    if (queueEmpty) {
+      return (
+        <PanelReasonRow
+          reason={tm(
             playlist.notExposed ? "player.controls.reason.unknown" : "player.controls.queue-empty",
-          ),
-          disabled: true,
-        },
-      ]
-    : playlist.entries.map((entry): MenuEntry<string> => ({
-        id: `queue-${entry.id}`,
-        labelKey: entry.title ?? m("playlist.entry.unknown-title"),
-        kind: "radio",
-        checked: playlist.currentId === entry.id,
-        onSelect: () => playlist.playItem(entry.id),
-      }));
+          )}
+        />
+      );
+    }
+    // "4 items - 2h 3m": the count + the queue's known total (nulls are
+    // skipped — a partial total would read as the whole truth).
+    const knownSeconds = playlist.entries
+      .map((entry) => entry.durationSeconds)
+      .filter((seconds): seconds is number => seconds !== null);
+    const total = knownSeconds.reduce((sum, seconds) => sum + seconds, 0);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const meta =
+      knownSeconds.length === playlist.entries.length && total > 0
+        ? `${playlist.entries.length} ${tm("player.controls.queue-items")} - ${hours}h ${minutes}m`
+        : `${playlist.entries.length} ${tm("player.controls.queue-items")}`;
+    return (
+      <>
+        <div className="lumen-controls__panel-meta">{meta}</div>
+        {playlist.entries.map((entry) => (
+          <PanelRadioRow
+            key={`queue-${entry.id}`}
+            label={entry.title ?? m("playlist.entry.unknown-title")}
+            checked={playlist.currentId === entry.id}
+            value={formatDuration(entry.durationSeconds) ?? undefined}
+            onSelect={() => playlist.playItem(entry.id)}
+          />
+        ))}
+      </>
+    );
+  };
+
+  /** Bookmarks/Chapters have no bar-context seam (the bookmarks engine data
+   * lives behind the tools/dialogs surfaces, w26.c5) — honest faces. */
+  const renderUnavailableTab = (): ReactNode => (
+    <PanelReasonRow reason={m("player.controls.reason.unknown")} />
+  );
+
+  /** The shared footer — the frame's two faces (all values measured on the
+   * variant sheets): the 3-tab TRACK panels end in Button.png's quiet
+   * button (360×32 r4 #090909, "video"/"audio"/"subtitles" variants); the
+   * gear's 4-tab SETTINGS panel ends in the same content BARE (no 360×32
+   * rect exists in the "audio settings" footer zone — just the ⓘ + label
+   * 27px above the panel bottom) and the Playback tab carries NO footer
+   * ("playback" variant has no footer label at all). Both open the real
+   * A/V tools surface (w26.c5). */
+  const renderTrackFooter = (tab: string, close: () => void): ReactNode => (
+    <QuietButton
+      label={tm("player.controls.advanced-settings")}
+      onClick={() => {
+        close();
+        openToolsDialog(tab === "video" ? "video" : "audio");
+      }}
+    />
+  );
+  const renderSettingsFooter = (tab: string, close: () => void): ReactNode =>
+    tab === "playback" ? null : (
+      <QuietButton
+        bare
+        label={tm("player.controls.advanced-settings")}
+        onClick={() => {
+          close();
+          openToolsDialog(tab === "video" ? "video" : "audio");
+        }}
+      />
+    );
 
   return (
     <div
@@ -533,38 +695,53 @@ function OutputCluster() {
       role="group"
       aria-label={m("player.controls.group-output")}
     >
-      <ClusterPopover
+      <PanelPopover
         dataControl="audio"
         label={tm("player.controls.audio-tracks")}
         idPrefix="lumen-controls-audio"
-        entries={[...trackMenuEntries("audio", controls, m), { id: "audio-sep-advanced", kind: "separator" }, { id: "audio-advanced", labelKey: tm("player.controls.advanced-settings"), onSelect: () => openToolsDialog("audio") }]}
+        initialTab="audio"
+        tabs={trackTabs}
+        renderTab={(tab) => renderTrackTab(tab as "video" | "audio" | "subtitle", false)}
+        renderFooter={renderTrackFooter}
       >
         <Icon name="audio" size={OUTPUT_ICON_SIZE} />
-      </ClusterPopover>
-      <ClusterPopover
+      </PanelPopover>
+      <PanelPopover
         dataControl="subtitles"
         label={tm("player.controls.subtitle-tracks")}
         idPrefix="lumen-controls-subtitles"
-        entries={[...trackMenuEntries("subtitle", controls, m), { id: "subtitles-sep-advanced", kind: "separator" }, { id: "subtitles-advanced", labelKey: tm("player.controls.advanced-settings"), onSelect: () => openToolsDialog("audio") }]}
+        initialTab="subtitle"
+        tabs={trackTabs}
+        renderTab={(tab) => renderTrackTab(tab as "video" | "audio" | "subtitle", false)}
+        renderFooter={renderTrackFooter}
       >
         <Icon name="subtitles" size={OUTPUT_ICON_SIZE} />
-      </ClusterPopover>
-      <ClusterPopover
+      </PanelPopover>
+      <PanelPopover
         dataControl="settings"
         label={m("menu.view.settings")}
         idPrefix="lumen-controls-settings"
-        entries={settingsEntries}
+        initialTab="audio"
+        tabs={settingsTabs}
+        renderTab={(tab) =>
+          tab === "playback"
+            ? renderPlaybackTab()
+            : renderTrackTab(tab as "video" | "audio" | "subtitle", true)
+        }
+        renderFooter={renderSettingsFooter}
       >
         <Icon name="settings" size={OUTPUT_ICON_SIZE} />
-      </ClusterPopover>
-      <ClusterPopover
+      </PanelPopover>
+      <PanelPopover
         dataControl="queue"
         label={tm("player.controls.queue")}
         idPrefix="lumen-controls-queue"
-        entries={queueEntries}
+        initialTab="queue"
+        tabs={queueTabs}
+        renderTab={(tab) => (tab === "queue" ? renderQueueTab() : renderUnavailableTab())}
       >
         <Icon name="lists" size={OUTPUT_ICON_SIZE} />
-      </ClusterPopover>
+      </PanelPopover>
       <NavigationSeam>
         {(navigate) => <AppMenuButton navigate={navigate} />}
       </NavigationSeam>
@@ -574,28 +751,33 @@ function OutputCluster() {
 
 /**
  * Shared right-cluster popover host (w26.gfix-C Lead ruling: popovers over
- * the full-width strip must open and be reachable) — the MenuPopup
- * primitive in the AppMenuButton mount pattern: trigger + 400px comfortable
- * popup (menu.css floor) opening UP from the strip, right-anchored, its
- * height capped with a scrollport (controls.css — the g17 Dropdown fix
- * grammar) so long lists scroll instead of overflowing the window top.
- * The open trigger carries .lumen-icon-host--open → the frame's #D37918
- * active-trigger ink (Controls.svg variant sheets).
+ * the full-width strip must open and be reachable) — trigger + the frame's
+ * settings panel (SettingsPanel.tsx), the AppMenuButton mount pattern:
+ * outside-pointer dismiss, Escape restoring trigger focus (e12 F8), and the
+ * tab state reset per open. The open trigger carries .lumen-icon-host--open
+ * → the frame's #D37918 active-trigger ink (Controls.svg variant sheets).
  */
-function ClusterPopover({
+function PanelPopover({
   dataControl,
   label,
   idPrefix,
-  entries,
+  initialTab,
+  tabs,
+  renderTab,
+  renderFooter,
   children,
 }: {
   dataControl: string;
   label: string;
   idPrefix: string;
-  entries: MenuEntry<string>[];
+  initialTab: string;
+  tabs: SettingsPanelTab[];
+  renderTab: (tab: string) => ReactNode;
+  renderFooter?: (tab: string, close: () => void) => ReactNode;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -613,8 +795,9 @@ function ClusterPopover({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
-  // Escape and item activation restore focus to the trigger (e12 F8 — the
-  // AppMenuButton close pattern).
+  // Escape and footer activation restore focus to the trigger (e12 F8 — the
+  // AppMenuButton close pattern). The footer's close() deliberately does
+  // NOT restore focus: the tools dialog takes it.
   const close = (restoreFocus: boolean): void => {
     setOpen(false);
     if (restoreFocus) triggerRef.current?.focus();
@@ -626,23 +809,31 @@ function ClusterPopover({
         ref={triggerRef}
         data-control={dataControl}
         label={label}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         className={open ? "lumen-icon-host--open" : undefined}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() =>
+          setOpen((prev) => {
+            if (prev) return false;
+            setActiveTab(initialTab);
+            return true;
+          })
+        }
       >
         {children}
       </IconButton>
       {open ? (
-        <MenuPopup
-          entries={entries}
-          resolveLabel={identityResolveLabel}
-          idPrefix={idPrefix}
-          className="lumen-controls__popover-popup"
+        <SettingsPanel
           ariaLabel={label}
+          idPrefix={idPrefix}
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabSelect={setActiveTab}
           onRequestClose={() => close(true)}
-          onDismissAll={() => close(true)}
-        />
+          footer={renderFooter !== undefined ? renderFooter(activeTab, () => close(false)) : null}
+        >
+          {renderTab(activeTab)}
+        </SettingsPanel>
       ) : null}
     </div>
   );
@@ -676,6 +867,8 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
   // Lane resolver (contract §4.5): catalog first, w26.f13 lane copy while
   // unregistered — identical before/after the Lead's merge.
   const tm = (key: F13LaneKey): string => m(key as MessageKey) ?? f13Catalog[key];
+  // w26.i16 — the profile store feed for the flyout rows (see profile entry).
+  const profiles = useMediaProfiles();
 
   // Outside pointer dismiss (the MenuPopup pattern's caller half — MenuBar
   // carries the same listener). Focus is not stolen: the click target keeps
@@ -778,19 +971,22 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
     },
     { id: "sep-open", kind: "separator" },
     {
-      // No profile engine seam (Profiles.png's Movies/Shows/… would be a
-      // fabricated list) — the flyout opens onto the honest unavailable row.
+      // w26.i16 (h18 6.4 NO closed): the Profile flyout's real rows
+      // (Profiles.png): the local lumen.profiles.v1 store (frame-seeded
+      // Movies/Shows/Music/Work; select + "+ New" quick-create persist).
+      // No engine profile command exists — local device data, the
+      // playlistsStore precedent (i16's ruling, Lead-landed).
       id: "profile",
       labelKey: tm("player.appmenu.profile"),
       icon: "profile",
-      iconAccent: true, // menu.svg: person glyph with the orange head dot
-      submenu: [
-        {
-          id: "profile-none",
-          labelKey: m("player.controls.reason.unknown"),
-          disabled: true,
-        },
-      ],
+      iconAccent: true, // menu.svg: person glyph, two-tone orange head dot
+      submenu: buildProfileFlyout({
+        profiles: profiles.profiles,
+        selectedId: profiles.selectedId,
+        onSelect: selectProfile,
+        onCreate: () => createProfile(tm("player.appmenu.profile.auto-name")),
+        newLabel: tm("player.appmenu.profile.new"),
+      }),
     },
     {
       id: "keyboard-shortcuts",

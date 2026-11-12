@@ -119,12 +119,30 @@ describe("AudioDeviceControl — absent capability renders disabled WITH REASON"
   it("feature-not-exposed: the closed trigger is visible, disabled, and carries the honest reason", async () => {
     renderControl(new MockTransport()); // answers feature-not-exposed for audio.list-devices
     // Not hidden — the exact rule: the 320×36 trigger stays visible (never a
-    // 4×4 stub) with the honest fallback value + the reason text.
-    expect(await screen.findByText("Device enumeration is not available")).toBeVisible();
+    // 4×4 stub) with the honest fallback value + the reason text. The reason
+    // renders twice by design (the ⓘ tooltip + the visible note) — query the
+    // note role, never bare text (w26.i14).
+    await waitFor(() =>
+      expect(screen.getByRole("note")).toHaveTextContent("Device enumeration is not available"),
+    );
+    expect(screen.getByRole("note")).toBeVisible();
     const trigger = screen.getByRole("button", { name: "Output device" });
     expect(trigger).toBeDisabled();
     expect(trigger).toHaveTextContent("System default"); // frame C6 fallback value
-    expect(screen.getByRole("note")).toBeVisible();
+    // w26.i14 (h10 defects #1/#2/#5): the not-ready row reuses the staged-inert
+    // grammar — full-strength trigger (the [data-staged] marker drives the
+    // shared opacity rule; never the 0.5 dimming that contradicted the
+    // staged Effects siblings) and the reason rides INSIDE the row (zero
+    // layout footprint — the in-flow badge line is gone).
+    const row = trigger.closest(".settings-field");
+    expect(row?.getAttribute("data-staged")).toBe("audio-device-enumeration");
+    expect(row?.querySelector(".settings-field__badges")).toBeNull();
+    expect(row?.querySelector(".settings-area-audio-reason")).toBeVisible();
+    // h10 #1: the frame's ⓘ circle is unconditional — while not ready it
+    // carries the honest reason as its tooltip.
+    const info = row?.querySelector(".settings-field__info");
+    expect(info).toBeVisible();
+    expect(info?.getAttribute("title")).toBe("Device enumeration is not available");
   });
 
   it("disabled control is inert — no audio.set-device is ever dispatched", async () => {
@@ -138,22 +156,24 @@ describe("AudioDeviceControl — absent capability renders disabled WITH REASON"
   it("pending enumeration renders disabled with the loading reason, then the final reason", async () => {
     const transport = makeFixtureTransport(() => errorResult("feature-not-exposed"));
     renderControl(transport);
-    expect(screen.getByText("Checking for available audio devices…")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Checking for available audio devices…");
     expect(screen.getByRole("button", { name: "Output device" })).toBeDisabled();
-    expect(await screen.findByText("Device enumeration is not available")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("note")).toHaveTextContent("Device enumeration is not available"),
+    );
   });
 
   it("empty enumeration → disabled with the no-devices reason (no invented devices)", async () => {
     const transport = makeFixtureTransport(() => devicesResult([]));
     renderControl(transport);
-    expect(await screen.findByText("No audio devices found")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("note")).toHaveTextContent("No audio devices found"));
     expect(screen.getByRole("button", { name: "Output device" })).toBeDisabled();
   });
 
   it("non-feature errors → generic honest reason, still disabled", async () => {
     const transport = makeFixtureTransport(() => errorResult("internal"));
     renderControl(transport);
-    expect(await screen.findByText("Not available in this build")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("note")).toHaveTextContent("Not available in this build"));
     expect(screen.getByRole("button", { name: "Output device" })).toBeDisabled();
   });
 });

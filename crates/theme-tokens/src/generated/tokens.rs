@@ -17,7 +17,7 @@
 //! roles PRIMARY, STRONG, TINTED_DARK, TINTED_LIGHT, BRIGHT_LIGHT,
 //! ICON_LIGHT, ON_ACCENT.
 //!
-//! Source shape: 118 primitive / 80 alias / 80 semantic tokens.
+//! Source shape: 122 primitive / 84 alias / 84 semantic tokens.
 
 use crate::color::{Rgb8, Shadow};
 
@@ -62,15 +62,19 @@ pub const COLOR_ACCENT_ICON_LIGHT: Rgb8 = Rgb8::new(0xc2, 0x71, 0x1a);
 pub const COLOR_ACCENT_STRONG: Rgb8 = Rgb8::new(0xab, 0x63, 0x14);
 pub const COLOR_ACCENT_TINTED_DARK: Rgb8 = Rgb8::new(0x37, 0x1f, 0x06);
 pub const COLOR_ACCENT_TINTED_LIGHT: Rgb8 = Rgb8::new(0xd8, 0xba, 0x9a);
+pub const COLOR_CONTENT_ACCELERATOR_DARK: Rgb8 = Rgb8::new(0x6b, 0x6b, 0x6b);
+pub const COLOR_CONTENT_ACCELERATOR_LIGHT: Rgb8 = Rgb8::new(0x5f, 0x5f, 0x5f);
 pub const COLOR_CONTENT_BRIGHT_DARK: Rgb8 = Rgb8::new(0xea, 0xea, 0xea);
 pub const COLOR_CONTENT_BRIGHT_LIGHT: Rgb8 = Rgb8::new(0x16, 0x16, 0x16);
 pub const COLOR_CONTENT_ON_ACCENT: Rgb8 = Rgb8::new(0x09, 0x09, 0x09);
 pub const COLOR_CONTENT_PRIMARY_DARK: Rgb8 = Rgb8::new(0xc6, 0xc6, 0xc6);
 pub const COLOR_CONTENT_PRIMARY_LIGHT: Rgb8 = Rgb8::new(0x16, 0x16, 0x16);
+pub const COLOR_CONTENT_QUIET_DARK: Rgb8 = Rgb8::new(0x6b, 0x6b, 0x6b);
+pub const COLOR_CONTENT_QUIET_LIGHT: Rgb8 = Rgb8::new(0x5f, 0x5f, 0x5f);
 pub const COLOR_CONTENT_SECONDARY_DARK: Rgb8 = Rgb8::new(0x8f, 0x8f, 0x8f);
-pub const COLOR_CONTENT_SECONDARY_LIGHT: Rgb8 = Rgb8::new(0x4e, 0x4e, 0x4e);
+pub const COLOR_CONTENT_SECONDARY_LIGHT: Rgb8 = Rgb8::new(0x3a, 0x3a, 0x3a);
 pub const COLOR_CONTENT_TERTIARY_DARK: Rgb8 = Rgb8::new(0x82, 0x82, 0x82);
-pub const COLOR_CONTENT_TERTIARY_LIGHT: Rgb8 = Rgb8::new(0x5f, 0x5f, 0x5f);
+pub const COLOR_CONTENT_TERTIARY_LIGHT: Rgb8 = Rgb8::new(0x47, 0x47, 0x47);
 pub const COLOR_EQ_1: Rgb8 = Rgb8::new(0xe1, 0x50, 0x32);
 pub const COLOR_EQ_2: Rgb8 = Rgb8::new(0xc4, 0x9e, 0x23);
 pub const COLOR_EQ_3: Rgb8 = Rgb8::new(0x19, 0xa2, 0x34);
@@ -78,16 +82,20 @@ pub const COLOR_EQ_4: Rgb8 = Rgb8::new(0x18, 0xaa, 0xd3);
 pub const COLOR_EQ_5: Rgb8 = Rgb8::new(0x18, 0x5d, 0xd3);
 pub const COLOR_EQ_6: Rgb8 = Rgb8::new(0x8e, 0x42, 0xff);
 pub const COLOR_EQ_7: Rgb8 = Rgb8::new(0xf0, 0x52, 0xb3);
+pub const COLOR_FOCUS_RING_DARK: Rgb8 = Rgb8::new(0xd3, 0x79, 0x18);
+pub const COLOR_FOCUS_RING_LIGHT: Rgb8 = Rgb8::new(0x82, 0x45, 0x05);
 pub const COLOR_RECORD: Rgb8 = Rgb8::new(0xe1, 0x50, 0x32);
 pub const COLOR_STROKE_BORDER_DARK: Rgb8 = Rgb8::new(0x40, 0x40, 0x40);
-pub const COLOR_STROKE_BORDER_LIGHT: Rgb8 = Rgb8::new(0xac, 0xac, 0xac);
+pub const COLOR_STROKE_BORDER_LIGHT: Rgb8 = Rgb8::new(0x9a, 0x9a, 0x9a);
 pub const COLOR_STROKE_ICON_DARK: Rgb8 = Rgb8::new(0x8f, 0x8f, 0x8f);
 pub const COLOR_STROKE_ICON_LIGHT: Rgb8 = Rgb8::new(0x6b, 0x6b, 0x6b);
-pub const COLOR_SURFACE_CHROME_DARK: Rgb8 = Rgb8::new(0x16, 0x16, 0x16);
+pub const COLOR_SURFACE_CHROME_DARK: Rgb8 = Rgb8::new(0x1b, 0x1b, 0x1b);
 pub const COLOR_SURFACE_CHROME_LIGHT: Rgb8 = Rgb8::new(0xab, 0xab, 0xab);
 pub const COLOR_SURFACE_DARK: Rgb8 = Rgb8::new(0x09, 0x09, 0x09);
 pub const COLOR_SURFACE_DEEP_DARK: Rgb8 = Rgb8::new(0x0e, 0x0e, 0x0e);
 pub const COLOR_SURFACE_DEEP_LIGHT: Rgb8 = Rgb8::new(0xba, 0xba, 0xba);
+pub const COLOR_SURFACE_ELEVATED_DARK: Rgb8 = Rgb8::new(0x1b, 0x1b, 0x1b);
+pub const COLOR_SURFACE_ELEVATED_LIGHT: Rgb8 = Rgb8::new(0xc9, 0xc9, 0xc9);
 pub const COLOR_SURFACE_HOVER_DARK: Rgb8 = Rgb8::new(0x26, 0x26, 0x26);
 pub const COLOR_SURFACE_HOVER_LIGHT: Rgb8 = Rgb8::new(0xb4, 0xb4, 0xb4);
 pub const COLOR_SURFACE_LIGHT: Rgb8 = Rgb8::new(0xc2, 0xc2, 0xc2);
@@ -104,7 +112,7 @@ pub const FONT_FAMILY_TIME: &[&str] = &["Inter", "-apple-system", "Segoe UI", "R
 pub const FONT_SIZE_BODY: f32 = 14.0;
 pub const FONT_SIZE_CAPTION: f32 = 11.0;
 pub const FONT_SIZE_DISPLAY: f32 = 32.0;
-pub const FONT_SIZE_LABEL: f32 = 16.0;
+pub const FONT_SIZE_LABEL: f32 = 15.0;
 pub const FONT_SIZE_MICRO: f32 = 6.0;
 pub const FONT_SIZE_SECTION: f32 = 15.0;
 pub const FONT_SIZE_SIDEBAR: f32 = 13.0;

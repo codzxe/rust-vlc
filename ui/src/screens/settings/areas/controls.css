@@ -1,0 +1,63 @@
+/* Controls area skin (w26.i15, h11 #2 — the bottom third of the §C8 frame).
+ *
+ * Frame truth (Settings - controls.svg, header glyph tops, content-column
+ * relative; see docs/waves/w26/analysis/tools-settings.md §C8):
+ *   Keyboard Shortcuts y33 · Skip Amounts y176 (inputs pitch 48) ·
+ *   Mouse y427 · Remotes y712 — the shipped sheet landed the top two blocks
+ *   pixel-exact but drifted −8 (Mouse) and −42 (Remotes): the skip inputs
+ *   pitch 46 vs the frame's 48, and the generated screen's LAST section
+ *   (Mouse) loses its trailing gap to the sheet's :last-child zeroing rules
+ *   the instant a hand section follows it (Remotes) — 28+10px gone at once.
+ *
+ * Scoped to this area only (the data-testid root); every value is
+ * frame-derived, marked `frame:`. Raw px is structural (no tokens exist).
+ * Selectors carry .settings-sections + .settings-section so they outrank the
+ * sheet's :last-child zeroing (0,3,0) on specificity alone, whatever the
+ * bundle order. */
+
+/* Remotes rows — frame: 793→837 = 44 pitch (the frame's own ±2; the sheet
+ * switch pitch is 42). +2 on the web-remote row lands Port on y837.
+ * No `.settings-sections` in the chain here: Remotes is a DIRECT child of
+ * the area wrapper (the generated screen's nested root never wraps it). */
+[data-testid="controls-area"] [data-section="remotes"] .settings-field:not(:last-child) .settings-field__row {
+  margin-bottom: 8px; /* frame: 36 + 8 = 44 */
+}
+
+/* Skip Amounts — frame: input rows pitch 48 (§C8 "inputs 318×34, pitch 48";
+ * 259→307→355→403); the sheet default is 46. +2 on the leading rows restores
+ * the Mouse block to its frame y508. The LAST row keeps the sheet's 10
+ * (trailing 46 → Mouse header lands on its frame y477, not +2 over). */
+[data-testid="controls-area"] .settings-sections [data-section="skip-amounts"] .settings-field:not(:last-child) .settings-field__row {
+  margin-bottom: 12px; /* frame: 36 + 12 = 48 pitch */
+}
+
+/* Section-start gaps (w26.i15 relaunch, SVG rect anchors + fonts-settled
+ * measurement): §C8 runs header→first-row 31 at Keyboard Shortcuts
+ * (83→114), Mouse (477→508) and Remotes (762→793), and 33 at Skip Amounts
+ * (226→259); the sheet base is 29.5 (22.5px title block + 7px). Per-section
+ * title margins land every row on its frame y (see the lane log §geometry). */
+[data-testid="controls-area"] [data-section="keyboard-shortcuts"] .settings-section__title,
+[data-testid="controls-area"] [data-section="mouse"] .settings-section__title,
+[data-testid="controls-area"] [data-section="remotes"] .settings-section__title {
+  margin-bottom: 8.5px; /* frame: 22.5 block + 8.5 = 31 */
+}
+
+[data-testid="controls-area"] [data-section="skip-amounts"] .settings-section__title {
+  margin-bottom: 10.5px; /* frame: 22.5 block + 10.5 = 33 */
+}
+
+/* Mouse — frame: the section's trailing gap to the Remotes header is 34
+ * (last switch row bottom y674 → header y712), not the sheet's 0: the
+ * generated root's last section sits nested, so the global :last-child
+ * rules never fire for it. 24 (section) + 10 (last row) = 34 here. */
+[data-testid="controls-area"] .settings-sections .settings-section[data-section="mouse"] {
+  margin-bottom: 24px; /* frame: section share of the 34px gap */
+}
+
+[data-testid="controls-area"]
+  .settings-sections
+  .settings-section[data-section="mouse"]
+  .settings-field:last-child
+  .settings-field__row {
+  margin-bottom: 10px; /* frame: row share of the 34px gap */
+}

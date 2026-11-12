@@ -1,12 +1,15 @@
-/* /open-network-stream — W26 Figma redesign (w26.b15).
+/* /open-network-stream — W26 Figma redesign (w26.b15), w26.i17 fix pass
+ * (h19 rating 7.2).
  *
- * Frame: design/figma/Open network stream.svg (1048×631 rx14 #191919 window
- * at 95% on the shared scrim), ported 1:1 at the frame's own scale. The
- * window chrome lives in the surface primitive (.lumen-dialog: panel fill +
- * 1px stroke-border + --radius-window r14 + --shadow-overlay); this sheet
- * owns ONLY the dialog's inner anatomy (header strip, sections, wells,
- * divider, footer), mirroring the grammar the player-dialogs lane (w26.a18)
- * extracted from this same frame family.
+ * Frame: design/figma/Open network stream.svg (1048×631 rx14 #191919@95%
+ * window + backdrop blur 25px + 0/+8 σ7.5 46% drop shadow, NO stroke — on
+ * the shared scrim), ported 1:1 at the frame's own scale. The window chrome
+ * below overrides the surface primitive (.lumen-dialog: opaque panel fill +
+ * invented 1px stroke-border + --shadow-overlay) with the frame's own; scrim
+ * + focus trap + Escape/scrim close come from <Dialog>.
+ * This sheet owns ONLY the dialog's inner anatomy (header strip, sections,
+ * wells, divider, footer), mirroring the grammar the player-dialogs lane
+ * (w26.a18) extracted from this same frame family.
  *
  * Semantic tokens only (contract §4); raw px appears solely for
  * frame-measured structural dimensions with no token — each carries a
@@ -20,8 +23,18 @@
 .lumen-dialog.network-stream-dialog {
   width: min(92vw, 1048px); /* frame: the 1048px dialog window */
   max-width: min(92vw, 1048px);
-  padding: 0; /* gutters live on header/body/footer so the divider bleeds */
+  padding: 0; /* gutters live on header/body/footer; the rule sits inside them */
   overflow: hidden; /* header + footer pin while the body scrolls */
+
+  /* w26.i17 (h19): the frame window is #191919 @ 95% fill-opacity with a
+   * 25px backdrop blur, a 0/+8 σ7.5 drop shadow at 46% and NO stroke (SVG
+   * foreignObject bgblur + filter0_d) — the shared chrome's opaque fill,
+   * invented 1px #404040 border and --shadow-overlay are overridden here.
+   * Same window grammar the shortcuts sheet ships. */
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
+  backdrop-filter: blur(var(--blur-backdrop));
+  box-shadow: 0 8px 7.5px color-mix(in srgb, var(--color-surface) 46%, transparent);
 }
 
 .network-stream {
@@ -105,13 +118,18 @@
 
 .network-stream__optional {
   font-weight: var(--font-weight-regular);
-  color: var(--color-content-tertiary); /* frame: "(optional)" #6B6B6B */
+
+  /* frame reads #6B6B6B; ships --color-content-tertiary #828282 — Lead
+   * WCAG ruling (w26.i17): body-tertiary TEXT keeps AA, dividers match. */
+  color: var(--color-content-tertiary);
 }
 
 .network-stream__hint {
   margin: 0;
   font-size: var(--font-size-body);
-  color: var(--color-content-tertiary); /* frame: helper copy #6B6B6B */
+
+  /* frame reads #6B6B6B; ships #828282 — same Lead WCAG ruling (w26.i17). */
+  color: var(--color-content-tertiary);
 }
 
 .network-stream__error {
@@ -143,7 +161,8 @@
   border-color: var(--color-record);
 }
 
-/* URL textarea — frame: 1006×192 rx5 well, placeholder 17px left / 20px top. */
+/* URL textarea — frame: 1006×192 rx5 well (placeholder frame #404040;
+ * ships the form primitive's tertiary #828282 — Lead WCAG ruling, w26.i17). */
 .network-stream__urls {
   height: auto;
   min-height: 192px; /* frame: the multi-link textarea pitch */
@@ -157,11 +176,22 @@
   width: 100%;
 }
 
-/* ---- Divider — frame: the full-bleed 1px rule at y=364 (x20→x1028) ---- */
+/* ---- Divider — w26.i17 (h19 shame #1): frame = 1px #222222 rule at 20px
+ * insets on BOTH panel edges (Open network stream.svg Vector: M20 364 H1028).
+ * The body's 20px gutters put the rule's containing block exactly at those
+ * insets, so NO bleed margins: the pre-i17 `margin-inline:-20px` (defeated
+ * by the shared .lumen-separator width:100%, surface.css) produced the
+ * asymmetric x197→x1203 rule. Color: the frame's #222222 = surface-raised
+ * in dark (the menu-separator convention, menu.css) — decoration, so it
+ * matches the frame (the #828282 text debt stays per the Lead WCAG ruling).
+ * ---- */
 
 .network-stream__rule {
   flex: none;
-  margin-inline: -20px; /* bleed past the body gutters to the panel edges */
+}
+
+.network-stream .network-stream__rule {
+  background: var(--color-surface-raised); /* frame: #222222 (dark exact) */
 }
 
 /* ---- Recent streams — persisted live history (no frame counterpart);
@@ -223,8 +253,10 @@
 }
 
 /* ---- Footer — frame Frame 225: Cancel left, Open right, 100×32 r6, on the
- * panel fill (no strip, no hairline; the button primitives carry the exact
- * fills — default #1B1B1B-class, tinted #371F06-class + accent ink). ---- */
+ * panel fill (no strip, no hairline). The Open (tinted) button carries the
+ * frame fill from the shared primitive (#371F06-class + accent ink); the
+ * Cancel below re-skins the shared default (#222222 + 1px #404040 border)
+ * to the frame's flat #1B1B1B NO-stroke rect. ---- */
 
 .network-stream__actions {
   display: flex;
@@ -237,4 +269,26 @@
 
 .network-stream__actions .lumen-button {
   min-width: 100px; /* frame: both footer actions measure 100×32 r6 */
+}
+
+/* w26.i17 (h19, g20-P3-3): Cancel = frame rect 100×32 rx6 flat #1B1B1B with
+ * NO stroke. Mixed from tokens: surface-raised 22% over surface-panel =
+ * #1b1b1b exact in dark (the shared default's #222222 + #404040 border was
+ * the miss); ≈#cbcbcb in light — the same flat lift the shortcuts window's
+ * Cancel ships. Border stays 1px-transparent so box metrics never shift. */
+.network-stream__cancel.lumen-button {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-surface-raised) 22%, var(--color-surface-panel));
+}
+
+/* ---- Light-mode wells (w26.i17, h19 shame #3) ---- */
+
+/* The 50px head strip maps to --color-surface, which in LIGHT is #c2c2c2 —
+ * Δ4/255 from the #c6c6c6 panel, so the strip vanished against the dialog.
+ * Light steps it to the recessed-well token surface-deep (#bababa, Δ12 ≈
+ * dark's Δ16 step) — the same AA-safe mapping form.css's light sweep uses
+ * for input wells (title ink #4e4e4e on #bababa = 4.8:1). The token-level
+ * light retune (surface vs panel Δ4) belongs to the token lane. */
+:root[data-theme="light"] .network-stream__head {
+  background: var(--color-surface-deep);
 }

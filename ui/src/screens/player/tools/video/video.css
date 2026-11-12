@@ -6,16 +6,25 @@
  *                           rx6 #1B1B1B, 59px header · hex input 116×32 rx6
  *                           #090909 + 22×22 rx2 swatch + 68×32 toggle ·
  *                           separators 1px #222222 full card width ·
- *                           sub-dropdown 328×48 rx6 #0E0E0E
+ *                           sub-dropdown 328×48 rx6 #0E0E0E rim + #191919
+ *                           324×44 rx4 well
  *   "Video - Crop.svg"      expanded 360×152 · input pairs 141×33 rx6 #090909
  *                           @ 49px pitch, 8px gutter · link icon 20×10 sw1.5
  *                           #8F8F8F 21px from the card's right edge
  *   "Video - Essential.svg" 8 label-only slider rows @ 76px pitch
- *   "HDR Options.svg"       dropdown 362×48 trigger + 6×44px rows (the shared
- *                           components/menu Dropdown grammar)
+ *   "HDR Options.svg"       dropdown 362×48 trigger (#090909 rim + #191919
+ *                           358×44 rx4 well) + 6×44px rows @ 46px pitch in a
+ *                           362×278 rx6 list — the SHARED Dropdown grammar
+ *                           since w26.i16 (menu.css 44px rows + 2px gap; no
+ *                           scoped row override remains here — h15 #4)
  * The card shell (collapsed pill / expanded panel / header / staged note) is
  * NOT re-declared here: it is the w26.c2 dynamics grammar, imported from
  * ../dynamics/dynamics.css (VideoCard composes the same classes).
+ * w26.i08: Colors separator cadence restored per-gap (h15-P2/g17-P2-1), the
+ * trigger rims/check/shadow re-skinned frame-exact (h15 #5), and the two
+ * tool dropdowns placed against their REAL clip container (h15-P1 —
+ * useDropdownScrollportFlip: defer to the shared flip while the list fits,
+ * escape to fixed when it does not, cap as last resort).
  * Semantic tokens only (stylelint + eslint enforce); the frame hexes above
  * live in comments. Raw px below is structural geometry pinned by the design
  * exports (no token exists — the dynamics.css precedent). */
@@ -60,11 +69,11 @@
   min-width: 0;
 }
 
-/* The slider rows that follow line rows pick up the frames' ≈12px seam
- * (Color Threshold → Saturation); the shared 24px slider-to-slider rhythm
- * covers the rest. */
+/* The slider rows that follow line rows pick up the frames' hex→slider
+ * seam (Color Threshold → Saturation); the shared 24px slider-to-slider
+ * rhythm covers the rest. */
 .video-tool .video-row + .dynamics-row {
-  margin-top: 12px;
+  margin-top: 19.5px; /* frame: hex2 end y246 → Saturation label y265.5 (w26.i08, was 12) */
 }
 
 /* Hex field: 116×32 rx6 recessed well, "#RRGGBB" #6B6B6B ≈15px at a 12px
@@ -96,39 +105,76 @@
   outline-offset: 2px;
 }
 
-/* Color swatch: 22×22 rx2 (frame rx2 — nearest token, radius-hairline) with
- * the frame's white@21% 1.5 inner stroke (inset 0.75). */
+/* Color swatch: 22×22 rx2 (frame rx2 — w26.i08: exact, was the 1px
+ * radius-hairline nearest-token) with the frame's white@21% 1.5 inner
+ * stroke (inset 0.75). */
 .video-hex__swatch {
   position: absolute;
   top: 5px; /* frame: swatch @ (261,147) in the (172,142,116×32) field */
   right: 5px;
   width: 22px;
   height: 22px;
-  border-radius: var(--radius-hairline); /* frame: rx2 */
+  border-radius: 2px; /* frame: "Video - Colors.svg" rx2 */
   box-shadow: inset 0 0 0 0.75px
     color-mix(in srgb, var(--color-content-bright) 21%, transparent);
 }
 
 /* Separators: the frames' sectioning device inside tool cards — 1px #222222
- * (token-exact: surface-raised) across the FULL card width, edge to edge. */
+ * (token-exact: surface-raised) across the FULL card width, edge to edge.
+ * w26.i08 (h15-P2/g17-P2-1): the former uniform 13px/13px cadence compressed
+ * the Colors lower half −8…−26px; each separator now carries the frame's own
+ * per-gap margins (SVG group bboxes, card-relative):
+ *   sep1 @106: hex1→20 / →hex2 19 · sep2 @326: slider end→20.5 / →Negate 19
+ *   sep3 @388: 10/9 · sep4 @440: 10/14 · sep5 @659: 15/→Sepia 22.5 (8.5+14) */
 .video-sep {
   height: 1px;
-  margin: 13px calc(var(--space-inset) * -2); /* bleed out to the card edges */
+  margin: 0 calc(var(--space-inset) * -2); /* bleed out to the card edges */
   background: var(--color-surface-raised); /* frame: #222222 */
 }
 
-.video-tool .dynamics-row + .video-sep {
-  margin-top: 16px; /* frame: Similarity slider end → separator @ y414 */
+/* The Colors frame's header band is 54px (hex row 1 at card+54) while the
+ * shared dynamics header is 59px — pull the first row up the 5px delta so
+ * the whole card reads on the frame's grid. */
+.video-tool--colors .dynamics-tool__rows > :first-child {
+  margin-top: -5px; /* frame: "Video - Colors.svg" header band 54px */
 }
 
-.video-tool .video-sep + .dynamics-row {
-  margin-top: 14px; /* frame: separator @ y747 → Sepia label */
+.video-tool--colors .video-sep--1 {
+  margin: 20px calc(var(--space-inset) * -2) 19px;
+}
+
+.video-tool--colors .video-sep--2 {
+  margin: 20.5px calc(var(--space-inset) * -2) 19px;
+}
+
+.video-tool--colors .video-sep--3 {
+  margin: 10px calc(var(--space-inset) * -2) 9px;
+}
+
+.video-tool--colors .video-sep--4 {
+  margin: 10px calc(var(--space-inset) * -2) 14px;
+}
+
+.video-tool--colors .video-sep--5 {
+  margin: 15px calc(var(--space-inset) * -2) 8.5px;
+}
+
+.video-tool--colors .video-sep + .dynamics-row {
+  margin-top: 14px; /* frame: sep5 → Sepia label (22.5 total with the 8.5 above) */
+}
+
+/* Frame: Sepia track ends y731 on the 755px card — a 24px bottom pad (the
+ * shared dynamics 20px is the audio frames' value). */
+.video-tool--colors .dynamics-tool__body {
+  padding-bottom: 24px;
 }
 
 /* Gradient sub-dropdown: 328×48 (full row width), the shared Dropdown
- * primitive (a19 A9 grammar — trigger #0E0E0E well, chevron-down, r6 list).
- * The frame's label ink is #6B6B6B (row-label ink), one step quieter than
- * the primitive's #8F8F8F trigger default. */
+ * primitive (a19 A9 grammar — chevron-down, r6 list). w26.i08 (h15 #5):
+ * the frame's trigger is a two-layer rim — #0E0E0E 328×48 rx6 outside +
+ * #191919 324×44 rx4 well inside — not the shared #0E0E0E fill + 1px
+ * #404040 border. The frame's label ink is #6B6B6B (row-label ink), one
+ * step quieter than the primitive's #8F8F8F trigger default. */
 .video-subdropdown {
   margin-top: 15px; /* frame: Gradient toggle row → dropdown @ y590 */
 }
@@ -142,11 +188,27 @@
   width: 100%;
 }
 
+/* The sub-dropdown's frame trigger rim lives in the hdr section below,
+ * grouped with the HDR trigger's rim so the two frame-exact re-skins read
+ * as one decision (and stylelint's no-descending-specificity stays green). */
+
 .video-subdropdown .lumen-dropdown__value {
   color: var(--color-content-tertiary); /* frame: #6B6B6B */
 }
 
 /* ------------------------------------------------------------------ crop */
+
+/* The Crop frame's header band is 54px like Colors' (inputs at card+54) and
+ * its card ends 16px under the second row block (152px card) — absorb the
+ * shared 59px header / 20px pad deltas so the 152px frame block lands
+ * frame-exact (inner geometry was already frame-true — h15 8.6). */
+.video-tool--crop .dynamics-tool__rows > :first-child {
+  margin-top: -5px; /* frame: "Video - Crop.svg" header band 54px */
+}
+
+.video-tool--crop .dynamics-tool__body {
+  padding-bottom: 16px; /* frame: 152px card — rows end y136 + 16 */
+}
 
 /* One crop pair row: input + input + link toggle. Frame pitch 49 = 33px
  * inputs + a 16px seam; 8px gutter between the pair. */
@@ -194,7 +256,18 @@
 }
 
 .video-crop-input__control {
-  width: 3ch;
+  /* w26.i08 (vision-caught, frame-measured): the frame sizes the value
+   * column to the DRAWN digits — "Video - Crop.svg" input 1: value "0" at
+   * input+73..80, unit ending input+101, 40px trailing on the 141px input —
+   * while a fixed 3ch reservation eats ~17px and ellipsized the "Bottom"
+   * label the frame fits (label input+13..59). field-sizing: content tracks
+   * the actual value; max-width keeps 3-digit entries from pushing the unit
+   * past the frame's 41px trailing reserve; without field-sizing the
+   * intrinsic width caps at the same 3ch today's grammar reserved. */
+  box-sizing: content-box;
+  min-width: 1ch;
+  max-width: 3ch;
+  field-sizing: content;
   font-family: var(--font-family-time);
   font-variant-numeric: tabular-nums;
   font-size: var(--font-size-section);
@@ -254,7 +327,14 @@
 /* ------------------------------------------------------------------ hdr */
 
 /* The HDR frame is a bare dropdown (no card): full-width trigger, the staged
- * note under it in the shared staged-note styling. */
+ * note under it in the shared staged-note styling.
+ * w26.i08 (h15-P1 + h15 #4/#5): "HDR Options.svg" state=open —
+ *   trigger 362×48 rx6 = #090909 rim + #191919 358×44 rx4 inset well
+ *   (the shared #0E0E0E + 1px #404040 border grammar re-skinned scoped),
+ *   list 362×278 rx6 #191919: 2px inset + 6×44px rows @ 46px pitch,
+ *   selected row #1F1F1F + the frame's Vector 44 check (14×11 sw2 #D37918,
+ *   drawn as a masked vector — not a text glyph), shadow α≈0.35 (the
+ *   --shadow-card token is the nearest: 0.38 vs the shared 0.7). */
 .video-hdr {
   display: flex;
   flex-direction: column;
@@ -267,10 +347,108 @@
   width: 100%;
 }
 
+.video-hdr .lumen-dropdown__trigger {
+  /* w26.i08 (vision-flagged ×3, pixel-verified): the shared trigger is a
+   * <button> — the UA default `text-align: center` centers the flex-grown
+   * value span, while the frame inks the selected value LEFT
+   * ("HDR_Options.png" closed trigger: "Auto" at a 16px inset; open state
+   * likewise). Scoped `start` for both video dropdown triggers; the shared
+   * menu.css grammar should adopt it (i16/Lead — lane log). */
+  text-align: start;
+  background: var(--color-surface-panel); /* frame well: #191919 (358×44 rx4) */
+  border: 2px solid var(--color-surface); /* frame rim: #090909 (362×48 rx6) */
+}
+
+.video-hdr .lumen-dropdown__trigger:hover {
+  background: var(--color-surface-hover);
+}
+
+/* The frame's open trigger keeps its two-layer rim — no selected fill
+ * ("HDR Options.svg" state=open draws the well unchanged). */
+.video-hdr .lumen-dropdown__trigger[aria-expanded="true"] {
+  background: var(--color-surface-panel);
+}
+
+/* The Gradient sub-dropdown's rim ("Video - Colors.svg"): #0E0E0E 328×48
+ * rx6 outside + #191919 324×44 rx4 well inside. The .video-tool prefix
+ * keeps the trigger-tailed selectors' specificity ascending for stylelint;
+ * hover/open re-declarations keep the shared fills alive over the scoped
+ * base (the frame exports only the closed trigger). */
+.video-tool .video-subdropdown .lumen-dropdown__trigger {
+  text-align: start; /* frame: selected value left-aligned — see .video-hdr rule */
+  background: var(--color-surface-panel); /* frame well: #191919 (324×44 rx4) */
+  border: 2px solid var(--color-surface-deep); /* frame rim: #0E0E0E (328×48 rx6) */
+}
+
+.video-tool .video-subdropdown .lumen-dropdown__trigger:hover {
+  background: var(--color-surface-hover);
+}
+
+.video-tool .video-subdropdown .lumen-dropdown__trigger[aria-expanded="true"] {
+  background: var(--color-surface-selected);
+}
+
+.video-hdr .lumen-dropdown__list {
+  box-shadow: var(--shadow-card); /* frame: dy4 blur6.9 α0.35 — nearest token */
+}
+
+/* NO scoped row override: the shared grammar IS the frame's 44px rows @
+ * 46px pitch since w26.i16 (menu.css min-height 44 + 2px list gap — the
+ * h15 #4 48px pitch is retired at the root). This lane's earlier scoped
+ * min-height + 2px margin-top would have DOUBLED the gap on top of
+ * menu.css's (48px pitch again) — removed. */
+
+/* The frame's check: Vector 44 ("HDR Options.svg"), a 14×11 two-stroke
+ * vector at sw2 — drawn as a masked path painted with the accent-icon
+ * token (themeable, unlike a data-URI color); replaces the shared ✓ glyph. */
+.video-hdr .lumen-dropdown__option[aria-selected="true"]::after {
+  content: "";
+  flex: none;
+  width: 14px; /* frame: Vector 44 bbox 14×11 */
+  height: 11px;
+  margin-left: auto;
+  background-color: var(--color-accent-icon); /* frame: #D37918 */
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1.5 16 14'%3E%3Cpath d='M0 5.5L4.667 11L14 0' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
 .video-hdr__staged {
   margin: calc(var(--space-inset) * 2) 0 0;
   font-size: var(--font-size-caption);
   color: var(--color-content-secondary);
+}
+
+/* ------------------------------------------------- dropdown clipping (i08) */
+
+/* w26.i08 (h15-P1/g17-P1-1): the shared Dropdown's flip now measures the
+ * real clipping container (w26.i16 root fix — `clippingBounds` in
+ * Dropdown.tsx), which resolves every state where the list FITS one side
+ * of the clip box (the Gradient sub-dropdown flips up inside the dialog
+ * body at both contract viewports). useDropdownScrollportFlip covers the
+ * remaining case — the HDR rest state, where the 6-row list fits NEITHER
+ * side of the content-sized dialog body:
+ *   • fits a clip side        → no marker, the shared data-direction rules
+ *                              own the placement (no double ownership);
+ *   • fits only the viewport  → data-list-escape + computed inline
+ *                              `position: fixed` coordinates on the list
+ *                              (escapes every overflow clip while staying
+ *                              a DOM child — outside-click/Escape intact);
+ *   • fits nowhere            → the rules below: data-list-direction pins
+ *                              the roomier side and --video-dropdown-cap
+ *                              caps the list so it scrolls internally
+ *                              instead of clipping (w26.g17 grammar).
+ * Root-fix proposal for i16/Lead — docs/waves/w26/logs/w26.i08.md. */
+.video-hdr[data-list-direction] .lumen-dropdown__list,
+.video-subdropdown[data-list-direction] .lumen-dropdown__list {
+  top: calc(100% + var(--space-grid));
+  bottom: auto;
+  max-height: var(--video-dropdown-cap, 320px);
+}
+
+.video-hdr[data-list-direction="up"] .lumen-dropdown__list,
+.video-subdropdown[data-list-direction="up"] .lumen-dropdown__list {
+  top: auto;
+  bottom: calc(100% + var(--space-grid));
 }
 
 /* ---------------------------------------------------------------- motion */

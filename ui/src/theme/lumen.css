@@ -24,6 +24,11 @@
  *   5. focus floor    — orange :focus-visible ring
  *   6. primitives     — .lumen-panel / .lumen-row / .lumen-separator
  *   7. reduced motion — prefers-reduced-motion support
+ *   8. light fixes    — w26.i19 light-mode role corrections (all semantic
+ *                       tokens; the token values themselves live in the
+ *                       generated pipeline, this section only re-points
+ *                       light-mode ROLE wiring that screens map from the
+ *                       dark frames)
  *
  * Screens own their <screen>.css; this sheet carries ONLY base/global
  * styles plus the shared primitives above (contract w26 §4.6).
@@ -180,4 +185,82 @@ h6 {
     transition-duration: 0.01ms;
     scroll-behavior: auto;
   }
+}
+
+/* ------------------------------------------------------------------ */
+
+/* 8. Light-mode role corrections (w26.i19 — theme/token lane)          */
+
+/* ------------------------------------------------------------------ */
+
+/* The light frame (Player - Light.svg) re-roles four surfaces that the
+ * dark-frame mappings get wrong in light. Every rule here is light-only,
+ * semantic-token-driven, and specificity-planned to win over the owning
+ * sheets' dark-frame rules without touching them (rail/sidebar/controls/
+ * appshell are other lanes' files; the COLORS are the token lane's).
+ * Measured ratios in themes/tokens.json descriptions (w26.i19 lane log). */
+
+/* 8a. Focus ring — WCAG 2.2 2.4.11/1.4.11: a focus indicator needs 3:1
+ * against adjacent colors. The accent ring that carries dark mode
+ * (#d37918, 6.18:1 on #090909) measures 1.40:1 on light chrome, 1.81:1
+ * on surface, 1.89:1 on panel — invisible (h05 F1). Light swaps to the
+ * calibrated --color-focus-ring (#824505: ≥3.26:1 against every light
+ * surface). (0,3,0) beats the component focus rules (≤(0,2,1)) and
+ * a11y/focus.css regardless of import order; dark keeps the accent ring. */
+:root[data-theme="light"] :focus-visible {
+  outline-color: var(--color-focus-ring);
+}
+
+/* 8b. Scrub tracks — the light frame's single #DEDEDE rect is the seek
+ * track (1238×28 r6 at (254,1039)); the volume wedge rides the same
+ * value. controls.css maps both to --color-surface (frame-true in dark:
+ * Player.svg Frame 21 #090909); light re-points to surface-raised
+ * (#dedede — 1.71:1 on the chrome bar vs the old 1.29:1, h05 F2/g05
+ * P1-1 residual). Hover keeps slider.css's lift grammar, raised-based. */
+html[data-theme="light"] .lumen-controls__seek .lumen-slider__track,
+html[data-theme="light"] .lumen-controls__volume-slider .lumen-slider__track {
+  background: var(--color-surface-raised); /* frame: Player - Light.svg #DEDEDE */
+}
+
+html[data-theme="light"] .lumen-slider:hover .lumen-controls__seek .lumen-slider__track,
+html[data-theme="light"] .lumen-slider:hover .lumen-controls__volume-slider .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface-raised) 70%, var(--color-surface-hover));
+}
+
+/* 8c. Icon rail — Player - Light.svg renders the rail on chrome #ababab
+ * (the dark frame's Panel #191919 mapping leaves a #c6c6c6 stripe the
+ * light frame doesn't have, ΔRGB 27 — h05 F4). Dark stays Panel. */
+html[data-theme="light"] .app-shell__rail {
+  background: var(--color-surface-chrome); /* frame: Player - Light.svg rail */
+}
+
+/* 8d. Playlists sidebars — the light frame's column renders the base
+ * surface #c2c2c2 (the dark frame's deep #0e0e0e mapping reads #bababa,
+ * ΔRGB 8 vs the frame — h05 F4). TWO carriers: the shell sidebar
+ * (.app-shell__sidebar, Panel tone="deep") and the player's docked
+ * playlists browser (.lumen-player__sidebar, player.css:107 paints
+ * surface-deep) — the relaunch probe found the 8d rule missed the player
+ * column (live pixel (150,400) still #bababa). Dark stays deep. (The
+ * 215→377px width is LAYOUT — logged for the shell lane i20, not fixed
+ * here; player.css pins 283px = 377 × 0.75 for /player.) */
+html[data-theme="light"] .app-shell__sidebar,
+html[data-theme="light"] .lumen-player__sidebar {
+  background: var(--color-surface); /* frame: Player - Light.svg column #c2c2c2 */
+}
+
+/* 8e. App dot — the light frame's topbar cone glyph is the accent-icon
+ * tint #c2711a, not the primary accent (g05-P3-1, h05); dark accent-icon
+ * equals the accent so dark is unchanged by value. */
+html[data-theme="light"] .app-shell__appdot {
+  background: var(--color-accent-icon); /* frame: Player - Light.svg topbar glyph */
+}
+
+/* 8f. Pause pill — the frame's pause state is the #6B6B6B neutral
+ * (play.svg B9). controls.css borrows --color-content-tertiary for it;
+ * with the w26.i19 tertiary now an AA text ink (#474747) the dark
+ * on-accent glyph would drop to 2.25:1, so light re-scopes the pill fill
+ * to the stroke-icon step (#6b6b6b — the frame's own value, glyph 3.74:1).
+ * Dark keeps tertiary #828282 (glyph 6.79:1). */
+html[data-theme="light"] .lumen-controls__play[data-glyph="pause"] {
+  background: var(--color-stroke-icon); /* frame: play.svg pause #6B6B6B */
 }

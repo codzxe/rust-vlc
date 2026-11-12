@@ -4,7 +4,7 @@
 // section (g10-P2-1 — key global.update-checks, frame copy "Check for
 // updates automatically"); this fold renders the About panel only.
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { UI_PACKAGE_NAME, UI_PACKAGE_VERSION } from "../../../build-info";
@@ -44,7 +44,13 @@ describe("AboutArea — About panel shows real package data", () => {
   });
 
   it("is routed at /settings/about via the areas registry (about→global fold)", () => {
+    // w26.i13 (h08 #2): the About fold renders BEHIND the global screen's
+    // Advanced Options disclosure (neither global frame shows an About
+    // section; the in-flow placement displaced the bar 141px) — the redirect
+    // lands on /settings/global, the fold opens with the disclosure.
     renderRouted("about");
+    expect(document.querySelector('[data-settings-area="about"]')).toBeNull(); // collapsed: frame-true column
+    fireEvent.click(screen.getByRole("button", { name: "Advanced Options" }));
     expect(document.querySelector('[data-settings-area="about"]')).not.toBeNull();
     expect(screen.getByTestId("about-version").textContent).toBe(UI_PACKAGE_VERSION);
   });

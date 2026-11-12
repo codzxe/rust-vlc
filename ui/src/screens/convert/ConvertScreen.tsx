@@ -29,10 +29,12 @@
 //     panels' capability-gate precedent) for a conversion lane. Today the
 //     catalog carries NO convert.* / record.* commands (verified against
 //     crates/commands — Lead-owned interface) and product.toml keeps
-//     recording/transcode features off per rule F2, so every enqueued job
-//     transitions queued → blocked with the typed not-exposed reason and
-//     the panel shows the honest unavailable banner. The UI NEVER
-//     simulates progress or completion — a blocked row is the truth;
+//     recording/transcode features off per rule F2. w26.i18 (h19 §4): the
+//     queue lane is now DISABLED until that seam exists — the primary
+//     action renders disabled-from-data with the gate line said ONCE in
+//     the queue card (aria-describedby wires the reason to the action),
+//     instead of letting users perform the enqueue→blocked ritual. The UI
+//     NEVER simulates progress or completion;
 //   * cancel drives the same lifecycle the engine's JobHandle.cancel
 //     would (queued/running jobs only; a cancelled running job keeps its
 //     last progress — the honest partial-output shape).
@@ -49,6 +51,7 @@ import { useClient } from "../../client/ClientProvider";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b13";
+import { keys as i18Keys } from "../../i18n/keys/w26.i18";
 import type { CommandListing } from "../../generated/commands";
 import { CONVERT_TARGETS, convertTargetDef, isConvertTargetId } from "./convertTargets";
 import type { ConvertTargetId } from "./convertTargets";
@@ -59,7 +62,6 @@ import {
   convertQueueReduce,
   formatProgressLabel,
   laneCommandsOf,
-  nextJobId,
   sourceBasename,
 } from "./convertQueue";
 import type { ConvertJob, ConvertJobState } from "./convertQueue";
@@ -70,8 +72,8 @@ import "./convert.css";
 // ---------------------------------------------------------------------------
 
 /** Keys owned by this lane (registered into messages.ts by the Lead). */
-type LaneKey = keyof typeof laneKeys;
-const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+type LaneKey = keyof typeof laneKeys | keyof typeof i18Keys;
+const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...i18Keys };
 
 /**
  * useConvertMsg — `useMsg` extended with this lane's pre-registration keys.
@@ -141,8 +143,18 @@ export function ConvertScreen() {
 
   const laneAvailable = lane.commands.length > 0;
   const targetDef = convertTargetDef(target);
+  // w26.i18 (h19 §4): the queue lane is disabled-from-data once the probe
+  // settles on an absent lane — the enqueue→blocked ritual is gone; the
+  // gate line in the queue card (id convert-lane-note) says it once and
+  // aria-describedby wires it to the action. While the probe is in flight
+  // the action stays as-is (no verdict yet — never presumptuous).
+  const laneGate = lane.resolved && !laneAvailable;
 
   const startJob = (): void => {
+    // The capability gate: no conversion lane → no job, no ritual. The
+    // engine-binding seam below is the single branch that changes when
+    // the Lead lands catalog commands.
+    if (laneGate) return;
     const path = sourcePath.trim();
     if (path.length === 0) {
       setFormError(m("convert.source.required"));
@@ -155,28 +167,17 @@ export function ConvertScreen() {
     setFormError(null);
     setSourcePath("");
     setQueue((current) => {
-      const id = nextJobId(current);
-      const enqueued = convertQueueReduce(current, {
+      // THE ENGINE-BINDING SEAM (module docs). When the Lead lands catalog
+      // commands, this is the single branch that changes: dispatch the
+      // start request and drive progress/complete/fail/cancel from the
+      // engine's lifecycle events. Until then the lane gate above keeps
+      // this branch unreachable — no fabricated request is ever sent (no
+      // convert.* command id exists).
+      return convertQueueReduce(current, {
         kind: "enqueue",
         sourcePath: path,
         target,
       });
-      // THE ENGINE-BINDING SEAM (module docs). The catalog exposes no
-      // conversion lane today, so the job is blocked with the typed
-      // not-exposed reason — a local refusal with the same meaning as the
-      // wire's `feature-not-exposed` error code, never a fabricated
-      // request (no convert.* command id exists to send). When the Lead
-      // lands catalog commands, this is the single branch that changes:
-      // dispatch the start request and drive progress/complete/fail/cancel
-      // from the engine's lifecycle events.
-      if (!laneAvailable) {
-        return convertQueueReduce(enqueued, {
-          kind: "block",
-          id,
-          reason: m("convert.job.blocked.reason"),
-        });
-      }
-      return enqueued;
     });
   };
 
@@ -260,6 +261,11 @@ export function ConvertScreen() {
           </span>
           <div className="convert__target-control">
             <Dropdown
+              /* w26.i16 (g20-P3-4, two waves open): the target picker opens
+                 UP per Setting Preset.svg (chevron-up open state); the
+                 preference yields to the measured flip when above can't
+                 fit (unit-tested in Dropdown.test.tsx). */
+              preferredDirection="up"
               options={CONVERT_TARGETS.map((def) => ({
                 value: def.id,
                 labelKey: def.labelKey,
@@ -279,7 +285,9 @@ export function ConvertScreen() {
         </p>
 
         {/* Footer — Open network stream.svg grammar: actions right-aligned,
-         * the primary submit first, 100px r6 (Button primitive). */}
+         * the primary submit first, 100px r6 (Button primitive). w26.i18:
+         * disabled-from-data while no conversion lane exists (the gate
+         * line below is its aria-describedby reason — said once). */}
         <div className="convert__actions">
           <Button
             variant="default"
@@ -288,7 +296,16 @@ export function ConvertScreen() {
           >
             {m("convert.back")}
           </Button>
-          <Button type="submit" variant="primary" data-testid="convert-start">
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={laneGate}
+            aria-describedby={laneGate ? "convert-lane-note" : undefined}
+            data-wiring-stub={
+              laneGate ? "conversion lane — no catalog command exposed (card 7.E3)" : undefined
+            }
+            data-testid="convert-start"
+          >
             {m("convert.start")}
           </Button>
         </div>
@@ -311,8 +328,8 @@ export function ConvertScreen() {
         </SectionHeader>
         <Card className="convert__queue" data-testid="convert-queue">
           {lane.resolved && !laneAvailable ? (
-            <p className="convert__lane-note" data-testid="convert-lane-note">
-              {m("convert.lane.unavailable")}
+            <p className="convert__lane-note" id="convert-lane-note" data-testid="convert-lane-note">
+              {m("convert.lane.gate")}
             </p>
           ) : null}
           {queue.length === 0 ? (

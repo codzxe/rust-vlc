@@ -22,6 +22,9 @@
 // tabular timecodes and the list in NATURAL order (naturalSort.ts —
 // "1, 2, 10", never lexical). The Add action rides the Button
 // primitive's "tinted" dialog-confirm variant (the frames' Save).
+// FOCUS (w26.i09, h19 P4 pattern): body before header in the DOM (the
+// header paints first via `order: -1`) so the surface trap's initial
+// focus lands on the label input, not the ✕.
 //
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map); central keys are the recorded
@@ -171,21 +174,8 @@ export function BookmarksDialog({
       closeOnOutsideClick
     >
       <div className="player-dialog player-dialog--bookmarks">
-        <div className="player-dialog__header">
-          <h2 id={titleId} className="player-dialog__title">
-            {BOOKMARKS_COPY.title}
-          </h2>
-          <IconButton
-            className="player-dialog__close"
-            label={BOOKMARKS_COPY.close}
-            title={BOOKMARKS_COPY.close}
-            size="sm"
-            onClick={onClose}
-          >
-            <CloseGlyph size={16} />
-          </IconButton>
-        </div>
-
+        {/* Body first in the DOM (focus order — see module header); the
+         * header paints above it via `order: -1`. */}
         <div className="player-dialog__body">
           <p className="player-dialog__subtitle">{BOOKMARKS_COPY.subtitle}</p>
 
@@ -240,6 +230,20 @@ export function BookmarksDialog({
               })}
             </ul>
           )}
+        </div>
+        <div className="player-dialog__header">
+          <h2 id={titleId} className="player-dialog__title">
+            {BOOKMARKS_COPY.title}
+          </h2>
+          <IconButton
+            className="player-dialog__close"
+            label={BOOKMARKS_COPY.close}
+            title={BOOKMARKS_COPY.close}
+            size="sm"
+            onClick={onClose}
+          >
+            <CloseGlyph size={16} />
+          </IconButton>
         </div>
       </div>
     </Dialog>

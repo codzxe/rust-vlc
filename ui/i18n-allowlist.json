@@ -38,5 +38,15 @@
     "text": "%",
     "reason": "Percent unit suffix on the numeric master-volume badge in Effects & Tools (wave-8, issue #33) — the number is engine data (audio.get-volume), the glyph is a unit not copy",
     "owner": "W18-LL"
+  },
+  {
+    "text": "00:02:10",
+    "reason": "Player - customize*.svg band timecode (Current Time.svg's exact read, frame-pinned): decorative aria-hidden preview chrome inside the customize edit band — the real control bar renders the live localized timecodes",
+    "owner": "w26.i05"
+  },
+  {
+    "text": "00:25:40",
+    "reason": "Player - customize*.svg band timecode (Duration.svg's exact read, frame-pinned): decorative aria-hidden preview chrome inside the customize edit band — the real control bar renders the live localized timecodes",
+    "owner": "w26.i05"
   }
 ]

@@ -1,0 +1,25 @@
+/* Settings → Audio area (w26.i14) — area-scoped additions beyond the shared
+ * row grammar (settings.css, f03's sheet). Semantic tokens only (§4.4); raw
+ * px, where any, are frame-measured and marked `frame:`.
+ *
+ * h10 close-out: the Output device row's not-ready presentation. The
+ * full-strength inert trigger comes from the shared [data-staged] rule in
+ * settings.css (the effects-area precedent); the ⓘ affordance is the shared
+ * SettingInfoDot grammar (SettingField.tsx + setting-field.css — the frame's
+ * r7.5 stroke-#404040 circle). This sheet carries only the reason caption. */
+
+/* The honest reason caption (w26.i14, h10 defect #5) — a quiet second line
+ * INSIDE the row's lead column: visible to every user (never a title-only
+ * affordance) with ZERO layout footprint. The wrapping lead puts it on its
+ * own line; the -2px margin cancels the 4px line gap so the two-line lead
+ * (~35px) stays inside the row's 36px min-height — the row pitch never
+ * grows. The old in-flow badge BELOW the row injected +22px no frame
+ * carries (Speaker setup y224 vs frame 202, Effects header +39). */
+.settings-area-audio-reason {
+  flex: 1 0 100%; /* own line inside the wrapping .settings-field__lead */
+  margin: -2px 0 0;
+  font-size: var(--font-size-caption);
+  line-height: 13px;
+  color: var(--color-content-tertiary);
+  overflow-wrap: anywhere;
+}

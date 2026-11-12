@@ -1,6 +1,6 @@
 /* Media info panel + /media-info route — W26 Figma language (w26.b13
- * rebuild; no direct frame — CONTRACT §3). Composition from the design
- * language (§2) + nearest grammars:
+ * rebuild, w26.i18 fixes; no direct frame — CONTRACT §3). Composition from
+ * the design language (§2) + nearest grammars:
  *   * Settings - *.svg — section headers (15px-class semibold, the
  *     SectionHeader primitive) and the label-left / value-right row
  *     grammar with the 1px #404040 hairline rhythm;
@@ -16,6 +16,14 @@
  * Semantic tokens only (§3.2). The Solstice taped-note headers, sun
  * ornament, chip language and calm-backdrop veil are gone (W25 §0). */
 
+/* w26.i18 (h19 §3/§4/§5 — the 16px drift): the SectionHeader primitive
+ * ships --font-size-label (16px) where its own doc + §2's band pin the
+ * 15px class. Usage-side pin until the surface lane retunes the primitive:
+ * the section token (--font-size-section, 15px) is the §2-legal step. */
+.lumen-mi .lumen-section-header__title {
+  font-size: var(--font-size-section);
+}
+
 .lumen-mi {
   display: flex;
   flex-direction: column;
@@ -25,11 +33,12 @@
 }
 
 /* Panel title — the side-region header scale (quiet, one notch under the
- * route's page head). */
+ * route's page head). w26.i18: the 15px section class (§2's 10–15px band),
+ * not the 16px label token. */
 .lumen-mi__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-section);
   font-weight: var(--font-weight-semibold);
   color: var(--color-content-bright);
 }
@@ -129,8 +138,16 @@
   color: var(--color-content-secondary);
 }
 
-/* The empty state rides the ListEmpty primitive (quiet, no artwork); no
- * screen-local skin needed beyond the shared grammar. */
+/* w26.i18 (h19 §5): the empty + not-exposed states ride the same r14 Card
+ * grammar as the populated sections — one quiet breathing rim around the
+ * ListEmpty / note (the discovery panel's inset precedent). */
+.lumen-mi__state-card {
+  padding: calc(var(--space-inset) * 1.5);
+}
+
+/* The empty state rides the ListEmpty primitive (quiet, no artwork) with
+ * the one real action — the primary "Open media" (Button primitive, the
+ * player empty-hero CTA grammar). */
 
 /* ------------------------------------------------- /media-info route */
 
@@ -151,7 +168,7 @@
 .lumen-mi-screen__title {
   margin: 0;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-section); /* w26.i18: the 15px working-screen head (§2 band, h19 drift fix) */
   font-weight: var(--font-weight-semibold);
   color: var(--color-content-bright);
 }
@@ -160,4 +177,15 @@
 .lumen-mi-screen__panel {
   flex: 1;
   min-height: 0;
+}
+
+/* ------------------------------------------------- light-mode card step
+ * w26.i18 (h19 §5, cross-cutting Δ4): light surface-panel #c6c6c6 is
+ * Δ4/255 on the #c2c2c2 surface (dark's card step is Δ16) — the cards
+ * survived only via their #acacac border. Usage-side step to the raised
+ * surface (light elevation runs lighter, Player - Light.svg ramp); the
+ * pending panel-step token (theme lane i19) wins the day it lands. */
+:root[data-theme="light"] .lumen-mi__section,
+:root[data-theme="light"] .lumen-mi__state-card {
+  background-color: var(--color-surface-panel-raised, var(--color-surface-raised));
 }

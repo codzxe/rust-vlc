@@ -21,6 +21,10 @@
 // control-right with a tabular mono input, and the footer grammar — quiet
 // Cancel left, TINTED confirm right (Button primitive variant "tinted":
 // #371F06 fill + orange ink, the frames' Save).
+// FOCUS (w26.i09, h19 P4 pattern): body before header in the DOM (the
+// header paints first via `order: -1`) so the surface trap's initial
+// focus lands on the Time input — Enter on a fresh dialog submits the
+// seek instead of dismissing the window.
 //
 // COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
 // i18n agent (wave ownership map), so central keys are the recorded
@@ -98,23 +102,8 @@ export function GotoTimeDialog({
       closeOnOutsideClick
     >
       <div className="player-dialog player-dialog--goto">
-        <div className="player-dialog__header">
-          <h2 id={titleId} className="player-dialog__title">
-            {GOTO_COPY.title}
-          </h2>
-          {/* Figma dialog grammar: the title bar carries the quiet ✕
-              (Escape and scrim click also close — the Dialog owns both). */}
-          <IconButton
-            className="player-dialog__close"
-            label={GOTO_COPY.close}
-            title={GOTO_COPY.close}
-            size="sm"
-            onClick={onClose}
-          >
-            <CloseGlyph size={16} />
-          </IconButton>
-        </div>
-
+        {/* Body first in the DOM (focus order — see module header); the
+         * header paints above it via `order: -1`. */}
         <div className="player-dialog__body">
           <p className="player-dialog__subtitle">{GOTO_COPY.subtitle}</p>
 
@@ -140,6 +129,22 @@ export function GotoTimeDialog({
             {formatSeekTime(state.position)} /{" "}
             {state.durationSeconds === null ? "--:--" : formatSeekTime(state.durationSeconds)}
           </p>
+        </div>
+        <div className="player-dialog__header">
+          <h2 id={titleId} className="player-dialog__title">
+            {GOTO_COPY.title}
+          </h2>
+          {/* Figma dialog grammar: the title bar carries the quiet ✕
+              (Escape and scrim click also close — the Dialog owns both). */}
+          <IconButton
+            className="player-dialog__close"
+            label={GOTO_COPY.close}
+            title={GOTO_COPY.close}
+            size="sm"
+            onClick={onClose}
+          >
+            <CloseGlyph size={16} />
+          </IconButton>
         </div>
 
         {/* Footer grammar (frame: quiet Cancel left, tinted confirm right). */}

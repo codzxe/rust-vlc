@@ -42,6 +42,30 @@ describe("ToolsDialog — shell chrome + the tab pair", () => {
     expect(video).toHaveAttribute("aria-selected", "false");
   });
 
+  it("initial focus lands on the selected tab, never the header ✕ (h19 P4)", () => {
+    // w26.i09: the body renders before the header in the DOM (the header
+    // paints first via `order: -1`), so the surface trap's first-focusable
+    // policy lands on the tab pair — a fresh dialog never opens with a
+    // focus-ringed ✕, and Enter acts on content instead of dismissing.
+    renderDialog();
+    expect(screen.getByRole("tab", { name: "Audio" })).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: toolsKeys["player.tools.close"] }),
+    ).not.toHaveFocus();
+  });
+
+  it("the ✕ stays keyboard-reachable and Tab wraps inside the trap", () => {
+    // w26.i09: DOM-last header → the ✕ is the LAST focusable; Shift+Tab
+    // from the first tab wraps to it, Tab wraps back (the surface trap).
+    renderDialog();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Tab", shiftKey: true });
+    expect(
+      screen.getByRole("button", { name: toolsKeys["player.tools.close"] }),
+    ).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Tab" });
+    expect(screen.getByRole("tab", { name: "Audio" })).toHaveFocus();
+  });
+
   it("Escape closes through the shared Dialog focus trap (shell chrome)", () => {
     const { onClose } = renderDialog();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });

@@ -75,6 +75,20 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
     // standard footer action row (Cancel left, Open right)
     expect(document.querySelector(".network-stream__actions")).not.toBeNull();
     expect(screen.getByTestId("network-stream-card")).not.toBeNull();
+    // w26.i17 fix hooks: the section rule + the re-skinned Cancel exist.
+    expect(document.querySelector(".network-stream__rule")).not.toBeNull();
+    expect(document.querySelector(".network-stream__cancel")).not.toBeNull();
+  });
+
+  it("initial focus sits on the URL field, never the ✕ glyph (w26.i17, h19 shame #4)", () => {
+    renderScreen();
+    const dialog = screen.getByRole("dialog", { name: "Open network stream" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    // The trap's first-focusable is the ✕ button; the screen moves initial
+    // focus to the FIRST FIELD so no ring paints on the close glyph at rest
+    // and Enter at rest can never dismiss the dialog.
+    expect(document.activeElement).toBe(screen.getByLabelText("Network URL"));
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Close" }));
   });
 
   it("Escape closes the dialog and exits to /player without opening anything", () => {

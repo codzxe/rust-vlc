@@ -76,8 +76,18 @@
 }
 
 /* Chevron direction encodes the state (frame: › collapsed / ∨ expanded —
- * Vector 27 family via the shared Icon glyph). Frame ink #6B6B6B. */
+ * Vector 27 family via the shared Icon glyph). Frame ink #6B6B6B.
+ *
+ * w26.i07 (h14 defect 3, g16-P2-1): the glyph renders at Icon size 24
+ * (DynamicsCard) — stroke-inclusive 6.5×11.5 / 11.5×6.5 at sw 1.5, the
+ * frame's Vector 27 / Vector 27_2 measure ("Audio - Compressor
+ * Settings.svg": › M356 39L361 44L356 49, ∨ M353 110L358 115L363 110, both
+ * sw1.5 #6B6B6B) — and the −7.5px pull lands the stroke ~18.25px off the
+ * card's right edge (frame: stroke right x361.75 on the x20–380 card),
+ * replacing the ~30%-undersized 16px rendering that sat 4–5px shy. */
 .dynamics-tool__chevron {
+  flex: none;
+  margin-right: -7.5px; /* frame: stroke 18.25px from the card edge */
   color: var(--color-content-tertiary);
 }
 
@@ -182,18 +192,36 @@
   top: calc(50% - 12px); /* 24px thumb centered on the track centerline */
   width: 8px; /* frame: 8×24 */
   height: 24px;
-  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+
+  /* w26.i07 (h14 defect 2, g16-P2-3): the thumb's RIGHT edge sits flush
+   * with the fill's right edge — every reference frame paints them flush
+   * 16/16 rows ("Audio - Compressor Settings.svg" row 1: fill x38 w53 →
+   * thumb x83 w8, both end at x91; likewise "Audio - Spatializer
+   * Settings.svg" fill 240 → thumb 270; "Audio - Stereo Widener.svg" fill
+   * 89 → thumb 119). Fill ends at 2px + (100% - 4px)·p; an 8px thumb flush
+   * there needs its left edge 6px further left than (100% - 8px)·p placed
+   * it — the wave-f L8 formula the Slider primitive and .lumen-eq-slider
+   * already carry, applied to this tool scope (which used to override the
+   * primitive with the old overhanging travel). */
+  left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   background: var(--color-accent-strong); /* frame: #AB6314 */
   border-radius: var(--radius-inset); /* frame: rx4 */
 }
 
 /* ------------------------------------------------------------------ ticks */
 
-/* Degree ticks (spatializer + widener frames): 6px marks on the track
- * centerline, drawn OVER the fill with the thumb over its own tick (frame
- * z-order) — hence z-index above the slider, with the covered tick hidden
- * by ToolSliderRow. Tick ink: frame #1A1611 has no token yet (analysis §D4
- * ask) — nearest semantic surface-muted #151515, Δ≤5/255 per channel. */
+/* Degree ticks (spatializer + widener frames): sw2 round-capped 6px marks
+ * on the track centerline, drawn OVER the fill with the thumb over its own
+ * tick (frame z-order) — hence z-index above the slider, with the covered
+ * tick hidden by ToolSliderRow.
+ *
+ * w26.i07 (h14 "near-invisible ticks", g16-P3-2): the frames stroke every
+ * mark sw2 with round caps ("Audio - Spatializer Settings.svg" Vector 48–62
+ * families, e.g. "M67.45 187V193" sw2 round #1A1611) — a painted 2×8 pill,
+ * not the 2×6 bar shipped before. Ink: the frame's warm dark #1A1611 has no
+ * semantic token; composing the two nearest tokens (surface-muted #151515 +
+ * accent-tinted #371F06) lands ≈#1B1712 — Δ≤1/255 per channel — instead of
+ * the previous neutral #151515, five points fainter than the frame. */
 .dynamics-slider__ticks {
   position: absolute;
   inset: 0;
@@ -203,11 +231,17 @@
 
 .dynamics-slider__tick {
   position: absolute;
-  top: calc(50% - 3px); /* 6px mark centered on the track centerline */
-  width: 2px; /* frame: 6px line, sw2, round caps */
-  height: 6px;
-  background: var(--color-surface-muted);
-  border-radius: var(--radius-hairline); /* round-cap pill on a 2×6 mark */
+  top: calc(50% - 4px); /* 8px mark centered on the track centerline */
+  width: 2px; /* frame: 6px line, sw2, round caps → 2×8 painted */
+  height: 8px;
+
+  /* frame: #1A1611 warm dark (Δ≤1/255) */
+  background: color-mix(
+    in srgb,
+    var(--color-surface-muted) 83%,
+    var(--color-accent-tinted)
+  );
+  border-radius: var(--radius-hairline); /* round-cap pill on a 2×8 mark */
 }
 
 .dynamics-slider__tick--covered {
@@ -220,4 +254,47 @@
   .dynamics-tool__toggle {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------- light theme (i07)
+ *
+ * w26.i07 (h14 defect 1, g16-P2-2): the re-stepped light ramp leaves the
+ * recessed-well grammar at Δ4/255 (surface #c2c2c2 on surface-panel
+ * #c6c6c6) where the frames carry a Δ16 inversion (dark well #090909 on
+ * card #1B1B1B). Usage-side remap with semantic tokens (no hex):
+ *   * wells / collapsed pills → surface-deep (#bababa in light — the
+ *     ramp's designated recessed step, Δ12 on the light panel; the token
+ *     lane's i19 light work owns the ramp itself);
+ *   * quiet ink KEEPS its role — content-tertiary, which i19/h20 F1
+ *     repinned to #474747, measuring 5.44:1 on the light panel and
+ *     4.79:1 on the deep well (≥4.5:1 AA, 15px text). No light ink
+ *     override: the quiet band stays tertiary in BOTH themes, exactly
+ *     the pairing the repin exists for. Dark keeps the frame-pinned
+ *     mappings (#828282, documented Δ23 from the frame's #6B6B6B — the
+ *     still-open content-quiet token ask, EQ lane g15-P2-1 alike). */
+
+:root[data-theme="light"] .dynamics-tool__toggle {
+  background: var(--color-surface-deep); /* recessed collapsed card */
+}
+
+/* The open header stays transparent inside the panel card (mirrors the
+ * dark-scope reset above — the light rule must not re-fill it). */
+:root[data-theme="light"] .dynamics-tool--open .dynamics-tool__toggle {
+  background: transparent;
+}
+
+/* Hover band keeps its step (the light base rule out-specifies the shared
+ * :hover rule, so it is restated for light). */
+:root[data-theme="light"] .dynamics-tool__toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Track well: recessed in light (Δ12 on the card) instead of Δ4. */
+:root[data-theme="light"] .dynamics-slider .lumen-slider__track {
+  background: var(--color-surface-deep);
+}
+
+/* Hover lift keeps the seekbar/volume grammar (deep well + hover mix). */
+:root[data-theme="light"] .dynamics-slider:hover .lumen-slider__track {
+  background: color-mix(in srgb, var(--color-surface-deep) 70%, var(--color-surface-hover));
 }
