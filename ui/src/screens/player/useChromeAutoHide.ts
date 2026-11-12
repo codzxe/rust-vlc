@@ -23,6 +23,20 @@
 // prefers-reduced-motion is honored in player.css (fade disabled there); the
 // state machine is identical either way.
 //
+// w26.gfix-F (g06 P1-2): the lock is now fed from TWO sources. The call
+// site's `locked` prop keeps carrying the host's open-panels truth, and the
+// hook itself observes the document for OPEN OVERLAYS — any open menu
+// (`[role="menu"]`: the canvas context menu, the ControlBar app menu, the
+// playlist context menus) or modal dialog (`[role="dialog"]`: the player
+// dialogs + the shell's open-media dialog) locks the chrome visible. Menus
+// and dialogs are conditionally rendered by their owners, so "present in
+// the DOM" === "open" — no ownership coupling, no API change (the writers
+// live in other lanes: ControlBar.tsx, PlayerScreen.tsx, components/menu).
+// A MutationObserver re-checks on every DOM change; the check is one
+// querySelector. While locked: no idle timer, no fade — the earlier state
+// (idle fade firing under an open menu, stranding focus inside a faded
+// panel) is gone.
+//
 // LEGACY STANDALONE SEMANTICS (no PlayerControlsProvider above — isolated
 // hosts/tests): `enabled` gates arming exactly as before (doc 08 §4.3's
 // fullscreen scoping), `locked` locks as passed. The player composition is
@@ -34,6 +48,16 @@ import { usePlayerControlsOrNull } from "./context";
 /** [PROPOSAL] idle delay before chrome hides (doc 08 §4.3 leaves timing open). */
 export const CHROME_AUTO_HIDE_DELAY_MS = 3000;
 
+/**
+ * w26.gfix-F (g06 P1-2): an open overlay anywhere in the document — an open
+ * menu (`[role="menu"]`, conditionally rendered by its owner: present in
+ * the DOM === open) or a modal dialog (`[role="dialog"]`, `Dialog` renders
+ * null while closed). While one is present the chrome locks visible: an
+ * idle fade firing under an open overlay strands keyboard focus inside a
+ * faded panel (doc 08 §4.5).
+ */
+const OPEN_OVERLAY_SELECTOR = '[role="menu"], [role="dialog"]';
+
 export type ChromeVisibility = "visible" | "hidden" | "locked";
 
 export interface ChromeAutoHideOptions {
@@ -44,10 +68,10 @@ export interface ChromeAutoHideOptions {
    */
   readonly enabled: boolean;
   /**
-   * A menu/panel is open — chrome locks visible. Inside the player
-   * composition the flag is honored only while the engine reports media
-   * open (the screen's legacy call also folded the retired no-media gate
-   * into this flag — see the compensation note in the hook body).
+   * A menu/panel is open — chrome locks visible. The call site's open-panels
+   * truth (doc 08 §4.5), honored directly. Orthogonally, the hook itself
+   * locks while any open overlay is present in the document (open menu /
+   * modal dialog — w26.gfix-F, g06 P1-2).
    */
   readonly locked: boolean;
   /** Idle delay; defaults to CHROME_AUTO_HIDE_DELAY_MS. */
@@ -72,9 +96,27 @@ export function useChromeAutoHide({
   const inPlayerComposition = controls !== null;
 
   const armed = inPlayerComposition || enabled;
-  // w26.f10 cleanup: the call site passes the panels/menus lock directly
-  // (doc 08 §4.5); the retired empty-state compensation is gone.
-  const lockedEffective = locked;
+
+  // w26.gfix-F (g06 P1-2): overlay lock — the DOM-truth half of the lock
+  // seam (the call site's `locked` prop is the other half). One query per
+  // DOM mutation; the same value short-circuits setState.
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
+      return;
+    }
+    const check = (): void => {
+      setOverlayOpen(document.querySelector(OPEN_OVERLAY_SELECTOR) !== null);
+    };
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  // w26.f10 cleanup: the call site passes the panels lock directly (doc 08
+  // §4.5); the retired empty-state compensation is gone.
+  const lockedEffective = locked || overlayOpen;
 
   const [hidden, setHidden] = useState(false);
   const show = useCallback(() => {
