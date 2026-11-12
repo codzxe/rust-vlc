@@ -3,17 +3,17 @@
 //     real operations (WAV record / MP4-remux) with their honest notes;
 //   * the screen probes the command catalog (`system.list-commands`) for a
 //     conversion lane; with the REAL namespaces (no convert.* / record.*
-//     commands — today's truth) the honest unavailable banner renders;
-//   * a Start enqueues a job that transitions to `blocked` with the typed
-//     not-exposed reason — NEVER a simulated progress bar, and no request
-//     is fabricated beyond the catalog probe;
+//     commands — today's truth) the honest gate line renders ONCE and the
+//     primary action is disabled-from-data (w26.i18, h19 §4 — the
+//     enqueue→blocked ritual is gone: no job, no fabricated request);
 //   * the Browse action is the honest disabled-from-data stub (no native
 //     picker command exists — the extensions.tsx precedent);
-//   * the queue bound refuses the 9th job; terminal rows show no cancel;
-//   * a transport that lists convert.* commands (the future lane) gets a
-//     queued job and no banner — the engine-binding seam's other branch.
-// The full lifecycle arithmetic (start/progress/complete/fail/cancel) is
-// pinned by convertQueue.test.ts against the pure reducer.
+//   * a transport that lists convert.* commands (the future lane) gets an
+//     ENABLED action, queued jobs and the queue-bound refusal — the
+//     engine-binding seam's other branch;
+//   * terminal rows show no cancel.
+// The full lifecycle arithmetic (start/progress/complete/fail/cancel/block)
+// is pinned by convertQueue.test.ts against the pure reducer.
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -160,38 +160,40 @@ describe("ConvertScreen (/convert)", () => {
     );
   });
 
-  it("refuses an empty source with the honest error and enqueues nothing", () => {
+  it("w26.i18 (h19 §4): with no conversion lane the primary action is disabled-from-data and no job can be enqueued — no ritual", async () => {
     const { transport } = renderScreen();
+    await waitFor(() => expect(screen.getByTestId("convert-lane-note")).toBeInTheDocument());
+    const start = screen.getByRole("button", { name: "Convert" });
+    // disabled-from-data, the gate line wired as its accessible reason,
+    // and the honest wiring-stub marker (the Browse precedent)
+    expect(start).toBeDisabled();
+    expect(start.getAttribute("aria-describedby")).toContain("convert-lane-note");
+    expect(start.getAttribute("data-wiring-stub")).toMatch(/conversion lane/i);
+    // the gate says it once: no second apology in the form, no form error
+    expect(screen.queryByText(/Enter a source file path/)).toBeNull();
+    // a filled source + a direct form submit STILL enqueues nothing — the
+    // ritual is impossible, and no request is fabricated beyond the probe
+    fireEvent.change(screen.getByLabelText("Source file"), {
+      target: { value: "/media/demo/bunny.mkv" },
+    });
+    fireEvent.submit(screen.getByLabelText("Source file").closest("form")!);
+    expect(screen.getByText("No conversions queued")).toBeInTheDocument();
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(transport.sent.map((r) => r.cmd)).toEqual(["system.list-commands"]);
+  });
+
+  it("refuses an empty source with the honest error and enqueues nothing (lane present)", async () => {
+    const { transport } = renderScreen([...REAL_TODAY, "convert.start"]);
+    await waitFor(() => expect(screen.queryByTestId("convert-lane-note")).toBeNull());
     fireEvent.submit(screen.getByLabelText("Source file").closest("form")!);
     expect(screen.getByText("Enter a source file path")).toBeInTheDocument();
     expect(screen.getByText("No conversions queued")).toBeInTheDocument();
     expect(transport.sent.filter((r) => r.cmd !== "system.list-commands")).toHaveLength(0);
   });
 
-  it("enqueues a job that is BLOCKED with the typed reason — never a fabricated request", async () => {
-    const { transport } = renderScreen();
-    fireEvent.change(screen.getByLabelText("Source file"), {
-      target: { value: "/media/demo/bunny.mkv" },
-    });
-    const list = openTargets();
-    fireEvent.click(within(list).getByRole("option", { name: "Remux to MP4" }));
-    fireEvent.submit(screen.getByLabelText("Source file").closest("form")!);
-    // the row: name, target, blocked status, honest reason
-    expect(screen.getByText("bunny.mkv")).toBeInTheDocument();
-    expect(screen.getByTestId("convert-job-status-1").textContent).toBe("Unavailable in this build");
-    expect(screen.getByTestId("convert-job-detail-1").textContent).toMatch(
-      /not exposed by this build/i,
-    );
-    // terminal row → NO cancel affordance
-    expect(screen.queryByTestId("convert-job-cancel-1")).toBeNull();
-    // the only wire traffic is the catalog probe — no invented command id
-    expect(transport.sent.map((r) => r.cmd)).toEqual(["system.list-commands"]);
-    // the form cleared for the next job
-    expect((screen.getByLabelText("Source file") as HTMLInputElement).value).toBe("");
-  });
-
-  it("refuses the 9th job with the honest bound error", () => {
-    renderScreen();
+  it("refuses the 9th job with the honest bound error (lane present)", async () => {
+    renderScreen([...REAL_TODAY, "convert.start"]);
+    await waitFor(() => expect(screen.queryByTestId("convert-lane-note")).toBeNull());
     const form = screen.getByLabelText("Source file").closest("form")!;
     for (let i = 1; i <= 8; i += 1) {
       fireEvent.change(screen.getByLabelText("Source file"), {
@@ -211,6 +213,8 @@ describe("ConvertScreen (/convert)", () => {
   it("a transport that lists convert.* commands gets a QUEUED job and no banner (the seam's other branch)", async () => {
     renderScreen([...REAL_TODAY, "convert.start"]);
     await waitFor(() => expect(screen.queryByTestId("convert-lane-note")).toBeNull());
+    // the action is enabled again — the capability gate follows the probe
+    expect(screen.getByRole("button", { name: "Convert" })).toBeEnabled();
     fireEvent.change(screen.getByLabelText("Source file"), {
       target: { value: "/media/demo/bunny.mkv" },
     });
@@ -220,6 +224,8 @@ describe("ConvertScreen (/convert)", () => {
     expect(screen.getByTestId("convert-job-cancel-1")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("convert-job-cancel-1"));
     expect(screen.getByTestId("convert-job-status-1").textContent).toBe("Cancelled");
+    // terminal row → NO cancel affordance
+    expect(screen.queryByTestId("convert-job-cancel-1")).toBeNull();
   });
 
   it("Back to player exits to /player without opening anything", () => {
