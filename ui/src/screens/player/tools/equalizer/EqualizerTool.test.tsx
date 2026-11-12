@@ -106,6 +106,43 @@ describe("EqualizerTool — preset panel (frame: EQ presets.svg)", () => {
     );
   });
 
+  it("the listbox's children are exactly the 8 options in preset order", () => {
+    // w26.i06: the per-preset leading curve glyphs (equalizer.css) key on
+    // :nth-child = EQ_PRESETS order — pin that the list renders no other
+    // children and keeps the frame row order.
+    render(<EqualizerTool defaultOpen />);
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    const listbox = screen.getByRole("listbox", { name: "Equalizer preset" });
+    expect(listbox.children).toHaveLength(EQ_PRESETS.length);
+    const names = [...listbox.children].map((child) => child.textContent);
+    expect(names).toEqual(["None", "Flat", "Classical", "Club", "Dance", "Full bass", "Full bass & treble", "Full treble"]);
+    for (const child of [...listbox.children]) {
+      expect(child).toHaveAttribute("role", "option");
+    }
+  });
+
+  it("the LAST preset (Full treble) selects and applies — h13 #1 regression pin", () => {
+    // h13's functional NO: row 8 was unreachable by pointer (the shared
+    // Dropdown's scrollport reset to 0 mid-click, so the row escaped the
+    // cursor between mousedown and mouseup). The root fix is i16's stable
+    // scrollport (Dropdown.tsx, w26.i16); the EQ scope ships the frame's
+    // 348px list (equalizer.css) so row 8 is scroll-required again — this
+    // pins the last row's selection wiring end-to-end (the live real-mouse
+    // repro is in the lane log w26.i06 §verify).
+    render(<EqualizerTool defaultOpen />);
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    fireEvent.click(screen.getByRole("option", { name: "Full treble" }));
+    // Full treble = [-9.6, -9.6, -9.6, -4, 2.4, 11.2, 16, 16, 16, 16.4].
+    expect(screen.getAllByText("-9.6 dB")).toHaveLength(3);
+    expect(screen.getAllByText("16.0 dB")).toHaveLength(3);
+    expect(screen.getAllByText("16.4 dB")).toHaveLength(1);
+    // The list closed and the trigger reads the applied preset.
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Equalizer preset" }).textContent,
+    ).toContain("Full treble");
+  });
+
   it("selecting a preset applies its band gains to the fader chips", () => {
     render(<EqualizerTool defaultOpen />);
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
