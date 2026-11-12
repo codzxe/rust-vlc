@@ -40,6 +40,7 @@ import { parseSourceInput } from "../open-media/OpenMediaDialog";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.a12";
+import { keys as laneKeysI01 } from "../../i18n/keys/w26.i01";
 import { HOTKEY_BINDINGS } from "../settings/areas/hotkeys/generated/bindings";
 import type { HotkeyBinding } from "../settings/areas/hotkeys/generated/bindings";
 import {
@@ -65,9 +66,11 @@ import "./onboarding.css";
 // Lane i18n seam (contract §4.5) — copy with no catalog entry yet
 // ---------------------------------------------------------------------------
 
-/** Keys owned by this lane (registered into messages.ts by the Lead). */
-type LaneKey = keyof typeof laneKeys;
-const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+/** Keys owned by this lane (registered into messages.ts by the Lead) —
+ * w26.a12's original onboarding set + w26.i01's frame-parallel additions
+ * (shortcut row labels, the library field label, Browse). */
+type LaneKey = keyof typeof laneKeys | keyof typeof laneKeysI01;
+const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...laneKeysI01 };
 
 /**
  * useOnboardingMsg — `useMsg` extended with this lane's pre-registration
@@ -218,41 +221,60 @@ const KEYCAP_GLYPHS: Readonly<Record<string, string>> = {
   Left: "←",
   Right: "→",
   Up: "↑",
+  // frame: Onboarding-2.svg renders the modifier cap "SHIFT" (all caps) —
+  // cap artwork, not copy: the keymap's own spelling stays "Shift".
+  Shift: "SHIFT",
 };
 
 const keycapParts = (b: HotkeyBinding): readonly string[] =>
   b.key.split("+").map((part) => KEYCAP_GLYPHS[part] ?? part);
 
-/** The tour rows — labels reuse the REAL hotkey catalog wherever a row has
- * one binding; pair rows (two bindings, one row) get a lane label. */
+/** Symbol caps (arrows, <, >, comma, period) carry the frame's tight side
+ * padding; letter/word caps (V, Q, SHIFT, Space) the fatter one — measured
+ * from Onboarding-2.svg: arrow cap 46 = 16px glyph + 30, "," cap 35 = 5 + 30,
+ * V cap 57 = 11 + 46, SHIFT cap 92 = 44 + 48 (one 0 22px padding rule made
+ * single-glyph caps ~6px/side too fat — h02 #4). */
+const isSymbolKeycap = (part: string): boolean =>
+  part.length === 1 && !/[a-z0-9]/i.test(part);
+
+const keycapClass = (part: string): string =>
+  ["onboarding__key", !isSymbolKeycap(part) && "onboarding__key--text"]
+    .filter(Boolean)
+    .join(" ");
+
+/** The tour rows — labels are the Onboarding-2.svg row strings, verbatim
+ * (w26.i01: one casing convention, frame-parallel — the hotkey catalog's
+ * Title-Case spellings are settings-side copy, not this frame's); each
+ * row's keycaps stay the REAL keymap (keymaps/default.toml via the
+ * generated bindings) — data, never hand-typed copy. */
 const SHORTCUT_ROWS: ReadonlyArray<{
   labelKey: MessageKey | LaneKey;
   bindingIds: readonly string[];
 }> = [
-  { labelKey: "hotkeys.play-pause", bindingIds: ["navigation.toggle-play-pause"] },
+  { labelKey: "onboarding.shortcuts.row.play-pause", bindingIds: ["navigation.toggle-play-pause"] },
   {
-    labelKey: "onboarding.shortcuts.seek",
+    labelKey: "onboarding.shortcuts.row.seek",
     bindingIds: ["navigation.seek-backward", "navigation.seek-forward"],
   },
   {
-    labelKey: "onboarding.shortcuts.item",
+    labelKey: "onboarding.shortcuts.row.item",
     bindingIds: ["navigation.prev-track", "navigation.next-track"],
   },
   {
-    labelKey: "onboarding.shortcuts.frame",
+    labelKey: "onboarding.shortcuts.row.frame",
     bindingIds: ["navigation.frame-prev", "navigation.frame-next"],
   },
-  { labelKey: "hotkeys.subtitle-track-cycle", bindingIds: ["subtitles.subtitle-track-cycle"] },
-  { labelKey: "hotkeys.audio-track-cycle", bindingIds: ["audio.audio-track-cycle"] },
-  { labelKey: "hotkeys.fullscreen", bindingIds: ["video.fullscreen"] },
+  { labelKey: "onboarding.shortcuts.row.subtitle-cycle", bindingIds: ["subtitles.subtitle-track-cycle"] },
+  { labelKey: "onboarding.shortcuts.row.audio-cycle", bindingIds: ["audio.audio-track-cycle"] },
+  { labelKey: "onboarding.shortcuts.row.fullscreen", bindingIds: ["video.fullscreen"] },
   {
-    labelKey: "onboarding.shortcuts.volume",
+    labelKey: "onboarding.shortcuts.row.volume",
     bindingIds: ["audio.volume-up", "audio.volume-down"],
   },
-  { labelKey: "hotkeys.queue-toggle", bindingIds: ["playlist.queue-toggle"] },
-  { labelKey: "hotkeys.file-browser-toggle", bindingIds: ["playlist.file-browser-toggle"] },
-  { labelKey: "hotkeys.snapshot", bindingIds: ["video.snapshot"] },
-  { labelKey: "hotkeys.record", bindingIds: ["video.record"] },
+  { labelKey: "onboarding.shortcuts.row.queue", bindingIds: ["playlist.queue-toggle"] },
+  { labelKey: "onboarding.shortcuts.row.file-browser", bindingIds: ["playlist.file-browser-toggle"] },
+  { labelKey: "onboarding.shortcuts.row.snapshot", bindingIds: ["video.snapshot"] },
+  { labelKey: "onboarding.shortcuts.row.record", bindingIds: ["video.record"] },
 ];
 
 /** Frame grammar: six rows per column, read down the left column first. */
@@ -579,10 +601,14 @@ function LibraryStep(): ReactElement {
 
   return (
     <>
+      {/* frame: Onboarding.svg — a VISIBLE field label above the inset
+       * field ("Choose a Media Folder…", recomposed honestly for the real
+       * open-path funnel — file/playlist/stream, so "media"), the inset
+       * #090909 rx5 field with its 2px stroke, and the 114×35 #1B1B1B
+       * "Browse" submit — h01 #1, the twice-verified #1 shame. */}
       <form className="onboarding__open-form" onSubmit={openMediaPath}>
         <TextField
-          label={msg("open.path.label")}
-          hideLabel
+          label={msg("onboarding.library.field-label")}
           placeholder={msg("open.path.placeholder")}
           value={pathValue}
           error={pathInvalid ? msg("open.path.invalid") : undefined}
@@ -598,7 +624,7 @@ function LibraryStep(): ReactElement {
           loading={openNotice === "opening"}
           data-testid="onboarding-open-submit"
         >
-          {msg("open.action")}
+          {msg("onboarding.library.browse")}
         </Button>
       </form>
       {/* Honest status line — the funnel's real outcome, announced. */}
@@ -617,7 +643,7 @@ function LibraryStep(): ReactElement {
               </span>
               <span className="onboarding__shortcut-keys">
                 {keycapParts(b).map((part) => (
-                  <kbd className="onboarding__key" key={part}>
+                  <kbd className={keycapClass(part)} key={part}>
                     {part}
                   </kbd>
                 ))}
@@ -775,7 +801,7 @@ export function OnboardingScreen(): ReactElement {
                                   )}
                                   <span className="onboarding__shortcut-pair">
                                     {keycapParts(b).map((part) => (
-                                      <kbd className="onboarding__key" key={`${id}-${part}`}>
+                                      <kbd className={keycapClass(part)} key={`${id}-${part}`}>
                                         {part}
                                       </kbd>
                                     ))}
