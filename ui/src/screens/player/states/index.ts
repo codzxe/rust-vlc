@@ -25,4 +25,9 @@ export {
   LoadingOverlay,
   UnsupportedOverlay,
 } from "./StageOverlays";
+export {
+  PlaylistBrowse,
+  type BrowsePlaylistData,
+  type PlaylistBrowseProps,
+} from "./PlaylistBrowse";
 export { StateRouter, resolveOverlay, type OverlayKind, type StateRouterProps } from "./StateRouter";
