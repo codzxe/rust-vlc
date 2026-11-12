@@ -1521,3 +1521,19 @@ Work Log:
 
 Stage Summary:
 - Full battery green: vitest 1367/1367, e2e 38/38, visual PR-lite 32/32 (re-seeded), tsc/eslint/stylelint/l10n/settings:check clean, cargo test theme-tokens+settings-schema+desktop all green. Next: wave H (20 harsh senior-UI raters), then I/J/K/L/M per program. Branches w26/gfix-B/E/F pushed by lanes; all merged into this main commit.
+
+---
+Task ID: w26.lead-wave-h-open
+Agent: Lead (wave-26 orchestration)
+Task: Session restore + wave-H launch gate (status answer to the user)
+
+Work Log:
+- Sandbox was recycled; re-cloned main @ 18a49ff. State: waves a-g + gfix integrated (147/260 agents); battery at tip: vitest 1367, e2e 38, visual PR-lite 32, tsc/eslint/stylelint/l10n/settings:check clean (per gfix-integration entry). Remaining waves: h (ratings), i (fixers #2), j (code review), k (fixers #3), l (final verify+polish), m (releases) + #67 Tauri.
+- CI on main: ALL workflows red at 18a49ff (first-execution era; logs purged). Triggered rerun (run 43262953759) for fresh logs; diagnosis in flight. Dependabot minimatch runs also failing — separate track.
+- Infra restored per #69: ui npm ci (259 pkgs), tsc 0 errors; dev server Lead-owned at http://127.0.0.1:5173 (vite must bind 127.0.0.1 — ::1 unreachable in sandbox); /home/z/my-project/scripts/dev-shots.mjs restored from the in-repo durable copy; z-ai vision verified end-to-end (smoke compare Player.png OK).
+- CONTRACT.md Amendment 1 (§8 self-push + §9 tooling): every wave h-m lane pushes its deliverable to its OWN branch w26/<lane> via GitHub REST API immediately on completion (user directive — GitHub is the durability record); token discipline codified; vision-429 fallback codified (measurement path); in-flow state triggering documented.
+- Issue #60 (wave g) CLOSED: verification #2 completed 20/20 (findings docs/waves/w26/findings/w26.g01-20.md), all P0/P1 fixed by gfix lanes A-F + Lead (integration 18a49ff, battery green). Issue #69 CLOSED: infra verified end-to-end (dev-shots committed in-repo c22730a + this session's restore; contract §5 loop proven by smoke test).
+- Wave H launched: 20 harsh senior-UI-designer raters (w26.h01-h20), same 20-family split as wave g; deliverables docs/waves/w26/ratings/w26.h<nn>.md; each lane self-pushes branch w26/h<nn>.
+
+Stage Summary:
+- Gate open for wave H. CI-red diagnosis track runs in parallel (rerun in flight). Next: integrate wave H → consolidated scoreboard → route findings to wave I.

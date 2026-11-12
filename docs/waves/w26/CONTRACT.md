@@ -127,3 +127,57 @@ active/disabled states; real iconography (no emoji); tabular timecodes; dark +
 light both coherent; keyboard reachable; aria labels; no clipped text at
 1440×900 or 1024×768; no Solstice remnants (sunset, tape, keycaps, Nunito,
 `data-backdrop` tiers); i18n complete; zero console errors on your routes.
+
+## 8. Self-push protocol (Amendment 1 — 2026-11-13, Lead; binding for waves h–m)
+
+User directive: every lane pushes its own work to GitHub the moment it is
+completed — the GitHub copy is the durability record, not the sandbox. §4.1's
+"never run git" is REFINED, not revoked: agents still never run local `git`
+commands in the shared checkout (no branch/commit/merge — parallel-lane
+safety). Instead, every lane pushes its deliverable through the GitHub REST
+API onto its OWN branch. The Lead merges lane branches into `main` after each
+wave.
+
+Per lane, after the deliverable file(s) are final in the shared checkout:
+
+```bash
+TOK="$GH_TOKEN"                                # supplied in your task prompt
+REPO=codzxe/rust-vlc; BR="w26/<your-lane-id>"  # e.g. w26/h03
+SHA=$(curl -s -H "Authorization: token $TOK" \
+  https://api.github.com/repos/$REPO/git/ref/heads/main \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin)["object"]["sha"])')
+curl -s -X POST -H "Authorization: token $TOK" \
+  https://api.github.com/repos/$REPO/git/refs \
+  -d "{\"ref\":\"refs/heads/$BR\",\"sha\":\"$SHA\"}"   # 422 = exists, fine
+B64=$(base64 -w0 <your-deliverable-file>)
+curl -s -X PUT -H "Authorization: token $TOK" \
+  https://api.github.com/repos/$REPO/contents/<deliverable-path> \
+  -d "{\"message\":\"<lane-id>: <one-line>\",\"content\":\"$B64\",\"branch\":\"$BR\"}"
+# for a file you MODIFIED (not new): first GET it on $BR to obtain its blob
+# sha, and include "sha" in the PUT body. Then verify:
+curl -s -H "Authorization: token $TOK" \
+  "https://api.github.com/repos/$REPO/contents/<path>?ref=$BR" -o /dev/null \
+  -w '%{http_code}\n'    # must print 200
+```
+
+Token discipline (absolute): the token exists ONLY in your shell variable and
+the `Authorization` header. It must NEVER appear in any file under the repo,
+any lane log, any rating/review output, your branch names, commit messages, or
+your report back to the Lead. Never `echo` it.
+
+## 9. Tooling notes (Amendment 1 — 2026-11-13)
+
+- Dev server: Lead-owned at `http://127.0.0.1:5173` (vite binds 127.0.0.1
+  explicitly; `localhost`/`::1` are NOT reachable in this sandbox). Still
+  never restart/kill it; if it answers anything other than 200, say so in your
+  lane log — the Lead restarts it.
+- `z-ai vision` may 429 under wave load: retry twice with 60s backoff; if the
+  third attempt fails, fall back permanently to measurement — extract geometry
+  from the SVG sources in `design/figma/` (path bboxes + attributes), probe the
+  DOM (Playwright geometry dumps), and pixel-sample your screenshots. Note the
+  fallback in your deliverable. g-lane verifiers proved this path works.
+- In-flow states (wizard steps, open menus, tools dialog, customize panel,
+  hide-UI idle) are reached with small Playwright scripts: navigate, click
+  through, or `page.evaluate(() => window.dispatchEvent(new CustomEvent('lumen:open-tools')))` /
+  `'lumen:open-customize'`, then screenshot. Working examples: the seam tests
+  in `ui/src/screens/player/PlayerScreen.test.tsx` and e2e specs in `ui/e2e/`.
