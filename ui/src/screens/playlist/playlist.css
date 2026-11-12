@@ -420,6 +420,18 @@
   border-color: var(--color-accent);
 }
 
+/* w26.i10 (h16 cycle, vision-caught): the frame's drop zone carries a
+ * DASHED edge — `stroke:#2D2D2D stroke-width:2 stroke-dasharray:4 4` on the
+ * 671×184 well (new playlist.svg; g18's extraction recorded the color but
+ * not the dash). Dark pins the frame's dashed 2px edge; light keeps the
+ * shared hairline (no light playlist frame exists — sanctioned). The
+ * hover/focus/drag rules above only repaint border-COLOR, so the dash
+ * grammar survives every state. */
+:root:not([data-theme="light"]) .lumen-plnew__drop {
+  /* stylelint-disable-next-line color-no-hex -- frame: new playlist.svg drop zone stroke #2D2D2D 2px dashed 4 4 (dark frame only) */
+  border: 2px dashed #2d2d2d;
+}
+
 .lumen-plnew__file-input {
   position: absolute;
   width: 1px;
@@ -494,4 +506,135 @@
   .lumen-playlist .lumen-lrow__actions {
     transition: none;
   }
+}
+
+/* ================================================== w26.i10 (h16 cycle) ==
+ * Fixer pass on the h16 ratings (library 8.3 / grid 8.3 / media 8.7): the
+ * hover-fill frame pin, the watched-row tone, the grid artwork well's frame
+ * anatomy, the file-menu width + check-in-box icon, and the arrow-key grid
+ * model's active-row indication. All scoped to THIS screen's surfaces;
+ * token-lane deltas stay flagged (h16 #3/#4) for themes/tokens.json. */
+
+/* (1) Library hover fill — the frame's #1c1c1c (playlist.svg hover state /
+ * spec §2 "hover #1c1c1c"). --color-surface-hover is #262626 (Δ10 — open
+ * token item g18-P3-2, token lane's call), so THIS screen's rows pin the
+ * frame value dark-only. The selected mirrors re-assert the shared
+ * "selected never flickers to hover" contract at every specificity, keeping
+ * the pin order-independent (gfix-E's :root:not() precedent). */
+:root:not([data-theme="light"]) .lumen-plpage__list .lumen-lrow:hover,
+:root:not([data-theme="light"]) .lumen-plpage__list .lumen-lrow:focus-within {
+  /* stylelint-disable-next-line color-no-hex -- frame: playlist.svg hover fill #1c1c1c (spec §2; --color-surface-hover #262626 is the token-lane delta g18-P3-2, h16 #3) */
+  background: #1c1c1c;
+}
+
+:root:not([data-theme="light"]) .lumen-plpage__list .lumen-lrow--selected,
+:root:not([data-theme="light"]) .lumen-plpage__list .lumen-lrow--selected:hover,
+:root:not([data-theme="light"]) .lumen-plpage__list .lumen-lrow--selected:focus-within {
+  background: var(--color-surface-selected);
+}
+
+/* (2) Watched-row title tone — media.svg pins the watched title at #6B6B6B
+ * (h16 #4: --color-content-tertiary #828282 is Δ23, halving the frame's
+ * watched/unwatched separation). Dark-only (no light playlist frame); the
+ * hover/focus-within mirrors re-assert the frame's bright hover title so
+ * the pin stays order-independent against options.css. */
+:root:not([data-theme="light"]) .lumen-plpage .lumen-plo-mrow--watched {
+  /* stylelint-disable-next-line color-no-hex -- frame: media.svg watched title #6B6B6B (--color-content-tertiary #828282 is Δ23 — h16 #4, token-lane handoff) */
+  color: #6b6b6b;
+}
+
+:root:not([data-theme="light"]) .lumen-plpage .lumen-plo-mrow--watched:hover,
+:root:not([data-theme="light"]) .lumen-plpage .lumen-plo-mrow--watched:focus-within {
+  color: var(--color-content-primary); /* frame hover #C6C6C6 — re-asserted for order-independence */
+}
+
+/* (3) Grid artwork well — the frame's artwork anatomy (h16 top defect: "the
+ * card's dominant region reads as a void" at Δ11/255). thumbnail.png's well
+ * is a FULL-BLEED image — measured, its dominant tone is the #303030 media
+ * class (embedded artwork avg (51,50,48), rendered region (45,43,41) vs card
+ * #191919 — Δ≈20, the frame's own artwork/card separation), with NO stroke
+ * (252×142 rx4 corners only). No artwork seam exists yet, so the well pins
+ * the same #303030 media-thumbnail surface the media rows' 32×32 tile
+ * carries (gfix-E's media.svg port) — the dominant region then reads as the
+ * frame's dark artwork, not a dead void. Light mirrors the tile grammar's
+ * light face (no light playlist frame exists — sanctioned). */
+.lumen-plpage .lumen-plo-card__art {
+  background: var(--color-surface-raised); /* the media tile's light face (no light frame — sanctioned) */
+}
+
+:root:not([data-theme="light"]) .lumen-plpage .lumen-plo-card__art {
+  /* stylelint-disable-next-line color-no-hex -- frame: thumbnail.svg artwork (full-bleed screenshot, measured dominant tone ≈ #2d2b29 — media.svg's #303030 tile class; the frame carries no stroke) */
+  background: #303030;
+}
+
+/* (4) The file context menu (file context menu.svg 265×584): the panel
+ * width pins to the frame's 265 (w26.i16's shared .lumen-context-menu__popup
+ * floor; this pin holds it if content grows), and Mark as Watched gets its
+ * leading check-in-BOX icon back (frame option_2: Vector 114 box stroke
+ * #8F8F8F + Vector 44 check #AB6314). The shared MenuItem swaps a checkable
+ * row's icon for the bare checkbox-indicator grammar (menu-lane seam,
+ * logged); scoped here, the indicator IS the icon: a 15×15 rounded box
+ * (stroke-icon) with the frame's #AB6314 ✓ riding inside it when
+ * aria-checked — honest when unchecked (empty box), frame-exact when
+ * checked. */
+.lumen-plpage .lumen-plo-mrow-wrap .lumen-context-menu__popup {
+  width: 265px; /* frame: file context menu.svg panel 265×584 (min-width alone lets long labels stretch it past 265) */
+  min-width: 265px; /* frame: file context menu.svg panel 265×584 */
+}
+
+.lumen-plpage .lumen-plo-mrow-wrap .lumen-context-menu__popup .lumen-menu__check {
+  position: relative;
+  height: 20px;
+  font-size: 11px; /* the ✓ rides INSIDE the box (frame Vector 44) */
+  color: var(--color-accent-strong); /* frame: file context menu.svg Vector 44 check stroke #AB6314 */
+}
+
+.lumen-plpage .lumen-plo-mrow-wrap .lumen-context-menu__popup .lumen-menu__check::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 15px; /* frame: Vector 114 box 15×15, stroke 1.5, rx3-class corners */
+  height: 15px;
+  border: 1.5px solid var(--color-stroke-icon);
+  border-radius: 3px;
+}
+
+/* (4b) The media row's hover "•••" rides the frame's right offset
+ * (h16 honorable mention): media.svg's dots end ≈24.5px from the row's right
+ * edge (Vector 36–38 at x352.5 in the 377-wide row); the shared 28px hit
+ * area with a 24px trailing margin put them at 30.5. The 18px margin lands
+ * the dots at 24.5 (28px hit area, 15px dot cluster centered). */
+.lumen-plpage .lumen-plo-mrow__menu {
+  margin-right: 18px; /* frame: media.svg dots end ≈24.5px from the row edge */
+}
+
+/* (5) Arrow-key grid model (PlaylistScreen's useGridRoving): the active row
+ * is pointed at by aria-activedescendant + data-active and painted ONLY
+ * while the grid container holds focus (the APG activedescendant
+ * convention). The library paints the frame's engaged-row grammar — the
+ * same #1c1c1c fill + bright title as hover; the media rows brighten the
+ * title only (media.svg shows no row fill in any state). */
+.lumen-plpage__list:focus [role="row"][data-active="true"] .lumen-lrow {
+  color: var(--color-content-bright);
+}
+
+:root:not([data-theme="light"]) .lumen-plpage__list:focus [role="row"][data-active="true"] .lumen-lrow {
+  /* stylelint-disable-next-line color-no-hex -- frame: playlist.svg hover fill #1c1c1c (the engaged-row grammar; same pin as (1)) */
+  background: #1c1c1c;
+}
+
+.lumen-plpage .lumen-plo-media:focus [role="row"][data-active="true"] .lumen-plo-mrow {
+  color: var(--color-content-primary); /* frame hover #C6C6C6 */
+}
+
+/* (6) The roving-grid controller wrappers (PlaylistScreen's useGridRoving):
+ * layout-transparent flex pass-throughs so the VirtualList keeps owning the
+ * panel's remaining height (keyboard hosts, not visual structure). */
+.lumen-plpage__listwrap,
+.lumen-plpage__view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
