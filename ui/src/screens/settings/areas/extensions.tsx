@@ -38,7 +38,6 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Switch } from "../../../components/form/Switch";
 import { TextField } from "../../../components/form/TextField";
-import { ListEmpty } from "../../../components/list/Empty";
 import { ListRow } from "../../../components/list/Row";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
@@ -46,6 +45,7 @@ import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b08";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTING_EXTENSIONS_LOAD_ON_STARTUP } from "../generated/schema";
+import { useStagedMsg } from "./staged";
 import "./extensions.css";
 
 /** Add-ons — the w26.b02-seeded load-on-startup row (gate wasm-extensions). */
@@ -117,9 +117,19 @@ export function ExtensionRow({
  * Extensions settings area (route /settings/extensions; System group): the
  * hand add-on list + toolbar, then the schema-seeded load-on-startup row
  * via the generated screen.
+ *
+ * w26.i15 relaunch (h12 #2/#3/#4): the toolbar renders STAGED — full-
+ * strength while inert (the [data-staged] action rule in staged.css), the
+ * honest reason on each button's tooltip; the invented 11px gate note and
+ * the invented empty-state copy are gone (content the §C13 frame does not
+ * carry — the frame's well is empty, its toolbar lively); the well and the
+ * toolbar search ride the recessed settings-input family in BOTH themes
+ * (extensions.css). The wrapper no longer carries data-settings-area — the
+ * embedded generated screen's root is the area's single root (g14-P3-4).
  */
 export function ExtensionsArea(): ReactElement {
   const t = useAreaMsg();
+  const staged = useStagedMsg()("settings.extensions.staged");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const visible =
@@ -135,7 +145,6 @@ export function ExtensionsArea(): ReactElement {
   return (
     <div
       className="settings-sections"
-      data-settings-area="extensions"
       data-testid="extensions-area"
     >
       <section className="settings-section" data-section="add-ons">
@@ -143,36 +152,28 @@ export function ExtensionsArea(): ReactElement {
           {t("settings.section.extensions.add-ons")}
         </h2>
         {/* The frame's list well (§C13: 782×192 rx5 #090909 + 2px #191919
-            stroke, empty in the frame — w26.gfix-B, g14-P1-1: the settings
-            well family replaces the surface Well/card combo; the anatomy
-            lives in extensions.css). Rows render from the (empty) list
-            seam. */}
+            stroke, EMPTY in the frame — w26.gfix-B, g14-P1-1; w26.i15: the
+            invented empty-state copy is gone, the well renders exactly the
+            frame's empty surface). Rows render from the (empty) list seam. */}
         <div className="settings-extensions-list" data-testid="extensions-list">
-          {visible.length > 0 ? (
-            visible.map((info) => (
-              <ExtensionRow
-                key={info.id}
-                info={info}
-                onToggle={() => {
-                  /* inert by design: the extensions store does not exist
-                   * yet (Phase 7) — the list seam above owns the handoff. */
-                }}
-              />
-            ))
-          ) : (
-            <ListEmpty
-              title={t("settings.extensions.empty-title")}
-              body={t("settings.extensions.empty-body")}
-              data-testid="extensions-list-empty"
+          {visible.map((info) => (
+            <ExtensionRow
+              key={info.id}
+              info={info}
+              onToggle={() => {
+                /* inert by design: the extensions store does not exist
+                 * yet (Phase 7) — the list seam above owns the handoff. */
+              }}
             />
-          )}
+          ))}
         </div>
         {/* Toolbar (§C13 y311): search left (208×34, the settings input
             well skin — g14-P2-1), the three frame actions right-aligned to
             the content edge with 10px gaps (frame x619/x814/x924; ≈15px
             labels, min-width 185px on the primary action — g14-P2-2).
-            Actions disabled-from-data while wasm-extensions is off — the
-            codecs F1/F2 disabled-with-reason pattern. */}
+            w26.i15 (h12 #4): staged full-strength while wasm-extensions is
+            off — the honest reason rides each tooltip, never a greyed-out
+            apology. */}
         <div className="settings-extensions-toolbar" data-testid="extensions-toolbar">
           <TextField
             type="search"
@@ -187,7 +188,8 @@ export function ExtensionsArea(): ReactElement {
               type="button"
               className="settings-action settings-extensions-toolbar__find"
               disabled={actionsDisabled}
-              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              data-staged="wasm-extensions"
+              title={staged}
               onClick={() => {
                 /* inert by design: no discovery surface exists yet */
               }}
@@ -198,7 +200,8 @@ export function ExtensionsArea(): ReactElement {
               type="button"
               className="settings-action"
               disabled={actionsDisabled}
-              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              data-staged="wasm-extensions"
+              title={staged}
               onClick={() => {
                 /* inert by design: no install command exists yet */
               }}
@@ -209,7 +212,8 @@ export function ExtensionsArea(): ReactElement {
               type="button"
               className="settings-action"
               disabled={actionsDisabled}
-              aria-describedby={actionsDisabled ? "extensions-gate-note" : undefined}
+              data-staged="wasm-extensions"
+              title={staged}
               onClick={() => {
                 /* inert by design: no removal command exists yet */
               }}
@@ -218,16 +222,6 @@ export function ExtensionsArea(): ReactElement {
             </button>
           </div>
         </div>
-        {actionsDisabled ? (
-          <p
-            className="settings-field__hint"
-            id="extensions-gate-note"
-            role="note"
-            data-gate-reason={ADDONS_GATE.featureGate}
-          >
-            {t("settings.capability-unavailable")}
-          </p>
-        ) : null}
       </section>
       {/* "Load add-ons on startup" — schema-seeded, rendered by the
           generated screen (feature-gated wasm-extensions → hidden + inert
