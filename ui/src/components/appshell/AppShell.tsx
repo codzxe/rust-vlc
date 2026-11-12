@@ -109,6 +109,11 @@ function useShellMsg() {
     [m],
   );
 }
+// w26.k05 (j05 P3-1): every w26.a10 key is now REGISTERED in messages.ts
+// (837-859 / 2267-2289, verified) — the seam is a no-op passthrough today.
+// Kept, with this note, until the Lead retires the pattern post-wave: 40+
+// lane files copied the same pre-registration seam, so retiring it here
+// mid-wave would churn a shared convention for zero behavior change.
 
 // ---------------------------------------------------------------------------
 // Structural data (frames + real routes — no invented surfaces)
@@ -182,18 +187,21 @@ const NARROW_QUERY = "(max-width: 1100px)";
 
 function loadSidebarOpen(pathname: string): boolean {
   try {
+    // w26.k05 (j05 P1-1, hardening half): the miniplayer variant suppresses
+    // the whole column (variants.css :has() seam) — never START open there,
+    // stored preference or not: "open" is meaningless over a display:none
+    // column, and the mount-time route effect would only repaint the honest
+    // state one committed frame later. The stored preference itself is only
+    // READ here — it still applies on every route where the column is real.
+    if (pathname.startsWith("/miniplayer")) return false;
     const stored = globalThis.localStorage?.getItem(SIDEBAR_STORAGE_KEY);
     if (stored === "open" || stored === "closed") return stored === "open";
     // w26.g03 P1-1 Lead fix + w26.i20 extension (the f08 seam, never landed;
     // i04's h06-#5 durable fix): with NO stored preference the default is
     // route-aware — the PLAYER family composes its OWN docked sidebar
     // surface, so the shell's playlists sidebar starts CLOSED there
-    // (one-sidebar rule, Player.png); the MINIPLAYER floats its card
-    // rail-less (Miniplayer.png — variants.css suppresses the column while
-    // the variant is up), so it starts CLOSED there too, keeping the
-    // toggle's aria-expanded honest; everywhere else it starts open.
+    // (one-sidebar rule, Player.png); everywhere else it starts open.
     if (pathname.startsWith("/player")) return false;
-    if (pathname.startsWith("/miniplayer")) return false;
     return true;
   } catch {
     return true; // storage unavailable — session default (open)
@@ -296,19 +304,47 @@ export function AppShell({
   // controls.css rules keep matching the portaled bar (player.css owns the
   // neutralized --strip variant).
   const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
+  const onPlayerRoute = location.pathname.startsWith("/player");
+  const onMiniplayerRoute = location.pathname.startsWith("/miniplayer");
   const toggleSidebar = useCallback((): void => {
-    setSidebarOpen((open) => {
-      persistSidebarOpen(!open);
-      return !open;
-    });
+    // w26.k05 (j05 P1-1, gate half): the miniplayer variant suppresses the
+    // whole playlists column (variants.css :has() seam) — while it is up the
+    // toggle can never show the column, so it is an honest no-op there:
+    // aria-expanded never claims a suppressed column and NOTHING is
+    // persisted for a toggle that did nothing (the phantom "open" the
+    // review reproduced live: aria true + hidden dropped + display:none).
+    if (onMiniplayerRoute) return;
+    // w26.k05 (j05 P2-3): pure updater — the persist side effect moved OUT
+    // of the setState call (StrictMode double-invokes updaters; the write
+    // inside one was contract-impure).
+    const next = !sidebarOpen;
+    setSidebarOpen(next);
+    persistSidebarOpen(next);
     // One-sidebar composition (see the file header): if the player's docked
     // queue sidebar is open, collapse it in the same toggle — the dock never
     // stacks a second sidebar column next to the shell's (or the canvas).
     // Plain `Event`, the exact shape the player's tested seam listens for.
+    // (On /miniplayer the player root carries no data-sidebar, so the gate
+    // above never swallowed a real dispatch.)
     if (document.querySelector(".lumen-player[data-sidebar='open']") !== null) {
       window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
     }
-  }, []);
+  }, [onMiniplayerRoute, sidebarOpen]);
+
+  // w26.k05 (j05 P3-8): an auto-collapse (narrow band / route change) while
+  // focus is inside the sidebar would strand keyboard focus on <body> — the
+  // collapse hands focus to the toggle, the control that owns the column.
+  const sidebarToggleRef = useRef<HTMLButtonElement | null>(null);
+  const wasSidebarOpen = useRef(sidebarOpen);
+  useEffect(() => {
+    if (wasSidebarOpen.current && !sidebarOpen) {
+      const sidebar = document.getElementById(SIDEBAR_ID);
+      if (sidebar?.contains(document.activeElement)) {
+        sidebarToggleRef.current?.focus();
+      }
+    }
+    wasSidebarOpen.current = sidebarOpen;
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -332,9 +368,10 @@ export function AppShell({
   //   * entering /miniplayer collapses it unconditionally: the mini variant
   //     suppresses the column while it is up (variants.css :has() seam, i04
   //     h06 #5), so the collapsed state is the honest one — aria-expanded
-  //     never claims a column the variant is not showing.
-  const onPlayerRoute = location.pathname.startsWith("/player");
-  const onMiniplayerRoute = location.pathname.startsWith("/miniplayer");
+  //     never claims a column the variant is not showing. (w26.k05: the
+  //     resident-user path — toggling ON /miniplayer — is gated inside
+  //     toggleSidebar; deps stay route-only so a user toggle on /player with
+  //     the dock open still KEEPS the shell column open.)
   useEffect(() => {
     if (!sidebarOpen) return;
     if (onPlayerRoute) {
@@ -379,11 +416,17 @@ export function AppShell({
   }, [searchOpen]);
 
   const toggleSearch = useCallback((): void => {
-    setSearchOpen((open) => {
-      if (open) setQuery(""); // closing drops the filter (no stale hidden rows)
-      return !open;
-    });
+    // w26.k05 (j05 P2-3): pure updater — the filter clear moved OUT of the
+    // setState call into the effect below.
+    setSearchOpen((open) => !open);
   }, []);
+
+  // Closing search drops the filter (no stale hidden rows) — post-commit,
+  // never inside an updater (the old shape nested setQuery inside the
+  // setSearchOpen updater, a render-phase side effect).
+  useEffect(() => {
+    if (!searchOpen) setQuery("");
+  }, [searchOpen]);
 
   const rows = useMemo(() => {
     const named = playlists.map((playlist) => ({ id: playlist.id, label: playlist.title }));
@@ -421,6 +464,7 @@ export function AppShell({
             aria-expanded={sidebarOpen}
             aria-controls={SIDEBAR_ID}
             onClick={toggleSidebar}
+            ref={sidebarToggleRef}
           >
             <Icon name="right-sidebar" size={16} />
           </IconButton>
