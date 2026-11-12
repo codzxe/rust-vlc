@@ -20,6 +20,8 @@ export {
   BufferingOverlay,
   EmptyOverlay,
   ErrorOverlay,
+  HomeOverlay,
+  IdleSurface,
   LoadingOverlay,
   UnsupportedOverlay,
 } from "./StageOverlays";

@@ -116,7 +116,9 @@ export function Dropdown<K extends string>({
     setActiveIndex(index);
     const node = optionRefs.current[index];
     node?.focus();
-    node?.scrollIntoView({ block: "nearest" }); // w26.g17: keep the active row visible in the scrollport
+    // w26.g17: keep the active row visible in the scrollport (jsdom does not
+    // implement scrollIntoView — guard so vitest stays green).
+    node?.scrollIntoView?.({ block: "nearest" });
   };
 
   const closeAndRestore = (): void => {

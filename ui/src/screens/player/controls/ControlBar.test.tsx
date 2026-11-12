@@ -3,8 +3,10 @@
 // real TrackInfo fixtures, honest error surfacing (doc 08 §5.4).
 //
 // w26.a14 — updated to the W26 single-row anatomy (Player.svg "Controls"):
-// stop · play pill · next | timecode · seekbar | total · volume wedge ·
-// fullscreen · cast · app menu · gear.
+// previous · play pill · next | timecode · seekbar | total · volume wedge ·
+// audio · subtitles · gear · queue popovers · app menu (w26.gfix-C: g04
+// P1-1 previous-not-stop; P1-4 interactive timecodes; P1-6 the frame's
+// right cluster — fullscreen/cast are gone from every control-bar frame).
 //
 // w26.f13 — re-anchored with the app-menu rebuild (e12 F5): the menu now
 // carries menu.png's 12 frame rows (comfortable, 375px, accelerators from
@@ -157,22 +159,25 @@ describe("transport cluster — every control invokes a real command", () => {
     expect(fake.sent.some((r) => r.cmd === "playback.toggle-play-pause")).toBe(true);
   });
 
-  it("stop dispatches playback.stop when enabled (playing)", async () => {
+  it("previous dispatches playlist.prev when the queue has entries", async () => {
     const fake = new FakeTransport();
     fake.respond = () => snapshotResult("playing");
     renderBar(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Stop" }));
-    expect(fake.sent.some((r) => r.cmd === "playback.stop")).toBe(true);
+    act(() => {
+      fake.emit({ seq: 1, kind: "playlist.changed", change: { kind: "items-added", ids: [7, 8] } });
+    });
+    click(screen.getByRole("button", { name: "Previous" }));
+    expect(fake.sent.some((r) => r.cmd === "playlist.prev")).toBe(true);
   });
 
-  it("stop is inert while idle — no command dispatched", () => {
+  it("previous is inert while the queue is empty — no command dispatched", () => {
     const fake = new FakeTransport();
     renderBar(fake);
-    const stop = screen.getByRole("button", { name: "Stop" });
-    expect(stop).toBeDisabled();
-    click(stop);
-    expect(fake.sent.some((r) => r.cmd === "playback.stop")).toBe(false);
+    const previous = screen.getByRole("button", { name: /Previous — no media open/ });
+    expect(previous).toBeDisabled();
+    click(previous);
+    expect(fake.sent.some((r) => r.cmd === "playlist.prev")).toBe(false);
   });
 
   it("idle: play disabled with the no-media reason (doc 08 §5.1)", () => {
@@ -738,5 +743,161 @@ describe("seek cluster — the frame's two timecodes (w26.f13, e02 F6)", () => {
     expect(times.map((time) => time.getAttribute("data-time"))).toEqual(["position", "duration"]);
     expect(times[0]?.textContent).toMatch(/^\d{2}:\d{2}:\d{2}$/);
     expect(times[1]?.textContent).toBe("00:01:40");
+  });
+
+  it("both readouts are real buttons (Current_Time.svg/Duration.svg hover + click faces)", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing", { time: 10, durationTime: 100 });
+    renderBar(fake);
+    await flush();
+    const position = screen.getByRole("button", { name: "Current time" });
+    const duration = screen.getByRole("button", { name: "Total duration" });
+    expect(position).toBeEnabled();
+    expect(duration).toBeEnabled();
+  });
+
+  it("duration click toggles the remaining '-HH:MM:SS' face (Duration.svg state=click)", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing", { time: 10, durationTime: 100 });
+    renderBar(fake);
+    await flush();
+    const duration = screen.getByRole("button", { name: "Total duration" });
+    expect(duration.textContent).toBe("00:01:40");
+    click(duration);
+    const remaining = screen.getByRole("button", { name: "Remaining time" });
+    expect(remaining.textContent).toBe("-00:01:30");
+    expect(remaining).toHaveAttribute("aria-pressed", "true");
+    click(remaining);
+    expect(screen.getByRole("button", { name: "Total duration" }).textContent).toBe("00:01:40");
+  });
+
+  it("position click opens the Go-to-Time surface (Current_Time.svg state=click)", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing", { time: 10, durationTime: 100 });
+    renderBar(fake);
+    await flush();
+    const position = screen.getByRole("button", { name: "Current time" });
+    click(position);
+    // The edit face: the dialog (prefilled with this position) + the
+    // caret-carrying editing state on the readout.
+    expect(screen.getByText("Go to time")).toBeInTheDocument();
+    expect(position).toHaveAttribute("data-editing", "");
+  });
+
+  it("timecodes are inert with the honest reason while no media is open", () => {
+    const fake = new FakeTransport();
+    renderBar(fake);
+    expect(screen.getByRole("button", { name: /Current time/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Total duration/ })).toBeDisabled();
+  });
+});
+
+describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6)", () => {
+  it("renders the frame's triggers: audio · subtitles · gear · queue (+ the f13 app menu)", () => {
+    renderBar(new MockTransport());
+    for (const name of ["Audio tracks", "Subtitle tracks", "Settings", "Queue", "Application menu"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    // No frame shows fullscreen/cast on the control bar (g04 P1-6).
+    expect(screen.queryByRole("button", { name: /fullscreen/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /cast/i })).toBeNull();
+  });
+
+  it("audio trigger opens the engine-truth audio track list (400px popover)", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing", {
+      tracks: [
+        track(1, "audio", "English 5.1", "en"),
+        track(2, "audio", "Commentaire", "fr", true),
+      ],
+      selections: { audio: 2 },
+    });
+    renderBar(fake);
+    await flush();
+    click(screen.getByRole("button", { name: "Audio tracks" }));
+    const menu = screen.getByRole("menu", { name: "Audio tracks" });
+    expect(within(menu).getByRole("menuitemradio", { name: "Automatic" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitemradio", { name: "English 5.1" })).toBeInTheDocument();
+    // The engine-reported selection is checked, never optimistic.
+    expect(
+      within(menu).getByRole("menuitemradio", { name: "Commentaire" }).getAttribute("aria-checked"),
+    ).toBe("true");
+    // The frame popovers' "Show Advanced Settings" footer row is real.
+    expect(within(menu).getByRole("menuitem", { name: "Show Advanced Settings" })).toBeInTheDocument();
+    click(within(menu).getByRole("menuitemradio", { name: "English 5.1" }));
+    const select = fake.sent.find((r) => r.cmd === "tracks.set-audio-track");
+    expect(select?.args).toEqual({ selector: { kind: "id", id: 1 } });
+  });
+
+  it("idle: the track popovers open onto the honest no-media reason", async () => {
+    renderBar(new MockTransport());
+    click(screen.getByRole("button", { name: "Subtitle tracks" }));
+    const menu = screen.getByRole("menu", { name: "Subtitle tracks" });
+    const rows = within(menu).getAllByRole("menuitem");
+    expect(rows).toHaveLength(2); // the reason row + the Advanced footer
+    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
+    expect(rows[0]?.textContent).toBe("no media open");
+  });
+
+  it("queue trigger lists the real queue, marks the current item, plays the pick", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing");
+    renderBar(fake);
+    await flush();
+    act(() => {
+      fake.emit({
+        seq: 1,
+        kind: "playlist.changed",
+        change: { kind: "items-added", ids: [7, 8] },
+      });
+      fake.emit({ seq: 2, kind: "playlist.changed", change: { kind: "current-changed", id: 7 } });
+    });
+    click(screen.getByRole("button", { name: "Queue" }));
+    const menu = screen.getByRole("menu", { name: "Queue" });
+    // Honest unknown titles (no playlist.list seam) — never fabricated.
+    const rows = within(menu).getAllByRole("menuitemradio");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.textContent).toBe("Unknown title");
+    expect(rows[0]?.getAttribute("aria-checked")).toBe("true");
+    click(rows[1] as HTMLElement);
+    const play = fake.sent.find((r) => r.cmd === "playlist.play-item");
+    expect(play?.args).toEqual({ id: 8 });
+  });
+
+  it("idle queue: the honest empty reason — never a fabricated list", () => {
+    renderBar(new MockTransport());
+    click(screen.getByRole("button", { name: "Queue" }));
+    const menu = screen.getByRole("menu", { name: "Queue" });
+    const rows = within(menu).getAllByRole("menuitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
+    expect(rows[0]?.textContent).toBe("Nothing in the queue");
+  });
+
+  it("gear trigger carries the Playback/Video/Audio/Subtitle families + the Advanced footer", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing");
+    renderBar(fake);
+    await flush();
+    click(screen.getByRole("button", { name: "Settings" }));
+    const menu = screen.getByRole("menu", { name: "Settings" });
+    for (const label of ["Playback", "Video", "Audio", "Subtitle", "Show Advanced Settings"]) {
+      expect(within(menu).getByRole("menuitem", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
+    }
+    // The Playback family: shuffle + the repeat radios over real seams.
+    click(within(menu).getByRole("menuitem", { name: /^Playback/ }));
+    const playback = screen.getByRole("menu", { name: "Playback" });
+    click(within(playback).getByRole("menuitemcheckbox", { name: "Shuffle" }));
+    expect(fake.sent.some((r) => r.cmd === "playlist.set-shuffle")).toBe(true);
+  });
+
+  it("popover Escape restores focus to its trigger (e12 F8 pattern)", () => {
+    renderBar(new MockTransport());
+    const trigger = screen.getByRole("button", { name: "Queue" });
+    click(trigger);
+    const menu = screen.getByRole("menu", { name: "Queue" });
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 });

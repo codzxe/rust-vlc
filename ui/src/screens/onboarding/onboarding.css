@@ -139,21 +139,25 @@
   text-align: center;
 }
 
-/* Hero titles are bright (frame: Onboarding.svg #EAEAEA); working-step
- * titles sit a notch quieter (frame: Onboarding-1/-2.svg #969696). Every
- * frame centers its step heading (Onboarding-1 x 331–758, -2 x 343–747 —
- * both centered on the 545 window axis). */
+/* Hero titles are bright (frame: Onboarding.svg #EAEAEA ≈33px type);
+ * working-step titles sit one size down (frame: Onboarding-1.svg heading
+ * glyph bbox 427.7×23.2, Onboarding-2.svg 404.3×22.9 → ≈24px type — no
+ * token lives between title 18 and display 32, so the frame-measured size
+ * is pinned raw, contract §4.4). Every frame centers its step heading
+ * (Onboarding-1 x 331–758, -2 x 343–747 — both centered on the 545 window
+ * axis). */
 .onboarding__title {
   margin: 0;
-  font-size: var(--font-size-display);
+  font-size: 24px; /* frame: Onboarding-1/-2.svg working-step headings ≈24px */
   font-weight: var(--font-weight-regular);
   line-height: 1.2;
   letter-spacing: -0.01em;
   text-align: center;
-  color: var(--color-content-secondary);
+  color: var(--color-content-secondary); /* frame: #969696 headings */
 }
 
 .onboarding__step--center .onboarding__title {
+  font-size: var(--font-size-display); /* hero stays display-size (frame ≈33px) */
   color: var(--color-content-bright);
 }
 
@@ -238,7 +242,7 @@
 .onboarding__shortcut-column {
   display: flex;
   flex-direction: column;
-  gap: 32px; /* frame: 82px row pitch − 42px cap */
+  gap: 40px; /* frame: 82px row pitch − 42px cap */
   margin: 0;
   padding: 0;
   list-style: none;
@@ -278,7 +282,10 @@
 }
 
 /* Keycap chips — frame: Onboarding-2.svg 42px r12 #1B1B1B caps with the
- * #373737 inset stroke, #EAEAEA glyphs. */
+ * chunky 3px #373737-class inset stroke (inner rx10.5 rect 1.5px inside
+ * the cap edge), #EAEAEA glyphs. The two-layer inset shadow reproduces
+ * that geometry exactly: a 1.5px fill-colored band, then the 3px stroke
+ * 1.5–4.5px from the edge (a plain border would sit at 0–3px). */
 .onboarding__key {
   display: inline-flex;
   align-items: center;
@@ -293,8 +300,11 @@
   line-height: 1;
   color: var(--color-content-bright); /* frame: #EAEAEA glyphs */
   background: var(--color-surface-panel); /* frame: #1B1B1B */
-  border: 1px solid var(--color-stroke-border); /* frame: #373737 inset stroke */
+  border: none;
   border-radius: var(--radius-menu); /* frame: r12 */
+  box-shadow:
+    inset 0 0 0 1.5px var(--color-surface-panel), /* frame: the 1.5px fill gap between cap edge and stroke */
+    inset 0 0 0 4.5px var(--color-stroke-border); /* frame: 3px #373737-class inset stroke */
 }
 
 /* --- appearance step (frames: Onboarding-1/-3..10) ---------------------- */
@@ -329,23 +339,15 @@
   position: relative;
   width: 100px; /* frame: 100×100 */
   height: 100px;
-  border-radius: var(--radius-card); /* frame: r12 */
+  border-radius: var(--radius-panel); /* frame: r12 (Onboarding-1.svg swatch rects rx12) */
   box-shadow: inset 0 0 0 1px var(--color-stroke-border);
-}
-
-/* Selected card: the frame's 120×120 rx21 4px accent ring — drawn 10px
- * outside the card, exactly like the frames. */
-.onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch::after {
-  content: "";
-  position: absolute;
-  inset: -10px; /* frame: ring outset */
-  border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
-  border-radius: var(--radius-ring); /* frame: rx21 */
+  transition: box-shadow var(--motion-duration-fast) ease;
 }
 
 .onboarding__theme-label {
   font-size: var(--font-size-label); /* frame: ~16px labels */
   color: var(--color-content-secondary); /* frame: #8F8F8F labels */
+  transition: color var(--motion-duration-fast) ease;
 }
 
 /* Theme depictions — frame-measured art (Onboarding-1.svg): Light #AFAFAF,
@@ -364,6 +366,32 @@
   background: linear-gradient(225deg, #afafaf 50%, #222 50%);
 }
 /* stylelint-enable color-no-hex */
+
+/* Selected card: the frame's 120×120 rx21 4px accent ring — drawn 10px
+ * outside the card, exactly like the frames. */
+.onboarding__theme-card[aria-pressed="true"] .onboarding__theme-swatch::after {
+  content: "";
+  position: absolute;
+  inset: -10px; /* frame: ring outset */
+  border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
+  border-radius: var(--radius-ring); /* frame: rx21 */
+}
+
+/* Hover (frames are static; contract §7 state floor): the label brightens
+ * and the swatch hairline tightens — quiet affordance, no ring preview
+ * (selection stays unambiguous). */
+.onboarding__theme-card:not(:disabled):hover .onboarding__theme-label {
+  color: var(--color-content-primary);
+}
+
+.onboarding__theme-card:not(:disabled):hover .onboarding__theme-swatch {
+  box-shadow: inset 0 0 0 1px var(--color-stroke-icon);
+}
+
+/* Pressed: the selected ring dips while the click lands. */
+.onboarding__theme-card[aria-pressed="true"]:not(:disabled):active .onboarding__theme-swatch::after {
+  opacity: 0.5;
+}
 
 /* --- playback / subtitles steps — real settings rows -------------------- */
 
@@ -471,11 +499,18 @@
 
 /* --- footer — step furniture left · buttons right (frames) -------------- */
 
+/* Frame footer extents (Onboarding-1.svg / Onboarding.svg): the dot row's
+ * selected ring starts at x=43 from the window edge and Next ends 62px
+ * from it — 12px / 2px beyond the window's 64px side padding. The negative
+ * margins pin the row to those exact frame extents, which also frees the
+ * width the frame's 80px dot pitch needs beside the Lead-mandated Skip
+ * button (the frames' footer row is Back+Next / Next only). */
 .onboarding__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  margin-inline: -12px -2px; /* frame: dots ring x=43 / Next right 62 from window edge */
+  gap: 16px;
   min-height: 44px;
 }
 
@@ -496,13 +531,20 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 12px;
+  gap: 8px; /* frame: Back→Next 8px apart (Onboarding-1.svg 920→928) */
 }
 
 /* Frame: Onboarding.svg "Frame 140" — 100×32 r6 buttons. */
 .onboarding__back,
 .onboarding__footer-actions .lumen-button--primary {
   min-width: 100px;
+}
+
+/* Frame: Onboarding-1.svg Back rect fill #1B1B1B (820,671) — the panel
+ * token is its nearest semantic neighbor (the app-wide secondary default
+ * is raised #222). Rest only; hover/active keep the button grammar. */
+.onboarding__back {
+  background: var(--color-surface-panel);
 }
 
 .onboarding__hidden {
@@ -516,7 +558,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 32px; /* frame pitch 80 − dot 40 */
+  gap: 40px; /* frame: pitch 80 − dot 40 */
 }
 
 .onboarding__accent {
@@ -527,7 +569,15 @@
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  transition: box-shadow var(--motion-duration-fast) ease;
+  transition:
+    box-shadow var(--motion-duration-fast) ease,
+    opacity var(--motion-duration-fast) ease;
+}
+
+/* Frame: unselected dots rest at 50% (Onboarding-1.svg Frames 154–161
+ * carry opacity="0.5"); the selected dot is full presence. */
+.onboarding__accent[aria-checked="false"] {
+  opacity: 0.5; /* frame: Onboarding-1.svg opacity 0.5 */
 }
 
 .onboarding__accent:disabled {
@@ -535,14 +585,28 @@
   cursor: default;
 }
 
-/* Selected dot: the frame's 60×60 rx30 4px accent ring at 30% opacity. */
-.onboarding__accent[aria-pressed="true"]::after {
+/* Hover lifts the rest dim to full presence — the app's swatch grammar
+ * (form.css SwatchGroup state matrix); no ring preview, so selection stays
+ * unambiguous. */
+.onboarding__accent:not(:disabled):hover {
+  opacity: 1;
+}
+
+/* Selected dot: the frame's 60×60 rx30 4px accent ring at 30% opacity
+ * (Onboarding-1.svg Frame 153 / -3..10 — the radiogroup marks selection
+ * with aria-checked, w26.gfix-D fixes the dead aria-pressed selector). */
+.onboarding__accent[aria-checked="true"]::after {
   content: "";
   position: absolute;
   inset: -10px; /* frame: 60×60 ring on a 40px dot */
   border: var(--stroke-ring) solid var(--color-accent); /* frame: 4px */
   border-radius: 50%; /* frame: rx30 on a 60×60 ring */
   opacity: 0.3; /* frame: stroke-opacity 0.3 */
+}
+
+/* Pressed: the selected ring dips while the click lands. */
+.onboarding__accent[aria-checked="true"]:not(:disabled):active::after {
+  opacity: 0.15;
 }
 
 /* The 9 dot primaries — frame-measured (Onboarding-1.svg footer, ids 1–9;
@@ -689,7 +753,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .onboarding__progress-dot,
-  .onboarding__accent {
+  .onboarding__accent,
+  .onboarding__theme-swatch,
+  .onboarding__theme-label {
     transition: none;
   }
 }

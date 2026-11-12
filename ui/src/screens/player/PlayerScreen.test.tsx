@@ -108,9 +108,11 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     renderWithClient(<PlayerScreen />);
     const controls = screen.getByRole("region", { name: "Playback controls" });
     expect(controls).toHaveAttribute("data-region-id", "controls-bar");
-    // Card 4.C2: the transport cluster now lives here (play/pause + stop).
+    // Card 4.C2 + w26.gfix-C: the transport cluster is previous · play ·
+    // next (Player.svg Frame 8 → play → Frame 10); stop lives on the canvas
+    // context menu where the frame pins it.
     expect(within(controls).getByRole("button", { name: /play/i })).toBeInTheDocument();
-    expect(within(controls).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(within(controls).getByRole("button", { name: /previous/i })).toBeInTheDocument();
   });
 
   it("does not duplicate the window title bar (the app shell owns it, W26)", () => {
@@ -565,6 +567,41 @@ describe("PlayerScreen — Customize interface trigger (w26.f09, e04 F1)", () =>
     } finally {
       window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
     }
+  });
+
+  // w26.gfixA (issue #62, g07/g08/g09-P0): the seam's LISTENER half — the
+  // screen hosts the customize modal per-open (Lead ruling: the frame's
+  // centered editor, never the 320px rail).
+  it("w26.gfixA: the seam event mounts the customize modal (the dead seam is hosted)", () => {
+    renderWithClient(<PlayerScreen />);
+    expect(screen.queryByRole("dialog", { name: "Customize Player" })).toBeNull();
+    act(() => {
+      window.dispatchEvent(new CustomEvent(PLAYER_OPEN_CUSTOMIZE_EVENT));
+    });
+    const dialog = screen.getByRole("dialog", { name: "Customize Player" });
+    // The frame's box + footer ship with the modal; the edit band preview
+    // renders over the control band slot.
+    expect(within(dialog).getByRole("list", { name: "Toolbar items" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Toolbar preview" })).toBeInTheDocument();
+    // The rail-era right panel never mounts — the modal is the surface.
+    expect(document.querySelector('[data-region-id="customize"]')).toBeNull();
+  });
+
+  it("w26.gfixA: the modal's ✕ closes it (and the edit band preview goes with it)", () => {
+    renderWithClient(<PlayerScreen />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(PLAYER_OPEN_CUSTOMIZE_EVENT));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close customize panel" }));
+    expect(screen.queryByRole("dialog", { name: "Customize Player" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Toolbar preview" })).toBeNull();
+  });
+
+  it("w26.gfixA: Ctrl+A opens the modal end-to-end (trigger → listener)", () => {
+    renderWithClient(<PlayerScreen />);
+    pressCtrlA();
+    expect(screen.getByRole("dialog", { name: "Customize Player" })).toBeInTheDocument();
   });
 });
 

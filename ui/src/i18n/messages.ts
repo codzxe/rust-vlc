@@ -1180,7 +1180,104 @@ export type MessageKey =
   | "player.appmenu.keyboard-shortcuts"
   | "player.appmenu.customize"
   | "player.appmenu.about"
-  | "settings.section.effects";
+  | "settings.section.effects"
+  | "customize.band.drop-hint"
+  | "customize.band.label"
+  | "customize.band.remove"
+  | "customize.tile.artist-name"
+  | "customize.tile.bookmark"
+  | "customize.tile.bookmarks"
+  | "customize.tile.chapters"
+  | "customize.tile.divider"
+  | "customize.tile.favorite"
+  | "customize.tile.file-name"
+  | "customize.tile.folder-name"
+  | "customize.tile.go-home"
+  | "customize.tile.hdr"
+  | "customize.tile.pip"
+  | "customize.tile.playback-speed"
+  | "customize.tile.playlist-name"
+  | "customize.tile.playlists"
+  | "customize.tile.properties"
+  | "customize.tile.quit"
+  | "customize.tile.record"
+  | "customize.tile.remove-hint"
+  | "customize.tile.replay"
+  | "customize.tile.right-sidebar"
+  | "customize.tile.snapshot"
+  | "customize.tile.spacer"
+  | "customize.tile.thumbnail"
+  | "customize.tile.vlc-settings"
+  | "customize.tile.zoom"
+  | "player.controls.advanced-settings"
+  | "player.controls.audio-tracks"
+  | "player.controls.queue"
+  | "player.controls.queue-empty"
+  | "player.controls.settings-popup"
+  | "player.controls.subtitle-tracks"
+  | "player.controls.time-current"
+  | "player.controls.time-duration"
+  | "player.controls.time-remaining"
+  | "player.home.continue-watching"
+  | "player.home.folders"
+  | "player.home.listen-again"
+  | "player.home.play"
+  | "player.home.section-empty"
+  | "playlist.file.menu.add-audio"
+  | "playlist.file.menu.add-subtitles"
+  | "playlist.file.menu.add-to-playlist"
+  | "playlist.file.menu.add-to-queue"
+  | "playlist.file.menu.convert"
+  | "playlist.file.menu.go-to-source"
+  | "playlist.file.menu.mark-watched"
+  | "playlist.file.menu.properties"
+  | "playlist.file.menu.show-in-explorer"
+  | "playlist.file.menu.stream"
+  | "playlist.file.menu.title"
+  | "settings.audio.device-system-default"
+  | "settings.audio.startup-volume-mode"
+  | "settings.controls.edit-shortcuts-action"
+  | "settings.controls.port"
+  | "settings.controls.remotes-staged"
+  | "settings.controls.web-remote"
+  | "settings.field.browse"
+  | "settings.global.interface-language"
+  | "settings.global.update-checks"
+  | "settings.interface.auto-hide-controls"
+  | "settings.interface.filename-in-title-bar"
+  | "settings.interface.hide-controls-after"
+  | "settings.interface.keep-above"
+  | "settings.interface.open-fullscreen-on"
+  | "settings.interface.play-video-in-main-window"
+  | "settings.interface.remember-window-size-position"
+  | "settings.interface.resize-to-fit-video"
+  | "settings.interface.show-controls-in-fullscreen"
+  | "settings.interface.skin-file"
+  | "settings.interface.start-in-compact-mode"
+  | "settings.interface.use-custom-skin"
+  | "settings.interface.window-decorations"
+  | "settings.playback.default-speed"
+  | "settings.playback.start-playing"
+  | "settings.privacy.clear"
+  | "settings.privacy.clear-history"
+  | "settings.privacy.clear-unavailable"
+  | "settings.section.controls.remotes"
+  | "settings.section.controls.shortcuts"
+  | "settings.section.interface.notifications"
+  | "settings.section.interface.playback-controls"
+  | "settings.section.interface.skin"
+  | "settings.section.playback.track-languages"
+  | "settings.value.audio-startup-volume-mode.always"
+  | "settings.value.audio-startup-volume-mode.remember-last"
+  | "settings.value.interface-auto-hide-controls.always"
+  | "settings.value.interface-auto-hide-controls.fullscreen-only"
+  | "settings.value.interface-auto-hide-controls.never"
+  | "settings.value.interface-open-fullscreen-on.all-screens"
+  | "settings.value.interface-open-fullscreen-on.current-screen"
+  | "settings.value.interface-resize-to-fit-video.always"
+  | "settings.value.interface-resize-to-fit-video.never"
+  | "settings.video.reset"
+  | "settings.video.reset-picture";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
 // generator, tests, and l10n tooling.
@@ -2348,11 +2445,108 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "player.appmenu.keyboard-shortcuts": "Keyboard Shortcuts",
   "player.appmenu.customize": "Customize Player",
   "player.appmenu.about": "About VLC",
+
+// --- locale selection (card 4.H3) ------------------------------------------
+  "customize.band.drop-hint": "Drop items here to add them to the toolbar",
+  "customize.band.label": "Toolbar preview",
+  "customize.band.remove": "Remove {item} from the toolbar",
+  "customize.tile.artist-name": "Artist name",
+  "customize.tile.bookmark": "Bookmark",
+  "customize.tile.bookmarks": "Bookmarks",
+  "customize.tile.chapters": "Chapters",
+  "customize.tile.divider": "Divider",
+  "customize.tile.favorite": "Favorite",
+  "customize.tile.file-name": "File name",
+  "customize.tile.folder-name": "Folder name",
+  "customize.tile.go-home": "Go home",
+  "customize.tile.hdr": "HDR",
+  "customize.tile.pip": "Picture in picture",
+  "customize.tile.playback-speed": "Playback speed",
+  "customize.tile.playlist-name": "Playlist name",
+  "customize.tile.playlists": "Playlists",
+  "customize.tile.properties": "Properties",
+  "customize.tile.quit": "Quit VLC",
+  "customize.tile.record": "Record",
+  "customize.tile.remove-hint": "Remove from toolbar",
+  "customize.tile.replay": "Replay",
+  "customize.tile.right-sidebar": "Right sidebar",
+  "customize.tile.snapshot": "Snapshot",
+  "customize.tile.spacer": "Spacer",
+  "customize.tile.thumbnail": "Thumbnail",
+  "customize.tile.vlc-settings": "VLC settings",
+  "customize.tile.zoom": "Zoom",
+  "player.controls.advanced-settings": "Show Advanced Settings",
+  "player.controls.audio-tracks": "Audio tracks",
+  "player.controls.queue": "Queue",
+  "player.controls.queue-empty": "Nothing in the queue",
+  "player.controls.settings-popup": "Player settings",
+  "player.controls.subtitle-tracks": "Subtitle tracks",
+  "player.controls.time-current": "Current time",
+  "player.controls.time-duration": "Total duration",
+  "player.controls.time-remaining": "Remaining time",
+  "player.home.continue-watching": "Continue Watching",
+  "player.home.folders": "Frequently Visited Folders",
+  "player.home.listen-again": "Listen Again",
+  "player.home.play": "Play",
+  "player.home.section-empty": "Nothing here yet",
+  "playlist.file.menu.add-audio": "Add Audio Tracks",
+  "playlist.file.menu.add-subtitles": "Add Subtitle Tracks",
+  "playlist.file.menu.add-to-playlist": "Add to Playlist",
+  "playlist.file.menu.add-to-queue": "Add to Queue",
+  "playlist.file.menu.convert": "Convert",
+  "playlist.file.menu.go-to-source": "Go to Source",
+  "playlist.file.menu.mark-watched": "Mark as Watched",
+  "playlist.file.menu.properties": "Properties & Metadata",
+  "playlist.file.menu.show-in-explorer": "Show in File Explorer",
+  "playlist.file.menu.stream": "Stream",
+  "playlist.file.menu.title": "File actions",
+  "settings.audio.device-system-default": "System default",
+  "settings.audio.startup-volume-mode": "Startup volume mode",
+  "settings.controls.edit-shortcuts-action": "Edit Keyboard Shortcuts",
+  "settings.controls.port": "Port",
+  "settings.controls.remotes-staged": "Staged — the web remote activates when the control server ships",
+  "settings.controls.web-remote": "Web remote control",
+  "settings.field.browse": "Browse",
+  "settings.global.interface-language": "Interface language",
+  "settings.global.update-checks": "Check for updates automatically",
+  "settings.interface.auto-hide-controls": "Auto-hide the controls",
+  "settings.interface.filename-in-title-bar": "Show the file name in the title bar",
+  "settings.interface.hide-controls-after": "Hide after",
+  "settings.interface.keep-above": "Keep window above other windows",
+  "settings.interface.open-fullscreen-on": "Open fullscreen on",
+  "settings.interface.play-video-in-main-window": "Play video inside main window",
+  "settings.interface.remember-window-size-position": "Remember window size and position",
+  "settings.interface.resize-to-fit-video": "Resize window to fit video",
+  "settings.interface.show-controls-in-fullscreen": "Show controls in fullscreen",
+  "settings.interface.skin-file": "Skin file",
+  "settings.interface.start-in-compact-mode": "Start in compact mode",
+  "settings.interface.use-custom-skin": "Use a custom skin",
+  "settings.interface.window-decorations": "Show window decorations",
+  "settings.playback.default-speed": "Default playback speed",
+  "settings.playback.start-playing": "Start playing as soon as a file opens",
+  "settings.privacy.clear": "Clear",
+  "settings.privacy.clear-history": "Clear history now",
+  "settings.privacy.clear-unavailable": "History clearing arrives with the playback-history store",
+  "settings.section.controls.remotes": "Remotes",
+  "settings.section.controls.shortcuts": "Keyboard Shortcuts",
+  "settings.section.interface.notifications": "Notifications and System Tray",
+  "settings.section.interface.playback-controls": "Playback Controls",
+  "settings.section.interface.skin": "Skin",
+  "settings.section.playback.track-languages": "Track languages",
+  "settings.value.audio-startup-volume-mode.always": "Always starts at:",
+  "settings.value.audio-startup-volume-mode.remember-last": "Remember last volume",
+  "settings.value.interface-auto-hide-controls.always": "Always",
+  "settings.value.interface-auto-hide-controls.fullscreen-only": "In fullscreen only",
+  "settings.value.interface-auto-hide-controls.never": "Never",
+  "settings.value.interface-open-fullscreen-on.all-screens": "All screens",
+  "settings.value.interface-open-fullscreen-on.current-screen": "Current screen",
+  "settings.value.interface-resize-to-fit-video.always": "Always",
+  "settings.value.interface-resize-to-fit-video.never": "Never",
+  "settings.video.reset": "Reset",
+  "settings.video.reset-picture": "Reset picture",
 };
 
 export type Msg = (key: MessageKey) => string;
-
-// --- locale selection (card 4.H3) ------------------------------------------
 // en-US is the reference catalog (doc 07 §6.3); `pseudo` is GENERATED from
 // it at module load (never a second hand-written catalog — no drift). The
 // real locale-pack pipeline (doc 07 §6, crates/localization) replaces this

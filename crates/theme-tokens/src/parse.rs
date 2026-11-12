@@ -706,6 +706,7 @@ fn ramp_from_file(semantic: &[SemanticToken], accent: &str) -> Result<AccentRamp
         tinted_dark: color("color.accent.tinted", Some("dark"))?,
         tinted_light: color("color.accent.tinted", Some("light"))?,
         bright_light: color("color.accent.bright", Some("light"))?,
+        bright_dark: color("color.accent.bright", Some("dark"))?,
         icon_light: color("color.accent.icon", Some("light"))?,
         on_accent: color("color.content.on-accent", None)?,
     })

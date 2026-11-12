@@ -80,6 +80,15 @@ function useSurfaceFocusTrap(
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // w26.g19 P1-2 root fix (Lead): an OPEN overlay popup inside the
+        // dialog (a Dropdown listbox, a menu) owns the FIRST Escape — this
+        // native listener fires before React's delegated handlers, so the
+        // trap must explicitly yield. Dropdown/MenuPopup render their
+        // role="listbox"/"menu" nodes ONLY while open, so their presence
+        // inside the dialog means "a popup is open".
+        if (node.querySelector('[role="listbox"], [role="menu"]') !== null) {
+          return;
+        }
         event.stopPropagation();
         onCloseRef.current("escape");
         return;

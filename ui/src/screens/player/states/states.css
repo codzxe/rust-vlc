@@ -331,3 +331,148 @@
   /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-surface-deep #0e0e0e track on the stays-dark scrim */
   background: #0e0e0e;
 }
+
+/* --- player home (Player-5.svg): the idle canvas's returning-user face ---
+ * w26.gfix-C (g04 P1-7). Three content sections over the frame's card
+ * grammar, y-sorted per the frame: Continue Watching (video cards) →
+ * Listen Again (album squares) → Frequently Visited Folders (honest empty —
+ * no folders seam exists in any transport). Frame geometry @1920 scaled to
+ * the app's 1440 render (×0.75): video cards 316×177.75 r12 → 237×133 r9
+ * on a 252px pitch (20px gap); album/folder squares 200×200 r12 → 150×150;
+ * section headers ≈15px on quiet ink. The home scrolls (three sections
+ * exceed the canvas at small heights — Player-5's own frame runs the third
+ * section past the strip). */
+.lumen-state-home {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(var(--space-inset) * 3) calc(var(--space-inset) * 4);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+}
+
+.lumen-state-home__section {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-inset) * 2); /* header → cards (frame ≈16px) */
+  margin: 0 0 calc(var(--space-inset) * 6);
+}
+
+.lumen-state-home__section:last-child {
+  margin-bottom: 0;
+}
+
+/* Section headers ≈15px quiet ink (Player-5 "Continue Watching" #969696;
+ * the secondary token is the nearest semantic step). */
+.lumen-state-home__header {
+  margin: 0;
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary);
+}
+
+.lumen-state-home__empty {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-state-home__row {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: calc(var(--space-grid) * 5); /* frame card pitch 336 → 20px gap */
+}
+
+.lumen-state-home__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-inset);
+  width: 237px; /* frame 316 @1920 → ×0.75 — structural */
+}
+
+.lumen-state-home__cell--album {
+  width: 150px;
+}
+
+/* The art box: the frame's #171717 r12 card (panel token at ×0.75 scale,
+ * r9 — structural). The well renders the honest quiet glyph (no artwork
+ * seam — the ThumbnailGrid precedent). */
+.lumen-state-home__card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 237px; /* frame-measured (structural) */
+  height: 133px; /* frame 177.75 @1920 → ×0.75 (structural) */
+  padding: 0;
+  background: var(--color-surface-panel);
+  border: 1px solid transparent;
+  border-radius: 9px; /* frame r12 @1920 → ×0.75 — structural */
+  cursor: pointer;
+  transition: border-color var(--motion-duration-fast) ease;
+}
+
+.lumen-state-home__card[data-card-kind="album"] {
+  width: 150px; /* frame 200×200 squares → ×0.75 (structural) */
+  height: 150px;
+}
+
+
+.lumen-state-home__card:hover {
+  border-color: var(--color-stroke-border);
+}
+
+.lumen-state-home__card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-state-home__card-art {
+  color: var(--color-content-tertiary); /* quiet honest well glyph */
+}
+
+.lumen-state-home__card-title {
+  overflow: hidden;
+  font-size: var(--font-size-body);
+  color: var(--color-content-secondary); /* frame card titles #969696 */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* w26.gfix-C light pins — the home is canvas CONTENT on the stays-dark
+ * canvas (W25 spec §1 picture-frame rule; the w26.d2/f10 hero/scrim pins'
+ * precedent): the flipping content tokens would paint near-black on
+ * near-black in light mode, so light mode pins the dark theme's frame
+ * values (Player-5.svg). Token-lane handoff: a stays-dark canvas content
+ * ramp replaces these (same note as the hero pins). */
+:root[data-theme="light"] .lumen-state-home {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-primary #c6c6c6 on the stays-dark canvas */
+  color: #c6c6c6;
+}
+
+:root[data-theme="light"] .lumen-state-home__header,
+:root[data-theme="light"] .lumen-state-home__card-title {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player-5.svg section/card titles #969696 on the stays-dark canvas */
+  color: #969696;
+}
+
+:root[data-theme="light"] .lumen-state-home__empty,
+:root[data-theme="light"] .lumen-state-home__card-art {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-tertiary #828282 quiet ink on the stays-dark canvas */
+  color: #828282;
+}
+
+:root[data-theme="light"] .lumen-state-home__card {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player-5.svg card fill #171717 (stays dark — canvas content) */
+  background: #171717;
+  border-color: transparent;
+}
+
+:root[data-theme="light"] .lumen-state-home__card:hover {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-stroke-border #404040 on the stays-dark canvas */
+  border-color: #404040;
+}

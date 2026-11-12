@@ -1,28 +1,46 @@
-// Card 4.F3 / w26.a17 — the customize surface renderer, rebuilt to the
-// 9-state frame set `design/figma/Player - customize*.svg` (W25 spec §2):
+// w26.gfixA (issue #62 fix cycle) — the "Customize Player" surface,
+// rebuilt from the 320px rail era to the 9-state frame set
+// `design/figma/Player - customize*.svg`:
 //
-//   header strip  "Customize Player" + ✕ close        (frame: #090909 band)
-//   instruction   the drag-and-drop helper line        (frame: 12px tertiary)
-//   THE BOX       dashed-tile toolbar palette          (frame rows 1–4)
-//   sections      per-panel adjustment rows            (Figma row grammar)
-//   footer        Cancel (left) · Save (right, r6)     (frame: 32px, r6)
+//   ┌──────────────────────────────────────────────────────────────┐
+//   │ header band 94px #090909 — "Customize Player" 15px + ✕ 10px  │
+//   │ instruction  (the frame's verbatim drag-and-drop helper line) │
+//   │ THE BOX      31-tile catalog — 9 columns × 4 rows, dashed     │
+//   │              wells 27×27 #6B6B6B dash 4-4, 2-line labels      │
+//   │ footer       Cancel (left) · Save (right) — 100×32 r6, Save   │
+//   │              dimmed while clean (frame 0) / active (frames    │
+//   │              -1…-6)                                          │
+//   └──────────────────────────────────────────────────────────────┘
 //
-// Data-driven composition (doc 08 §4 note) is UNCHANGED: panels/fields come
-// from ./panels.ts, each field bound to a command id; a field renders ONLY
-// when the engine's `system.list-commands` listing includes that command
-// (./capabilities.ts). Quick-action fields (action / toggle-action) render
-// as palette tiles; select/slider fields render as adjustment rows. All
-// engine communication goes through the command-layer client seam.
+// MODAL ANATOMY (frame: rect 436,189.5 1048×655 rx14 fill #0E0E0E @0.95
+// + drop shadow + blur halo, floating slightly high of center over the
+// player): hosted on the shared Dialog primitive (scrim + focus trap +
+// Escape), NOT a right rail — the Lead ruling of the g-wave.
 //
-// Truthfulness (doc 08 §5): select selections and slider committed values
-// update ONLY from engine confirmations (command completions / events) —
-// live slider drags are visual previews that never dispatch; onCommit is
-// the only dispatch point. Save/Cancel manage the LOCAL toolbar arrangement
-// (doc 08 §4 layout state — a UI-owned concern, no engine command exists);
-// dragging a tile out of the box removes it (frame "…-6"), Cancel restores.
+// THE EDIT MODEL (the frame's own instruction copy, verbatim):
+//   * "Drag items around … the box … to re-order them" — in-box drags
+//     reorder the catalog arrangement;
+//   * dragging a tile OUT of the box onto the CONTROL BAND places it in
+//     the toolbar (frames -6/-7: the Favorite ghost lands in the band);
+//   * "Drag items into the box to remove them from the player" — band
+//     items drag (or click — the keyboard-safe path) back into the box.
+// The band renders the arrangement as dashed edit wells while the modal
+// is open (frames -1..-4's live-chrome preview grammar): the fixed
+// transport cluster (prev · play pill · next, frame -1 measured), the
+// placed toolbar items, the long drop slot (frame 0 draws the live seek
+// preview inside it), and the fixed right cluster (volume + 3 + more).
+// Save persists the arrangement (doc 08 §4 UI-owned layout state; the
+// localStorage seam the controls lane can consume via toolbarLayout.ts),
+// Cancel reverts.
+//
+// Data-driven composition (doc 08 §4) and truthfulness (§5) are
+// unchanged: engine-bound tiles dispatch their commands and render only
+// when the engine lists them (capabilities.ts); UI-owned toolbar items
+// always render; cycle tiles (Playback speed, Repeat, Zoom) dispatch the
+// next option from ENGINE-CONFIRMED state only — never optimistic.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useClient } from "../../../client/ClientProvider";
 import type {
   CommandRequest,
@@ -33,51 +51,30 @@ import type {
 import { Icon } from "../../../components/icon/Icon";
 import { IconButton } from "../../../components/button/IconButton";
 import { Button } from "../../../components/button";
-import { Dropdown } from "../../../components/menu/Dropdown";
-import { Slider } from "../../../components/slider";
-import { ValueChip } from "../../../components/form/ValueChip";
+import { Dialog } from "../../../components/surface/Surface";
+import type { SurfaceCloseReason } from "../../../components/surface/Surface";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
-import { keys as laneKeys } from "../../../i18n/keys/w26.a17";
+import { keys as a17Keys } from "../../../i18n/keys/w26.a17";
+import { keys as gfixAKeys } from "../../../i18n/keys/w26.gfixA";
+import { useCommandCapabilities, visibleTiles } from "./capabilities";
+import { CUSTOMIZE_TILES, cycleArgs, tileById } from "./panels";
 import {
-  panelVisible,
-  useCommandCapabilities,
-  visibleFields,
-} from "./capabilities";
-import { CUSTOMIZE_FIELDS, CUSTOMIZE_PANELS } from "./panels";
+  loadToolbarLayout,
+  persistToolbarLayout,
+  toolbarLayoutEqual,
+} from "./toolbarLayout";
 import type {
   CommandArgs,
-  CustomizeField,
-  CustomizeLabelKey,
-  CustomizePanelDef,
+  CustomizeTile,
+  ToolbarLayout,
 } from "./types";
 import "./customize.css";
 
-/** Payload a select-field completion echoes, keyed like the option args. */
-function selectPayload(result: CommandResult): CommandArgs | null {
-  switch (result.kind) {
-    case "applied-aspect-ratio":
-      return { ratio: result.ratio };
-    case "applied-crop":
-      return { crop: result.crop };
-    case "applied-repeat":
-      return { mode: result.mode };
-    default:
-      return null;
-  }
-}
-
-/** Numeric completion → { command, value } for slider committed state. */
-function numericCompletion(result: CommandResult): { command: string; value: number } | null {
-  switch (result.kind) {
-    case "applied-rate":
-      return { command: "playback.set-rate", value: result.rate };
-    case "applied-zoom":
-      return { command: "video.set-zoom", value: result.factor };
-    default:
-      return null;
-  }
-}
+/** dataTransfer type carrying a catalog tile id out of the box. */
+const TILE_DRAG_TYPE = "application/lumen-tile";
+/** dataTransfer type carrying a placed band item id. */
+const BAND_DRAG_TYPE = "application/lumen-band-item";
 
 /** Structural equality for plain option-args payloads. */
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -91,27 +88,46 @@ function deepEqual(a: unknown, b: unknown): boolean {
   );
 }
 
-const sliderFieldByCommand = (command: string): CustomizeField | undefined =>
-  CUSTOMIZE_FIELDS.find(
-    (field) => field.command === command && field.control.kind === "slider",
-  );
+/** The cycle tiles' command → args-payload builders (completion mapping). */
+const CYCLE_PAYLOADS: ReadonlyArray<{
+  readonly command: string;
+  readonly payload: (result: CommandResult) => CommandArgs | null;
+}> = [
+  { command: "playlist.set-repeat", payload: (r) => (r.kind === "applied-repeat" ? { mode: r.mode } : null) },
+  { command: "playback.set-rate", payload: (r) => (r.kind === "applied-rate" ? { rate: r.rate } : null) },
+  { command: "video.set-zoom", payload: (r) => (r.kind === "applied-zoom" ? { factor: r.factor } : null) },
+];
 
-/** Quick-action fields render as palette tiles (doc 08 §4 button catalog). */
-function isTileField(field: CustomizeField): boolean {
-  return field.control.kind === "action" || field.control.kind === "toggle-action";
+/** Apply a cycle payload to the matching cycle tile (engine truth only). */
+function applyCyclePayload(
+  command: string,
+  payload: CommandArgs,
+  setCycleSelections: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+): void {
+  const tile = CUSTOMIZE_TILES.find(
+    (candidate) => candidate.command === command && candidate.control.kind === "cycle",
+  );
+  if (tile === undefined || tile.control.kind !== "cycle") return;
+  const option = tile.control.options.find((candidate) => deepEqual(candidate.args, payload));
+  if (option !== undefined) {
+    setCycleSelections((prev) => ({ ...prev, [tile.id]: option.id }));
+  }
 }
 
 /**
- * Seam-first label resolver: central catalog first, then this lane's
- * pre-registration keys (ui/src/i18n/keys/w26.a17.ts). After the Lead
- * registers the keys into messages.ts the first branch already resolves
- * them; until then the local fallback keeps the copy total.
+ * Seam-first label resolver: central catalog first, then the lane's
+ * pre-registration keys (w26.a17 + w26.gfixA). After the Lead registers
+ * the keys into messages.ts the first branch resolves them; until then
+ * the local fallback keeps the copy total.
  */
 function useCustomizeMsg() {
   const m = useMsg();
   return useCallback(
-    (key: CustomizeLabelKey): string =>
-      m(key as MessageKey) ?? laneKeys[key as keyof typeof laneKeys] ?? key,
+    (key: CustomizeTile["labelKey"] | MessageKey): string =>
+      m(key as MessageKey) ??
+      a17Keys[key as keyof typeof a17Keys] ??
+      gfixAKeys[key as keyof typeof gfixAKeys] ??
+      key,
     [m],
   );
 }
@@ -120,73 +136,66 @@ export interface CustomizePanelsProps {
   /** Transport override (tests); defaults to the client context. */
   readonly transport?: CommandTransport;
   /**
-   * Close affordance (the header ✕). When the host provides a callback the
-   * button calls it; otherwise it emits the `lumen:close-panel` seam event
-   * (detail `{ panel: "customize" }`) the same way the shell's other panel
-   * seams work — the player composition lane can adopt it without a re-prop.
+   * Close affordance (the header ✕ + Escape). When the host provides a
+   * callback the dialog calls it; otherwise it emits the
+   * `lumen:close-panel` seam event (detail `{ panel: "customize" }`).
    */
   readonly onClose?: () => void;
+  /** Whether the modal is mounted (the per-open pattern mounts fresh). */
+  readonly open?: boolean;
 }
 
 /**
- * The "Customize Player" surface: capability-gated toolbar palette +
- * adjustment rows composed to the 9-state frame set. Panels whose fields
- * are all unsupported contribute nothing; when NO panel is supported the
- * surface renders only an honest screen-reader note (the scaffold
- * MockTransport state).
+ * The "Customize Player" surface: the frame's centered modal — the static
+ * 31-tile catalog box, the Cancel/Save footer, and the control band's
+ * dashed edit-well preview while open. Mount per-open (fresh arrangement
+ * state from persistence each time).
  */
-export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
+export function CustomizePanels({ transport, onClose, open = true }: CustomizePanelsProps) {
   const client = useClient();
   const wire = transport ?? client;
   const m = useMsg();
   const t = useCustomizeMsg();
   const caps = useCommandCapabilities(wire);
+  const titleId = useId();
 
-  // Engine-confirmed state — never optimistic (doc 08 §5).
-  const [selected, setSelected] = useState<Record<string, string>>({});
-  const [committed, setCommitted] = useState<Record<string, number>>({});
-  const [live, setLive] = useState<Record<string, number>>({});
+  // ---- engine-confirmed tile state (doc 08 §5 — never optimistic) --------
   const [engineBools, setEngineBools] = useState<Record<string, boolean | null>>({});
+  const [cycleSelections, setCycleSelections] = useState<Record<string, string>>({});
   const nextRequestId = useRef(0);
 
-  /** Apply a command completion to the panel state (engine truth only). */
+  /** Apply a command completion to the tile state (engine truth only). */
   const applyCompletion = useCallback((result: CommandResult): void => {
-    const payload = selectPayload(result);
-    if (payload !== null) {
-      for (const field of CUSTOMIZE_FIELDS) {
-        if (field.control.kind !== "select") continue;
-        const match = field.control.options.find((option) => deepEqual(option.args, payload));
-        if (match !== undefined) {
-          setSelected((prev) => ({ ...prev, [field.id]: match.id }));
-        }
-      }
-    }
-    const numeric = numericCompletion(result);
-    if (numeric !== null) {
-      const field = sliderFieldByCommand(numeric.command);
-      if (field !== undefined) {
-        setCommitted((prev) => ({ ...prev, [field.id]: numeric.value }));
-      }
-    }
     if (result.kind === "applied-bool") {
-      // Only `playlist.set-shuffle` dispatches from these panels.
-      const field = CUSTOMIZE_FIELDS.find(
-        (f) => f.command === "playlist.set-shuffle" && f.control.kind === "toggle-action",
+      // Only `playlist.set-shuffle` dispatches a bool from this surface.
+      const tile = CUSTOMIZE_TILES.find(
+        (candidate) =>
+          candidate.command === "playlist.set-shuffle" &&
+          candidate.control.kind === "toggle-action",
       );
-      if (field !== undefined) {
-        setEngineBools((prev) => ({ ...prev, [field.id]: result.value }));
+      if (tile !== undefined) {
+        setEngineBools((prev) => ({ ...prev, [tile.id]: result.value }));
+      }
+      return;
+    }
+    for (const entry of CYCLE_PAYLOADS) {
+      const payload = entry.payload(result);
+      if (payload !== null) {
+        applyCyclePayload(entry.command, payload, setCycleSelections);
+        return;
       }
     }
   }, []);
 
   const dispatch = useCallback(
-    async (field: CustomizeField, args: CommandArgs): Promise<void> => {
+    async (tile: CustomizeTile, args: CommandArgs): Promise<void> => {
+      if (tile.command === null) return;
       nextRequestId.current += 1;
-      // Forward-declared commands (colors, HDR) are not yet in the 1.D4 wire
+      // Forward-declared commands (PiP, HDR) are not yet in the 1.D4 wire
       // union — the cast is the bridge until `cargo xtask codegen` regrows
       // the catalog (recorded in ui/NEXT-STEPS.md).
       const request = {
-        cmd: field.command,
+        cmd: tile.command,
         args,
         requestId: nextRequestId.current,
       } as unknown as CommandRequest;
@@ -195,7 +204,7 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
         if ("completed" in response.result) {
           applyCompletion(response.result.completed);
         }
-        // Errors (feature-not-exposed etc.) leave panel state untouched —
+        // Errors (feature-not-exposed etc.) leave tile state untouched —
         // honest no-change, no fabricated success.
       } catch {
         // Transport failure — same honest no-change policy.
@@ -209,26 +218,20 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
     const onEvent = (event: Event): void => {
       switch (event.kind) {
         case "playback.rate-changed": {
-          const field = sliderFieldByCommand("playback.set-rate");
-          if (field !== undefined) {
-            setCommitted((prev) => ({ ...prev, [field.id]: event.rate }));
-          }
+          applyCyclePayload("playback.set-rate", { rate: event.rate }, setCycleSelections);
           break;
         }
         case "playlist.changed": {
           const change = event.change;
           if (change.kind === "shuffle-set") {
-            const field = CUSTOMIZE_FIELDS.find((f) => f.command === "playlist.set-shuffle");
-            if (field !== undefined) {
-              setEngineBools((prev) => ({ ...prev, [field.id]: change.enabled }));
+            const tile = CUSTOMIZE_TILES.find(
+              (candidate) => candidate.command === "playlist.set-shuffle",
+            );
+            if (tile !== undefined) {
+              setEngineBools((prev) => ({ ...prev, [tile.id]: change.enabled }));
             }
           } else if (change.kind === "repeat-set") {
-            const payload = { mode: change.mode };
-            for (const f of CUSTOMIZE_FIELDS) {
-              if (f.control.kind !== "select") continue;
-              const match = f.control.options.find((o) => deepEqual(o.args, payload));
-              if (match !== undefined) setSelected((prev) => ({ ...prev, [f.id]: match.id }));
-            }
+            applyCyclePayload("playlist.set-repeat", { mode: change.mode }, setCycleSelections);
           }
           break;
         }
@@ -239,340 +242,433 @@ export function CustomizePanels({ transport, onClose }: CustomizePanelsProps) {
     return wire.subscribe(onEvent);
   }, [wire]);
 
-  const panels = useMemo(
-    () => CUSTOMIZE_PANELS.filter((panel) => panelVisible(panel, caps)),
-    [caps],
-  );
+  // ---- the working arrangement (UI-owned layout state, doc 08 §4) -------
+  const [layout, setLayout] = useState<ToolbarLayout>(() => loadToolbarLayout());
+  const [saved, setSaved] = useState<ToolbarLayout>(() => loadToolbarLayout());
+  const dirty = !toolbarLayoutEqual(layout, saved);
 
-  // ---- the box: quick-action tiles + their arrangement -------------------
-  const tileFields = useMemo(
-    () => panels.flatMap((panel) => visibleFields(panel, caps).filter(isTileField)),
-    [caps, panels],
-  );
-  const baseIds = useMemo(() => tileFields.map((field) => field.id), [tileFields]);
-  /**
-   * The box's working copy vs its committed baseline (doc 08 §4: toolbar
-   * layout is UI-owned state). `order: null` = the catalog order. Save
-   * snapshots the working copy; Cancel restores the baseline; dirty = they
-   * differ (frame 0: Save dimmed — frames -1…-6: Save actionable).
-   */
-  interface BoxState {
-    readonly order: readonly string[] | null;
-    readonly removed: readonly string[];
-  }
-  const [box, setBox] = useState<BoxState>({ order: null, removed: [] });
-  const [savedBox, setSavedBox] = useState<BoxState>({ order: null, removed: [] });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-  const dropHandled = useRef(false);
 
-  /** Normalized VISIBLE arrangement (`null` order = catalog order) — the
-   * dirty check compares what the box shows against the saved baseline. */
-  const netKey = (state: BoxState): string =>
-    (state.order ?? baseIds)
-      .filter((id) => baseIds.includes(id) && !state.removed.includes(id))
-      .join("\n");
+  /** Capability-visible tiles in the working order (the box's contents). */
+  const visibleIds = useMemo(() => {
+    const visible = new Set(visibleTiles(CUSTOMIZE_TILES, caps).map((tile) => tile.id));
+    return layout.order.filter((id) => visible.has(id));
+  }, [caps, layout.order]);
 
-  const shownIds = useMemo(() => {
-    const ordered = (box.order ?? baseIds).filter(
-      (id) => baseIds.includes(id) && !box.removed.includes(id),
-    );
-    // Fields that became available after an edit append at the end — a
-    // capability arriving mid-session never hides its tile.
-    const appended = baseIds.filter(
-      (id) => !ordered.includes(id) && !box.removed.includes(id),
-    );
-    return [...ordered, ...appended];
-  }, [baseIds, box]);
-  const shownFields = useMemo(
-    () => shownIds.map((id) => tileFields.find((field) => field.id === id)),
-    [shownIds, tileFields],
-  );
-  const dirty = netKey(box) !== netKey(savedBox);
-
-  /** Drag-to-reorder: move `dragId` onto `targetId`'s slot (frame -1…-5). */
+  /** Reorder the catalog arrangement ("drag items around the box"). */
   const moveTile = useCallback(
     (dragId: string, targetId: string): void => {
-      const order = [...shownIds];
-      const from = order.indexOf(dragId);
-      const to = order.indexOf(targetId);
-      if (from < 0 || to < 0 || from === to) return;
-      order.splice(to, 0, ...order.splice(from, 1));
-      setBox((prev) => ({ ...prev, order }));
+      setLayout((prev) => {
+        const order = [...prev.order];
+        const from = order.indexOf(dragId);
+        const to = order.indexOf(targetId);
+        if (from < 0 || to < 0 || from === to) return prev;
+        order.splice(to, 0, ...order.splice(from, 1));
+        return { ...prev, order };
+      });
     },
-    [shownIds],
+    [],
   );
 
-  /** Drag out of the box / Delete key = remove from the player (frame -6). */
-  const removeTile = useCallback((id: string): void => {
-    setBox((prev) =>
-      prev.removed.includes(id) ? prev : { ...prev, removed: [...prev.removed, id] },
+  /** Place a catalog tile into the control band (frames -6/-7). */
+  const addToBand = useCallback((id: string): void => {
+    setLayout((prev) =>
+      prev.band.includes(id) ? prev : { ...prev, band: [...prev.band, id] },
     );
   }, []);
 
-  /** Keyboard equivalent of the drag gestures (tiles are real buttons). */
+  /** Remove a placed item from the band ("drag items into the box"). */
+  const removeFromBand = useCallback((id: string): void => {
+    setLayout((prev) =>
+      prev.band.includes(id) ? { ...prev, band: prev.band.filter((band) => band !== id) } : prev,
+    );
+  }, []);
+
+  /** Keyboard equivalents of the drag gestures (tiles are real buttons). */
   const onTileKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>, id: string): void => {
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
-        removeTile(id);
+        removeFromBand(id);
         return;
       }
       if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-      const index = shownIds.indexOf(id);
+      const index = visibleIds.indexOf(id);
       const target = event.key === "ArrowLeft" ? index - 1 : index + 1;
-      const targetId = shownIds[target];
+      const targetId = visibleIds[target];
       if (targetId !== undefined) {
         event.preventDefault();
         moveTile(id, targetId);
       }
     },
-    [moveTile, removeTile, shownIds],
+    [moveTile, removeFromBand, visibleIds],
   );
 
-  // ---- the sections: select/slider adjustment rows -----------------------
-  const sectionPanels = useMemo(
-    () =>
-      panels
-        .map((panel) => ({
-          panel,
-          fields: visibleFields(panel, caps).filter((field) => !isTileField(field)),
-        }))
-        .filter((entry) => entry.fields.length > 0),
-    [caps, panels],
-  );
-
-  if (panels.length === 0) {
-    // All fields unsupported → no panels (no dead controls). Honest note.
-    return <p className="lumen-customize__empty">{m("customize.none-available")}</p>;
-  }
-
-  const closePanel = (): void => {
+  const closePanel = useCallback((): void => {
     if (onClose !== undefined) onClose();
-    else window.dispatchEvent(new CustomEvent("lumen:close-panel", { detail: { panel: "customize" } }));
-  };
+    else
+      window.dispatchEvent(
+        new CustomEvent("lumen:close-panel", { detail: { panel: "customize" } }),
+      );
+  }, [onClose]);
+
+  const onDialogClose = useCallback(
+    (reason: SurfaceCloseReason): void => {
+      if (reason === "escape") closePanel();
+      // Scrim clicks never close (the frames' modal floats inert); the ✕
+      // and Escape are the close affordances.
+    },
+    [closePanel],
+  );
+
+  if (!open) return null;
 
   return (
-    <div className="lumen-customize" data-resolved={caps.resolved}>
-      <header className="lumen-customize__header">
-        <h3 className="lumen-customize__title">{t("customize.title")}</h3>
-        <IconButton
-          label={t("customize.close")}
-          size="sm"
-          className="lumen-customize__close"
-          onClick={closePanel}
-        >
-          <Icon name="close" size={16} />
-        </IconButton>
-      </header>
-      <p className="lumen-customize__instruction">{t("customize.instruction")}</p>
+    <>
+      <Dialog
+        open
+        onClose={onDialogClose}
+        labelledBy={titleId}
+        tone="deep"
+        className="lumen-customize__surface"
+      >
+        <div className="lumen-customize" data-resolved={caps.resolved}>
+          {/* header band — frame: 94px #090909, title 15px semibold
+              #8F8F8F at (28,23), ✕ 10px 1.5px #8F8F8F at (20,20), the
+              instruction line inside the band at (23,~75). */}
+          <header className="lumen-customize__header">
+            <h3 id={titleId} className="lumen-customize__title">
+              {t("customize.title")}
+            </h3>
+            <p className="lumen-customize__instruction">{t("customize.instruction")}</p>
+            <IconButton
+              label={t("customize.close")}
+              size="sm"
+              className="lumen-customize__close"
+              onClick={closePanel}
+            >
+              <Icon name="close" size={10} />
+            </IconButton>
+          </header>
 
-      {tileFields.length > 0 ? (
-        <div
-          className="lumen-customize__box"
-          role="list"
-          aria-label={t("customize.box.label")}
-          data-dragging={draggingId ?? undefined}
-          onDragOver={(event) => {
-            // The whole box accepts drops (a drop back into the box keeps
-            // the tile — only dragging OUT removes it).
-            event.preventDefault();
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            dropHandled.current = true;
-            setDraggingId(null);
-            setDropTargetId(null);
-          }}
-        >
-          {shownFields.map(
-            (field) =>
-              field !== undefined && (
-                <div key={field.id} role="listitem" className="lumen-customize__tile-slot">
+          {/* THE BOX — the frame's static 31-tile catalog: 9 columns,
+              dashed 27×27 wells, 2-line labels. The whole box accepts
+              drops (band items dropped here leave the toolbar; tile drops
+              reorder). */}
+          <div
+            className="lumen-customize__box"
+            role="list"
+            aria-label={t("customize.box.label")}
+            data-dragging={draggingId ?? undefined}
+            onDragOver={(event) => {
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const bandId = event.dataTransfer.getData(BAND_DRAG_TYPE);
+              if (bandId !== "") {
+                removeFromBand(bandId);
+              }
+              setDraggingId(null);
+              setDropTargetId(null);
+            }}
+          >
+            {visibleIds.map((id) => {
+              const tile = tileById(id);
+              if (tile === null) return null;
+              return (
+                <div key={id} role="listitem" className="lumen-customize__tile-slot">
                   <button
                     type="button"
                     className="lumen-customize__tile"
-                    data-field-id={field.id}
-                    data-dragging={draggingId === field.id || undefined}
-                    data-drop-target={dropTargetId === field.id || undefined}
+                    data-field-id={id}
+                    data-in-toolbar={layout.band.includes(id) || undefined}
+                    data-dragging={draggingId === id || undefined}
+                    data-drop-target={dropTargetId === id || undefined}
                     aria-pressed={
-                      field.control.kind === "toggle-action"
-                        ? (engineBools[field.id] ?? undefined)
+                      tile.control.kind === "toggle-action"
+                        ? (engineBools[tile.id] ?? undefined)
                         : undefined
+                    }
+                    title={
+                      tile.control.kind === "ui" ? t("customize.band.drop-hint") : undefined
                     }
                     draggable
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", field.id);
-                      dropHandled.current = false;
-                      setDraggingId(field.id);
+                      event.dataTransfer.setData(TILE_DRAG_TYPE, id);
+                      setDraggingId(id);
                     }}
                     onDragEnd={() => {
-                      // No drop target handled the gesture → the tile left
-                      // the box → remove it from the player (frame -6).
-                      if (!dropHandled.current && draggingId !== null) removeTile(draggingId);
                       setDraggingId(null);
                       setDropTargetId(null);
                     }}
                     onDragOver={(event) => {
-                      if (draggingId === null || draggingId === field.id) return;
+                      if (draggingId === null || draggingId === id) return;
                       event.preventDefault();
                       event.stopPropagation();
-                      setDropTargetId(field.id);
+                      setDropTargetId(id);
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      dropHandled.current = true;
-                      if (draggingId !== null && draggingId !== field.id) moveTile(draggingId, field.id);
+                      const bandId = event.dataTransfer.getData(BAND_DRAG_TYPE);
+                      if (bandId !== "") {
+                        removeFromBand(bandId);
+                      } else if (draggingId !== null && draggingId !== id) {
+                        moveTile(draggingId, id);
+                      }
                       setDraggingId(null);
                       setDropTargetId(null);
                     }}
-                    onKeyDown={(event) => onTileKeyDown(event, field.id)}
+                    onKeyDown={(event) => onTileKeyDown(event, id)}
                     onClick={() => {
-                      if (field.control.kind === "action") {
-                        void dispatch(field, field.control.args);
-                      } else if (field.control.kind === "toggle-action") {
-                        void dispatch(field, field.control.argsFor(engineBools[field.id] ?? null));
+                      if (tile.control.kind === "action") {
+                        void dispatch(tile, tile.control.args);
+                      } else if (tile.control.kind === "toggle-action") {
+                        void dispatch(tile, tile.control.argsFor(engineBools[tile.id] ?? null));
+                      } else if (tile.control.kind === "cycle") {
+                        void dispatch(
+                          tile,
+                          cycleArgs(tile.control, cycleSelections[tile.id] ?? null),
+                        );
                       }
+                      // kind "ui": the palette item is inert by design.
                     }}
                   >
                     <span className="lumen-customize__tile-well">
-                      {field.icon ? <Icon name={field.icon} size={20} /> : null}
+                      {tile.icon ? <Icon name={tile.icon} size={20} /> : null}
                     </span>
-                    <span className="lumen-customize__tile-label">{t(field.labelKey)}</span>
+                    <span className="lumen-customize__tile-label">{t(tile.labelKey)}</span>
                   </button>
                 </div>
-              ),
-          )}
+              );
+            })}
+          </div>
+
+          {/* footer — frame: Cancel 100×32 r6 #1B1B1B/#8F8F8F left, Save
+              100×32 r6 #371F06/#D37918 right, Save dimmed while clean. */}
+          <footer className="lumen-customize__footer">
+            <Button
+              className="lumen-customize__cancel"
+              onClick={() => {
+                // Discard the session's edits — back to the saved baseline.
+                setLayout(saved);
+              }}
+            >
+              {m("open.cancel")}
+            </Button>
+            <Button
+              variant="tinted"
+              className="lumen-customize__save"
+              disabled={!dirty}
+              onClick={() => {
+                // Keep the arrangement as the new baseline + persist it
+                // (doc 08 §4 UI-owned layout state).
+                setSaved(layout);
+                persistToolbarLayout(layout);
+              }}
+            >
+              {t("customize.save")}
+            </Button>
+          </footer>
         </div>
-      ) : null}
+      </Dialog>
 
-      {sectionPanels.map(({ panel, fields }) => (
-        <Section key={panel.id} panel={panel}>
-          {fields.map((field) => (
-            <div key={field.id} className="lumen-customize__row" data-field-id={field.id}>
-              {field.control.kind === "select" ? (
-                <>
-                  <span className="lumen-customize__row-label">{t(field.labelKey)}</span>
-                  <Dropdown
-                    label={t(field.labelKey)}
-                    className="lumen-customize__dropdown"
-                    density="compact"
-                    value={selected[field.id] ?? ""}
-                    resolveLabel={(key) => t(key)}
-                    options={field.control.options.map((option) => ({
-                      value: option.id,
-                      labelKey: option.labelKey,
-                    }))}
-                    onChange={(optionId) => {
-                      const option = field.control.kind === "select"
-                        ? field.control.options.find((o) => o.id === optionId)
-                        : undefined;
-                      if (option !== undefined) void dispatch(field, option.args);
-                    }}
-                  />
-                </>
-              ) : field.control.kind === "slider" ? (
-                <SliderRow
-                  field={field}
-                  label={t(field.labelKey)}
-                  committed={committed[field.id] ?? null}
-                  liveValue={live[field.id] ?? null}
-                  onLive={(value) => setLive((prev) => ({ ...prev, [field.id]: value }))}
-                  onCommit={(value) => {
-                    setLive((prev) => ({ ...prev, [field.id]: value }));
-                    if (field.control.kind === "slider") {
-                      void dispatch(field, field.control.argsFor(value));
-                    }
-                  }}
-                />
-              ) : null}
-            </div>
-          ))}
-        </Section>
-      ))}
-
-      {tileFields.length > 0 ? (
-        <footer className="lumen-customize__footer">
-          {/* Footer buttons are the shared Button grammar (frame: Cancel =
-              default variant #1B1B1B/#8F8F8F, Save = tinted variant
-              #371F06/#D37918, both 100×32 r6 — button.css owns the states). */}
-          <Button
-            className="lumen-customize__cancel"
-            onClick={() => {
-              // Discard the session's edits — back to the saved baseline.
-              setBox(savedBox);
-            }}
-          >
-            {m("open.cancel")}
-          </Button>
-          <Button
-            variant="tinted"
-            className="lumen-customize__save"
-            disabled={!dirty}
-            onClick={() => {
-              // Keep the current arrangement as the new baseline (doc 08 §4
-              // layout state is UI-owned; persistence lands with layouts).
-              setSavedBox({ order: shownIds, removed: [] });
-            }}
-          >
-            {t("customize.save")}
-          </Button>
-        </footer>
-      ) : null}
-    </div>
-  );
-}
-
-/** A panel's adjustment section: r12–14 card + 15px semibold header. */
-function Section({ panel, children }: { panel: CustomizePanelDef; children: ReactNode }) {
-  const t = useCustomizeMsg();
-  return (
-    <section className="lumen-customize__section" data-panel-id={panel.id}>
-      <h4 className="lumen-customize__section-title">{t(panel.labelKey)}</h4>
-      {children}
-    </section>
-  );
-}
-
-/** Slider row grammar (EQ/tool frames): label left, value chip right, thin
- * full-width slider below — live preview never dispatches (doc 08 §5). */
-function SliderRow({
-  field,
-  label,
-  committed,
-  liveValue,
-  onLive,
-  onCommit,
-}: {
-  readonly field: CustomizeField;
-  readonly label: string;
-  readonly committed: number | null;
-  readonly liveValue: number | null;
-  readonly onLive: (value: number) => void;
-  readonly onCommit: (value: number) => void;
-}) {
-  const control = field.control.kind === "slider" ? field.control : null;
-  if (control === null) return null;
-  const value = committed ?? control.initial;
-  const shown = liveValue ?? value;
-  return (
-    <div className="lumen-customize__slider-row">
-      <div className="lumen-customize__row-head">
-        <span className="lumen-customize__row-label">{label}</span>
-        <ValueChip className="lumen-customize__value" value={control.format(shown)} />
-      </div>
-      <Slider
-        aria-label={label}
-        value={value}
-        min={control.min}
-        max={control.max}
-        step={control.step}
-        formatValue={control.format}
-        onChangeLive={onLive}
-        onCommit={onCommit}
+      {/* The control band's edit preview (frames -1..-4/-6/-7): dashed
+          wells over the live strip while the modal is open. Placed
+          toolbar items render as draggable wells; the band accepts tile
+          drops (place) and its wells drag back into the box (remove). */}
+      <CustomizeBand
+        layout={layout}
+        dragging={draggingId !== null}
+        onDropTile={addToBand}
+        onRemoveFromBand={removeFromBand}
       />
+    </>
+  );
+}
+
+/** The live control band's measured geometry (null → CSS fallback). */
+interface BandGeometry {
+  readonly top: number;
+  readonly left: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Measure the real control band (shell strip, else the in-place footer). */
+function useBandGeometry(): BandGeometry | null {
+  const [geometry, setGeometry] = useState<BandGeometry | null>(null);
+
+  useLayoutEffect(() => {
+    const measure = (): void => {
+      const band =
+        document.querySelector(".app-shell__strip") ??
+        document.querySelector(".lumen-player__controls");
+      if (band === null) {
+        setGeometry(null);
+        return;
+      }
+      const rect = band.getBoundingClientRect();
+      // jsdom reports 0×0 rects — keep the CSS fallback there.
+      if (rect.width === 0 || rect.height === 0) {
+        setGeometry(null);
+        return;
+      }
+      setGeometry({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+    };
+    measure();
+    const band =
+      document.querySelector(".app-shell__strip") ??
+      document.querySelector(".lumen-player__controls");
+    // ResizeObserver is guarded (jsdom carries none — the CSS fallback
+    // covers zero-rect hosts there).
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (observer !== null && band !== null) observer.observe(band);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  return geometry;
+}
+
+/**
+ * The control band's dashed edit-well preview (frames -1..-4): the placed
+ * toolbar items as draggable wells beside the fixed transport cluster,
+ * the frame's long empty drop slot between them and the right cluster,
+ * and the fixed volume/effect/subtitle/PiP/more wells. Fixed wells are
+ * the preview chrome of controls this lane does not own (aria-hidden);
+ * placed wells are real buttons (click = remove — the keyboard-safe path
+ * back into the box).
+ */
+function CustomizeBand({
+  layout,
+  dragging,
+  onDropTile,
+  onRemoveFromBand,
+}: {
+  readonly layout: ToolbarLayout;
+  readonly dragging: boolean;
+  readonly onDropTile: (id: string) => void;
+  readonly onRemoveFromBand: (id: string) => void;
+}) {
+  const t = useCustomizeMsg();
+  const geometry = useBandGeometry();
+  const [dropActive, setDropActive] = useState(false);
+
+  const placed = layout.band
+    .map((id) => tileById(id))
+    .filter((tile): tile is CustomizeTile => tile !== null);
+
+  return (
+    <div
+      className="lumen-customize-band"
+      data-dragging={dragging || undefined}
+      data-drop-active={dropActive || undefined}
+      role="group"
+      aria-label={t("customize.band.label")}
+      style={
+        geometry === null
+          ? undefined
+          : {
+              top: `${geometry.top}px`,
+              left: `${geometry.left}px`,
+              width: `${geometry.width}px`,
+              height: `${geometry.height}px`,
+            }
+      }
+      onDragOver={(event) => {
+        if (!dragging) return;
+        event.preventDefault();
+        setDropActive(true);
+      }}
+      onDragLeave={() => {
+        setDropActive(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDropActive(false);
+        const id = event.dataTransfer.getData(TILE_DRAG_TYPE);
+        if (id !== "") onDropTile(id);
+      }}
+    >
+      <div className="lumen-customize-band__row">
+        {/* Fixed transport preview (frame -1, measured: prev well 29×27
+            @20.5 · play well 53×33 @58.5 wrapping the 48×28 r6 accent pill
+            · next well 29×27 @120.5 — pitch 38/62) — the real controls are
+            the controls lane's. */}
+        <span className="lumen-customize-band__cluster" aria-hidden="true">
+          <span className="lumen-customize-band__well">
+            <Icon name="previous" size={18} />
+          </span>
+          <span className="lumen-customize-band__well lumen-customize-band__well--play">
+            <Icon name="play" size={18} />
+          </span>
+          <span className="lumen-customize-band__well">
+            <Icon name="next" size={18} />
+          </span>
+        </span>
+
+        {/* Placed toolbar items — real buttons (click = remove, drag = back
+         * to the box) riding where frame -6 shows the dropped tile: after
+         * the left cluster, shrinking the long slot. */}
+        {placed.map((tile) => (
+          <button
+            key={tile.id}
+            type="button"
+            className="lumen-customize-band__well"
+            data-field-id={tile.id}
+            aria-label={t("customize.band.remove").replace("{item}", t(tile.labelKey))}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData(BAND_DRAG_TYPE, tile.id);
+            }}
+            onClick={() => onRemoveFromBand(tile.id)}
+          >
+            {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+          </button>
+        ))}
+
+        {/* The frame's long empty drop slot (frame 0: 1405×35 dashed @170.5)
+         * — THE drop target (drop a catalog tile on the band to place it in
+         * the toolbar). Frame 0 draws the live seekbar preview INSIDE it
+         * (track 1238×28 r6 #090909, buffered #371F06, played #D37918);
+         * frames -1..-4 show it empty — the seek preview rides the clean
+         * state, drops tint over it. */}
+        <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")}>
+          <span className="lumen-customize-band__seek" aria-hidden="true">
+            <span className="lumen-customize-band__seek-buffered" />
+            <span className="lumen-customize-band__seek-played" />
+          </span>
+        </span>
+
+        {/* Fixed right cluster preview (frame -1, measured: volume well
+            129×35 @1591.5 · three 29×31 wells @1736.5/1778.5/1820.5 · more
+            29×31 @1870.5). */}
+        <span className="lumen-customize-band__well lumen-customize-band__well--wide" aria-hidden="true">
+          <Icon name="volume-medium" size={18} />
+          <span className="lumen-customize-band__volume-track" />
+        </span>
+        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
+          <Icon name="equalizer" size={18} />
+        </span>
+        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
+          <Icon name="subtitles" size={18} />
+        </span>
+        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
+          <Icon name="pip" size={18} />
+        </span>
+        <span className="lumen-customize-band__well lumen-customize-band__well--tall" aria-hidden="true">
+          <Icon name="more" size={18} />
+        </span>
+      </div>
     </div>
   );
 }

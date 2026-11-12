@@ -1,34 +1,42 @@
 // w26.a14 — the bottom control bar, composed to the W26 Figma frames.
 // Authorities: design/figma/Player.svg "Controls" group (the 1920×54 strip
 // → the app's ~44px chrome strip), the component frames play.svg /
-// "Current Time.svg" / "Duration.svg" / volume.svg, and the measured anatomy
-// in docs/waves/w26/analysis/menus-control-parts.md §B1/§B6–§B9 (values
-// cited per rule in controls.css). ONE row, three groups:
+// "Current Time.svg" / Duration.svg / volume.svg, the Controls.svg variant
+// sheet (12 popover states), and the measured anatomy in
+// docs/waves/w26/analysis/menus-control-parts.md §B1/§B6–§B9 (values cited
+// per rule in controls.css). ONE row, three groups:
 //
-//   LEFT    stop · ORANGE PLAY PILL 54×28 r6 (dark on-accent glyph — the
-//           hero; play.svg's pause type grays the pill — accent is the
-//           "play" affordance) · next (a real playlist.next through the
-//           playlist context PlayerScreen mounts around this bar)
-//   CENTER  current timecode (≈15px tabular) · seekbar — the w26.a04
-//           slider API with the frame-measured anatomy: 28px r6 surface
-//           track, played fill r4 accent-tinted inset 2, and the playhead
-//           as an 8×24 r4 accent BAR (never a circular thumb).
-//           w26.f13 (e02 F6): the THIRD timecode (remaining) is GONE —
-//           Player.svg shows exactly two (00:02:10 | seekbar | 00:25:40);
-//           Duration.svg's "−00:23:30" click-toggle face stays unported
-//           (logged).
-//   RIGHT   total duration · volume icon + the 89px level wedge
-//           (volume.svg: green→yellow→orange→red gradient anchored to the
-//           FULL track, revealed to the level — the spec §2 "small green
-//           level pill") · fullscreen (Fullscreen API on the player host) ·
-//           cast (honestly not-available — no surface yet) · app menu —
-//           rebuilt w26.f13 to the menu.png grammar (see AppMenuButton) ·
-//           gear (A/V tools dialog, w26.c5)
+//   LEFT    previous · ORANGE PLAY PILL 54×28 r6 (dark on-accent glyph —
+//           the hero; play.svg's pause type grays the pill — accent is the
+//           "play" affordance) · next. w26.gfix-C (g04 P1-1): the left slot
+//           is SKIP-TO-PREVIOUS (Player.svg Frame 8 / Controls.svg), NOT
+//           stop — stop stays on the canvas context menu where
+//           right-click_menu.svg actually shows it.
+//   CENTER  current timecode (≈15px tabular; Current_Time.svg: hover chip
+//           + the click face = the editable timecode — the Go-to-Time
+//           dialog, orange caret while open) · seekbar — the w26.a04 slider
+//           API with the frame-measured anatomy: 28px r6 surface track,
+//           played fill r4 accent-tinted inset 2, and the playhead as an
+//           8×24 r4 accent BAR (never a circular thumb).
+//           w26.f13 (e02 F6): exactly two timecodes (00:02:10 | seekbar |
+//           00:25:40). w26.gfix-C (g04 P1-4): both readouts are now real
+//           buttons — the duration click face is Duration.svg's "-00:23:30"
+//           remaining toggle.
+//   RIGHT   total duration (remaining-toggle button) · volume icon + the
+//           89px level wedge (volume.svg: green→yellow→orange→red gradient
+//           anchored to the FULL track, revealed to the level) · audio ·
+//           subtitles · gear · queue — the Controls.svg Frame 23 right
+//           cluster, each trigger opening its 400px popover UP from the
+//           strip (w26.gfix-C Lead ruling: popovers over the full-width
+//           strip must open and be reachable; MenuPopup primitive +
+//           scrollport cap, submenus flip left). The app menu (w26.f13
+//           ruling: it lives in the bar until f08 relocates the trigger to
+//           the shell title bar) stays as the cluster's documented extra.
 //
 // Behavior contract UNCHANGED (state-mapping.ts is the doc 08 §5 mapping —
-// play/pause/stop/seek/volume/mute wiring below is a restyle of the
-// same dispatch, never a semantic change). New controls are additive seams
-// on the same honest pattern: disabled-with-reason, never fabricated state.
+// play/pause/seek/volume/mute wiring below is a restyle of the same
+// dispatch, never a semantic change). New controls are additive seams on
+// the same honest pattern: disabled-with-reason, never fabricated state.
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -40,13 +48,16 @@ import type { MenuEntry } from "../../../components";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as f13Keys } from "../../../i18n/keys/w26.f13";
+import { keys as gfixCKeys } from "../../../i18n/keys/w26.gfixC";
 import { useClient } from "../../../client/ClientProvider";
 import { isDemoTransport } from "../../../client/demo-transport";
 import { openPathRequest, openPathRoute } from "../../../client/open-path";
 import { HOTKEY_BINDINGS } from "../../settings/areas/hotkeys/generated/bindings";
 import { usePlayerControls } from "../context";
+import type { PlayerControls } from "../context";
+import { selectedTrackId, trackDisplayName, tracksOfKind } from "../context";
 import { usePlaylist } from "../../playlist";
-import { openToolsDialog } from "../dialogs";
+import { GotoTimeDialog, openToolsDialog } from "../dialogs";
 import { mapTransportControls, seekDisableReason } from "./state-mapping";
 import "./controls.css";
 
@@ -59,6 +70,22 @@ const f13Catalog: Readonly<Record<string, string>> = f13Keys;
 
 /** w26.f13 lane key ids (typed for the seam resolver below). */
 type F13LaneKey = keyof typeof f13Keys;
+
+/** w26.gfixC lane keys (this lane's labels) — same seam-first pattern. */
+const gfixCCatalog: Readonly<Record<string, string>> = gfixCKeys;
+
+/** w26.gfixC lane key ids (typed for the seam resolver below). */
+type GfixCLaneKey = keyof typeof gfixCKeys;
+
+/** A resolver key: a registered MessageKey or one of this lane's ids. */
+type LaneMessageKey = MessageKey | GfixCLaneKey;
+
+/** The lane-key resolver factory (contract §4.5): catalog first, lane copy
+ * while unregistered — identical before/after the Lead's merge. */
+const laneResolver =
+  (m: (key: MessageKey) => string, catalog: Readonly<Record<string, string>>) =>
+  (key: LaneMessageKey): string =>
+    m(key as MessageKey) ?? catalog[key as string];
 
 /**
  * Binding-id → accelerator display string from keymap DATA (HOTKEY_BINDINGS
@@ -83,9 +110,6 @@ const acceleratorOf = (bindingId: string): string | undefined => {
  * from this sibling would be a module cycle. */
 const OPEN_CUSTOMIZE_EVENT = "lumen:open-customize";
 
-/** Live document fullscreen truth (never cached — doc 08 §4 honest state). */
-const fullscreenActive = (): boolean => (document.fullscreenElement ?? null) !== null;
-
 /**
  * Frame timecode format — "Current Time.svg"/"Duration.svg" read
  * "00:02:10"/"00:25:40": zero-padded HH:MM:SS on tabular figures (the CSS
@@ -100,16 +124,13 @@ const formatTimecode = (seconds: number): string => {
 };
 
 /** Bar icon sizes (Player.svg "Controls" group, measured): the transport
- * glyphs are small and quiet (~10px tall bodies), the right-cluster glyphs
- * larger (~17–18px). */
-const TRANSPORT_ICON_SIZE = 14;
+ * glyphs are ~10px-tall bodies (w26.gfix-C, g04 P2-1: the pre-fix 14px
+ * render measured ~60–75% of frame — 20px on the 24-unit viewBox + 1.5
+ * stroke ≈ the frame bodies), the play pill's triangle 22px, the
+ * right-cluster glyphs ~17–18px. */
+const TRANSPORT_ICON_SIZE = 20;
+const PLAY_ICON_SIZE = 22;
 const OUTPUT_ICON_SIZE = 18;
-
-/** Host capability (jsdom and embedded hosts expose no Fullscreen API). */
-const fullscreenSupported = (): boolean =>
-  typeof document !== "undefined" &&
-  typeof document.documentElement.requestFullscreen === "function" &&
-  typeof document.exitFullscreen === "function";
 
 /**
  * Router-presence seam for the bar's links (gear → Settings, the app menu's
@@ -161,7 +182,54 @@ export function ControlBar({ className = "" }: ControlBarProps) {
   );
 }
 
-/** stop · play pill · next (doc 08 §5.1 mapping; Player.svg Frame 8→play→10). */
+/**
+ * The engine-truth track list for one kind — PlayerScreen's
+ * canvasTrackSubmenu logic restated (that helper is not exported; the bar's
+ * audio/subtitles popovers and the gear's submenus carry the same honest
+ * rows as the canvas menu): no honest track data → the single disabled
+ * no-media reason row; else Automatic / Disabled / real engine ids, the
+ * engine-reported selection checked (never optimistic).
+ */
+function trackMenuEntries(
+  kind: "video" | "audio" | "subtitle",
+  controls: PlayerControls,
+  m: (key: MessageKey) => string,
+): MenuEntry<string>[] {
+  const { state, actions } = controls;
+  const tracks = tracksOfKind(state.tracks, kind);
+  const selected = selectedTrackId(state.tracks, state.selections, kind);
+  const unreported = !state.engineReported && tracks.length === 0;
+  const noMedia = state.playbackState === "idle" || state.playbackState === "opening" || unreported;
+  if (noMedia) {
+    return [{ id: `track-${kind}-no-media`, labelKey: m("player.controls.reason.no-media"), disabled: true }];
+  }
+  return [
+    {
+      id: `track-${kind}-auto`,
+      labelKey: m("player.track.auto"),
+      kind: "radio",
+      /* "Automatic" is an action, never the reported selection. */
+      checked: false,
+      onSelect: () => actions.selectTrack(kind, { kind: "auto" }),
+    },
+    {
+      id: `track-${kind}-none`,
+      labelKey: m("player.track.disable"),
+      kind: "radio",
+      checked: selected === null,
+      onSelect: () => actions.selectTrack(kind, { kind: "none" }),
+    },
+    ...tracks.map((track, index): MenuEntry<string> => ({
+      id: `track-${kind}-id-${track.id}`,
+      labelKey: trackDisplayName(track, m("player.track.unknown"), index),
+      kind: "radio",
+      checked: selected === track.id,
+      onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
+    })),
+  ];
+}
+
+/** previous · play pill · next (Player.svg Frame 8 → play → Frame 10). */
 function TransportCluster() {
   const { state, actions } = usePlayerControls();
   const playlist = usePlaylist();
@@ -176,15 +244,19 @@ function TransportCluster() {
       ? `${playLabel} — ${m("player.controls.restart")}`
       : playLabel;
 
-  // Next — a real playlist.next through the playlist context (the provider
-  // PlayerScreen mounts around this bar). Honestly disabled with a reason
-  // while the queue is empty or the engine exposes no playlist surface.
-  const nextDisabled = playlist.notExposed || playlist.entries.length === 0;
-  const nextLabel = nextDisabled
+  // Previous/next — real playlist.prev/next through the playlist context
+  // (the provider PlayerScreen mounts around this bar). Honestly disabled
+  // with a reason while the queue is empty or the engine exposes no
+  // playlist surface.
+  const queueEmpty = playlist.notExposed || playlist.entries.length === 0;
+  const prevLabel = queueEmpty
+    ? `${m("menu.playback.previous")} — ${m(
+        playlist.notExposed ? "player.controls.reason.unknown" : "player.controls.reason.no-media",
+      )}`
+    : m("menu.playback.previous");
+  const nextLabel = queueEmpty
     ? `${m("player.controls.next")} — ${m(
-        playlist.notExposed
-          ? "player.controls.reason.unknown"
-          : "player.controls.reason.no-media",
+        playlist.notExposed ? "player.controls.reason.unknown" : "player.controls.reason.no-media",
       )}`
     : m("player.controls.next");
 
@@ -195,12 +267,12 @@ function TransportCluster() {
       aria-label={m("player.controls.group-transport")}
     >
       <IconButton
-        data-control="stop"
-        label={m("player.controls.stop")}
-        disabled={mapped.stop.disabled}
-        onClick={actions.stop}
+        data-control="previous"
+        label={prevLabel}
+        disabled={queueEmpty}
+        onClick={() => playlist.prev()}
       >
-        <Icon name="stop" size={TRANSPORT_ICON_SIZE} />
+        <Icon name="previous" size={TRANSPORT_ICON_SIZE} />
       </IconButton>
       <IconButton
         className="lumen-controls__play"
@@ -212,12 +284,12 @@ function TransportCluster() {
         disabled={mapped.play.disabled}
         onClick={actions.togglePlayPause}
       >
-        <Icon name={mapped.play.glyph} />
+        <Icon name={mapped.play.glyph} size={PLAY_ICON_SIZE} />
       </IconButton>
       <IconButton
         data-control="next"
         label={nextLabel}
-        disabled={nextDisabled}
+        disabled={queueEmpty}
         onClick={() => playlist.next()}
       >
         <Icon name="next" size={TRANSPORT_ICON_SIZE} />
@@ -228,19 +300,37 @@ function TransportCluster() {
 
 /** current timecode · seekbar (doc 08 §5.2/§5.3 honest).
  * w26.f13 (e02 F6): Player.svg shows exactly TWO timecodes — position left
- * of the bar, the total in the right cluster. The pre-f13 mid-bar
- * remaining readout (Duration.svg's "−00:23:30" click face) is dropped. */
+ * of the bar, the total in the right cluster.
+ * w26.gfix-C (g04 P1-4): the position readout is a real button —
+ * Current_Time.svg's hover chip (76×28 r6 #090909) and the click face (the
+ * editable timecode: #EAEAEA ink + the 1px #D37918 caret) ported as the
+ * button's hover/editing states, the edit surface being the existing
+ * Go-to-Time dialog (prefilled with this position, VLC parity). */
 function SeekCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
+  const tm = laneResolver(m, gfixCCatalog);
   const mapped = mapTransportControls(state);
   const reason = seekDisableReason(state);
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="lumen-controls__seek">
-      <span className="lumen-controls__time" data-time="position">
+      <button
+        type="button"
+        className="lumen-controls__time"
+        data-time="position"
+        data-editing={editing ? "" : undefined}
+        aria-label={
+          reason !== null
+            ? `${tm("player.controls.time-current")} (${m(reason)})`
+            : tm("player.controls.time-current")
+        }
+        disabled={mapped.seek.disabled}
+        onClick={() => setEditing(true)}
+      >
         {formatTimecode(state.position)}
-      </span>
+      </button>
       <Seekbar
         data-control="seekbar"
         /* A duration-less seekbar is an unplayed track — data-empty lets the
@@ -261,24 +351,49 @@ function SeekCluster() {
         disabled={mapped.seek.disabled}
         onCommit={actions.seek}
       />
+      {editing ? <GotoTimeDialog open onClose={() => setEditing(false)} /> : null}
     </div>
   );
 }
 
 /** The right group: total duration · volume · output controls. */
 function RightCluster() {
-  const { state } = usePlayerControls();
-  const m = useMsg();
   return (
     <div className="lumen-controls__right">
-      <span className="lumen-controls__time" data-time="duration">
-        {state.durationSeconds === null
-          ? m("player.controls.duration-unknown")
-          : formatTimecode(state.durationSeconds)}
-      </span>
+      <DurationTimecode />
       <VolumeCluster />
       <OutputCluster />
     </div>
+  );
+}
+
+/** Duration.svg: default face = the total "00:25:40"; the click face is the
+ * "-00:23:30" REMAINING toggle (aria-pressed carries the state). Disabled
+ * with the honest unknown face while no duration is reported. */
+function DurationTimecode() {
+  const { state } = usePlayerControls();
+  const m = useMsg();
+  const tm = laneResolver(m, gfixCCatalog);
+  const [remaining, setRemaining] = useState(false);
+  const known = state.durationSeconds !== null && state.durationSeconds > 0;
+  const face = !known
+    ? m("player.controls.duration-unknown")
+    : remaining
+      ? `-${formatTimecode(Math.max(0, state.durationSeconds - state.position))}`
+      : formatTimecode(state.durationSeconds);
+  return (
+    <button
+      type="button"
+      className="lumen-controls__time"
+      data-time="duration"
+      data-remaining={remaining || undefined}
+      aria-label={tm(remaining ? "player.controls.time-remaining" : "player.controls.time-duration")}
+      aria-pressed={known ? remaining : undefined}
+      disabled={!known}
+      onClick={() => setRemaining((prev) => !prev)}
+    >
+      {face}
+    </button>
   );
 }
 
@@ -322,84 +437,213 @@ function VolumeCluster() {
   );
 }
 
-/** fullscreen · cast · app menu · gear (A/V tools dialog, w26.c5). */
+/** audio · subtitles · gear · queue (+ the app menu — w26.f13 ruling).
+ * w26.gfix-C (g04 P1-6): the cluster is Controls.svg Frame 23's composition
+ * — the frame's three tool triggers + queue replace the pre-fix
+ * fullscreen/cast/menu-then-gear row (fullscreen stays reachable through
+ * the keymap's F binding PlayerScreen wires; cast never had a surface). */
 function OutputCluster() {
   const m = useMsg();
+  const tm = laneResolver(m, gfixCCatalog);
+  const controls = usePlayerControls();
+  const playlist = usePlaylist();
+
+  // The gear popover: the frame's tabbed settings popover (Playback / Video
+  // / Audio / Subtitles + the Advanced footer) as menu rows — the four
+  // families as submenus over the same engine-truth builders the canvas
+  // menu carries (shuffle/repeat under Playback; the track lists), plus the
+  // frame's 360×32 "Show Advanced Settings" footer wired to the real A/V
+  // tools surface (w26.c5).
+  const settingsEntries: MenuEntry<string>[] = [
+    {
+      id: "settings-playback",
+      labelKey: m("menu.playback"),
+      icon: "equalizer",
+      submenu: [
+        {
+          id: "playback-shuffle",
+          labelKey: m("menu.playback.shuffle"),
+          kind: "checkbox",
+          checked: playlist.shuffle === true,
+          onSelect: () => playlist.setShuffle(!(playlist.shuffle === true)),
+        },
+        ...(["off", "all", "one"] as const).map(
+          (mode): MenuEntry<string> => ({
+            id: `playback-repeat-${mode}`,
+            labelKey: m(`playlist.controls.repeat.${mode}`),
+            kind: "radio",
+            checked: playlist.repeat === mode,
+            onSelect: () => playlist.setRepeat(mode),
+          }),
+        ),
+      ],
+    },
+    {
+      id: "settings-video",
+      labelKey: m("player.canvas.menu.video"),
+      icon: "pip",
+      submenu: trackMenuEntries("video", controls, m),
+    },
+    {
+      id: "settings-audio",
+      labelKey: m("player.canvas.menu.audio"),
+      icon: "audio",
+      submenu: trackMenuEntries("audio", controls, m),
+    },
+    {
+      id: "settings-subtitle",
+      labelKey: m("player.canvas.menu.subtitle"),
+      icon: "subtitles",
+      submenu: trackMenuEntries("subtitle", controls, m),
+    },
+    { id: "settings-sep-advanced", kind: "separator" },
+    {
+      id: "settings-advanced",
+      labelKey: tm("player.controls.advanced-settings"),
+      onSelect: () => openToolsDialog("audio"),
+    },
+  ];
+
+  // The queue popover: the frame's Queue tab as menu rows — the playlist
+  // context's real entries (click plays; the engine-reported current row
+  // checked), or the honest empty reason; the docked queue panel itself is
+  // the canvas menu's "Playlist" seam (PLAYER_TOGGLE_SIDEBAR_EVENT).
+  const queueEmpty = playlist.notExposed || playlist.entries.length === 0;
+  const queueEntries: MenuEntry<string>[] = queueEmpty
+    ? [
+        {
+          id: "queue-empty",
+          labelKey: tm(
+            playlist.notExposed ? "player.controls.reason.unknown" : "player.controls.queue-empty",
+          ),
+          disabled: true,
+        },
+      ]
+    : playlist.entries.map((entry): MenuEntry<string> => ({
+        id: `queue-${entry.id}`,
+        labelKey: entry.title ?? m("playlist.entry.unknown-title"),
+        kind: "radio",
+        checked: playlist.currentId === entry.id,
+        onSelect: () => playlist.playItem(entry.id),
+      }));
+
   return (
     <div
       className="lumen-controls__output"
       role="group"
       aria-label={m("player.controls.group-output")}
     >
-      <FullscreenButton />
-      <IconButton
-        data-control="cast"
-        /* Honest not-available: no cast surface exists in the engine yet —
-         * the control renders, disabled with its reason (doc 08 §4.4). */
-        label={`${m("player.controls.cast")} — ${m("player.controls.reason.unknown")}`}
-        disabled
+      <ClusterPopover
+        dataControl="audio"
+        label={tm("player.controls.audio-tracks")}
+        idPrefix="lumen-controls-audio"
+        entries={[...trackMenuEntries("audio", controls, m), { id: "audio-sep-advanced", kind: "separator" }, { id: "audio-advanced", labelKey: tm("player.controls.advanced-settings"), onSelect: () => openToolsDialog("audio") }]}
       >
-        <Icon name="tv" size={OUTPUT_ICON_SIZE} />
-      </IconButton>
+        <Icon name="audio" size={OUTPUT_ICON_SIZE} />
+      </ClusterPopover>
+      <ClusterPopover
+        dataControl="subtitles"
+        label={tm("player.controls.subtitle-tracks")}
+        idPrefix="lumen-controls-subtitles"
+        entries={[...trackMenuEntries("subtitle", controls, m), { id: "subtitles-sep-advanced", kind: "separator" }, { id: "subtitles-advanced", labelKey: tm("player.controls.advanced-settings"), onSelect: () => openToolsDialog("audio") }]}
+      >
+        <Icon name="subtitles" size={OUTPUT_ICON_SIZE} />
+      </ClusterPopover>
+      <ClusterPopover
+        dataControl="settings"
+        label={m("menu.view.settings")}
+        idPrefix="lumen-controls-settings"
+        entries={settingsEntries}
+      >
+        <Icon name="settings" size={OUTPUT_ICON_SIZE} />
+      </ClusterPopover>
+      <ClusterPopover
+        dataControl="queue"
+        label={tm("player.controls.queue")}
+        idPrefix="lumen-controls-queue"
+        entries={queueEntries}
+      >
+        <Icon name="lists" size={OUTPUT_ICON_SIZE} />
+      </ClusterPopover>
       <NavigationSeam>
-        {(navigate) => (
-          <>
-            <AppMenuButton navigate={navigate} />
-            {/* w26.c5: gear opens the audio/video tools dialog (frame: Player.svg
-                right cluster); Settings stays reachable via the app menu. */}
-            <IconButton
-              data-control="settings"
-              label={m("menu.view.settings")}
-              onClick={() => openToolsDialog("audio")}
-            >
-              <Icon name="settings" size={OUTPUT_ICON_SIZE} />
-            </IconButton>
-          </>
-        )}
+        {(navigate) => <AppMenuButton navigate={navigate} />}
       </NavigationSeam>
     </div>
   );
 }
 
-/** Fullscreen toggle on the player host (PlayerScreen's [data-screen]
- * root), state synced only from fullscreenchange events (doc 08 §4.3). */
-function FullscreenButton() {
-  const m = useMsg();
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(fullscreenActive);
+/**
+ * Shared right-cluster popover host (w26.gfix-C Lead ruling: popovers over
+ * the full-width strip must open and be reachable) — the MenuPopup
+ * primitive in the AppMenuButton mount pattern: trigger + 400px comfortable
+ * popup (menu.css floor) opening UP from the strip, right-anchored, its
+ * height capped with a scrollport (controls.css — the g17 Dropdown fix
+ * grammar) so long lists scroll instead of overflowing the window top.
+ * The open trigger carries .lumen-icon-host--open → the frame's #D37918
+ * active-trigger ink (Controls.svg variant sheets).
+ */
+function ClusterPopover({
+  dataControl,
+  label,
+  idPrefix,
+  entries,
+  children,
+}: {
+  dataControl: string;
+  label: string;
+  idPrefix: string;
+  entries: MenuEntry<string>[];
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
+  // Outside pointer dismiss (the MenuPopup pattern's caller half — the
+  // AppMenuButton listener, verbatim). Focus is not stolen: the click target
+  // keeps it, so this path deliberately does NOT restore trigger focus.
   useEffect(() => {
-    const onChange = (): void => setActive(fullscreenActive());
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
 
-  const supported = fullscreenSupported();
-  const base = active
-    ? m("player.controls.exit-fullscreen")
-    : m("player.controls.fullscreen");
+  // Escape and item activation restore focus to the trigger (e12 F8 — the
+  // AppMenuButton close pattern).
+  const close = (restoreFocus: boolean): void => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  };
+
   return (
-    <div className="lumen-controls__fs" ref={hostRef}>
+    <div className="lumen-controls__popover" ref={rootRef}>
       <IconButton
-        data-control="fullscreen"
-        data-fullscreen={String(active)}
-        label={supported ? base : `${base} — ${m("player.controls.reason.unknown")}`}
-        disabled={!supported}
-        onClick={() => {
-          if (fullscreenActive()) {
-            void document.exitFullscreen();
-            return;
-          }
-          const host =
-            hostRef.current?.closest("[data-screen='player']") ?? document.documentElement;
-          void host.requestFullscreen().catch(() => {
-            /* A refused request never flips state — the fullscreenchange
-             * listener stays the only source of truth (doc 08 §4). */
-          });
-        }}
+        ref={triggerRef}
+        data-control={dataControl}
+        label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={open ? "lumen-icon-host--open" : undefined}
+        onClick={() => setOpen((prev) => !prev)}
       >
-        <Icon name={active ? "minimize" : "fullscreen"} size={OUTPUT_ICON_SIZE} />
+        {children}
       </IconButton>
+      {open ? (
+        <MenuPopup
+          entries={entries}
+          resolveLabel={identityResolveLabel}
+          idPrefix={idPrefix}
+          className="lumen-controls__popover-popup"
+          ariaLabel={label}
+          onRequestClose={() => close(true)}
+          onDismissAll={() => close(true)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -420,11 +664,6 @@ function FullscreenButton() {
  * w26.f13 Lead ruling: the app menu lives in the ControlBar FOR NOW —
  * f08/AppShell may relocate the trigger into the shell title bar (MenuBar);
  * this content moves with it unchanged (logged in the lane log).
- *
- * The Video/Audio/Subtitle track submenus that lived here since w26.a13
- * moved OUT with this rebuild — menu.png has no track rows; their frame
- * home is the canvas context menu (right-click menu.svg rows, kept by
- * PlayerScreen), which now solely owns them.
  */
 function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }) {
   const m = useMsg();

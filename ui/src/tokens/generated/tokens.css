@@ -29,7 +29,7 @@
   --blur-backdrop: 25px;
   --blur-backdrop-small: 13.75px;
   --color-accent: #d37918;
-  --color-accent-bright: #d37918;
+  --color-accent-bright: #e8851a;
   --color-accent-icon: #d37918;
   --color-accent-strong: #ab6314;
   --color-accent-tinted: #371f06;
@@ -132,7 +132,7 @@
 
 :root[data-accent="red"] {
   --color-accent: #e15032;
-  --color-accent-bright: #e15032;
+  --color-accent-bright: #e66044;
   --color-accent-icon: #e15032;
   --color-accent-strong: #c83a1d;
   --color-accent-tinted: #351008;
@@ -147,7 +147,7 @@
 
 :root[data-accent="yellow"] {
   --color-accent: #c49e23;
-  --color-accent-bright: #c49e23;
+  --color-accent-bright: #daaf24;
   --color-accent-icon: #c49e23;
   --color-accent-strong: #9d7f1c;
   --color-accent-tinted: #342a09;
@@ -162,7 +162,7 @@
 
 :root[data-accent="green"] {
   --color-accent: #19a234;
-  --color-accent-bright: #19a234;
+  --color-accent-bright: #1ab839;
   --color-accent-icon: #19a234;
   --color-accent-strong: #137a27;
   --color-accent-tinted: #083511;
@@ -177,7 +177,7 @@
 
 :root[data-accent="cyan"] {
   --color-accent: #18aad3;
-  --color-accent-bright: #18aad3;
+  --color-accent-bright: #1abbe8;
   --color-accent-icon: #18aad3;
   --color-accent-strong: #1389aa;
   --color-accent-tinted: #062c37;
@@ -192,7 +192,7 @@
 
 :root[data-accent="blue"] {
   --color-accent: #185dd3;
-  --color-accent-bright: #185dd3;
+  --color-accent-bright: #1a66e8;
   --color-accent-icon: #185dd3;
   --color-accent-strong: #134baa;
   --color-accent-tinted: #061837;
@@ -207,7 +207,7 @@
 
 :root[data-accent="violet"] {
   --color-accent: #8e42ff;
-  --color-accent-bright: #8e42ff;
+  --color-accent-bright: #9c59ff;
   --color-accent-icon: #8e42ff;
   --color-accent-strong: #7314ff;
   --color-accent-tinted: #19003d;
@@ -222,7 +222,7 @@
 
 :root[data-accent="pink"] {
   --color-accent: #f052b3;
-  --color-accent-bright: #f052b3;
+  --color-accent-bright: #f365bd;
   --color-accent-icon: #f052b3;
   --color-accent-strong: #ec28a0;
   --color-accent-tinted: #380524;
@@ -237,7 +237,7 @@
 
 :root[data-accent="gray"] {
   --color-accent: #afafaf;
-  --color-accent-bright: #afafaf;
+  --color-accent-bright: #bababa;
   --color-accent-icon: #afafaf;
   --color-accent-strong: #989898;
   --color-accent-tinted: #1e1e1e;

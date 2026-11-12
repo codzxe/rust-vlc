@@ -54,10 +54,13 @@
 // "Customize interface…" (VLC 4 grammar — the toolbar editor) joins the canvas
 // menu after "More Settings", and Ctrl+A opens the same surface. Both fire
 // the `lumen:open-customize` window event — the same decoupled CustomEvent
-// contract as `lumen:open-media` / `lumen:open-tools`. f12's CustomizeDialog
-// (customize/, mounted here once that export lands) owns the listener; until
-// then the seam fires with no listener and nothing on this side pretends
-// otherwise (dependency recorded in the w26.f09 lane log).
+// contract as `lumen:open-media` / `lumen:open-tools`.
+//
+// w26.gfixA (issue #62) — THE SEAM IS HOSTED: this screen owns the listener
+// + the per-open mount of the customize MODAL (customize/CustomizePanels —
+// the frame's centered 1048×655 editor, Lead ruling: modal, not a rail).
+// The three triggers (canvas-menu row, app-menu row, Ctrl+A) all reach it;
+// the open state joins the chrome lock so editing never fights auto-hide.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -575,6 +578,19 @@ function PlayerScreenInner({
     return () => window.removeEventListener(PLAYER_TOGGLE_SIDEBAR_EVENT, onToggleSidebar);
   }, []);
 
+  // w26.gfixA (issue #62, g07/g08/g09-P0) — the customize seam's LISTENER
+  // half: every `lumen:open-customize` dispatch (canvas-menu row, app-menu
+  // "Customize Player" row, Ctrl+A — the keymap handler above) opens the
+  // customize modal for a per-open mount (fresh arrangement state from
+  // persistence, the ToolsDialogHost pattern). The open state also feeds
+  // the chrome lock below — an open editor never fights auto-hide.
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  useEffect(() => {
+    const onOpenCustomize = (): void => setCustomizeOpen(true);
+    window.addEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, onOpenCustomize);
+    return () => window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, onOpenCustomize);
+  }, []);
+
   const layout = useMemo(
     () => resolveVariantLayout(layoutSource, variant),
     [layoutSource, variant],
@@ -655,7 +671,9 @@ function PlayerScreenInner({
   // gone; the fade arms windowed and with no media (Player - hide UI.svg).
   const chrome = useChromeAutoHide({
     enabled: isFullscreen,
-    locked: openPanels.length > 0,
+    // w26.gfixA: an open customize modal locks the chrome too — the edit
+    // band + modal must stay visible while the user rearranges.
+    locked: openPanels.length > 0 || customizeOpen,
   });
 
   // w26.g06 P1-1 Lead fix: mirror the hide-UI state onto <html> so the SHELL
@@ -819,6 +837,11 @@ function PlayerScreenInner({
         ) : null}
         {bookmarksOpen ? (
           <BookmarksDialog open onClose={() => setBookmarksOpen(false)} />
+        ) : null}
+        {/* w26.gfixA — the customize modal (per-open mount; see the seam
+            comment at the listener). */}
+        {customizeOpen ? (
+          <CustomizePanels onClose={() => setCustomizeOpen(false)} />
         ) : null}
       </div>
     );
@@ -995,6 +1018,13 @@ function PlayerScreenInner({
       {/* w26.c5: audio/video tools dialog — opens via openToolsDialog() /
           the `lumen:open-tools` event seam (gear menu, keymap). */}
       <ToolsDialogHost />
+      {/* w26.gfixA (issue #62) — the customize modal: the centered
+          1048×655 editor over a scrim + the control band's dashed edit
+          wells. All three triggers reach it through the
+          `lumen:open-customize` seam listener above. */}
+      {customizeOpen ? (
+        <CustomizePanels onClose={() => setCustomizeOpen(false)} />
+      ) : null}
     </div>
   );
 }
@@ -1065,16 +1095,18 @@ function PanelRegion({
     >
       {/* Playlist region content landed with card 4.D1 (panel + queue
           semantics, empty-state Open-media CTA); media-info region content
-          landed with card 4.D2; customize panels landed with 4.F3
-          (capability-gated fields); library remains an honest placeholder. */}
+          landed with card 4.D2. The customize region renders NO rail panel
+          since w26.gfixA — the Lead ruling pins the surface as the CENTERED
+          MODAL this screen hosts per-open (the `lumen:open-customize` seam
+          above); a custom-layout host that opens the region id explicitly
+          gets the honest placeholder, never a second surface. Library
+          remains an honest placeholder. */}
       {region.id === "playlist" ? (
         <PlaylistPanel />
       ) : region.id === "media-info" ? (
         <MediaInfoProvider>
           <MediaInfoPanel />
         </MediaInfoProvider>
-      ) : region.id === "customize" ? (
-        <CustomizePanels />
       ) : (
         <p className="lumen-player__sr-note">{m("player.panel.placeholder")}</p>
       )}

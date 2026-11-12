@@ -5,10 +5,13 @@
 import { act, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { ClientProvider } from "../../../client/ClientProvider";
+import { MockTransport } from "../../../client/transport";
 import type { CommandTransport, CommandRequest, CommandResponse, Event } from "../../../client/transport";
 import type { CommandError, PlaybackState, StateSnapshot } from "../../../generated/commands";
 import { usePlayerEngineView, type PlayerEngineView } from "./context-bridge";
 import { resolveOverlay, StateRouter } from "./StateRouter";
+import { HomeOverlay } from "./StageOverlays";
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
 const statesCss = readFileSync(`${dirname}/states.css`, "utf8");
@@ -35,7 +38,16 @@ function err(overrides: Partial<CommandError> = {}): CommandError {
 }
 
 function renderRouter(v: PlayerEngineView, props: { onRetry?: () => void; onOpenMedia?: () => void } = {}) {
-  return render(<StateRouter view={v} onRetry={props.onRetry} onOpenMedia={props.onOpenMedia} />);
+  // w26.gfix-C: the idle surface reads the client (the demo transport's
+  // remembered openings decide hero vs home), so the router tree mounts
+  // under a ClientProvider like every real host (PlayerScreen's provider
+  // chain). MockTransport is not the demo transport → no recents → the
+  // first-run hero, exactly the bare-mount behavior the matrix pins.
+  return render(
+    <ClientProvider transport={new MockTransport()}>
+      <StateRouter view={v} onRetry={props.onRetry} onOpenMedia={props.onOpenMedia} />
+    </ClientProvider>,
+  );
 }
 
 // ---------------------------------------------------------------- matrix ---
@@ -195,7 +207,11 @@ describe("Error surface — stage-tagged, actionable, honest (doc 08 §5.4, doc 
     retry.click();
     expect(onRetry).toHaveBeenCalledTimes(1);
 
-    rerender(<StateRouter view={view({ state: "error", error: err() })} />);
+    rerender(
+      <ClientProvider transport={new MockTransport()}>
+        <StateRouter view={view({ state: "error", error: err() })} />
+      </ClientProvider>,
+    );
     const stub = screen.getByRole("button", { name: "Try again" });
     expect(stub).toBeDisabled(); // never offers a fake recovery
     expect(stub).toHaveAttribute("data-wiring-stub", "retry command dispatch — card 4.C2");
@@ -239,6 +255,80 @@ describe("Empty surface — first-run (doc 08 §5.3)", () => {
     expect(mark).not.toBeNull();
     expect(mark).toHaveAttribute("aria-hidden", "true");
     expect(mark?.querySelectorAll("path").length).toBe(3); // plinth + band + tip
+  });
+});
+
+// ------------------------------------------------------------ home (Player-5.svg, w26.gfix-C g04 P1-7) ---
+
+/** The frame's section headers, y-sorted (Continue Watching y≈157 → Listen
+ * Again y≈505 → Frequently Visited Folders y≈894 @1920). */
+const HOME_SECTIONS = ["Continue Watching", "Listen Again", "Frequently Visited Folders"] as const;
+
+describe("Home surface — Player-5.svg's three sections over real remembered openings", () => {
+  const recents = [
+    { source: { kind: "file", path: "/media/The_Wand_S01E05.mp4" }, title: "The_Wand_S01E05.mp4" },
+    { source: { kind: "file", path: "/media/demo/big-buck-bunny.mkv" }, title: "Big Buck Bunny" },
+    { source: { kind: "file", path: "/media/demo/ambient-loop.flac" }, title: "Ambient loop" },
+    { source: { kind: "url", url: "https://ice1.somafm.com/groovesalad-128-mp3" }, title: "ice1.somafm.com" },
+  ] as const;
+
+  const renderHome = () =>
+    render(
+      <ClientProvider transport={new MockTransport()}>
+        <HomeOverlay recents={recents} />
+      </ClientProvider>,
+    );
+
+  it("renders the three frame sections in y-sorted order", () => {
+    const { container } = renderHome();
+    const headers = [...container.querySelectorAll<HTMLElement>(".lumen-state-home__header")].map(
+      (header) => header.textContent,
+    );
+    expect(headers).toEqual([...HOME_SECTIONS]);
+    const root = container.querySelector(".lumen-state-home");
+    expect(root).toHaveAttribute("data-overlay", "empty");
+    expect(root).toHaveAttribute("data-empty-state", "home");
+  });
+
+  it("splits the REAL openings by kind: videos under Continue Watching, audio under Listen Again", () => {
+    renderHome();
+    // Video cards: the .mp4 + the .mkv.
+    const videos = screen.getAllByRole("button", { name: /^Play / }).map((card) => card.getAttribute("aria-label"));
+    expect(videos).toContain("Play The_Wand_S01E05.mp4");
+    expect(videos).toContain("Play Big Buck Bunny");
+    expect(videos).toContain("Play Ambient loop");
+    expect(videos).toContain("Play ice1.somafm.com");
+    // The kind split is the frame's two card rows: .mp4/.mkv are video
+    // cards (237×133), the .flac and the radio stream are album squares.
+    const albumCells = document.querySelectorAll(".lumen-state-home__cell--album");
+    expect(albumCells).toHaveLength(2);
+    expect(document.querySelectorAll(".lumen-state-home__card:not([data-card-kind='album'])")).toHaveLength(2);
+  });
+
+  it("Frequently Visited Folders renders the honest empty face — no fabricated folders", () => {
+    renderHome();
+    const sections = [...document.querySelectorAll<HTMLElement>(".lumen-state-home__section")];
+    const folders = sections[2];
+    expect(folders?.querySelector(".lumen-state-home__empty")?.textContent).toBe("Nothing here yet");
+    expect(folders?.querySelectorAll(".lumen-state-home__card").length).toBe(0);
+  });
+
+  it("cards never fabricate watch progress — no progress bars without a resume seam", () => {
+    const { container } = renderHome();
+    // Player-5.svg pins 4px #D37918 bars per card; the engine reports no
+    // resume positions, so the home ships none (honest omission).
+    expect(container.querySelectorAll("[data-progress]").length).toBe(0);
+  });
+
+  it("an empty kind renders its honest empty note (never a fabricated row)", () => {
+    render(
+      <ClientProvider transport={new MockTransport()}>
+        <HomeOverlay recents={[{ source: { kind: "file", path: "/a/movie.mkv" }, title: "movie.mkv" }]} />
+      </ClientProvider>,
+    );
+    const sections = [...document.querySelectorAll<HTMLElement>(".lumen-state-home__section")];
+    expect(sections[1]?.querySelector(".lumen-state-home__empty")?.textContent).toBe("Nothing here yet");
+    expect(screen.getAllByRole("button", { name: /^Play / })).toHaveLength(1);
   });
 });
 

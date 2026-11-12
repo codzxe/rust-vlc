@@ -10,7 +10,7 @@
 }
 
 .raw-primitive-hex {
-  fill: #CBBDA1;
+  fill: #9A9A9A; /* current primitive color.gray.300 (W25 repin) */
 }
 
 .primitive-css-name {

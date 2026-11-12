@@ -1,26 +1,35 @@
-// Card 4.F3 / w26.a17 — customize panel tests. AC proof (contracts kept
-// through the frame rebuild — radiogroups became the Figma r6 dropdowns,
-// quick actions became palette tiles):
-//  * capability-gating matrix: available → rendered; not-exposed → hidden;
-//  * field-command bindings (dispatch spies on the transport);
-//  * all-unsupported → panel hidden (no dead panels);
-//  * slider live-vs-committed on color fields (live never dispatches);
-//  * NEW box grammar: drag-out removes a tile (frame -6), Save/Cancel
-//    manage the arrangement, Save stays dimmed while clean (frame 0).
+// w26.gfixA (issue #62) — the customize MODAL tests. The rail-era contracts
+// that survive the frame rebuild, re-pinned to the new anatomy:
+//  * capability gating: engine-bound tiles render only when listed;
+//    UI-owned toolbar items ALWAYS render (the frame's box is the 31-tile
+//    catalog, not a capability report — w26.g07-P1-2's split);
+//  * tile-command bindings (dispatch spies on the transport);
+//  * the frame catalog: the frames' 31-tile inventory + reading order;
+//  * the edit model: in-box reorder, drop-on-band places (frames -6/-7),
+//    band-item click/drop-into-box removes, Delete key removes;
+//  * Save persists the arrangement (localStorage, the variant-seam
+//    pattern) and dims while clean (frame 0); Cancel reverts.
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
 import type {
   CommandRequest,
   CommandResponse,
+  CommandResult,
   CommandTransport,
   Event,
 } from "../../../client/transport";
-import type { CommandListing, CommandResult } from "../../../generated/commands";
+import type { CommandListing } from "../../../generated/commands";
 import { CustomizePanels } from "./CustomizePanels";
-import { fieldVisible, panelVisible, useCommandCapabilities } from "./capabilities";
-import { CUSTOMIZE_PANELS } from "./panels";
+import { tileVisible, useCommandCapabilities, visibleTiles } from "./capabilities";
+import { CUSTOMIZE_TILES, DEFAULT_TOOLBAR_LAYOUT, tileById } from "./panels";
+import {
+  TOOLBAR_STORAGE_KEY,
+  clearPersistedToolbarLayout,
+  parseToolbarLayout,
+  toolbarLayoutEqual,
+} from "./toolbarLayout";
 
 const listing = (id: string): CommandListing => ({
   id,
@@ -81,6 +90,15 @@ class StubTransport implements CommandTransport {
   }
 }
 
+/** The engine commands the dev shell's demo transport lists. */
+const DEMO_COMMANDS = [
+  "playback.seek",
+  "playback.stop",
+  "playback.set-rate",
+  "playlist.set-repeat",
+  "playlist.set-shuffle",
+];
+
 const renderCustomize = (transport: CommandTransport) =>
   render(
     <ClientProvider transport={transport}>
@@ -88,110 +106,108 @@ const renderCustomize = (transport: CommandTransport) =>
     </ClientProvider>,
   );
 
-/** The dataTransfer stand-in jsdom does not provide for drag events. */
-const dataTransfer = () => ({ setData: vi.fn(), effectAllowed: "" });
-
-/** Open a Figma dropdown (r6) and pick an option by label. */
-const pickDropdownOption = async (label: string, option: string): Promise<void> => {
-  fireEvent.click(await screen.findByRole("button", { name: label }));
-  const list = await screen.findByRole("listbox", { name: label });
-  fireEvent.click(within(list).getByRole("option", { name: option }));
+/** A dataTransfer stand-in that actually stores payloads (jsdom has none). */
+const dataTransfer = () => {
+  const store = new Map<string, string>();
+  return {
+    setData: vi.fn((type: string, value: string) => {
+      store.set(type, value);
+    }),
+    getData: (type: string) => store.get(type) ?? "",
+    effectAllowed: "",
+  };
 };
 
-const CATALOG_COMMANDS = [
-  "video.set-aspect-ratio",
-  "video.set-crop",
-  "video.set-zoom",
-  "playback.set-rate",
-  "playback.seek",
-  "playback.stop",
-  "playlist.set-repeat",
-  "playlist.set-shuffle",
-];
+beforeEach(() => {
+  clearPersistedToolbarLayout();
+});
+
+describe("the frame catalog (Player - customize.svg rows 1–4)", () => {
+  it("renders the frames' 31-tile inventory in frame reading order", async () => {
+    const stub = new StubTransport(CUSTOMIZE_TILES.flatMap((tile) =>
+      tile.command === null ? [] : [listing(tile.command)],
+    ));
+    renderCustomize(stub);
+    const box = await screen.findByRole("list", { name: "Toolbar items" });
+    const labels = within(box)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(labels).toEqual([
+      // Row 1 (frame y=318)
+      "Spacer", "Divider", "Playback speed", "Forward 10s", "Backward 10s",
+      "Forward 15s", "Backward 15s", "Stop", "Repeat",
+      // Row 2 (frame y=438)
+      "Shuffle", "Record", "Snapshot", "Picture in picture", "HDR", "Zoom",
+      "Right sidebar", "Quit VLC", "VLC settings",
+      // Row 3 (frame y=558)
+      "Go home", "Thumbnail", "File name", "Artist name", "Folder name",
+      "Playlist name", "Properties", "Replay", "Chapters",
+      // Row 4 (frame y=674)
+      "Favorite", "Bookmark", "Bookmarks", "Playlists",
+    ]);
+  });
+
+  it("carries the modal anatomy: title, verbatim instruction, footer pair", async () => {
+    renderCustomize(new StubTransport([]));
+    const dialog = await screen.findByRole("dialog", { name: "Customize Player" });
+    expect(
+      within(dialog).getByText(
+        "Drag items around and out of the box below to re-order them. Drag items into the box to remove them from the player.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close customize panel" })).toBeInTheDocument();
+  });
+
+  it("Spacer's well is the frame's empty well (no glyph)", async () => {
+    renderCustomize(new StubTransport([]));
+    const spacer = (await screen.findByRole("button", { name: "Spacer" })) as HTMLElement;
+    expect(spacer.querySelector(".lumen-icon")).toBeNull();
+    const divider = screen.getByRole("button", { name: "Divider" }) as HTMLElement;
+    expect(divider.querySelector(".lumen-icon")).not.toBeNull();
+  });
+});
 
 describe("capability gating (AC: available → rendered; not-exposed → hidden)", () => {
-  it("renders fields whose commands the engine lists", async () => {
-    const stub = new StubTransport(CATALOG_COMMANDS.map(listing));
+  it("renders engine tiles whose commands the engine lists (demo listing)", async () => {
+    const stub = new StubTransport(DEMO_COMMANDS.map(listing));
     renderCustomize(stub);
-    expect(await screen.findByRole("button", { name: "Aspect ratio" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Crop" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Zoom" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Playback speed" })).toBeInTheDocument();
-    // Quick-action tiles render in the toolbar palette box.
-    expect(screen.getByRole("list", { name: "Toolbar items" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Forward 10s" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Backward 15s" })).toBeInTheDocument();
+    const box = await screen.findByRole("list", { name: "Toolbar items" });
+    // 18 UI-owned + 8 engine-bound = 26 of the frame's 31 (Record,
+    // Snapshot, PiP, HDR, Zoom unlisted → honestly hidden).
+    const labels = within(box).getAllByRole("button").map((button) => button.textContent);
+    expect(labels).toHaveLength(26);
+    expect(labels).toContain("Stop");
+    expect(labels).toContain("Repeat");
+    expect(labels).toContain("Playback speed");
+    expect(labels).not.toContain("Record");
+    expect(labels).not.toContain("Snapshot");
+    expect(labels).not.toContain("Picture in picture");
+    expect(labels).not.toContain("HDR");
+    expect(labels).not.toContain("Zoom");
   });
 
-  it("hides fields whose commands are not exposed (crop absent, colors absent)", async () => {
-    const stub = new StubTransport([listing("video.set-aspect-ratio")]);
-    renderCustomize(stub);
-    expect(await screen.findByRole("button", { name: "Aspect ratio" })).toBeInTheDocument();
-    // crop + zoom not listed → hidden; whole colors/HDR panels absent too.
-    expect(screen.queryByRole("button", { name: "Crop" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("slider", { name: "Brightness" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("slider", { name: "Playback speed" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
-  });
-
-  it("renders the video-colors sliders only when color commands are listed", async () => {
-    const stub = new StubTransport(
-      ["video.set-brightness", "video.set-contrast", "video.set-saturation", "video.set-hue", "video.set-gamma"].map(listing),
-    );
-    renderCustomize(stub);
-    expect(await screen.findByRole("slider", { name: "Brightness" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Contrast" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Saturation" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Hue" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Gamma" })).toBeInTheDocument();
-    // forward-declared colors listed → panel visible; essential not listed
-    expect(screen.queryByRole("slider", { name: "Playback speed" })).not.toBeInTheDocument();
-    // no quick-action fields supported → no palette box, no footer chrome
-    expect(screen.queryByRole("list", { name: "Toolbar items" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
-  });
-
-  it("hides a panel entirely when ALL its fields are unsupported (HDR)", async () => {
-    const stub = new StubTransport(CATALOG_COMMANDS.map(listing));
-    renderCustomize(stub);
-    await screen.findByRole("heading", { name: "Crop & aspect ratio" });
-    expect(screen.queryByRole("heading", { name: "HDR options" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tone mapping" })).not.toBeInTheDocument();
-  });
-
-  it("renders the HDR panel when tone-mapping commands are listed", async () => {
-    const stub = new StubTransport(
-      ["video.set-tone-mapping", "video.set-tone-mapping-strength"].map(listing),
-    );
-    renderCustomize(stub);
-    expect(await screen.findByRole("heading", { name: "HDR options" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tone mapping" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Tone-mapping strength" })).toBeInTheDocument();
-  });
-
-  it("renders no panels against the scaffold MockTransport (empty listing) — honest note only", async () => {
+  it("UI-owned toolbar items render against the empty scaffold listing too", async () => {
     renderCustomize(new MockTransport());
-    await waitFor(() => {
-      expect(screen.getByText(/No customize controls are supported/)).toBeInTheDocument();
-    });
-    expect(screen.queryByRole("heading", { name: "Essential" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Toolbar items" })).not.toBeInTheDocument();
+    const box = await screen.findByRole("list", { name: "Toolbar items" });
+    const labels = within(box).getAllByRole("button").map((button) => button.textContent);
+    expect(labels).toHaveLength(18);
+    expect(labels).toContain("Spacer");
+    expect(labels).toContain("Go home");
+    expect(labels).toContain("Playlists");
+    expect(labels).not.toContain("Stop");
   });
 
-  it("pure helpers: fieldVisible/panelVisible encode the gating matrix", () => {
-    const caps = {
-      available: new Set<string>(["video.set-aspect-ratio"]),
-      resolved: true,
-    };
-    const crop = CUSTOMIZE_PANELS.find((p) => p.id === "crop-aspect");
-    expect(crop).toBeDefined();
-    expect(fieldVisible(crop!.fields[0]!, caps)).toBe(true);
-    expect(fieldVisible(crop!.fields[1]!, caps)).toBe(false);
-    expect(panelVisible(crop!, caps)).toBe(true);
-    const hdr = CUSTOMIZE_PANELS.find((p) => p.id === "hdr");
-    expect(hdr).toBeDefined();
-    expect(panelVisible(hdr!, caps)).toBe(false);
+  it("pure helpers: tileVisible encodes the gating matrix (ui-owned always)", () => {
+    const caps = { available: new Set<string>(["playback.stop"]), resolved: true };
+    const stop = tileById("stop")!;
+    const seek = tileById("seek-fwd-10")!;
+    const spacer = tileById("spacer")!;
+    expect(tileVisible(stop, caps)).toBe(true);
+    expect(tileVisible(seek, caps)).toBe(false);
+    expect(tileVisible(spacer, caps)).toBe(true); // UI-owned: no gate
+    expect(visibleTiles(CUSTOMIZE_TILES, caps)).toHaveLength(19);
   });
 
   it("useCommandCapabilities resolves ids from system.list-commands", async () => {
@@ -199,32 +215,12 @@ describe("capability gating (AC: available → rendered; not-exposed → hidden)
     const { result } = renderHook(() => useCommandCapabilities(stub));
     await waitFor(() => expect(result.current.resolved).toBe(true));
     expect(result.current.available.has("playback.stop")).toBe(true);
-    expect(result.current.available.has("video.set-crop")).toBe(false);
+    expect(result.current.available.has("playback.seek")).toBe(false);
   });
 });
 
-describe("field-command bindings (dispatch spies)", () => {
-  it("aspect selection dispatches video.set-aspect-ratio with the ratio payload", async () => {
-    const stub = new StubTransport([listing("video.set-aspect-ratio")]);
-    renderCustomize(stub);
-    await pickDropdownOption("Aspect ratio", "16:9");
-    await act(async () => {});
-    const sent = stub.sent.filter((r) => r.cmd === "video.set-aspect-ratio");
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.args).toEqual({ ratio: { kind: "ratio", w: 16, h: 9 } });
-  });
-
-  it("crop selection dispatches video.set-crop with the none/ratio payload", async () => {
-    const stub = new StubTransport([listing("video.set-crop")]);
-    renderCustomize(stub);
-    await pickDropdownOption("Crop", "None");
-    await act(async () => {});
-    const sent = stub.sent.filter((r) => r.cmd === "video.set-crop");
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.args).toEqual({ crop: { kind: "none" } });
-  });
-
-  it("seek quick-action tiles dispatch relative playback.seek targets (±10 s / ±15 s)", async () => {
+describe("tile-command bindings (dispatch spies)", () => {
+  it("seek tiles dispatch relative playback.seek targets (±10 s / ±15 s)", async () => {
     const stub = new StubTransport([listing("playback.seek"), listing("playback.stop")]);
     renderCustomize(stub);
     fireEvent.click(await screen.findByRole("button", { name: "Backward 10s" }));
@@ -233,34 +229,23 @@ describe("field-command bindings (dispatch spies)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forward 15s" }));
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await act(async () => {});
-    const seeks = stub.sent.filter((r) => r.cmd === "playback.seek");
-    expect(seeks.map((r) => (r.args as { target: { deltaMs: number } }).target.deltaMs)).toEqual([
-      -10_000, 10_000, -15_000, 15_000,
-    ]);
-    expect(stub.sent.some((r) => r.cmd === "playback.stop")).toBe(true);
+    const seeks = stub.sent.filter((request) => request.cmd === "playback.seek");
+    expect(
+      seeks.map((request) => (request.args as { target: { deltaMs: number } }).target.deltaMs),
+    ).toEqual([-10_000, 10_000, -15_000, 15_000]);
+    expect(stub.sent.some((request) => request.cmd === "playback.stop")).toBe(true);
   });
 
-  it("repeat selection dispatches playlist.set-repeat; applied-repeat confirms the engine mode", async () => {
-    const stub = new StubTransport(
-      [listing("playlist.set-repeat")],
-      (request) =>
-        request.cmd === "playlist.set-repeat"
-          ? { kind: "applied-repeat", mode: (request.args as { mode: "off" | "one" | "all" }).mode }
-          : null,
-    );
+  it("UI-owned tiles never dispatch (inert palette items by design)", async () => {
+    const stub = new StubTransport(DEMO_COMMANDS.map(listing));
     renderCustomize(stub);
-    await pickDropdownOption("Repeat", "One");
+    fireEvent.click(await screen.findByRole("button", { name: "Quit VLC" }));
+    fireEvent.click(screen.getByRole("button", { name: "Spacer" }));
     await act(async () => {});
-    const sent = stub.sent.filter((r) => r.cmd === "playlist.set-repeat");
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.args).toEqual({ mode: "one" });
-    // Engine confirmation becomes the trigger label — never optimistic.
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Repeat" })).toHaveTextContent("One"),
-    );
+    expect(stub.sent.filter((request) => request.cmd !== "system.list-commands")).toHaveLength(0);
   });
 
-  it("shuffle quick action dispatches playlist.set-shuffle and flips on the engine report", async () => {
+  it("shuffle tile dispatches playlist.set-shuffle and flips on the engine report", async () => {
     const stub = new StubTransport(
       [listing("playlist.set-shuffle")],
       (request) =>
@@ -275,148 +260,229 @@ describe("field-command bindings (dispatch spies)", () => {
     await waitFor(() => expect(shuffle).toHaveAttribute("aria-pressed", "true"));
     fireEvent.click(shuffle);
     await waitFor(() => expect(shuffle).toHaveAttribute("aria-pressed", "false"));
-    const sent = stub.sent.filter((r) => r.cmd === "playlist.set-shuffle");
-    expect(sent.map((r) => (r.args as { enabled: boolean }).enabled)).toEqual([true, false]);
+    const sent = stub.sent.filter((request) => request.cmd === "playlist.set-shuffle");
+    expect(sent.map((request) => (request.args as { enabled: boolean }).enabled)).toEqual([
+      true, false,
+    ]);
   });
 
-  it("engine events update confirmed state (rate-changed, shuffle-set)", async () => {
-    const stub = new StubTransport([listing("playback.set-rate"), listing("playlist.set-shuffle")]);
+  it("repeat tile cycles engine-confirmed modes (off → all → one)", async () => {
+    const stub = new StubTransport(
+      [listing("playlist.set-repeat")],
+      (request) =>
+        request.cmd === "playlist.set-repeat"
+          ? {
+              kind: "applied-repeat",
+              mode: (request.args as { mode: "off" | "one" | "all" }).mode,
+            }
+          : null,
+    );
     renderCustomize(stub);
-    const speed = await screen.findByRole("slider", { name: "Playback speed" });
-    expect(speed).toHaveAttribute("aria-valuenow", "1");
+    const repeat = await screen.findByRole("button", { name: "Repeat" });
+    fireEvent.click(repeat);
+    await act(async () => {});
+    fireEvent.click(repeat);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "playlist.set-repeat");
+    expect(sent.map((request) => (request.args as { mode: string }).mode)).toEqual(["all", "one"]);
+  });
+
+  it("playback-speed tile cycles from the engine-confirmed rate (events)", async () => {
+    const stub = new StubTransport([listing("playback.set-rate")]);
+    renderCustomize(stub);
+    const speed = await screen.findByRole("button", { name: "Playback speed" });
+    // Engine truth arrives by event: rate 1.5 → the next click dispatches 2.
     act(() => {
-      stub.emit({
-        seq: 1,
-        kind: "playback.rate-changed",
-        rate: 2,
-      });
+      stub.emit({ seq: 1, kind: "playback.rate-changed", rate: 1.5 });
     });
-    await waitFor(() => expect(speed).toHaveAttribute("aria-valuenow", "2"));
+    fireEvent.click(speed);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "playback.set-rate");
+    expect(sent.map((request) => (request.args as { rate: number }).rate)).toEqual([2]);
   });
 });
 
-describe("slider live-vs-committed (doc 08 §5)", () => {
-  it("speed slider: live drag never dispatches; commit dispatches playback.set-rate once", async () => {
-    const stub = new StubTransport(
-      [listing("playback.set-rate")],
-      (request) =>
-        request.cmd === "playback.set-rate"
-          ? { kind: "applied-rate", rate: (request.args as { rate: number }).rate }
-          : null,
-    );
-    renderCustomize(stub);
-    const slider = await screen.findByRole("slider", { name: "Playback speed" });
-    // jsdom rects are zero-width: any large clientX quantizes to max (4).
-    fireEvent.pointerDown(slider, { pointerId: 1, clientX: 999 });
-    fireEvent.pointerMove(slider, { pointerId: 1, clientX: 999 });
-    await act(async () => {});
-    expect(stub.sent.filter((r) => r.cmd === "playback.set-rate")).toHaveLength(0);
-    expect(screen.getByText("4.00x")).toBeInTheDocument(); // live readout (value chip)
-    fireEvent.pointerUp(slider, { pointerId: 1, clientX: 999 });
-    await act(async () => {});
-    const sent = stub.sent.filter((r) => r.cmd === "playback.set-rate");
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.args).toEqual({ rate: 4 });
-    // engine confirmation becomes the committed value
-    await waitFor(() => expect(slider).toHaveAttribute("aria-valuenow", "4"));
-  });
-
-  it("color slider: live preview fires without dispatch; commit dispatches exactly once", async () => {
-    const stub = new StubTransport([listing("video.set-brightness")]);
-    renderCustomize(stub);
-    const slider = await screen.findByRole("slider", { name: "Brightness" });
-    fireEvent.pointerDown(slider, { pointerId: 1, clientX: 999 });
-    fireEvent.pointerMove(slider, { pointerId: 1, clientX: 999 });
-    await act(async () => {});
-    // Forward-declared command: cast keeps the spy honest pre-codegen.
-    const brightnessSends = () => stub.sent.filter((r) => (r.cmd as string) === "video.set-brightness");
-    expect(brightnessSends()).toHaveLength(0);
-    expect(screen.getByText("100")).toBeInTheDocument(); // live readout at max
-    fireEvent.pointerUp(slider, { pointerId: 1, clientX: 999 });
-    await act(async () => {});
-    const sent = brightnessSends();
-    expect(sent).toHaveLength(1);
-    expect((sent[0] as { args: unknown }).args).toEqual({ value: 100 });
-    // stub completes with feature-not-exposed → committed stays honest (0)
-    expect(slider).toHaveAttribute("aria-valuenow", "0");
-  });
-
-  it("zoom slider commit dispatches video.set-zoom; applied-zoom confirms", async () => {
-    const stub = new StubTransport(
-      [listing("video.set-zoom")],
-      (request) =>
-        request.cmd === "video.set-zoom"
-          ? { kind: "applied-zoom", factor: (request.args as { factor: number }).factor }
-          : null,
-    );
-    renderCustomize(stub);
-    const slider = await screen.findByRole("slider", { name: "Zoom" });
-    fireEvent.pointerDown(slider, { pointerId: 1, clientX: 999 });
-    fireEvent.pointerUp(slider, { pointerId: 1, clientX: 999 });
-    await act(async () => {});
-    const sent = stub.sent.filter((r) => r.cmd === "video.set-zoom");
-    expect(sent).toHaveLength(1);
-    expect(sent[0]!.args).toEqual({ factor: 4 });
-    await waitFor(() => expect(slider).toHaveAttribute("aria-valuenow", "4"));
-  });
-});
-
-describe("the box (W26 frame rebuild: drag-to-edit toolbar palette)", () => {
+describe("the box + the edit band (frames -1…-7)", () => {
   it("frame 0 — open + clean: Save is present but disabled (dimmed), Cancel enabled", async () => {
-    const stub = new StubTransport([listing("playback.seek"), listing("playback.stop")]);
-    renderCustomize(stub);
+    renderCustomize(new StubTransport(DEMO_COMMANDS.map(listing)));
     const save = await screen.findByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
   });
 
-  it("frames -1…-5 — dragging a tile lifts it and keeps Save actionable after the edit", async () => {
-    const stub = new StubTransport([listing("playback.seek")]);
-    renderCustomize(stub);
-    const fwd = await screen.findByRole("button", { name: "Forward 10s" });
-    const back = screen.getByRole("button", { name: "Backward 10s" });
-    fireEvent.dragStart(fwd, { dataTransfer: dataTransfer() });
-    expect(fwd).toHaveAttribute("data-dragging");
-    // Drop on another tile → reorder, Save enables (dirty).
-    fireEvent.dragOver(back, { dataTransfer: dataTransfer() });
-    expect(back).toHaveAttribute("data-drop-target");
-    fireEvent.drop(back, { dataTransfer: dataTransfer() });
-    fireEvent.dragEnd(fwd, { dataTransfer: dataTransfer() });
-    await act(async () => {});
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-    // Order changed: Forward 10s took Backward 10s's slot (dropped ONTO it).
-    const box = screen.getByRole("list", { name: "Toolbar items" });
-    const labels = within(box).getAllByRole("button").map((b) => b.textContent);
-    expect(labels.indexOf("Forward 10s")).toBeLessThan(labels.indexOf("Backward 10s"));
+  it("the edit band renders frame -1's clean arrangement (no placed items)", async () => {
+    renderCustomize(new StubTransport([]));
+    const band = await screen.findByRole("group", { name: "Toolbar preview" });
+    // Frame -1's clean band: the fixed transport cluster + the long empty
+    // slot + the right cluster — NO placed toolbar items until a drop.
+    expect(band.querySelectorAll("button")).toHaveLength(0);
+    expect(band.querySelector(".lumen-customize-band__slot")).not.toBeNull();
+    expect(band.querySelector(".lumen-customize-band__cluster")).not.toBeNull();
   });
 
-  it("frame -6 — dragging a tile OUT of the box removes it; Cancel restores", async () => {
-    const stub = new StubTransport([listing("playback.seek"), listing("playback.stop")]);
+  it("frames -1…-5 — dragging a tile in the box reorders; Save enables (dirty)", async () => {
+    const stub = new StubTransport([listing("playback.seek")]);
+    renderCustomize(stub);
+    // Frame order: Forward 10s precedes Backward 10s — dragging Backward
+    // ONTO Forward takes Forward's slot (insert-at-target DnD semantics).
+    const back = await screen.findByRole("button", { name: "Backward 10s" });
+    const fwd = screen.getByRole("button", { name: "Forward 10s" });
+    fireEvent.dragStart(back, { dataTransfer: dataTransfer() });
+    expect(back).toHaveAttribute("data-dragging");
+    fireEvent.dragOver(fwd, { dataTransfer: dataTransfer() });
+    expect(fwd).toHaveAttribute("data-drop-target");
+    fireEvent.drop(fwd, { dataTransfer: dataTransfer() });
+    fireEvent.dragEnd(back, { dataTransfer: dataTransfer() });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    const box = screen.getByRole("list", { name: "Toolbar items" });
+    const labels = within(box).getAllByRole("button").map((button) => button.textContent);
+    expect(labels.indexOf("Backward 10s")).toBeLessThan(labels.indexOf("Forward 10s"));
+  });
+
+  it("frames -6/-7 — dropping a tile on the band places it in the toolbar", async () => {
+    const stub = new StubTransport([]);
+    renderCustomize(stub);
+    const favorite = await screen.findByRole("button", { name: "Favorite" });
+    const dt = dataTransfer();
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    fireEvent.dragOver(band, { dataTransfer: dt });
+    expect(band).toHaveAttribute("data-drop-active");
+    fireEvent.drop(band, { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
+    // The placed well appears in the band (frame 7: the favorite in the band).
+    expect(
+      within(band).getByRole("button", { name: "Remove Favorite from the toolbar" }),
+    ).toBeInTheDocument();
+    // The box tile carries the in-toolbar hook.
+    expect(favorite).toHaveAttribute("data-in-toolbar");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("dragging a band item INTO the box removes it from the player", async () => {
+    const stub = new StubTransport([listing("playback.stop")]);
     renderCustomize(stub);
     const stop = await screen.findByRole("button", { name: "Stop" });
-    // A drag that ends without any drop target handled = dragged out.
-    fireEvent.dragStart(stop, { dataTransfer: dataTransfer() });
-    fireEvent.dragEnd(stop, { dataTransfer: dataTransfer() });
+    const dt0 = dataTransfer();
+    fireEvent.dragStart(stop, { dataTransfer: dt0 });
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    fireEvent.drop(band, { dataTransfer: dt0 });
+    fireEvent.dragEnd(stop, { dataTransfer: dt0 });
     await act(async () => {});
-    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    const stopWell = screen.getByRole("button", { name: "Remove Stop from the toolbar" });
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-    // Cancel reverts the session's removal (frame: Cancel = discard edits).
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const dt = dataTransfer();
+    fireEvent.dragStart(stopWell, { dataTransfer: dt });
+    const box = screen.getByRole("list", { name: "Toolbar items" });
+    fireEvent.drop(box, { dataTransfer: dt });
+    fireEvent.dragEnd(stopWell, { dataTransfer: dt });
     await act(async () => {});
-    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove Stop from the toolbar" }),
+    ).not.toBeInTheDocument();
+    // Back to the saved baseline (empty band) — clean again.
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
-  it("Delete key removes a tile (keyboard path); Save commits the new baseline", async () => {
-    const stub = new StubTransport([listing("playback.seek")]);
+  it("clicking a placed well removes it (the keyboard-safe path); Delete key too", async () => {
+    const stub = new StubTransport([listing("playback.stop")]);
     renderCustomize(stub);
-    const fwd15 = await screen.findByRole("button", { name: "Forward 15s" });
-    fireEvent.keyDown(fwd15, { key: "Delete" });
+    // Place Stop (drop on the band), then click its well away.
+    const stop = await screen.findByRole("button", { name: "Stop" });
+    const dt0 = dataTransfer();
+    fireEvent.dragStart(stop, { dataTransfer: dt0 });
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    fireEvent.drop(band, { dataTransfer: dt0 });
+    fireEvent.dragEnd(stop, { dataTransfer: dt0 });
     await act(async () => {});
-    expect(screen.queryByRole("button", { name: "Forward 15s" })).not.toBeInTheDocument();
+    const stopWell = screen.getByRole("button", { name: "Remove Stop from the toolbar" });
+    fireEvent.click(stopWell);
+    await act(async () => {});
+    expect(
+      screen.queryByRole("button", { name: "Remove Stop from the toolbar" }),
+    ).not.toBeInTheDocument();
+    // Keyboard: place Favorite via the band drop, then Delete on its box tile.
+    const favorite = screen.getByRole("button", { name: "Favorite" });
+    const dt = dataTransfer();
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    fireEvent.drop(band, { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
+    expect(favorite).toHaveAttribute("data-in-toolbar");
+    fireEvent.keyDown(favorite, { key: "Delete" });
+    await act(async () => {});
+    expect(favorite).not.toHaveAttribute("data-in-toolbar");
+  });
+
+  it("Cancel restores the saved arrangement; Save persists it (localStorage seam)", async () => {
+    const stub = new StubTransport([]);
+    renderCustomize(stub);
+    const favorite = await screen.findByRole("button", { name: "Favorite" });
+    const dt = dataTransfer();
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    fireEvent.drop(band, { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    // Cancel reverts the session's edit.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await act(async () => {});
+    expect(
+      screen.queryByRole("button", { name: "Remove Favorite from the toolbar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    // Place again + Save → persisted; a fresh mount reads it back.
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    fireEvent.drop(band, { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await act(async () => {});
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Forward 15s" })).not.toBeInTheDocument();
+    const persisted = globalThis.localStorage?.getItem(TOOLBAR_STORAGE_KEY);
+    expect(persisted).toBeDefined();
+    expect(parseToolbarLayout(JSON.parse(persisted ?? "null"))?.band).toEqual(["favorite"]);
+  });
+
+  it("in-box reorder + Save persists the new catalog order", async () => {
+    const stub = new StubTransport([]);
+    renderCustomize(stub);
+    const spacer = await screen.findByRole("button", { name: "Spacer" });
+    fireEvent.keyDown(spacer, { key: "ArrowRight", altKey: true });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await act(async () => {});
+    const persisted = parseToolbarLayout(
+      JSON.parse(globalThis.localStorage?.getItem(TOOLBAR_STORAGE_KEY) ?? "null"),
+    );
+    expect(persisted?.order[0]).toBe("divider");
+    expect(persisted?.band).toEqual([]);
+    expect(toolbarLayoutEqual(persisted!, { ...DEFAULT_TOOLBAR_LAYOUT, order: persisted!.order })).toBe(true);
+  });
+});
+
+describe("toolbar layout persistence helpers", () => {
+  it("parseToolbarLayout rejects junk, heals omissions and duplicates", () => {
+    expect(parseToolbarLayout(null)).toBeNull();
+    expect(parseToolbarLayout("nope")).toBeNull();
+    expect(parseToolbarLayout({ order: "x", band: 3 })).toBeNull();
+    expect(parseToolbarLayout({ order: [], band: [] })).toBeNull();
+    // Unknown ids drop; missing catalog ids append in frame order.
+    const healed = parseToolbarLayout({ order: ["stop", "bogus", "stop"], band: ["stop", "nope"] });
+    expect(healed?.order[0]).toBe("stop");
+    expect(healed?.order).toHaveLength(CUSTOMIZE_TILES.length);
+    expect(new Set(healed?.order).size).toBe(healed?.order.length);
+    expect(healed?.band).toEqual(["stop"]);
+  });
+
+  it("toolbarLayoutEqual compares order + band structurally", () => {
+    const a = { order: ["a", "b"], band: ["a"] };
+    expect(toolbarLayoutEqual(a, { order: ["a", "b"], band: ["a"] })).toBe(true);
+    expect(toolbarLayoutEqual(a, { order: ["b", "a"], band: ["a"] })).toBe(false);
+    expect(toolbarLayoutEqual(a, { order: ["a", "b"], band: [] })).toBe(false);
   });
 });

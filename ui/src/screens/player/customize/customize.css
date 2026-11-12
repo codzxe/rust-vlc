@@ -1,72 +1,124 @@
-/* Card 4.F3 / w26.a17 — the "Customize Player" surface.
+/* w26.gfixA (issue #62) — the "Customize Player" surface, rebuilt to the
+ * 9-state frame set `design/figma/Player - customize*.svg` (W25 spec §1–2).
  *
- * W26 FIGMA REBUILD (design/figma "Player - customize*.svg", 9 states; W25
- * spec §1–§2): the customize panel is the frame's toolbar editor — a dark
- * header strip (title "Customize Player" + ✕), the drag-and-drop helper
- * line, the dashed-tile palette box, per-panel adjustment sections and the
- * Cancel/Save footer (r6, 32px; Save dimmed at --opacity-disabled until the
- * arrangement is dirty — frames 0 vs 1–6). Geometry is measured from the
- * frames at 1920 and scaled to the 320px tool-panel rail (dashed wells
- * 29×31, 1.5-stroke icons, 4-4 dash pattern, 15px semibold headers).
+ * MODAL ANATOMY (frame `Player - customize.svg`, measured @1920 and pinned
+ * 1:1 per the g-wave Lead ruling):
+ *   * centered modal 1048×655 rx14, body #0E0E0E (= --color-surface-deep)
+ *     floating slightly high of center over the player, drop shadow —
+ *     hosted on the shared Dialog primitive (scrim z20 + focus trap);
+ *   * header band 94px #090909 (= --color-surface) with the title
+ *     "Customize Player" 15px semibold #8F8F8F at (28,23), the ✕ 10px
+ *     1.5px #8F8F8F at (20,20), and the instruction line at (23,~75);
+ *   * THE BOX — 31-tile catalog, 9 columns (pitch 110px, side padding
+ *     47–49px), rows at pitch ~120px: dashed 27×27 wells (#6B6B6B
+ *     dash 4 4), 18–20px 1.5-stroke icons, 2-line centered labels
+ *     (#8F8F8F);
+ *   * footer — Cancel 100×32 r6 (#1B1B1B/#8F8F8F) left, Save 100×32 r6
+ *     (#371F06/#D37918) right, Save dimmed at --opacity-disabled while
+ *     clean (frame 0) and active once dirty (frames -1…-6).
  *
- * The outer panel chrome (r12–14 card, surface-panel + hairline, overlay
- * shadow) is the player's `.lumen-player__panel` aside; sections repeat the
- * same card grammar locally. Semantic tokens only (doc 08 §3.2) — no raw
- * values; the Solstice note-edge/shadow-card card look is gone. */
+ * THE EDIT BAND (frames -1..-4/-6/-7): while the modal is open the live
+ * control band renders as dashed edit wells — placed toolbar items
+ * (draggable), the fixed transport preview (play pill 48×28 r6 accent +
+ * wells 29×27), the long empty drop slot (1431×35 @1920) and the fixed
+ * right cluster (volume 129×35 + three 29×31 wells + more). It sits ABOVE
+ * the Dialog scrim (z21) so drops reach it.
+ *
+ * Semantic tokens only (doc 08 §3.2); raw values appear solely for
+ * frame-measured dimensions/colors with no token, each carrying its frame
+ * citation. */
+
+/* ---- well ink (the frames' #6B6B6B dashed strokes) -----------------------
+ * Decorative dash strokes measure #6B6B6B in every customize frame; the
+ * ink tokens stay #828282 per the Lead's WCAG ruling (content text keeps
+ * the token). A local variable pins the frame value in dark mode (the
+ * light-mode remap lives at the sheet's end, after the base selectors). */
+.lumen-customize,
+.lumen-customize-band {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - customize.svg — tile/edit wells' dashed stroke #6B6B6B (decorative; the ink token stays #828282 per the Lead's WCAG ruling) */
+  --customize-well-ink: #6b6b6b;
+  --customize-well-size: 27px; /* frame: dominant tile well 27×27 (g09) */
+}
+
+/* ---- modal surface ------------------------------------------------------- */
+
+/* The Dialog primitive owns the scrim + chrome (r14 window, hairline,
+ * overlay shadow); this pins the frame's 1048×655 deck, kills the
+ * primitive's padding (bands bleed to the edges) and sits the modal
+ * slightly high of center (frame: modal top 189.5 of 1080 — 2.15vh above
+ * the vertical center). */
+.lumen-scrim .lumen-dialog.lumen-customize__surface {
+  box-sizing: border-box;
+  width: min(1048px, 92vw); /* frame: 1048 @1920, Lead-pinned 1:1 */
+  height: min(655px, 86vh); /* frame: 655 @1920 */
+  max-width: 92vw;
+  max-height: 86vh;
+  padding: 0;
+  overflow: hidden; /* the header/footer pin while the box scrolls */
+  margin-block-end: 4.3vh; /* frame: 23.25/1080 above center */
+
+  /* frame: Player - customize.svg — modal rect fill #0E0E0E fill-opacity
+   * 0.95 (the playing player bleeds through 5%); tone="deep" supplies the
+   * #0e0e0e token, the mix re-states the frame's opacity. */
+  background: color-mix(in srgb, var(--color-surface-deep) 95%, transparent);
+}
 
 .lumen-customize {
   display: flex;
   flex-direction: column;
-
-  /* Fill the host panel's height (the media-info sibling's pattern): the
-   * footer's `margin-top: auto` pins it to the panel bottom like the
-   * frame's footer, and short content never leaves a dead zone below. */
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   font-family: var(--font-family-sans);
 }
 
-/* ---- header strip (frame: #090909 band, title + ✕ top-right) ---------- */
+/* ---- header band (frame: 94px #090909, title + ✕ + instruction) --------- */
 
 .lumen-customize__header {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-grid);
-  padding: calc(var(--space-inset) * 1.5) var(--space-inset);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-stroke-border);
+  flex: none;
+  flex-direction: column;
+  gap: 21px; /* frame: title baseline → instruction top ≈ 21px */
+  box-sizing: border-box;
+  height: 94px; /* frame: header band 94px */
+  padding: 23px 56px 0 28px; /* frame: title at (28,23); ✕ clears at right */
+  background: var(--color-surface); /* frame: #090909 */
 }
 
 .lumen-customize__title {
-  /* Frame title measures 15px semibold (#8F8F8F quiet ink). */
   margin: 0;
-  font-size: var(--font-size-time);
+  font-size: var(--font-size-section); /* frame: 15px semibold */
   font-weight: var(--font-weight-semibold);
-  color: var(--color-content-secondary);
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
 }
-
-.lumen-customize__close {
-  flex: none;
-}
-
-/* ---- instruction line (frame: 12px tertiary under the header) --------- */
 
 .lumen-customize__instruction {
   margin: 0;
-  padding: var(--space-grid) var(--space-inset) calc(var(--space-grid) * 2);
-  font-size: var(--font-size-caption);
+  font-size: 12px; /* frame: instruction 12px (Player - customize.svg, y≈264) */
   line-height: 1.45;
-  color: var(--color-content-tertiary);
+  color: var(--color-content-tertiary); /* frame: #6B6B6B → ink token (Lead WCAG ruling) */
 }
 
-/* ---- the box: dashed-tile toolbar palette (frame rows 1–4) ------------ */
+.lumen-customize__close {
+  position: absolute;
+  top: 11px; /* 28px hit target centered on the frame's 10px glyph at (1454..1464, 209.5..219.5) → center (1023,25) */
+  right: 11px;
+  flex: none;
+}
+
+/* ---- the box: the frame's 31-tile catalog (rows 1–4) --------------------- */
 
 .lumen-customize__box {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: var(--space-grid);
-  padding: 0 var(--space-inset) var(--space-inset);
+  flex: 1 1 auto;
+  align-content: start;
+  grid-template-columns: repeat(9, 1fr); /* frame: 9 columns, pitch ≈110px */
+  gap: 53px 4px; /* frame: row pitch 120 (tile 67 + 53) — rows y=318/438/558/674 */
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 34px 48px 8px; /* frame: box top 128.5 (94 band + 34.5), side ≈47–49 */
+  overflow-y: auto;
 }
 
 .lumen-customize__tile-slot {
@@ -78,11 +130,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-grid);
+  gap: 13px; /* frame: well bottom → label top ≈13px */
   width: 100%;
-  padding: var(--space-grid);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-inset);
   background: transparent;
   color: var(--color-content-secondary);
   font: inherit;
@@ -91,149 +143,115 @@
 
 .lumen-customize__tile:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: calc(var(--space-grid) / 2);
+  outline-offset: 2px;
 }
 
 .lumen-customize__tile:active {
   cursor: grabbing;
 }
 
-/* The dashed drop-box well (frame: 29×31 rect, 1px #6B6B6B, dash 4 4).
- * Corners are SQUARE — the frame rects carry no rx (measured on
- * "Player - customize.svg" tile wells). */
+/* The dashed drop well (frame: 27×27 square, 1px #6B6B6B, dash 4 4).
+ * Chromium's native `dashed` border renders 3-3, so the frame's 4-4
+ * cadence is painted with hard-stop repeating gradients, one per edge
+ * (top/bottom run horizontally, left/right vertically); `--well-dash`
+ * re-inks the pattern for hover/drop states, and background-color stays
+ * free for tints. */
+.lumen-customize__tile-well,
+.lumen-customize-band__well,
+.lumen-customize-band__slot {
+  --well-dash: var(--customize-well-ink);
+
+  border: 0;
+  background-image:
+    repeating-linear-gradient(90deg, var(--well-dash) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(90deg, var(--well-dash) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(0deg, var(--well-dash) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(0deg, var(--well-dash) 0 4px, transparent 4px 8px);
+  background-position: left top, left bottom, left top, right top;
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
+}
+
 .lumen-customize__tile-well {
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: calc(var(--space-grid) * 7);
-  height: calc(var(--space-grid) * 8);
-  border: 1px dashed var(--color-content-tertiary);
-  color: var(--color-stroke-icon);
+  width: var(--customize-well-size);
+  height: var(--customize-well-size);
+  color: var(--color-stroke-icon); /* frame: #8F8F8F 1.5-stroke glyphs */
 }
 
+/* Frame labels wrap to 2 centered lines ("Forward 10s" measures 51.8×27.3)
+ * — the rail era's single-line ellipsis is gone. */
 .lumen-customize__tile-label {
-  max-width: 100%;
+  display: -webkit-box;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 27px; /* frame: the 2-line label box */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
+  text-align: center;
+  font-size: 12px; /* frame: tile labels ~12px (Player - customize.svg rows 1–4) */
+  line-height: 1.25;
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.lumen-customize__tile:hover .lumen-customize__tile-well,
+.lumen-customize__tile:hover .lumen-customize__tile-well {
+  --well-dash: var(--color-content-secondary);
+}
+
 .lumen-customize__tile:hover .lumen-customize__tile-label {
-  border-color: var(--color-content-secondary);
   color: var(--color-content-primary);
 }
 
-/* Drag-in-progress ghost (frames -1…-5): the lifted tile fades in place. */
+/* Placed-in-toolbar tiles carry a data hook only — the frames draw the
+ * catalog uniformly (no membership marker in any of the 9 states). */
+
+/* Drag-in-progress ghost (frames -1…-6): the lifted tile fades in place. */
 .lumen-customize__tile[data-dragging] {
   opacity: var(--opacity-muted);
   cursor: grabbing;
 }
 
-/* Drop target (frames -2…-4): the hovered slot lights with the accent. */
+/* Drop target: the hovered slot lights with the accent. */
 .lumen-customize__tile[data-drop-target] .lumen-customize__tile-well {
-  border-color: var(--color-accent);
-  background: var(--color-accent-tinted);
+  --well-dash: var(--color-accent);
+
+  background-color: var(--color-accent-tinted);
 }
 
-/* ---- adjustment sections (Figma row grammar; r12–14 cards) ------------ */
-
-.lumen-customize__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-grid);
-  margin: 0 var(--space-inset) calc(var(--space-grid) * 2);
-  padding: calc(var(--space-inset) * 1.5);
-  background: var(--color-surface-panel);
-  border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-panel); /* r12–14 cards/panels (spec §1) */
-}
-
-.lumen-customize__section-title {
-  margin: 0 0 var(--space-grid);
-  font-size: var(--font-size-time); /* 15px semibold section headers */
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-content-primary);
-}
-
-/* Rows: label left, control right (spec §2 settings/tool grammar). */
-.lumen-customize__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-grid);
-  min-height: calc(var(--space-grid) * 8);
-}
-
-.lumen-customize__row + .lumen-customize__row {
-  border-top: 1px solid var(--color-stroke-border);
-  padding-top: var(--space-grid);
-}
-
-.lumen-customize__row-label {
-  font-size: var(--font-size-body);
-  color: var(--color-content-secondary);
-}
-
-.lumen-customize__dropdown {
-  flex: none;
-  min-width: 0;
-  max-width: 55%;
-}
-
-/* Slider rows (EQ/tool frames): head line with the value chip, thin
- * full-width slider under it. */
-.lumen-customize__slider-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-grid);
-  width: 100%;
-  padding: var(--space-grid) 0;
-}
-
-.lumen-customize__row-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-grid);
-}
-
-.lumen-customize__value {
-  flex: none;
-}
-
-/* ---- footer (frame: Cancel left, Save right; 100×32 r6) --------------- */
+/* ---- footer (frame: Cancel left, Save right; 100×32 r6) ----------------- */
 
 .lumen-customize__footer {
-  position: sticky;
-  bottom: 0;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-grid);
-  margin-top: auto;
-  padding: var(--space-inset);
-  border-top: 1px solid var(--color-stroke-border);
-
-  /* frame: the buttons sit directly on the modal body — no darker band */
-  background: var(--color-surface-panel);
+  box-sizing: border-box;
+  padding: 0 20px 20px; /* frame: buttons 20px off the modal edges */
+  background: transparent; /* frame: buttons sit directly on the body fill */
 }
 
 /* Footer buttons are the SHARED Button components (button.css owns the
- * variants + hover/pressed/focus states): Cancel = default (frame
- * #1B1B1B fill + #8F8F8F label), Save = tinted (frame #371F06 fill +
- * #D37918 label). Only the frame's fixed 100px width rides here. */
+ * states): Save = tinted (frame #371F06 fill + #D37918 label — the token
+ * pair); Cancel restates the frame's #1B1B1B borderless quiet button. */
 .lumen-customize__cancel,
 .lumen-customize__save {
-  min-width: calc(var(--space-grid) * 25); /* frame 100px */
+  min-width: 100px; /* frame: 100×32 */
+  min-height: 32px; /* frame: 32px */
 }
 
-/* Frame 0 ("Player - customize.svg"): the CLEAN state dims Save — the tinted
- * button at 50% group opacity (footer group "Frame 141" carries
- * opacity 0.5 + mix-blend luminosity), NOT the shared gray disabled look;
+.lumen-customize__cancel {
+  border-color: transparent; /* frame: the Cancel rect carries no stroke */
+  background: var(--color-surface-panel); /* frame: #1B1B1B (panel consolidation) */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+}
+
+/* Frame 0 (clean): the footer dims Save — the tinted button at 50% group
+ * opacity ("Frame 141" opacity 0.5), NOT the shared gray disabled look;
  * frames -1…-6 (edits pending) lift it. The (0,3,0) selector out-ranks
  * button.css's `.lumen-button:disabled` regardless of sheet order. */
 .lumen-customize__footer .lumen-customize__save:disabled {
@@ -246,15 +264,190 @@
   opacity: var(--opacity-disabled);
 }
 
-/* All fields unsupported → panels hidden; honest screen-reader note only. */
-.lumen-customize__empty {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
+/* ---- the edit band (frames -1..-4/-6/-7) --------------------------------- */
+
+/* The live control band's dashed-well preview, fixed over the real strip
+ * (its geometry is measured at runtime; the fallback pins the usual
+ * ~45px band). Above the Dialog scrim (z20) so tile drops reach it. */
+.lumen-customize-band {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 21;
+  box-sizing: border-box;
+  width: 100%;
+  height: 45px; /* structural: the control band's pinned ~44px + hairline */
+  background: var(--color-surface-chrome); /* frame: the band fill */
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+.lumen-customize-band__row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 13px; /* frame -1: right-cluster pitch 13–16px @1920 */
+  box-sizing: border-box;
+  height: 100%;
+  padding: 0 20px; /* frame: first well 20.5px off the window edge @1920 */
+}
+
+/* The fixed transport cluster (frame -1: prev @20.5, play @58.5, next
+ * @120.5 — 9px inter-well gaps inside the cluster). */
+.lumen-customize-band__cluster {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 9px; /* frame: 38 pitch − 29 well = 9 */
+}
+
+/* Edit wells: the frame's dashed 29×27 grammar (the dash paint itself is
+ * the shared 4-4 gradient rule near the top of the sheet). */
+.lumen-customize-band__well {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 29px; /* frame -1: band wells 29×27 */
+  height: 27px;
+  color: var(--color-stroke-icon);
+}
+
+/* Right-cluster wells ride the taller rhythm (frame -1: 29×31
+ * @1736.5/1778.5/1820.5/1870.5). */
+.lumen-customize-band__well--tall {
+  height: 31px; /* frame -1: 29×31 */
+}
+
+/* Placed toolbar items are real buttons (click = remove, drag = back to
+ * the box) — the interactive half of the frame's edit grammar. */
+button.lumen-customize-band__well {
   padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
+  cursor: grab;
+  font: inherit;
+}
+
+button.lumen-customize-band__well:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+button.lumen-customize-band__well:hover {
+  --well-dash: var(--color-accent);
+}
+
+/* The fixed play well preview (frame -1: dashed 53×33 well @58.5 wrapping
+ * the 48×28 r6 accent pill @61,1039 — inset 2.5px). */
+.lumen-customize-band__well--play {
+  position: relative;
+  width: 53px; /* frame: 53×33 */
+  height: 33px;
+}
+
+.lumen-customize-band__well--play::before {
+  content: "";
+  position: absolute;
+  inset: 2.5px; /* frame: the 48×28 pill inside the 53×33 well */
+  border-radius: var(--radius-control);
+  background: var(--color-accent); /* frame: #D37918 */
+}
+
+.lumen-customize-band__well--play .lumen-icon {
+  position: relative;
+  color: var(--color-content-on-accent); /* frame: #161616 glyph */
+}
+
+/* The volume well preview (frame -1: 129×35 @1591.5): glyph + mini track. */
+.lumen-customize-band__well--wide {
+  gap: 8px;
+  width: 129px; /* frame: 129×35 */
+  height: 35px;
+}
+
+.lumen-customize-band__volume-track {
+  display: inline-block;
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: var(--radius-inset);
+  background: var(--color-surface); /* frame: #090909 track */
+}
+
+.lumen-customize-band__volume-track::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-surface-raised); /* frame: #262626 thumb */
+}
+
+/* The long empty drop slot (frame 0: 1405×35 dashed @170.5) — the drop
+ * target. */
+.lumen-customize-band__slot {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: center;
+  align-items: center;
+  height: 35px; /* frame: 35px */
+}
+
+/* The live seekbar preview frame 0 draws INSIDE the slot (track 1238×28
+ * r6 #090909 with a buffered #371F06 98×24 r4 and played #D37918 8×24 r4
+ * bar) — the real seekbar belongs to the control bar this overlay covers. */
+.lumen-customize-band__seek {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  height: 28px; /* frame: 28px inside the 35px slot */
+  margin: 0 14px; /* frame: the track insets from the slot's dashed edges */
+  border-radius: var(--radius-control); /* frame: r6 */
+  background: var(--color-surface); /* frame: #090909 track */
+}
+
+.lumen-customize-band__seek-buffered,
+.lumen-customize-band__seek-played {
+  position: absolute;
+  top: 2px;
+  bottom: 2px; /* frame: 24px bars inset 2px in the 28px track */
+  border-radius: var(--radius-inset); /* frame: r4 */
+}
+
+.lumen-customize-band__seek-buffered {
+  left: 2px;
+  width: 7%; /* frame: buffered 98 of 1238 */
+  background: var(--color-accent-tinted); /* frame: #371F06 */
+}
+
+.lumen-customize-band__seek-played {
+  left: 2px;
+  width: 2px; /* frame: played 8×24 accent bar at the head */
+  background: var(--color-accent); /* frame: #D37918 */
+}
+
+/* Drop-active highlight: the accent affordance while a tile hovers (the
+ * seek preview fades so the target reads as a well). */
+.lumen-customize-band[data-drop-active] .lumen-customize-band__slot {
+  --well-dash: var(--color-accent);
+
+  background-color: var(--color-accent-tinted);
+}
+
+.lumen-customize-band[data-drop-active] .lumen-customize-band__seek {
+  opacity: var(--opacity-muted);
+}
+
+/* Drag-in-progress: the whole band reads as a live drop zone. */
+.lumen-customize-band[data-dragging] {
+  border-top-color: var(--color-accent);
+}
+
+/* ---- light mode ----------------------------------------------------------- */
+
+/* No light customize frame exists; the modal flips with the surface tokens
+ * like every dialog, and the frame-measured dark well ink maps to the
+ * visible tertiary stroke (kept at the sheet's end so the base selectors
+ * above win the cascade check). */
+:root[data-theme="light"] .lumen-customize,
+:root[data-theme="light"] .lumen-customize-band {
+  --customize-well-ink: var(--color-content-tertiary);
 }

@@ -1,16 +1,18 @@
-// Card 4.F3 — capability seam for the customize panels.
+// Capability seam for the customize catalog.
 //
-// The customize renderer shows a field ONLY when its command is reported
-// available. Source of truth: `system.list-commands` (doc 05 §3) — the
-// engine's own listing of supported command ids. The scaffold's
+// The customize box renders an ENGINE-BOUND tile only when its command is
+// reported available. Source of truth: `system.list-commands` (doc 05 §3)
+// — the engine's own listing of supported command ids. The scaffold's
 // MockTransport answers with an EMPTY listing, which maps honestly to "no
-// capabilities" → every gated field hidden (no dead controls). This is the
-// customize-surface policy: hidden (contrast the settings seam's
-// disabled-with-reason — same exposure state, different presentation).
+// capabilities" → every engine-bound tile hidden (no dead controls).
+// UI-owned toolbar items (command: null — Spacer, Go Home, the Name
+// pills, …) carry no engine surface and always render (w26.g07-P1-2's
+// catalog split: the frame's box is a 31-tile catalog, not a capability
+// report).
 
 import { useEffect, useState } from "react";
 import type { CommandTransport } from "../../../client/transport";
-import type { CustomizeField, CustomizePanelDef } from "./types";
+import type { CustomizeTile } from "./types";
 
 export interface CommandCapabilities {
   /** Command ids the engine listed as supported. */
@@ -54,20 +56,19 @@ export function useCommandCapabilities(wire: CommandTransport): CommandCapabilit
   return caps;
 }
 
-/** A field renders only when its command is reported available. */
-export function fieldVisible(field: CustomizeField, caps: CommandCapabilities): boolean {
-  return caps.available.has(field.command);
+/**
+ * A tile renders when it is UI-owned (no engine command) OR its command is
+ * reported available — the customize-surface policy: hidden, never a dead
+ * control (contrast the settings seam's disabled-with-reason).
+ */
+export function tileVisible(tile: CustomizeTile, caps: CommandCapabilities): boolean {
+  return tile.command === null || caps.available.has(tile.command);
 }
 
-/** The subset of a panel's fields that pass the capability gate. */
-export function visibleFields(
-  panel: CustomizePanelDef,
+/** The subset of the catalog that passes the capability gate. */
+export function visibleTiles(
+  tiles: readonly CustomizeTile[],
   caps: CommandCapabilities,
-): readonly CustomizeField[] {
-  return panel.fields.filter((field) => fieldVisible(field, caps));
-}
-
-/** A panel with zero visible fields is itself hidden — no empty dead panels. */
-export function panelVisible(panel: CustomizePanelDef, caps: CommandCapabilities): boolean {
-  return visibleFields(panel, caps).length > 0;
+): readonly CustomizeTile[] {
+  return tiles.filter((tile) => tileVisible(tile, caps));
 }

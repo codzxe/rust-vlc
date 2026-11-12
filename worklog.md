@@ -1506,3 +1506,18 @@ Work Log:
 
 Stage Summary:
 - Battery green after the pass: vitest 1319/1319, e2e a11y+theme+smoke 38/38, stylelint clean, tokens:check OK (c5f3adebee82). Rust toolchain installed (rustup, RUSTUP/CARGO under /home/z/my-project) — the real 3-layer token pipeline runs again. Next: 6 parallel fixer lanes (customize modal, settings composition, controls anatomy, onboarding polish, playlist surfaces, variants/hide-UI), then the re-verify loop.
+
+---
+Task ID: w26.gfix-integration
+Agent: Lead (wave-26 orchestration — wave-g fixer integration)
+Task: Integrate gfix lanes A-F, register lane i18n keys, close cross-lane breaks, land the dark hover pipeline change
+
+Work Log:
+- Lanes landed: A (customize modal rebuild — the #1 P0: lumen:open-customize hosted, centered 1048×655 r14 modal, 31-tile catalog, Save persists lumen.player.toolbar.v1), B (settings composition — video/audio P0 composed, interface 13 rows, theme→global, privacy Clear row, subtitles fit, extensions well; schemas/settings.toml re-seeded), C (controls anatomy — previous/play/next transport, pill hover, timecode buttons+Go-to-Time, reachable popovers, Player-5 home), D (onboarding — dot ring aria-checked fix, appearance persistence seam, heading/hover/keycap pins), E (playlist — sorting reachability, dialog Escape scoping, 96px header, file context menu, visible wells, dimmed Save), F (variants — DOM-truth overlay lock, frosted music band on the strip, window-centered art, zero-chrome hide-UI verified).
+- Lead integration: 97 lane i18n keys registered into messages.ts (1236/1236 l10n); PlayerScreen transport test re-pinned to previous/play/next; Dropdown scrollIntoView jsdom guard; Surface trap root fix (first Escape yields to any open [role=listbox]/[role=menu] popup inside the dialog — the native listener beat React delegation).
+- Dark hover pipeline change (gfix-C ask, contract §2): theme-tokens gains a derived bright_dark role (hsl+0.02/+0.045 ≈ #E8851A) — dark accent-bright now brightens on hover for ALL 9 accents instead of equaling the primary (an invisible hover state before). Rust pipeline (color.rs/emit.rs/parse.rs), tokens.json alias, regenerated 3-layer outputs (sha 42ec55b9a816), pins updated deliberately.
+- Stale Rust test debt cleared (never ran in CI until billing lifted): theme-tokens pipeline.rs repinned from dead Solstice values (yellow default/warm neutrals/Nunito/146-count) to W25 truth (orange default/#090909/#c2c2c2/Inter/118-count); semantic_lint fixture hex repinned to current gray.300 #9A9A9A.
+- Schema validator: empty-string literal defaults now legal for Path/Url entries (models "unconfigured" frame inputs — Log file/Skin file/Last.fm URL); runtime set-setting stays strict. 19 window-metric entries got entry-level advanced = true (rule D5). schema-gen + settings:generate regenerated (121 entries).
+
+Stage Summary:
+- Full battery green: vitest 1367/1367, e2e 38/38, visual PR-lite 32/32 (re-seeded), tsc/eslint/stylelint/l10n/settings:check clean, cargo test theme-tokens+settings-schema+desktop all green. Next: wave H (20 harsh senior-UI raters), then I/J/K/L/M per program. Branches w26/gfix-B/E/F pushed by lanes; all merged into this main commit.

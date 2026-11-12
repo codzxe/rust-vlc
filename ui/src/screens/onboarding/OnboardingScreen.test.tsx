@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
 import { ThemeProvider } from "../../theme/ThemeProvider";
+import { ACCENT_SETTING_KEY, THEME_SETTING_KEY } from "../../theme/settingsThemeSync";
 import { OnboardingEntry, OnboardingScreen, RequireOnboarding } from "./OnboardingScreen";
 import {
   ONBOARDING_DEFAULTS,
@@ -286,6 +287,51 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
     fireEvent.keyDown(accents, { key: "ArrowLeft" });
     expect(document.documentElement.dataset.accent).toBe("gray");
     expect(swatchOf("gray")).toHaveFocus();
+  });
+
+  // --- appearance step: first-run picks persist (w26.gfix-D, g02 P1-2) ---
+
+  it("appearance choices persist through the settings overrides store", async () => {
+    render(
+      <ThemeProvider>
+        <ClientProvider transport={new MockTransport()}>
+          <MemoryRouter initialEntries={["/onboarding"]}>
+            <Routes>
+              <Route path="/onboarding" element={<OnboardingScreen />} />
+            </Routes>
+          </MemoryRouter>
+        </ClientProvider>
+      </ThemeProvider>,
+    );
+    goToStep(2); // welcome → library → appearance
+    fireEvent.click(screen.getByRole("button", { name: "Light" }));
+    fireEvent.click(screen.getByTestId("onboarding-accent-gray"));
+    // The wizard's seam is the SAME store the playback/subtitles steps write
+    // and ThemeProvider bootstraps from — picks must not evaporate (g02 P1-2).
+    // Key names come from the seam constants, so the test tracks the schema
+    // wherever the theme key moves (interface.theme ↔ global.theme, g10-P1-2).
+    await waitFor(() =>
+      expect(readSettings()).toMatchObject({
+        [THEME_SETTING_KEY]: "light",
+        [ACCENT_SETTING_KEY]: "gray",
+      }),
+    );
+  });
+
+  it("a fresh load hydrates the wizard's persisted appearance picks", () => {
+    // The reload half of the g02 P1-2 repro: choices written by the wizard
+    // must bootstrap ThemeProvider on the next launch.
+    window.localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ [THEME_SETTING_KEY]: "light", [ACCENT_SETTING_KEY]: "gray" }),
+    );
+    render(
+      <ThemeProvider>
+        <span />
+      </ThemeProvider>,
+    );
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.accent).toBe("gray");
   });
 
   // --- playback / subtitles steps: real settings-schema writes ---

@@ -36,12 +36,12 @@ fn violating_fixture_fails_the_check() -> Result<(), Box<dyn std::error::Error>>
     let text = fixture("violating.css")?;
     let violations = lint_source(&set, &text);
 
-    // Raw hex duplicating primitive color.gray.300 (#CBBDA1).
+    // Raw hex duplicating primitive color.gray.300 (#9A9A9A, W25 repin).
     assert!(
         violations.iter().any(|v| v.kind == ViolationKind::RawValue
             && v.token == "color.gray.300"
-            && v.snippet == "#CBBDA1"),
-        "expected a raw-value violation for #8F8F8F, got: {violations:?}"
+            && v.snippet == "#9A9A9A"),
+        "expected a raw-value violation for #9A9A9A, got: {violations:?}"
     );
     // CSS-form primitive name: var(--color-gray-900) → primitive color.gray.900.
     assert!(

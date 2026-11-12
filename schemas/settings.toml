@@ -394,6 +394,7 @@ key = "interface.start-maximized"
 type = "bool"
 default_ref = "window.start_maximized"
 description = "settings.interface.start-maximized"
+advanced = true
 restart_required = true
 placement = { screen = "interface", section = "window-metrics", order = 10, ui = false }
 cli = { flag = "--interface-start-maximized", short = "" }
@@ -406,6 +407,7 @@ type = "int"
 range = { min = 480, max = 3840 }
 default_ref = "window.width"
 description = "settings.interface.window-width"
+advanced = true
 restart_required = true
 placement = { screen = "interface", section = "window-metrics", order = 20, ui = false }
 cli = { flag = "--interface-window-width", short = "" }
@@ -418,6 +420,7 @@ type = "int"
 range = { min = 320, max = 2160 }
 default_ref = "window.height"
 description = "settings.interface.window-height"
+advanced = true
 restart_required = true
 placement = { screen = "interface", section = "window-metrics", order = 30, ui = false }
 cli = { flag = "--interface-window-height", short = "" }
@@ -430,6 +433,7 @@ type = "int"
 range = { min = 480, max = 3840 }
 default_ref = "window.min_width"
 description = "settings.interface.window-min-width"
+advanced = true
 restart_required = true
 placement = { screen = "interface", section = "window-metrics", order = 40, ui = false }
 cli = { flag = "--interface-window-min-width", short = "" }
@@ -442,6 +446,7 @@ type = "int"
 range = { min = 320, max = 2160 }
 default_ref = "window.min_height"
 description = "settings.interface.window-min-height"
+advanced = true
 restart_required = true
 placement = { screen = "interface", section = "window-metrics", order = 50, ui = false }
 cli = { flag = "--interface-window-min-height", short = "" }
@@ -461,6 +466,7 @@ key = "privacy.telemetry"
 type = "bool"
 default_ref = "telemetry.enabled"
 description = "settings.privacy.telemetry"
+advanced = true
 restart_required = false
 placement = { screen = "privacy", section = "data", order = 10, ui = false }
 cli = { flag = "--privacy-telemetry", short = "" }
@@ -473,6 +479,7 @@ type = "enum"
 enumeration = ["off", "ask", "send"]
 default_ref = "telemetry.crash_reports"
 description = "settings.privacy.crash-reports"
+advanced = true
 restart_required = false
 placement = { screen = "privacy", section = "data", order = 20, ui = false }
 cli = { flag = "--privacy-crash-reports", short = "" }
@@ -484,6 +491,7 @@ key = "privacy.usage-stats"
 type = "bool"
 default_ref = "telemetry.usage_stats"
 description = "settings.privacy.usage-stats"
+advanced = true
 restart_required = false
 placement = { screen = "privacy", section = "data", order = 30, ui = false }
 cli = { flag = "--privacy-usage-stats", short = "" }

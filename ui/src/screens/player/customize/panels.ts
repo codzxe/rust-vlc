@@ -1,247 +1,77 @@
-// Card 4.F3 / w26.a17 — the customize panel catalog (doc 08 §1.6 video-tools
-// exports + the "Player - customize*.svg" 9-state frame set). Pure DATA:
-// every field names the command it dispatches; capability gating happens in
-// the renderer. When the engine does not expose a command the field is
-// hidden, and a panel whose fields are ALL unsupported is hidden entirely —
-// no dead controls.
+// w26.gfixA (issue #62) — the customize tile catalog, rebuilt to the
+// frame-measured inventory of `design/figma/Player - customize.svg` (the
+// 31-tile box, rows 1–4 × 9 columns — verified byte-identical across all
+// 9 customize frames by w26.g08). Pure DATA:
 //
-// Commands below split into two classes:
-//   * in the 1.D4 wire catalog today: video.set-aspect-ratio / set-crop /
-//     set-zoom, playback.set-rate / seek / stop, playlist.set-repeat /
-//     set-shuffle — bound 1:1 to real commands.
-//   * forward-declared (colors, HDR tone mapping): the design (doc 08 §1.6)
-//     specifies the panels; the engine/catalog do not carry the commands yet,
-//     so these fields stay hidden until a listing exposes them. Their arg
-//     keys are [PROPOSAL] pending catalog regeneration.
+//   * engine-bound tiles name the command they dispatch (capability-gated
+//     in capabilities.ts — hidden until the engine lists the command, per
+//     doc 05 §3 "no dead controls");
+//   * UI-owned toolbar items (command: null) always render — they are
+//     toolbar layout primitives with no engine surface (w26.g07-P1-2's
+//     catalog split);
+//   * row order + column order are the frame's exact reading order.
 //
-// W26 frame rebuild notes (design/figma "Player - customize.svg"):
-//   * the frame's palette box reads "Playback Speed · Forward 10s ·
-//     Backward 10s · Forward 15s · Backward 15s · Stop · Repeat · Shuffle
-//     · …" — doc 08 §4 calls it the "button catalog (±10s/15s, …)". The
-//     seek fields here therefore carry ±10 s / ±15 s payloads (the frame's
-//     grammar; the old ±60 s rows had no frame and are gone).
-//   * quick-action fields (action / toggle-action) render as palette tiles;
-//     select/slider fields render as per-section adjustment rows — the
-//     split is derived from control kind, never stored twice.
+// Tile glyph note: the frames draw one shared "text block" glyph for the
+// five Name/Properties tiles; the icon registry carries no such glyph, so
+// those tiles use their semantic registry icons (artist/folder/…). A
+// dedicated glyph is an icon-lane handoff (recorded in the lane log).
+//
+// The select/slider adjustment rows of the rail era are GONE from this
+// surface — no customize frame contains a section, slider or dropdown
+// (w26.g07-P2-1, w26.g08-P2-4, w26.g09-P2-4); that grammar lives in the
+// tools dialog (dialogs/ToolsDialog.tsx) which already hosts the Crop,
+// Colors, Essential and HDR tools.
 
 import type { IconName } from "../../../components/icon/icons";
 import type {
+  CommandArgs,
   CustomizeControl,
-  CustomizeField,
-  CustomizeLabelKey,
   CustomizeOption,
-  CustomizePanelDef,
+  CustomizeTile,
+  ToolbarLayout,
 } from "./types";
 
-const RATIO_OPTIONS: readonly CustomizeOption[] = [
-  { id: "default", labelKey: "customize.option.default", args: { ratio: { kind: "default" } } },
-  { id: "1:1", labelKey: "customize.ratio.1-1", args: { ratio: { kind: "ratio", w: 1, h: 1 } } },
-  { id: "4:3", labelKey: "customize.ratio.4-3", args: { ratio: { kind: "ratio", w: 4, h: 3 } } },
-  { id: "16:9", labelKey: "customize.ratio.16-9", args: { ratio: { kind: "ratio", w: 16, h: 9 } } },
-  { id: "16:10", labelKey: "customize.ratio.16-10", args: { ratio: { kind: "ratio", w: 16, h: 10 } } },
-  { id: "2.35:1", labelKey: "customize.ratio.2-35-1", args: { ratio: { kind: "ratio", w: 2.35, h: 1 } } },
-  { id: "2.39:1", labelKey: "customize.ratio.2-39-1", args: { ratio: { kind: "ratio", w: 2.39, h: 1 } } },
-];
-
-const CROP_OPTIONS: readonly CustomizeOption[] = [
-  { id: "none", labelKey: "customize.option.none", args: { crop: { kind: "none" } } },
-  { id: "1:1", labelKey: "customize.ratio.1-1", args: { crop: { kind: "ratio", w: 1, h: 1 } } },
-  { id: "4:3", labelKey: "customize.ratio.4-3", args: { crop: { kind: "ratio", w: 4, h: 3 } } },
-  { id: "16:9", labelKey: "customize.ratio.16-9", args: { crop: { kind: "ratio", w: 16, h: 9 } } },
-  { id: "16:10", labelKey: "customize.ratio.16-10", args: { crop: { kind: "ratio", w: 16, h: 10 } } },
-  { id: "2.35:1", labelKey: "customize.ratio.2-35-1", args: { crop: { kind: "ratio", w: 2.35, h: 1 } } },
-  { id: "2.39:1", labelKey: "customize.ratio.2-39-1", args: { crop: { kind: "ratio", w: 2.39, h: 1 } } },
-];
-
+/** Repeat cycle (engine modes, frame row 1 "Repeat"). */
 const REPEAT_OPTIONS: readonly CustomizeOption[] = [
-  { id: "off", labelKey: "customize.repeat.off", args: { mode: "off" } },
-  { id: "all", labelKey: "customize.repeat.all", args: { mode: "all" } },
-  { id: "one", labelKey: "customize.repeat.one", args: { mode: "one" } },
+  { id: "off", args: { mode: "off" } },
+  { id: "all", args: { mode: "all" } },
+  { id: "one", args: { mode: "one" } },
 ];
 
-/** The four design panels, in doc 08 §1.6 order: Crop, Colors, Essential, HDR. */
-export const CUSTOMIZE_PANELS: readonly CustomizePanelDef[] = [
-  {
-    id: "crop-aspect",
-    labelKey: "customize.panel.crop-aspect",
-    fields: [
-      {
-        id: "aspect-ratio",
-        labelKey: "customize.field.aspect",
-        command: "video.set-aspect-ratio",
-        control: { kind: "select", options: RATIO_OPTIONS },
-      },
-      {
-        id: "crop",
-        labelKey: "customize.field.crop",
-        command: "video.set-crop",
-        control: { kind: "select", options: CROP_OPTIONS },
-      },
-      {
-        id: "zoom",
-        labelKey: "customize.field.zoom",
-        command: "video.set-zoom",
-        control: {
-          kind: "slider",
-          min: 0.25,
-          max: 4,
-          step: 0.25,
-          initial: 1,
-          argsFor: (factor) => ({ factor }),
-          format: (value) => `${value.toFixed(2)}x`,
-        },
-      },
-    ],
-  },
-  {
-    id: "video-colors",
-    labelKey: "customize.panel.video-colors",
-    fields: [
-      {
-        id: "brightness",
-        labelKey: "customize.field.brightness",
-        command: "video.set-brightness",
-        control: colorSlider(-100, 100, 0),
-      },
-      {
-        id: "contrast",
-        labelKey: "customize.field.contrast",
-        command: "video.set-contrast",
-        control: colorSlider(-100, 100, 0),
-      },
-      {
-        id: "saturation",
-        labelKey: "customize.field.saturation",
-        command: "video.set-saturation",
-        control: colorSlider(-100, 100, 0),
-      },
-      {
-        id: "hue",
-        labelKey: "customize.field.hue",
-        command: "video.set-hue",
-        control: colorSlider(-180, 180, 0),
-      },
-      {
-        id: "gamma",
-        labelKey: "customize.field.gamma",
-        command: "video.set-gamma",
-        control: {
-          kind: "slider",
-          min: 0.1,
-          max: 3,
-          step: 0.1,
-          initial: 1,
-          argsFor: (gamma) => ({ gamma }),
-          format: (value) => value.toFixed(2),
-        },
-      },
-    ],
-  },
-  {
-    id: "essential",
-    labelKey: "customize.panel.essential",
-    fields: [
-      {
-        id: "speed",
-        labelKey: "customize.field.speed",
-        command: "playback.set-rate",
-        control: {
-          kind: "slider",
-          min: 0.25,
-          max: 4,
-          step: 0.25,
-          initial: 1,
-          argsFor: (rate) => ({ rate }),
-          format: (value) => `${value.toFixed(2)}x`,
-        },
-      },
-      // The frame's palette row 1 (doc 08 §4 "±10s/15s") — quick-action
-      // tiles, in frame order: Backward 15s…Forward 15s around the ±10s
-      // pair would scramble the frame's left-to-right reading; keep the
-      // catalog order backward→forward like the old rows.
-      seekTile("seek-back-15", "customize.tile.backward-15", -15_000, "skip-back-15"),
-      seekTile("seek-back-10", "customize.tile.backward-10", -10_000, "skip-back-10"),
-      seekTile("seek-fwd-10", "customize.tile.forward-10", 10_000, "skip-forward-10"),
-      seekTile("seek-fwd-15", "customize.tile.forward-15", 15_000, "skip-forward-15"),
-      {
-        id: "stop",
-        labelKey: "player.controls.stop",
-        command: "playback.stop",
-        icon: "stop",
-        control: { kind: "action", args: {} },
-      },
-      {
-        id: "repeat",
-        labelKey: "customize.action.repeat",
-        command: "playlist.set-repeat",
-        control: { kind: "select", options: REPEAT_OPTIONS },
-      },
-      {
-        id: "shuffle",
-        labelKey: "customize.action.shuffle",
-        command: "playlist.set-shuffle",
-        icon: "shuffle",
-        control: {
-          kind: "toggle-action",
-          argsFor: (engineValue) => ({ enabled: !(engineValue ?? false) }),
-        },
-      },
-    ],
-  },
-  {
-    id: "hdr",
-    labelKey: "customize.panel.hdr",
-    fields: [
-      {
-        id: "tone-mapping",
-        labelKey: "customize.field.tonemap-mode",
-        command: "video.set-tone-mapping",
-        control: {
-          kind: "select",
-          options: [
-            { id: "clip", labelKey: "customize.tonemap.clip", args: { mode: "clip" } },
-            { id: "mobius", labelKey: "customize.tonemap.mobius", args: { mode: "mobius" } },
-            { id: "reinhard", labelKey: "customize.tonemap.reinhard", args: { mode: "reinhard" } },
-            { id: "hable", labelKey: "customize.tonemap.hable", args: { mode: "hable" } },
-          ],
-        },
-      },
-      {
-        id: "tone-mapping-strength",
-        labelKey: "customize.field.tonemap-strength",
-        command: "video.set-tone-mapping-strength",
-        control: {
-          kind: "slider",
-          min: 0,
-          max: 100,
-          step: 1,
-          initial: 50,
-          argsFor: (strength) => ({ strength }),
-          format: (value) => `${Math.round(value)}%`,
-        },
-      },
-    ],
-  },
+/** Playback-rate cycle (frame row 1 "Playback Speed"). */
+const RATE_OPTIONS: readonly CustomizeOption[] = [
+  { id: "0.25", args: { rate: 0.25 } },
+  { id: "0.5", args: { rate: 0.5 } },
+  { id: "0.75", args: { rate: 0.75 } },
+  { id: "1", args: { rate: 1 } },
+  { id: "1.25", args: { rate: 1.25 } },
+  { id: "1.5", args: { rate: 1.5 } },
+  { id: "2", args: { rate: 2 } },
 ];
 
-function colorSlider(min: number, max: number, initial: number): CustomizeControl {
-  return {
-    kind: "slider",
-    min,
-    max,
-    step: 1,
-    initial,
-    argsFor: (value) => ({ value }),
-    format: (value) => String(Math.round(value)),
-  };
+/** Zoom cycle (frame row 2 "Zoom"). */
+const ZOOM_OPTIONS: readonly CustomizeOption[] = [
+  { id: "0.5", args: { factor: 0.5 } },
+  { id: "1", args: { factor: 1 } },
+  { id: "1.5", args: { factor: 1.5 } },
+  { id: "2", args: { factor: 2 } },
+];
+
+/** A UI-owned toolbar item (no engine command, never dispatches). */
+function uiTile(
+  id: string,
+  labelKey: CustomizeTile["labelKey"],
+  icon?: IconName,
+): CustomizeTile {
+  return { id, labelKey, command: null, control: { kind: "ui" }, icon };
 }
 
 function seekTile(
   id: string,
-  labelKey: CustomizeLabelKey,
+  labelKey: CustomizeTile["labelKey"],
   deltaMs: number,
   icon: IconName,
-): CustomizeField {
+): CustomizeTile {
   return {
     id,
     labelKey,
@@ -251,5 +81,147 @@ function seekTile(
   };
 }
 
-/** Flattened field list — capability/apply helpers scan this. */
-export const CUSTOMIZE_FIELDS = CUSTOMIZE_PANELS.flatMap((panel) => panel.fields);
+/**
+ * THE CATALOG — the frame's 31 tiles in exact frame reading order
+ * (row 1: Spacer…Repeat · row 2: Shuffle…VLC Settings · row 3: Go
+ * Home…Chapters · row 4: Favorite…Playlists).
+ */
+export const CUSTOMIZE_TILES: readonly CustomizeTile[] = [
+  // ---- row 1 (frame y=318) ------------------------------------------------
+  // Spacer: the frame's well is EMPTY (no glyph) — a toolbar spacer.
+  uiTile("spacer", "customize.tile.spacer"),
+  uiTile("divider", "customize.tile.divider", "divider"),
+  {
+    id: "playback-speed",
+    labelKey: "customize.tile.playback-speed",
+    command: "playback.set-rate",
+    icon: "playback-speed",
+    control: { kind: "cycle", options: RATE_OPTIONS, defaultOption: "1" },
+  },
+  seekTile("seek-fwd-10", "customize.tile.forward-10", 10_000, "skip-forward-10"),
+  seekTile("seek-back-10", "customize.tile.backward-10", -10_000, "skip-back-10"),
+  seekTile("seek-fwd-15", "customize.tile.forward-15", 15_000, "skip-forward-15"),
+  seekTile("seek-back-15", "customize.tile.backward-15", -15_000, "skip-back-15"),
+  {
+    id: "stop",
+    labelKey: "player.controls.stop",
+    command: "playback.stop",
+    icon: "stop",
+    control: { kind: "action", args: {} },
+  },
+  {
+    id: "repeat",
+    labelKey: "customize.action.repeat",
+    command: "playlist.set-repeat",
+    icon: "repeat",
+    control: { kind: "cycle", options: REPEAT_OPTIONS, defaultOption: "off" },
+  },
+  // ---- row 2 (frame y=438) ------------------------------------------------
+  {
+    id: "shuffle",
+    labelKey: "customize.action.shuffle",
+    command: "playlist.set-shuffle",
+    icon: "shuffle",
+    control: {
+      kind: "toggle-action",
+      argsFor: (engineValue) => ({ enabled: !(engineValue ?? false) }),
+    },
+  },
+  {
+    // No record command in the v1 catalog (keymaps/default.toml note:
+    // feature-gated) — forward-declared id, hidden until an engine lists it.
+    id: "record",
+    labelKey: "customize.tile.record",
+    command: "video.record",
+    icon: "record",
+    control: { kind: "action", args: {} },
+  },
+  {
+    id: "snapshot",
+    labelKey: "customize.tile.snapshot",
+    command: "video.take-screenshot",
+    icon: "snapshot",
+    control: { kind: "action", args: {} },
+  },
+  {
+    // Forward-declared (no PiP command in the 1.D4 wire union yet).
+    id: "pip",
+    labelKey: "customize.tile.pip",
+    command: "video.toggle-pip",
+    icon: "pip",
+    control: { kind: "action", args: {} },
+  },
+  {
+    // Forward-declared (HDR tone mapping; the tools dialog owns its panel).
+    id: "hdr",
+    labelKey: "customize.tile.hdr",
+    command: "video.set-tone-mapping",
+    icon: "hdr",
+    control: { kind: "action", args: {} },
+  },
+  {
+    id: "zoom",
+    labelKey: "customize.tile.zoom",
+    command: "video.set-zoom",
+    icon: "zoom",
+    control: { kind: "cycle", options: ZOOM_OPTIONS, defaultOption: "1" },
+  },
+  uiTile("right-sidebar", "customize.tile.right-sidebar", "right-sidebar"),
+  uiTile("quit", "customize.tile.quit", "quit"),
+  uiTile("vlc-settings", "customize.tile.vlc-settings", "settings"),
+  // ---- row 3 (frame y=558) ------------------------------------------------
+  uiTile("go-home", "customize.tile.go-home", "go-home"),
+  uiTile("thumbnail", "customize.tile.thumbnail", "thumbnail"),
+  uiTile("file-name", "customize.tile.file-name", "open-file"),
+  uiTile("artist-name", "customize.tile.artist-name", "artist"),
+  uiTile("folder-name", "customize.tile.folder-name", "folder"),
+  uiTile("playlist-name", "customize.tile.playlist-name", "edit"),
+  uiTile("properties", "customize.tile.properties", "about"),
+  uiTile("replay", "customize.tile.replay", "recent"),
+  uiTile("chapters", "customize.tile.chapters", "chapters"),
+  // ---- row 4 (frame y=674) ------------------------------------------------
+  uiTile("favorite", "customize.tile.favorite", "favorite"),
+  uiTile("bookmark", "customize.tile.bookmark", "bookmark"),
+  uiTile("bookmarks", "customize.tile.bookmarks", "lists"),
+  uiTile("playlists", "customize.tile.playlists", "playlist"),
+];
+
+/** Catalog ids in frame order (the default box order). */
+export const CUSTOMIZE_TILE_IDS: readonly string[] = CUSTOMIZE_TILES.map(
+  (tile) => tile.id,
+);
+
+const TILE_BY_ID: ReadonlyMap<string, CustomizeTile> = new Map(
+  CUSTOMIZE_TILES.map((tile) => [tile.id, tile]),
+);
+
+/** Catalog lookup by tile id (null = unknown id, never guessed). */
+export function tileById(id: string): CustomizeTile | null {
+  return TILE_BY_ID.get(id) ?? null;
+}
+
+/**
+ * The default toolbar arrangement (frame -1 baseline): the catalog in
+ * frame order + an EMPTY band — frame -1's clean control band is the
+ * fixed transport cluster + the long empty slot + the right cluster (no
+ * placed toolbar items; drops from the box add them, frames -6/-7).
+ */
+export const DEFAULT_TOOLBAR_LAYOUT: ToolbarLayout = {
+  order: CUSTOMIZE_TILE_IDS,
+  band: [],
+};
+
+/** The args payload a cycle control dispatches for its confirmed option. */
+export function cycleArgs(
+  control: Extract<CustomizeControl, { kind: "cycle" }>,
+  optionId: string | null,
+): CommandArgs {
+  const options = control.options;
+  const index =
+    optionId === null
+      ? options.findIndex((option) => option.id === control.defaultOption)
+      : options.findIndex((option) => option.id === optionId);
+  const current = index >= 0 ? index : 0;
+  const next = (current + 1) % options.length;
+  return options[next]!.args;
+}

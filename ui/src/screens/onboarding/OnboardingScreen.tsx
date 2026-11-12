@@ -14,12 +14,15 @@
 //   · the three privacy choices are opt-IN switches, all OFF, none
 //     pre-checked; "Skip" completes the wizard with the defaults UNCHANGED;
 //   · every control on every step does something real — the appearance
-//     step live-previews through ThemeProvider, the playback/subtitles
-//     steps write the REAL settings schema (SettingsProvider → the shared
-//     overrides store), the media step opens through the ONE open-path
-//     funnel (client/open-path.ts), and the shortcut tour's keycaps are
-//     the REAL keymap (keymaps/default.toml via the generated bindings) —
-//     data, never hand-typed copy;
+//     step live-previews through ThemeProvider AND persists its picks
+//     through the same SettingsProvider seam as its sibling steps
+//     (interface.theme / global.accent-color — the overrides store
+//     ThemeProvider bootstraps every route from; w26.gfix-D), the
+//     playback/subtitles steps write the REAL settings schema
+//     (SettingsProvider → the shared overrides store), the media step opens
+//     through the ONE open-path funnel (client/open-path.ts), and the
+//     shortcut tour's keycaps are the REAL keymap (keymaps/default.toml via
+//     the generated bindings) — data, never hand-typed copy;
 //   · hosts without a ThemeProvider render the appearance controls inert
 //     (disabled, not dead controls lying about their effect).
 //
@@ -46,9 +49,14 @@ import {
   SETTING_PLAYBACK_SUBTITLE_MODE,
 } from "../settings/generated/schema";
 import { SettingsProvider, useSettings } from "../settings/SettingsProvider";
+import {
+  ACCENT_SETTING_KEY,
+  THEME_SETTING_KEY,
+  useSettingsThemeSync,
+} from "../../theme/settingsThemeSync";
 import { ThemeContext } from "../../theme/ThemeProvider";
 import type { ThemeModeSetting } from "../../theme/ThemeProvider";
-import { type AccentId } from "../../tokens/generated/tokens";
+import { ACCENTS, type AccentId } from "../../tokens/generated/tokens";
 import { useOnboardingActions, useOnboardingState } from "./onboardingState";
 import type { OnboardingChoiceKey } from "./onboardingState";
 import "./onboarding.css";
@@ -179,6 +187,14 @@ const ACCENT_ORDER: readonly AccentId[] = [
   "gray",
 ];
 
+/** Draft-value guards — settingsThemeSync's discipline: an unknown/stale
+ * persisted value never guesses; the schema default renders instead. */
+const isThemeModeDraft = (v: unknown): v is ThemeModeSetting =>
+  v === "dark" || v === "light" || v === "auto";
+
+const isAccentDraft = (v: unknown): v is AccentId =>
+  typeof v === "string" && (ACCENTS as readonly string[]).includes(v);
+
 // ---------------------------------------------------------------------------
 // The shortcut tour (frame: Onboarding-2.svg — two columns × six rows)
 // ---------------------------------------------------------------------------
@@ -281,10 +297,11 @@ function ConeMark({ className }: { className?: string }): ReactElement {
 // ---------------------------------------------------------------------------
 
 /**
- * Auto-apply wrapper: wizard rows commit the moment they change (the step
- * copy says so). Mounted inside a fresh SettingsProvider whose persistence
- * is the REAL settings overrides store, so Settings reads the same values
- * later; nothing is staged behind an Apply bar the wizard never shows.
+ * Auto-apply wrapper: wizard settings commit the moment they change (the
+ * step copy says so). The ONE SettingsProvider at the screen root is the
+ * REAL settings overrides store, so Settings reads the same values later
+ * AND the appearance step's picks survive reload (w26.gfix-D — g02 P1-2);
+ * nothing is staged behind an Apply bar the wizard never shows.
  */
 function AutoApplySettings({ children }: { children: ReactNode }): ReactElement {
   const settings = useSettings();
@@ -397,6 +414,131 @@ function SubtitleControls(): ReactElement {
 }
 
 // ---------------------------------------------------------------------------
+// Appearance step (frames: Onboarding-1 / -3..10) — picks that persist
+// ---------------------------------------------------------------------------
+
+/**
+ * Theme cards (frames Onboarding-1/-3..10 — 100×100 r12 depictions at 156px
+ * pitch). w26.gfix-D (g02 P1-2): the cards bind the SETTINGS draft
+ * (`interface.theme`) on the same SettingsProvider + auto-apply seam the
+ * playback/subtitles steps use, so the first-run answer lands in the
+ * overrides store (`lumen.settings.overrides.v1`) ThemeProvider bootstraps
+ * every route from — the pick survives reload instead of evaporating.
+ * useSettingsThemeSync keeps the live preview (the frame recolors while
+ * picking); hosts without a ThemeProvider still render the controls inert
+ * (disabled, not dead controls lying about their effect).
+ */
+function AppearanceCards(): ReactElement {
+  const msg = useOnboardingMsg();
+  const settings = useSettings();
+  const theme = useContext(ThemeContext);
+  // Pushes the draft (mode + accent) into ThemeProvider — the live preview.
+  useSettingsThemeSync();
+  // Unknown/stale draft → no card reads selected (never guess).
+  const rawMode = settings.value(THEME_SETTING_KEY);
+  const mode = isThemeModeDraft(rawMode) ? rawMode : null;
+  return (
+    <div className="onboarding__theme-cards">
+      {THEME_CARDS.map((card) => (
+        <button
+          type="button"
+          key={card.setting}
+          className={[
+            "onboarding__theme-card",
+            `onboarding__theme-card--${card.choiceId}`,
+          ].join(" ")}
+          aria-pressed={theme ? mode === card.setting : undefined}
+          disabled={!theme}
+          onClick={() => settings.setValue(THEME_SETTING_KEY, card.setting)}
+          data-testid={`onboarding-choice-${card.choiceId}`}
+        >
+          <span className="onboarding__theme-swatch" aria-hidden="true" />
+          <span className="onboarding__theme-label">{msg(card.labelKey)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The footer accent dots (frame: Onboarding-1.svg footer row — 9 primaries
+ * at 80px pitch, the selected one carrying the 60×60 rx30 ring). Same seam
+ * as the theme cards: the radiogroup binds the `global.accent-color` draft
+ * and commits immediately; the sync mounted in the cards previews the pick
+ * live. Roving tabindex + arrow keys (w26.d1) drive the DRAFT — selection,
+ * focus and the recolor land together.
+ */
+function AppearanceAccents(): ReactElement {
+  const msg = useOnboardingMsg();
+  const settings = useSettings();
+  const theme = useContext(ThemeContext);
+  // Unknown/stale draft falls back to the orange default — the roving
+  // tabindex needs an anchored selection to stay keyboard reachable (the
+  // AccentColorPicker's contract on the settings side).
+  const raw = settings.value(ACCENT_SETTING_KEY);
+  const accent: AccentId = isAccentDraft(raw) ? raw : "orange";
+
+  /**
+   * Arrow-key roving for the accent radiogroup (w26.d1 — the SwatchGroup
+   * keyboard contract: arrows move focus AND selection with wrap-around;
+   * the selected swatch is the group's single tab stop). WAI-ARIA
+   * radiogroup pattern; inert hosts (no ThemeProvider → disabled buttons)
+   * consume the key without side effects.
+   */
+  const onAccentKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
+    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
+    if (!vertical && !horizontal) return;
+    event.preventDefault();
+    if (!theme) return;
+    const current = ACCENT_ORDER.indexOf(accent);
+    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
+    const next = ACCENT_ORDER[(current + delta + ACCENT_ORDER.length) % ACCENT_ORDER.length];
+    if (next === undefined) return; // unreachable (accent ids are total) — typed guard
+    settings.setValue(ACCENT_SETTING_KEY, next);
+    // Focus follows selection immediately (all 9 swatches exist in the DOM —
+    // no re-render round-trip needed).
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`[data-accent="${next}"]`)
+      ?.focus();
+  };
+
+  return (
+    <div
+      className="onboarding__accents"
+      role="radiogroup"
+      aria-label={msg("onboarding.appearance.accent")}
+      data-testid="onboarding-accents"
+      onKeyDown={onAccentKeyDown}
+    >
+      {/* Per-accent raw values are not tokenized for direct
+       * consumption (they live under :root[data-accent=…] and
+       * redefine --color-accent), so the dot primaries are the
+       * frame-measured set (see onboarding.css) and the LIVE
+       * accent token ring is the selected-state preview.
+       * Radio semantics + roving tabindex (w26.d1): the selected
+       * accent is the single tab stop; arrows roam (see
+       * onAccentKeyDown). */}
+      {ACCENT_ORDER.map((id) => (
+        <button
+          type="button"
+          key={id}
+          className="onboarding__accent"
+          data-accent={id}
+          role="radio"
+          aria-checked={theme ? accent === id : undefined}
+          aria-label={msg(ACCENT_LABEL_KEYS[id])}
+          tabIndex={theme !== null && accent === id ? 0 : -1}
+          disabled={!theme}
+          onClick={() => settings.setValue(ACCENT_SETTING_KEY, id)}
+          data-testid={`onboarding-accent-${id}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Library step — the REAL open-path funnel (client/open-path.ts)
 // ---------------------------------------------------------------------------
 
@@ -497,10 +639,6 @@ export function OnboardingScreen(): ReactElement {
   const navigate = useNavigate();
   const { choices } = useOnboardingState();
   const { setChoice, complete } = useOnboardingActions();
-  // Optional theme access (settingsThemeSync pattern): the appearance step
-  // live-previews through ThemeProvider when a host provides it and renders
-  // inert (no dead controls lying about their effect) when not.
-  const theme = useContext(ThemeContext);
   const [stepIndex, setStepIndex] = useState<number>(0);
   const step: StepId = STEPS[stepIndex] ?? "welcome";
   const isDone = step === "done";
@@ -522,264 +660,186 @@ export function OnboardingScreen(): ReactElement {
     "onboarding.progress.of",
   )} ${STEPS.length}`;
 
-  /**
-   * Arrow-key roving for the accent radiogroup (w26.d1 — the SwatchGroup
-   * keyboard contract: arrows move focus AND selection with wrap-around;
-   * the selected swatch is the group's single tab stop). WAI-ARIA
-   * radiogroup pattern; inert hosts (no ThemeProvider → disabled buttons)
-   * consume the key without side effects.
-   */
-  const onAccentKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
-    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
-    if (!vertical && !horizontal) return;
-    event.preventDefault();
-    if (!theme) return;
-    const current = ACCENT_ORDER.indexOf(theme.accent);
-    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
-    const next = ACCENT_ORDER[(current + delta + ACCENT_ORDER.length) % ACCENT_ORDER.length];
-    if (next === undefined) return; // unreachable (accent ids are total) — typed guard
-    theme.setAccent(next);
-    // Focus follows selection immediately (all 9 swatches exist in the DOM —
-    // no re-render round-trip needed).
-    event.currentTarget
-      .querySelector<HTMLButtonElement>(`[data-accent="${next}"]`)
-      ?.focus();
-  };
-
   const bodyKey = STEP_BODIES[step];
 
   return (
     <main className="onboarding" data-testid="onboarding-root">
-      <section
-        className="onboarding__window"
-        aria-labelledby="onboarding-title"
-        data-testid="onboarding-window"
-      >
-        {/* Step indicator — the frames' quiet grammar: a row of dots, the
-         * current one a wider accent pill. The accessible count lives on
-         * the list itself (announced once). */}
-        <ol
-          className="onboarding__progress"
-          aria-label={stepLabel}
-          data-testid="onboarding-progress"
-        >
-          {STEPS.map((id, index) => (
-            <li
-              key={id}
+      {/* ONE settings seam for the whole wizard (w26.gfix-D): every step's
+       * settings commit the moment they change — playback/subtitles rows and
+       * the appearance step's interface.theme / global.accent-color picks
+       * (the keys ThemeProvider bootstraps from on every fresh load, so the
+       * first-run answer survives reload — g02 P1-2). */}
+      <SettingsProvider>
+        <AutoApplySettings>
+          <section
+            className="onboarding__window"
+            aria-labelledby="onboarding-title"
+            data-testid="onboarding-window"
+          >
+            {/* Step indicator — the frames' quiet grammar: a row of dots, the
+             * current one a wider accent pill. The accessible count lives on
+             * the list itself (announced once). */}
+            <ol
+              className="onboarding__progress"
+              aria-label={stepLabel}
+              data-testid="onboarding-progress"
+            >
+              {STEPS.map((id, index) => (
+                <li
+                  key={id}
+                  className={[
+                    "onboarding__progress-dot",
+                    index < stepIndex && "onboarding__progress-dot--done",
+                    index === stepIndex && "onboarding__progress-dot--current",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  aria-current={index === stepIndex ? "step" : undefined}
+                >
+                  <span className="visually-hidden">{`${msg("onboarding.progress.label")} ${index + 1}`}</span>
+                </li>
+              ))}
+            </ol>
+
+            <div
+              key={stepIndex}
               className={[
-                "onboarding__progress-dot",
-                index < stepIndex && "onboarding__progress-dot--done",
-                index === stepIndex && "onboarding__progress-dot--current",
+                "onboarding__step",
+                CENTERED_STEPS.has(step) && "onboarding__step--center",
               ]
                 .filter(Boolean)
                 .join(" ")}
-              aria-current={index === stepIndex ? "step" : undefined}
+              data-testid={`onboarding-step-${step}`}
             >
-              <span className="visually-hidden">{`${msg("onboarding.progress.label")} ${index + 1}`}</span>
-            </li>
-          ))}
-        </ol>
+              {(step === "welcome" || step === "done") && (
+                <ConeMark className="onboarding__cone" />
+              )}
 
-        <div
-          key={stepIndex}
-          className={[
-            "onboarding__step",
-            CENTERED_STEPS.has(step) && "onboarding__step--center",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          data-testid={`onboarding-step-${step}`}
-        >
-          {(step === "welcome" || step === "done") && (
-            <ConeMark className="onboarding__cone" />
-          )}
+              <h1 className="onboarding__title" id="onboarding-title">
+                {msg(STEP_TITLES[step])}
+              </h1>
+              {bodyKey !== null && <p className="onboarding__body">{msg(bodyKey)}</p>}
 
-          <h1 className="onboarding__title" id="onboarding-title">
-            {msg(STEP_TITLES[step])}
-          </h1>
-          {bodyKey !== null && <p className="onboarding__body">{msg(bodyKey)}</p>}
+              {step === "library" && <LibraryStep />}
 
-          {step === "library" && <LibraryStep />}
+              {step === "appearance" && <AppearanceCards />}
 
-          {step === "appearance" && (
-            <div className="onboarding__theme-cards">
-              {THEME_CARDS.map((card) => (
-                <button
-                  type="button"
-                  key={card.setting}
-                  className={[
-                    "onboarding__theme-card",
-                    `onboarding__theme-card--${card.choiceId}`,
-                  ].join(" ")}
-                  aria-pressed={theme ? theme.modeSetting === card.setting : undefined}
-                  disabled={!theme}
-                  onClick={() => theme?.setModeSetting(card.setting)}
-                  data-testid={`onboarding-choice-${card.choiceId}`}
-                >
-                  <span className="onboarding__theme-swatch" aria-hidden="true" />
-                  <span className="onboarding__theme-label">{msg(card.labelKey)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+              {step === "playback" && <PlaybackControls />}
 
-          {step === "playback" && (
-            <SettingsProvider>
-              <AutoApplySettings>
-                <PlaybackControls />
-              </AutoApplySettings>
-            </SettingsProvider>
-          )}
+              {step === "subtitles" && <SubtitleControls />}
 
-          {step === "subtitles" && (
-            <SettingsProvider>
-              <AutoApplySettings>
-                <SubtitleControls />
-              </AutoApplySettings>
-            </SettingsProvider>
-          )}
+              {step === "privacy" && (
+                <>
+                  <ul className="onboarding__privacy-list">
+                    {PRIVACY_ROWS.map((row) => (
+                      <li className="onboarding__privacy-row" key={row.key}>
+                        <span className="onboarding__privacy-text">
+                          <span className="onboarding__privacy-label">{msg(row.labelKey)}</span>
+                          <span className="onboarding__privacy-description">
+                            {msg(row.descriptionKey)}
+                          </span>
+                        </span>
+                        <Switch
+                          checked={choices[row.key]}
+                          onChange={(value) => setChoice(row.key, value)}
+                          aria-label={msg(row.labelKey)}
+                          data-testid={`onboarding-choice-${row.key}`}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="onboarding__privacy-note">{msg("onboarding.privacy.note")}</p>
+                </>
+              )}
 
-          {step === "privacy" && (
-            <>
-              <ul className="onboarding__privacy-list">
-                {PRIVACY_ROWS.map((row) => (
-                  <li className="onboarding__privacy-row" key={row.key}>
-                    <span className="onboarding__privacy-text">
-                      <span className="onboarding__privacy-label">{msg(row.labelKey)}</span>
-                      <span className="onboarding__privacy-description">
-                        {msg(row.descriptionKey)}
-                      </span>
-                    </span>
-                    <Switch
-                      checked={choices[row.key]}
-                      onChange={(value) => setChoice(row.key, value)}
-                      aria-label={msg(row.labelKey)}
-                      data-testid={`onboarding-choice-${row.key}`}
-                    />
-                  </li>
-                ))}
-              </ul>
-              <p className="onboarding__privacy-note">{msg("onboarding.privacy.note")}</p>
-            </>
-          )}
-
-          {step === "shortcuts" && (
-            <div className="onboarding__shortcut-grid">
-              {[0, 1].map((column) => (
-                <ul className="onboarding__shortcut-column" key={column}>
-                  {SHORTCUT_ROWS.slice(
-                    column * SHORTCUT_COLUMN_LENGTH,
-                    (column + 1) * SHORTCUT_COLUMN_LENGTH,
-                  ).map((row) => (
-                    <li className="onboarding__shortcut-row" key={row.labelKey}>
-                      <span className="onboarding__shortcut-label">{msg(row.labelKey)}</span>
-                      <span className="onboarding__shortcut-keys">
-                        {row.bindingIds.map((id, index) => {
-                          const b = binding(id);
-                          if (!b) return null;
-                          return (
-                            <Fragment key={id}>
-                              {index > 0 && (
-                                <span className="onboarding__shortcut-sep" aria-hidden="true">
-                                  /
-                                </span>
-                              )}
-                              <span className="onboarding__shortcut-pair">
-                                {keycapParts(b).map((part) => (
-                                  <kbd className="onboarding__key" key={`${id}-${part}`}>
-                                    {part}
-                                  </kbd>
-                                ))}
-                              </span>
-                            </Fragment>
-                          );
-                        })}
-                      </span>
-                    </li>
+              {step === "shortcuts" && (
+                <div className="onboarding__shortcut-grid">
+                  {[0, 1].map((column) => (
+                    <ul className="onboarding__shortcut-column" key={column}>
+                      {SHORTCUT_ROWS.slice(
+                        column * SHORTCUT_COLUMN_LENGTH,
+                        (column + 1) * SHORTCUT_COLUMN_LENGTH,
+                      ).map((row) => (
+                        <li className="onboarding__shortcut-row" key={row.labelKey}>
+                          <span className="onboarding__shortcut-label">{msg(row.labelKey)}</span>
+                          <span className="onboarding__shortcut-keys">
+                            {row.bindingIds.map((id, index) => {
+                              const b = binding(id);
+                              if (!b) return null;
+                              return (
+                                <Fragment key={id}>
+                                  {index > 0 && (
+                                    <span className="onboarding__shortcut-sep" aria-hidden="true">
+                                      /
+                                    </span>
+                                  )}
+                                  <span className="onboarding__shortcut-pair">
+                                    {keycapParts(b).map((part) => (
+                                      <kbd className="onboarding__key" key={`${id}-${part}`}>
+                                        {part}
+                                      </kbd>
+                                    ))}
+                                  </span>
+                                </Fragment>
+                              );
+                            })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   ))}
-                </ul>
-              ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Footer — the frames' anatomy: step furniture left (accent dots on
-         * the appearance step, the full-list note on shortcuts), the button
-         * row right (Back · Skip · Next/Get started). */}
-        <footer className="onboarding__footer">
-          <div className="onboarding__footer-aside">
-            {step === "appearance" && (
-              <div
-                className="onboarding__accents"
-                role="radiogroup"
-                aria-label={msg("onboarding.appearance.accent")}
-                data-testid="onboarding-accents"
-                onKeyDown={onAccentKeyDown}
-              >
-                {/* Per-accent raw values are not tokenized for direct
-                 * consumption (they live under :root[data-accent=…] and
-                 * redefine --color-accent), so the dot primaries are the
-                 * frame-measured set (see onboarding.css) and the LIVE
-                 * accent token ring is the selected-state preview.
-                 * Radio semantics + roving tabindex (w26.d1): the selected
-                 * accent is the single tab stop; arrows roam (see
-                 * onAccentKeyDown). */}
-                {ACCENT_ORDER.map((accent) => (
-                  <button
-                    type="button"
-                    key={accent}
-                    className="onboarding__accent"
-                    data-accent={accent}
-                    role="radio"
-                    aria-checked={theme ? theme.accent === accent : undefined}
-                    aria-label={msg(ACCENT_LABEL_KEYS[accent])}
-                    tabIndex={theme !== null && theme.accent === accent ? 0 : -1}
-                    disabled={!theme}
-                    onClick={() => theme?.setAccent(accent)}
-                    data-testid={`onboarding-accent-${accent}`}
-                  />
-                ))}
+            {/* Footer — the frames' anatomy: step furniture left (accent dots on
+             * the appearance step, the full-list note on shortcuts), the button
+             * row right (Back · Skip · Next/Get started — Skip is the
+             * Lead-mandated quiet exit; frames Onboarding-1/-6..10 show
+             * Back+Next / Next only, a documented deviation). */}
+            <footer className="onboarding__footer">
+              <div className="onboarding__footer-aside">
+                {step === "appearance" && <AppearanceAccents />}
+                {step === "shortcuts" && (
+                  <p className="onboarding__footer-note">{msg("onboarding.shortcuts.more")}</p>
+                )}
               </div>
-            )}
-            {step === "shortcuts" && (
-              <p className="onboarding__footer-note">{msg("onboarding.shortcuts.more")}</p>
-            )}
-          </div>
-          <div className="onboarding__footer-actions">
-            <Button
-              onClick={back}
-              className={["onboarding__back", stepIndex === 0 && "onboarding__hidden"]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {msg("onboarding.action.back")}
-            </Button>
-            {!isDone && (
-              <Button
-                variant="ghost"
-                onClick={skip}
-                data-testid="onboarding-skip"
-              >
-                {msg("onboarding.action.skip")}
-              </Button>
-            )}
-            {isDone ? (
-              <Button
-                variant="primary"
-                onClick={finish}
-                data-testid="onboarding-get-started"
-              >
-                {msg("onboarding.action.get-started")}
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={next} data-testid="onboarding-next">
-                {msg("onboarding.action.next")}
-              </Button>
-            )}
-          </div>
-        </footer>
-      </section>
+              <div className="onboarding__footer-actions">
+                <Button
+                  onClick={back}
+                  className={["onboarding__back", stepIndex === 0 && "onboarding__hidden"]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {msg("onboarding.action.back")}
+                </Button>
+                {!isDone && (
+                  <Button
+                    variant="ghost"
+                    onClick={skip}
+                    data-testid="onboarding-skip"
+                  >
+                    {msg("onboarding.action.skip")}
+                  </Button>
+                )}
+                {isDone ? (
+                  <Button
+                    variant="primary"
+                    onClick={finish}
+                    data-testid="onboarding-get-started"
+                  >
+                    {msg("onboarding.action.get-started")}
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={next} data-testid="onboarding-next">
+                    {msg("onboarding.action.next")}
+                  </Button>
+                )}
+              </div>
+            </footer>
+          </section>
+        </AutoApplySettings>
+      </SettingsProvider>
     </main>
   );
 }

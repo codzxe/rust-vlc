@@ -68,16 +68,19 @@ test("auto mode follows the emulated OS color scheme", async ({ page }) => {
 // primary; light only re-points bright/icon/tinted), while
 // `--color-accent-bright` differs per mode — so the pair proves both the
 // accent axis AND the mode axis cascade for every combination.
+// [accent, accentDark, accentLight, brightDark, brightLight] — w26 Lead
+// pipeline change: dark accent-bright is the contract §2 hover (derived
+// hsl+0.02/+0.045 per accent); orange light-bright is the f15 WCAG repin.
 const ACCENT_MATRIX = [
-  ["orange", "#d37918", "#d37918", "#b35f0d"],
-  ["red", "#e15032", "#e15032", "#e66044"],
-  ["yellow", "#c49e23", "#c49e23", "#daaf24"],
-  ["green", "#19a234", "#19a234", "#1ab839"],
-  ["cyan", "#18aad3", "#18aad3", "#1abbe8"],
-  ["blue", "#185dd3", "#185dd3", "#1a66e8"],
-  ["violet", "#8e42ff", "#8e42ff", "#9c59ff"],
-  ["pink", "#f052b3", "#f052b3", "#f365bd"],
-  ["gray", "#afafaf", "#afafaf", "#bababa"],
+  ["orange", "#d37918", "#d37918", "#e8851a", "#b35f0d"],
+  ["red", "#e15032", "#e15032", "#e66044", "#e66044"],
+  ["yellow", "#c49e23", "#c49e23", "#daaf24", "#daaf24"],
+  ["green", "#19a234", "#19a234", "#1ab839", "#1ab839"],
+  ["cyan", "#18aad3", "#18aad3", "#1abbe8", "#1abbe8"],
+  ["blue", "#185dd3", "#185dd3", "#1a66e8", "#1a66e8"],
+  ["violet", "#8e42ff", "#8e42ff", "#9c59ff", "#9c59ff"],
+  ["pink", "#f052b3", "#f052b3", "#f365bd", "#f365bd"],
+  ["gray", "#afafaf", "#afafaf", "#bababa", "#bababa"],
 ] as const;
 
 function hexToRgb(hex: string): string {
@@ -85,7 +88,7 @@ function hexToRgb(hex: string): string {
   return `rgb(${(n >> 16) & 0xff}, ${(n >> 8) & 0xff}, ${n & 0xff})`;
 }
 
-for (const [accent, accentDark, accentLight, brightLight] of ACCENT_MATRIX) {
+for (const [accent, accentDark, accentLight, brightDark, brightLight] of ACCENT_MATRIX) {
   for (const mode of ["dark", "light"] as const) {
     test(`matrix: ${accent} × ${mode} resolves the accent cascade`, async ({
       page,
@@ -105,8 +108,9 @@ for (const [accent, accentDark, accentLight, brightLight] of ACCENT_MATRIX) {
         "background-color",
         hexToRgb(expectedAccent),
       );
-      // …--color-accent-bright proves the per-mode block layered on top.
-      const expectedBright = mode === "dark" ? accentDark : brightLight;
+      // …--color-accent-bright proves the per-mode block layered on top
+      // (dark = the contract §2 hover since the w26 Lead pipeline change).
+      const expectedBright = mode === "dark" ? brightDark : brightLight;
       await expect(bright).toHaveCSS(
         "background-color",
         hexToRgb(expectedBright),

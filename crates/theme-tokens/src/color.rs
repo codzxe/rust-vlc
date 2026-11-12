@@ -217,6 +217,10 @@ pub struct AccentRamp {
     pub tinted_light: Rgb8,
     /// Brighter accent used for knobs on light.
     pub bright_light: Rgb8,
+    /// Hover-bright accent in DARK mode (w26 Lead: the contract §2 hover —
+    /// dark hover previously equaled the primary, an invisible hover state).
+    /// Same formula as bright_light: `hsl(h, s + 0.02, l + 0.045)`.
+    pub bright_dark: Rgb8,
     /// Icon-tint variant on light.
     pub icon_light: Rgb8,
     /// Glyph color on accent fills (contrast-selected).
@@ -271,6 +275,7 @@ pub fn derive_ramp(id: &str, primary: Rgb8, candidates: &[Rgb8]) -> Result<Accen
         tinted_dark,
         tinted_light,
         bright_light,
+        bright_dark: bright_light,
         icon_light,
         on_accent,
     })

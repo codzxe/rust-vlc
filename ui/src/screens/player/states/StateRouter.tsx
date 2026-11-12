@@ -7,8 +7,8 @@ import type { PlayerEngineView } from "./context-bridge";
 import { isUnsupportedError } from "./error-display";
 import {
   BufferingOverlay,
-  EmptyOverlay,
   ErrorOverlay,
+  IdleSurface,
   LoadingOverlay,
   UnsupportedOverlay,
 } from "./StageOverlays";
@@ -17,7 +17,9 @@ import {
 export type OverlayKind = "loading" | "buffering" | "unsupported" | "error" | "empty" | "none";
 
 /** Pure state → overlay mapping (the state matrix, doc 08 §5.1–§5.4):
- * - `idle` — no session → first-run Empty surface.
+ * - `idle` — no session → the idle surface: first-run Empty hero, or the
+ *   Player-5 home face once the transport remembers openings (w26.gfix-C,
+ *   g04 P1-7 — StageOverlays' IdleSurface picks the face).
  * - `opening` — Loading (auto-dismissed by first playing, replaced by error).
  * - `buffering` — Buffering indicator; controls stay interactive (§5.3).
  * - `error` — Unsupported surface for typed `unsupported` codes, else the
@@ -59,7 +61,7 @@ export function StateRouter({ view, onRetry, onOpenMedia }: StateRouterProps) {
   const kind = resolveOverlay(view);
   switch (kind) {
     case "empty":
-      return <EmptyOverlay onOpenMedia={onOpenMedia} />;
+      return <IdleSurface onOpenMedia={onOpenMedia} />;
     case "loading":
       return <LoadingOverlay progress={view.openingProgress} />;
     case "buffering":

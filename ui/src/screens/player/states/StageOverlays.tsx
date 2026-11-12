@@ -18,15 +18,34 @@
 // * Unsupported/Error: honest cards in the Figma panel grammar — r12
 //   surface-panel, hairline stroke-border border, overlay shadow, secondary
 //   text, one primary action. Never invented detail (doc 05 §1).
+// * Home (w26.gfix-C, g04 P1-7 — Player-5.svg): the idle canvas's
+//   RETURNING-USER face. The first-run hero stays for a fresh session; once
+//   the transport remembers openings (the demo shell's real history — the
+//   same recents the open-media dialog and the app menu read), the idle
+//   canvas becomes the frame's three content sections over the 316×178 r12
+//   card grammar (Continue Watching → Listen Again → Frequently Visited
+//   Folders, y-sorted frame order). Honest by construction: the cards are
+//   the REAL remembered openings (one click re-opens through the ONE
+//   open-path funnel); the engine has no resume-position, artwork,
+//   visit-count or folders seam, so the cards carry no progress bars and no
+//   fabricated thumbnails, and the folders section renders its honest empty
+//   face — never theater (doc 08 §4.4).
 
 // Narrow imports (not the components barrel): the overlays need exactly
 // Button + Icon, and the barrel re-exports every primitive family — one
 // broken sibling module (e.g. a parallel lane's in-flight edit) must not
 // take the player states down with it.
+import { useRef } from "react";
+import type { ReactNode } from "react";
+import { useInRouterContext, useNavigate } from "react-router-dom";
 import { Button } from "../../../components/button";
 import { Icon } from "../../../components/icon";
 import { useMsg, type MessageKey } from "../../../i18n/messages";
-import type { CommandError } from "../../../generated/commands";
+import { keys as gfixCKeys } from "../../../i18n/keys/w26.gfixC";
+import { useClient } from "../../../client/ClientProvider";
+import { isDemoTransport, type DemoRecentEntry } from "../../../client/demo-transport";
+import { openPathRequest, openPathRoute } from "../../../client/open-path";
+import type { CommandError, SourceSpec } from "../../../generated/commands";
 import {
   ERROR_ACTION_MESSAGE_KEYS,
   STAGE_MESSAGE_KEYS,
@@ -296,4 +315,188 @@ export function EmptyOverlay({ onOpenMedia }: { onOpenMedia?: () => void }) {
       </div>
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ home ---
+ * Player-5.svg — the idle canvas's returning-user face (w26.gfix-C, g04
+ * P1-7). See the module header's Home note for the honesty contract. */
+
+/** Audio-flavored source extensions (Player-5's two card rows split by
+ * media kind: music/radio → Listen Again, everything else → Continue
+ * Watching). Presentation-only classification of REAL remembered sources. */
+const AUDIO_FILE_EXTENSIONS: readonly string[] = [
+  "flac",
+  "mp3",
+  "ogg",
+  "oga",
+  "wav",
+  "m4a",
+  "aac",
+  "opus",
+  "wma",
+  "aiff",
+];
+
+const isAudioSource = (source: SourceSpec): boolean => {
+  const text = source.kind === "file" ? source.path : source.url;
+  const lower = text.toLowerCase();
+  if (source.kind === "url" && (lower.includes("ice") || lower.includes("radio"))) return true;
+  const dot = lower.lastIndexOf(".");
+  return dot >= 0 && AUDIO_FILE_EXTENSIONS.includes(lower.slice(dot + 1));
+};
+
+/** Router-presence seam for the home cards' re-open navigation (ControlBar's
+ * NavigationSeam pattern): in-app navigation inside the Router; bare mounts
+ * (jsdom trees without a Router) fall back to document navigation. */
+function HomeNavigationSeam({
+  children,
+}: {
+  children: (navigate: (to: string) => void) => ReactNode;
+}): ReactNode {
+  return useInRouterContext() ? (
+    <HomeRoutedNavigation>{children}</HomeRoutedNavigation>
+  ) : (
+    <>{children((to) => window.location.assign(to))}</>
+  );
+}
+
+function HomeRoutedNavigation({
+  children,
+}: {
+  children: (navigate: (to: string) => void) => ReactNode;
+}): ReactNode {
+  const navigate = useNavigate();
+  return <>{children((to) => navigate(to))}</>;
+}
+
+/** One home card: the frame's 316×178 r12 art box (→ 237×133 at the app's
+ * 1440 scale) + its title line. The artwork well renders the honest quiet
+ * glyph (no artwork seam); the card is a real button re-opening the
+ * remembered source through the ONE funnel. */
+function HomeCard({
+  title,
+  onOpen,
+  kind,
+  playLabel,
+}: {
+  title: string;
+  onOpen: () => void;
+  kind: "video" | "album";
+  playLabel: string;
+}) {
+  return (
+    <div className={["lumen-state-home__cell", kind === "album" ? "lumen-state-home__cell--album" : ""].filter(Boolean).join(" ")}>
+      <button
+        type="button"
+        className="lumen-state-home__card"
+        data-card-kind={kind}
+        onClick={onOpen}
+        title={title}
+        aria-label={`${playLabel} ${title}`}
+      >
+        <Icon name={kind === "album" ? "music" : "thumbnail"} className="lumen-state-home__card-art" />
+      </button>
+      <span className="lumen-state-home__card-title">{title}</span>
+    </div>
+  );
+}
+
+/** Player-5.svg — the HOME face: three content sections over the card
+ * grammar, fed by the REAL remembered openings (the demo transport's
+ * recents — the same history the open-media dialog and the app menu read).
+ * `recents` is a prop (not read here) so the surface stays testable and
+ * provider-free; IdleSurface owns the data seam. */
+export function HomeOverlay({
+  recents,
+}: {
+  recents: readonly DemoRecentEntry[];
+}) {
+  const m = useMsg();
+  const client = useClient();
+  const nextRequestId = useRef(0);
+  const catalog: Readonly<Record<string, string>> = gfixCKeys;
+  /** Lane resolver (contract §4.5): catalog first, w26.gfixC lane copy while
+   * unregistered — identical before/after the Lead's merge. */
+  const tm = (key: MessageKey | keyof typeof gfixCKeys): string =>
+    m(key as MessageKey) ?? catalog[key as string];
+
+  const videos = recents.filter((entry) => !isAudioSource(entry.source));
+  const audios = recents.filter((entry) => isAudioSource(entry.source));
+  const displayTitle = (entry: DemoRecentEntry): string =>
+    entry.title ?? (entry.source.kind === "file" ? entry.source.path : entry.source.url);
+
+  // One click re-opens through the ONE funnel (client/open-path.ts — the
+  // app-menu recents contract); routing follows the open kind.
+  const open = (source: SourceSpec, navigate: (to: string) => void): void => {
+    nextRequestId.current += 1;
+    void client
+      .send(openPathRequest(source, nextRequestId.current))
+      .catch(() => {
+        /* Transport unreachable — the player surfaces its own typed
+         * errors; the card still routes (the dialog's openSource path). */
+      });
+    navigate(openPathRoute(source));
+  };
+
+  return (
+    <HomeNavigationSeam>
+      {(navigate) => (
+        <div className="lumen-state-home" data-overlay="empty" data-empty-state="home">
+          <section className="lumen-state-home__section" aria-label={tm("player.home.continue-watching")}>
+            <h3 className="lumen-state-home__header">{tm("player.home.continue-watching")}</h3>
+            {videos.length === 0 ? (
+              <p className="lumen-state-home__empty">{tm("player.home.section-empty")}</p>
+            ) : (
+              <div className="lumen-state-home__row">
+                {videos.map((entry) => (
+                  <HomeCard
+                    key={`${entry.source.kind}:${entry.source.kind === "file" ? entry.source.path : entry.source.url}`}
+                    title={displayTitle(entry)}
+                    kind="video"
+                    playLabel={tm("player.home.play")}
+                    onOpen={() => open(entry.source, navigate)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="lumen-state-home__section" aria-label={tm("player.home.listen-again")}>
+            <h3 className="lumen-state-home__header">{tm("player.home.listen-again")}</h3>
+            {audios.length === 0 ? (
+              <p className="lumen-state-home__empty">{tm("player.home.section-empty")}</p>
+            ) : (
+              <div className="lumen-state-home__row">
+                {audios.map((entry) => (
+                  <HomeCard
+                    key={`${entry.source.kind}:${entry.source.kind === "file" ? entry.source.path : entry.source.url}`}
+                    title={displayTitle(entry)}
+                    kind="album"
+                    playLabel={tm("player.home.play")}
+                    onOpen={() => open(entry.source, navigate)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="lumen-state-home__section" aria-label={tm("player.home.folders")}>
+            <h3 className="lumen-state-home__header">{tm("player.home.folders")}</h3>
+            {/* No folder source exists in any transport (OpenMediaDialog's
+             * honest file/stream subset) — the honest empty face, never
+             * fabricated folder cards. */}
+            <p className="lumen-state-home__empty">{tm("player.home.section-empty")}</p>
+          </section>
+        </div>
+      )}
+    </HomeNavigationSeam>
+  );
+}
+
+/** The idle canvas's face picker: a fresh session (nothing remembered)
+ * keeps the first-run hero; remembered openings render the Player-5 home.
+ * The data seam is the demo transport's recents getter — the same source
+ * the open-media dialog and the app menu read (never a second history). */
+export function IdleSurface({ onOpenMedia }: { onOpenMedia?: () => void }) {
+  const client = useClient();
+  const recents = isDemoTransport(client) ? client.recentOpenings : [];
+  return recents.length > 0 ? <HomeOverlay recents={recents} /> : <EmptyOverlay onOpenMedia={onOpenMedia} />;
 }

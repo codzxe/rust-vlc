@@ -222,7 +222,8 @@ fn ramp_color(
         (ROLE_ACCENT, _) => ramp.primary,
         (ROLE_STRONG, _) => ramp.strong,
         (ROLE_ON_ACCENT, _) => ramp.on_accent,
-        (ROLE_BRIGHT, "dark") | (ROLE_ICON, "dark") => ramp.primary,
+        (ROLE_ICON, "dark") => ramp.primary,
+        (ROLE_BRIGHT, "dark") => ramp.bright_dark,
         (ROLE_BRIGHT, "light") => ramp.bright_light,
         (ROLE_ICON, "light") => ramp.icon_light,
         (ROLE_TINTED, "dark") => ramp.tinted_dark,
@@ -448,6 +449,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
             ("TINTED_DARK", ramp.tinted_dark),
             ("TINTED_LIGHT", ramp.tinted_light),
             ("BRIGHT_LIGHT", ramp.bright_light),
+            ("BRIGHT_DARK", ramp.bright_dark),
             ("ICON_LIGHT", ramp.icon_light),
             ("ON_ACCENT", ramp.on_accent),
         ] {

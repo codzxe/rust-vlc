@@ -3,20 +3,25 @@
  * .lumen-player__controls; this sheet styles the bar's contents).
  *
  * Provenance — design/figma/Player.svg "Controls" group (1920×54 strip),
- * Controls.svg default state, play.svg, "Current Time.svg", Duration.svg,
- * volume.svg; measured anatomy in
+ * Controls.svg default state + its variant sheets (the right-cluster
+ * popovers), play.svg, "Current Time.svg", Duration.svg, volume.svg;
+ * measured anatomy in
  * docs/waves/w26/analysis/menus-control-parts.md §B1/§B6–§B9:
+ *   · transport = skip-to-previous · play pill · skip-to-next (Frame 8/10)
  *   · play pill 54×28 r6 accent + dark glyph (play.svg type=play; the
  *     pause type grays the pill — accent is the play affordance)
- *   · timecodes ≈15px tabular content-secondary (#8F8F8F)
+ *   · timecodes ≈15px tabular content-secondary (#8F8F8F) — interactive
+ *     (Current_Time.svg/Duration.svg hover chip + click faces, w26.gfix-C)
  *   · seekbar track 28px r6 on surface (#090909), played fill r4
  *     accent-tinted inset 2 (#371F06), playhead an 8×24 r4 accent BAR —
  *     no circular thumb in the main bar
  *   · volume = icon + 89px wedge track whose level fill is the measured
  *     green→yellow→orange→red gradient anchored to the FULL track
  *     (50% level = 33px; 100% ends in the orange zone ≈71% of the track)
- *   · right-cluster icon buttons: bare #8F8F8F 1.5-stroke glyphs, the
- *     Icon Wrapper.svg hover chip (IconButton base, button.css)
+ *   · right cluster (Controls.svg Frame 23): audio · subtitles · gear ·
+ *     queue icon triggers, each opening a 400px popover UP from the strip
+ *     (bare #8F8F8F 1.5-stroke glyphs, the Icon Wrapper.svg hover chip —
+ *     IconButton base, button.css)
  *
  * Semantic tokens only (CONTRACT §4.4); raw px below are structural
  * frame-measured dimensions with no token (states.md pattern). The ONE raw
@@ -76,6 +81,10 @@
 
 /* -------------------------------------------------- timecodes (B6/B7) */
 
+/* Current_Time.svg/Duration.svg default: bare tabular readout. The base is
+ * shared by the plain face and the interactive button (below) — the frame
+ * has no rest-state chrome, so padding is constant (the hover chip grows
+ * the background, never the box → no layout jump). */
 .lumen-controls__time {
   display: inline-flex;
   align-items: center;
@@ -83,11 +92,63 @@
   flex: none;
   min-width: 4.5ch; /* "--:--" column floor (structural, tabular figures) */
   height: 28px; /* the seek track band — shared vertical rhythm */
+  box-sizing: border-box;
+  padding: 0 var(--space-inset); /* frame hover chip 76 = 60 text + 2×8 */
   font-family: var(--font-family-time);
   font-size: var(--font-size-time); /* ≈15px (cap 11.2 measured) */
   color: var(--color-content-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* w26.gfix-C (g04 P1-4): both readouts are real buttons.
+ * Current_Time.svg state=hover = a 76×28 r6 #090909 chip behind the text —
+ * the token-painted equivalent (--color-surface, the same well the seekbar
+ * track uses); state=click = #EAEAEA text + the 1px #D37918 edit caret
+ * (Vector 76), ported as the [data-editing] face the position readout
+ * carries while the Go-to-Time surface is open. */
+button.lumen-controls__time {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-control);
+  transition:
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+button.lumen-controls__time:focus-visible {
+  background: var(--color-surface); /* frame chip #090909 */
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+button.lumen-controls__time:disabled {
+  cursor: default;
+}
+
+button.lumen-controls__time:hover:not(:disabled) {
+  background: var(--color-surface); /* frame chip #090909 */
+}
+
+button.lumen-controls__time:active:not(:disabled) {
+  color: var(--color-content-bright); /* frame click face #EAEAEA */
+}
+
+/* The edit face: bright ink + the 1px accent caret (Vector 76: 1×15.5 on
+ * the 54px frame strip → ≈13px on the app's 44px row). */
+button.lumen-controls__time[data-editing] {
+  color: var(--color-content-bright);
+  cursor: default;
+}
+
+button.lumen-controls__time[data-editing]::after {
+  content: "";
+  flex: none;
+  width: 1px; /* frame: Vector 76 stroke #D37918 */
+  height: 13px;
+  margin-left: 1px;
+  background: var(--color-accent);
 }
 
 /* ------------------------------------------------- play pill (B9) */
@@ -130,6 +191,22 @@
   background: var(--color-content-primary);
 }
 
+/* w26.gfix-C (g04 P1-2): the pill's glyph stays DARK on-accent at every
+ * state. icon.css's host-state rules (`.lumen-icon-host:hover/:active/
+ * :focus-visible .lumen-icon`, (0,2,0)) set `color` DIRECTLY on the svg and
+ * beat the pill's `--color-stroke-icon` remap (which only feeds .lumen-icon's
+ * own base rule) — the glyph flipped to #EAEAEA on the orange fill on hover.
+ * The button.css primary pattern, restated at (0,3,0): the ink is pinned
+ * under every state pseudo-class, hover walks the FILL, never the ink.
+ * (The dark hover fill itself is token-driven: dark --color-accent-bright
+ * is the Lead's WCAG-repinned #d37918 — no frame paints a pill-hover face —
+ * light's #b35f0d still walks; see the w26.gfix-C lane log.) */
+.lumen-controls .lumen-controls__play:hover .lumen-icon,
+.lumen-controls .lumen-controls__play:active .lumen-icon,
+.lumen-controls .lumen-controls__play:focus-visible .lumen-icon {
+  color: var(--color-content-on-accent);
+}
+
 /* Disabled (idle/buffering): the pill keeps its glyph state and simply
  * fades — inertness is the opacity, not a third color story. The EMPTY
  * state is the exception — see the [data-playback-state="idle"] block
@@ -162,8 +239,13 @@
 }
 
 /* (0,6,0) — outranks the shared disabled remap AND its light-mode
- * companion (button.css) regardless of import order. */
-:root .lumen-player .lumen-controls[data-playback-state="idle"] .lumen-icon-button:disabled {
+ * companion (button.css) regardless of import order. w26.gfix-C (g04
+ * P1-3): scoped with :not(.lumen-controls__play) — the pre-fix rule beat
+ * the pill's (0,4,0) on-accent re-pin below and grayed the EMPTY-state
+ * pill's glyph (#8F8F8F on #D37918, 2.5:1) where Player.svg keeps the dark
+ * #161616 ink on the saturated pill; the ghost transport glyphs keep the
+ * secondary quieting the rule was written for. */
+:root .lumen-player .lumen-controls[data-playback-state="idle"] .lumen-icon-button:disabled:not(.lumen-controls__play) {
   --color-stroke-icon: var(--color-content-secondary);
 
   color: var(--color-content-secondary);
@@ -215,12 +297,19 @@
 }
 
 /* The playhead BAR — 8×24 r4 accent (Player.svg Rectangle 10), always
- * visible at rest; pending seeks still read accent-strong (slider.css). */
+ * visible at rest; pending seeks still read accent-strong (slider.css).
+ * w26.gfix-C (Lead ruling "slider thumb formula fixed (flush with fill)"):
+ * the bar's fill is inset 2 (left: --space-track-inset) and spans
+ * (100% - 4px)·p, so its right edge sits at 2px + (100% - 4px)·p; an 8px
+ * thumb flush there needs its LEFT edge 6px further left than the old
+ * (100% - 8px)·p travel this override carried pre-fix (the w26.g16 P2-3
+ * Lead fix formula, restated for this sheet's 2px-inset fill — identical
+ * to slider.css's EQ thumb). */
 .lumen-controls__seek .lumen-slider__thumb {
   top: var(--space-track-inset);
   width: 8px;
   height: 24px;
-  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   background: var(--color-accent);
   border-radius: var(--radius-inset);
   opacity: 1;
@@ -279,6 +368,51 @@
 
 .lumen-controls__volume-slider .lumen-slider__thumb {
   display: none;
+}
+
+/* -------------------------------------------------- right-cluster popovers */
+
+/* w26.gfix-C (g04 P1-6, Lead ruling: popovers over the full-width strip
+ * must open and be reachable) — the Controls.svg variant popovers
+ * (audio/subtitles/gear/queue) as MenuPopup mounts: 400px comfortable
+ * panels (menu.css floor — the frame sheets' exact width), opening UP from
+ * the strip, right-anchored (the triggers sit at the row's right end;
+ * downward would fall off-window — the app-menu popup pattern). */
+.lumen-controls__popover {
+  position: relative; /* anchors the popup (portal-free absolute) */
+}
+
+.lumen-controls__popover-popup {
+  inset: auto 0 calc(var(--space-inset) + var(--space-grid)) auto;
+
+  /* Scrollport cap (the w26.g17 Dropdown fix grammar): a long queue or
+   * track list scrolls inside the panel instead of overflowing the window
+   * top — the popup stays reachable at every viewport height. */
+  max-height: min(560px, calc(100vh - 120px)); /* structural, no token */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Submenus (the gear's Playback/Video/Audio/Subtitle families) open LEFT —
+ * the popovers sit at the strip's right end (the app-menu popup pattern). */
+.lumen-controls__popover-popup .lumen-menu--submenu {
+  left: auto;
+  right: 100%;
+  margin-right: var(--space-grid);
+  margin-left: 0;
+}
+
+/* w26.gfix-C (g20 P3-1, Lead-directed): the frame's menu-row hover fill is
+ * #1F1F1F (option.svg hover rect 261×48 r6; context menu.svg row-1), not
+ * the shared --color-surface-hover #262626 menu.css carries (no hovered-row
+ * face exists in any of this bar's own popover frames, so the shared menu
+ * grammar is the authority). Scoped to THIS bar's popovers only (menu.css
+ * is a shared sheet); --color-surface-selected carries exactly #1f1f1f
+ * (tokens.json), so the frame value paints through a semantic token and a
+ * later global --color-surface-hover repin cannot drift from it. */
+.lumen-controls__popover-popup .lumen-menu__item:hover,
+.lumen-controls__menu-popup .lumen-menu__item:hover {
+  background: var(--color-surface-selected); /* frame: option.svg hover #1F1F1F */
 }
 
 /* -------------------------------------------------- app menu popup */

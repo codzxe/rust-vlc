@@ -1,19 +1,29 @@
-// Card 4.F3 / w26.a17 — customize panels barrel.
+// w26.gfixA (issue #62) — the customize surface barrel (the modal rebuild).
 export { CustomizePanels } from "./CustomizePanels";
 export type { CustomizePanelsProps } from "./CustomizePanels";
-export {
-  fieldVisible,
-  panelVisible,
-  useCommandCapabilities,
-  visibleFields,
-} from "./capabilities";
+export { tileVisible, useCommandCapabilities, visibleTiles } from "./capabilities";
 export type { CommandCapabilities } from "./capabilities";
-export { CUSTOMIZE_FIELDS, CUSTOMIZE_PANELS } from "./panels";
+export {
+  CUSTOMIZE_TILE_IDS,
+  CUSTOMIZE_TILES,
+  DEFAULT_TOOLBAR_LAYOUT,
+  cycleArgs,
+  tileById,
+} from "./panels";
+export {
+  TOOLBAR_STORAGE_KEY,
+  bandTiles,
+  clearPersistedToolbarLayout,
+  loadToolbarLayout,
+  parseToolbarLayout,
+  persistToolbarLayout,
+  toolbarLayoutEqual,
+} from "./toolbarLayout";
 export type {
   CommandArgs,
   CustomizeControl,
-  CustomizeField,
   CustomizeLabelKey,
   CustomizeOption,
-  CustomizePanelDef,
+  CustomizeTile,
+  ToolbarLayout,
 } from "./types";

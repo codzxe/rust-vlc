@@ -28,7 +28,7 @@ const cssRaw = TOKENS_CSS;
 // (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
 // default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
 // Solstice groups removed; eq band accents added.)
-const PINNED_SHA256 = "c5f3adebee8241c4501f729f37c066da5aa489427d06e12b4b190b5aef453f8c";
+const PINNED_SHA256 = "42ec55b9a8160593d8f16348d923c537f6c106b7ee06b28e2cd877780a7d96c4";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));

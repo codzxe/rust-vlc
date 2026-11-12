@@ -11,13 +11,86 @@ Usage:
   --control-stdio, --generate-manifest.
 
 Areas:
+  audio          11 options
+  controls       9 options
   engine         6 options  (engine-internal: ui = false)
-  extensions     5 options  (engine-internal: ui = false)
-  global         1 option
-  interface      7 options
-  performance    3 options
-  playback       6 options
-  privacy        4 options
+  extensions     6 options
+  global         13 options
+  interface      18 options
+  performance    15 options
+  playback       17 options
+  privacy        11 options
+  recording      2 options
+  video          13 options
+
+audio
+  loudness
+  --audio-normalize-loudness <on|off>
+      settings.audio.normalize-loudness
+      default: false
+  --audio-target-level <1..10>
+      settings.audio.target-level
+      default: 1
+  --audio-night-mode <on|off>
+      settings.audio.night-mode
+      default: false
+  --audio-replay-gain <off|track|album>
+      settings.audio.replay-gain
+      default: "off"
+  --audio-replay-gain-preamp <-15..15>
+      settings.audio.replay-gain-preamp
+      default: 0.0
+  output
+  --audio-enable <on|off>
+      settings.audio.enable
+      default: true
+  --audio-speaker-setup <automatic|mono|stereo|quadraphonic|5.1|7.1>
+      settings.audio.speaker-setup
+      default: "automatic"
+  volume
+  --audio-maximum-volume <100..300>
+      settings.audio.maximum-volume
+      default: 200
+  --audio-startup-volume <0..300>
+      settings.audio.startup-volume
+      default: 200
+  --audio-startup-volume-mode <remember-last|always>
+      settings.audio.startup-volume-mode
+      default: "remember-last"
+  --audio-volume-step <1..25>
+      settings.audio.volume-step
+      default: 1
+
+controls
+  mouse
+  --controls-mouse-single-click <play-pause|toggle-fullscreen|show-menu|none>
+      settings.controls.mouse-single-click
+      default: "play-pause"
+  --controls-mouse-double-click <toggle-fullscreen|play-pause|show-menu|none>
+      settings.controls.mouse-double-click
+      default: "toggle-fullscreen"
+  --controls-mouse-scroll-wheel <volume|seek|none>
+      settings.controls.mouse-scroll-wheel
+      default: "volume"
+  --controls-mouse-horizontal-scroll <seek|volume|none>
+      settings.controls.mouse-horizontal-scroll
+      default: "seek"
+  --controls-mouse-reverse-scroll-direction <on|off>
+      settings.controls.mouse-reverse-scroll-direction
+      default: false
+  skip-amounts
+  --controls-skip-very-short <1000..60000 ms>
+      settings.controls.skip-very-short
+      default: 3000
+  --controls-skip-short <1000..120000 ms>
+      settings.controls.skip-short
+      default: 10000
+  --controls-skip-medium <5000..600000 ms>
+      settings.controls.skip-medium
+      default: 60000
+  --controls-skip-long <10000..1800000 ms>
+      settings.controls.skip-long
+      default: 300000
 
 engine (engine-internal: ui = false)
   internal
@@ -40,7 +113,11 @@ engine (engine-internal: ui = false)
       settings.engine.queue-packets-video
       default: -> product.toml limits.queue_packets_video
 
-extensions (engine-internal: ui = false)
+extensions
+  add-ons
+  --extensions-load-on-startup <on|off>  [gate: wasm-extensions] [restart required]
+      settings.extensions.load-on-startup
+      default: true
   crash-isolation
   --extensions-crash-backoff-initial-ms <0..600000 ms>  [advanced]
       settings.extensions.crash-backoff-initial-ms
@@ -59,27 +136,100 @@ extensions (engine-internal: ui = false)
       default: 900000
 
 global
-  language
-  --global-language <en-US>  [restart required]
-      settings.global.language
-      default: -> product.toml defaults.locale
-
-interface
   appearance
+  --global-language <en-US>  [restart required]
+      settings.global.interface-language
+      default: -> product.toml defaults.locale
   --interface-theme <dark|light>
       settings.interface.theme
       default: -> product.toml defaults.theme
+  --global-accent-color <orange|red|yellow|green|cyan|blue|violet|pink|gray>
+      settings.global.accent-color
+      default: "orange"
+  diagnostics
+  --global-developer-mode <on|off>
+      settings.global.developer-mode
+      default: false
+  --global-save-log <on|off>
+      settings.global.save-log
+      default: true
+  --global-log-file <path>
+      settings.global.log-file
+      default: ""
+  --global-log-details <errors-only|errors-and-warnings|all-messages>
+      settings.global.log-details
+      default: "errors-only"
+  --global-show-minor-warnings <on|off>  [advanced]
+      settings.global.show-minor-warnings
+      default: false
+  --global-extra-cli-options <string>  [advanced] [restart required]
+      settings.global.extra-cli-options
+      default: ""
+  --global-log-format <plain-text|html>  [advanced]
+      settings.global.log-format
+      default: "plain-text"
+  --global-collect-playback-statistics <on|off>  [advanced]
+      settings.global.collect-playback-statistics
+      default: true
+  startup
+  --global-show-dialogs <on|off>
+      settings.global.show-dialogs
+      default: false
+  --global-update-checks <on|off>
+      settings.global.update-checks
+      default: -> product.toml telemetry.update_checks
+
+interface
+  playback-controls
+  --interface-start-in-compact-mode <on|off>
+      settings.interface.start-in-compact-mode
+      default: false
+  --interface-auto-hide-controls <fullscreen-only|always|never>
+      settings.interface.auto-hide-controls
+      default: "fullscreen-only"
+  --interface-hide-controls-after <0..10000 ms>
+      settings.interface.hide-controls-after
+      default: 500
+  --interface-show-controls-in-fullscreen <on|off>
+      settings.interface.show-controls-in-fullscreen
+      default: true
+  skin
+  --interface-use-custom-skin <on|off>
+      settings.interface.use-custom-skin
+      default: true
+  --interface-skin-file <path>
+      settings.interface.skin-file
+      default: ""
   window
-  --interface-start-maximized <on|off>  [restart required]
+  --interface-play-video-in-main-window <on|off>
+      settings.interface.play-video-in-main-window
+      default: true
+  --interface-resize-to-fit-video <never|always>
+      settings.interface.resize-to-fit-video
+      default: "never"
+  --interface-remember-window-geometry <on|off>  [restart required]
+      settings.interface.remember-window-size-position
+      default: -> product.toml window.remember_geometry
+  --interface-keep-above <on|off>
+      settings.interface.keep-above
+      default: false
+  --interface-window-decorations <on|off>
+      settings.interface.window-decorations
+      default: true
+  --interface-filename-in-title-bar <on|off>
+      settings.interface.filename-in-title-bar
+      default: true
+  --interface-open-fullscreen-on <current-screen|all-screens>
+      settings.interface.open-fullscreen-on
+      default: "current-screen"
+  window-metrics
+  --interface-start-maximized <on|off>  [advanced] [restart required]
       settings.interface.start-maximized
       default: -> product.toml window.start_maximized
-  --interface-remember-window-geometry <on|off>  [restart required]
-      settings.interface.remember-window-geometry
-      default: -> product.toml window.remember_geometry
-  --interface-window-width <480..3840>  [restart required]
+  --interface-window-width <480..3840>  [advanced] [restart required]
       settings.interface.window-width
       default: -> product.toml window.width
-  --interface-window-height <320..2160>  [restart required]
+  --interface-window-height <320..2160>  [advanced] [restart required]
       settings.interface.window-height
       default: -> product.toml window.height
   --interface-window-min-width <480..3840>  [advanced] [restart required]
@@ -90,6 +240,35 @@ interface
       default: -> product.toml window.min_height
 
 performance
+  decoding
+  --performance-hw-decode <automatic|on|off>
+      settings.performance.hw-decode
+      default: "automatic"
+  --performance-video-post-processing <off|automatic|always>
+      settings.performance.video-post-processing
+      default: "off"
+  --performance-h264-loop-filter <never|non-reference-frames|always>
+      settings.performance.h264-loop-filter
+      default: "never"
+  --performance-decoding-threads <0..64>
+      settings.performance.decoding-threads
+      default: 0
+  developer
+  --performance-encoder <automatic|software|hardware>  [advanced]
+      settings.performance.encoder
+      default: "automatic"
+  --performance-decoder <automatic|software|hardware>  [advanced]
+      settings.performance.decoder
+      default: "automatic"
+  --performance-clock-synchronisation <default|audio|video>  [advanced]
+      settings.performance.clock-synchronisation
+      default: "default"
+  --performance-clock-jitter <0..60000 ms>  [advanced]
+      settings.performance.clock-jitter
+      default: 5000
+  --performance-clock-reference-averaging <1..1000>  [advanced]
+      settings.performance.clock-reference-averaging
+      default: 40
   resources
   --performance-cache-demux-mib <4..512>  [advanced] [restart required]
       settings.performance.cache-demux-mib
@@ -100,16 +279,49 @@ performance
   --performance-max-open-sessions <1..16>  [advanced]
       settings.performance.max-open-sessions
       default: -> product.toml limits.max_open_sessions
+  smooth-playback
+  --performance-drop-frames <on|off>
+      settings.performance.drop-frames
+      default: true
+  --performance-realtime-priority <on|off>  [restart required]
+      settings.performance.realtime-priority
+      default: false
+  --performance-process-priority <0..6>  [restart required]
+      settings.performance.process-priority
+      default: 0
 
 playback
-  playback
+  order
+  --playback-repeat-mode <off|one|all>
+      settings.playback.repeat-mode
+      default: "off"
+  --playback-shuffle <on|off>
+      settings.playback.shuffle
+      default: true
+  --playback-stop-after-each-item <on|off>
+      settings.playback.stop-after-each-item
+      default: true
+  --playback-finish-action <stop|pause|quit>
+      settings.playback.finish-action
+      default: "stop"
+  seeking
+  --playback-seek-precisely <on|off>
+      settings.playback.seek-precisely
+      default: true
+  startup
+  --playback-resume <always|ask|never>
+      settings.playback.resume
+      default: "always"
   --playback-start-paused <on|off>
-      settings.playback.start-paused
+      settings.playback.start-playing
       default: -> product.toml playback.start_paused
   --playback-default-rate <0.25..4>
-      settings.playback.default-rate
+      settings.playback.default-speed
       default: -> product.toml playback.default_rate
-  tracks
+  --playback-pause-on-audio-focus <on|off>
+      settings.playback.pause-on-audio-focus
+      default: true
+  track-languages
   --playback-preferred-audio-languages <list>
       settings.playback.preferred-audio-languages
       default: -> product.toml playback.preferred_audio_languages
@@ -119,22 +331,112 @@ playback
   --playback-subtitle-mode <auto|forced-only|on|off>
       settings.playback.subtitle-mode
       default: -> product.toml playback.subtitle_mode
+  tracks
   --playback-hw-decode-policy <software-only|prefer-hardware|hardware-only>  [gate: hw-decode] [advanced]
       settings.playback.hw-decode-policy
       default: -> product.toml playback.hw_decode_policy
+  --playback-preferred-video-quality <best-available|high|medium|low>
+      settings.playback.preferred-video-quality
+      default: "best-available"
+  --playback-menu-language <en-US>  [restart required]
+      settings.playback.menu-language
+      default: "en-US"
+  --playback-default-audio-track <0..64>
+      settings.playback.default-audio-track
+      default: 1
+  --playback-default-subtitle-track <0..64>
+      settings.playback.default-subtitle-track
+      default: 1
 
 privacy
   data
-  --privacy-telemetry <on|off>
+  --privacy-telemetry <on|off>  [advanced]
       settings.privacy.telemetry
       default: -> product.toml telemetry.enabled
-  --privacy-crash-reports <off|ask|send>
+  --privacy-crash-reports <off|ask|send>  [advanced]
       settings.privacy.crash-reports
       default: -> product.toml telemetry.crash_reports
-  --privacy-usage-stats <on|off>
+  --privacy-usage-stats <on|off>  [advanced]
       settings.privacy.usage-stats
       default: -> product.toml telemetry.usage_stats
-  --privacy-update-checks <on|off>
-      settings.privacy.update-checks
-      default: -> product.toml telemetry.update_checks
+  history
+  --privacy-save-recent-items <on|off>
+      settings.privacy.save-recent-items
+      default: true
+  --privacy-remember-playback-position <on|off>
+      settings.privacy.remember-playback-position
+      default: true
+  --privacy-never-remember-matching <string>
+      settings.privacy.never-remember-matching
+      default: ""
+  network
+  --privacy-fetch-metadata-online <on|off>
+      settings.privacy.fetch-metadata-online
+      default: false
+  --privacy-submit-lastfm <on|off>
+      settings.privacy.submit-lastfm
+      default: false
+  --privacy-lastfm-username <string>
+      settings.privacy.lastfm-username
+      default: ""
+  --privacy-lastfm-password <string>
+      settings.privacy.lastfm-password
+      default: ""
+  --privacy-lastfm-submission-url <url>
+      settings.privacy.lastfm-submission-url
+      default: ""
+
+recording
+  recording
+  --recording-directory <path>  [gate: recording]
+      settings.recording.directory
+      default: "~/Videos"
+  --recording-format <mp4-remux|wav>  [gate: recording]
+      settings.recording.format
+      default: "mp4-remux"
+
+video
+  deinterlacing
+  --video-deinterlace <automatic|on|off>
+      settings.video.deinterlace
+      default: "automatic"
+  --video-deinterlace-method <automatic|blend|bob|linear|yadif|yadif2x>
+      settings.video.deinterlace-method
+      default: "automatic"
+  framing
+  --video-aspect-ratio <automatic|1:1|4:3|16:9|16:10|2.35:1|2.39:1>
+      settings.video.aspect-ratio
+      default: "automatic"
+  --video-crop <none|1:1|4:3|16:9|16:10>
+      settings.video.crop
+      default: "none"
+  output
+  --video-enable <on|off>
+      settings.video.enable
+      default: true
+  --video-start-fullscreen <on|off>
+      settings.video.start-fullscreen
+      default: false
+  --video-disable-screensaver <on|off>
+      settings.video.disable-screensaver
+      default: true
+  --video-wallpaper <on|off>
+      settings.video.wallpaper
+      default: false
+  picture
+  --video-hue <-180..180>
+      settings.video.hue
+      default: 0
+  --video-brightness <0..200>
+      settings.video.brightness
+      default: 100
+  --video-contrast <0..200>
+      settings.video.contrast
+      default: 100
+  --video-saturation <0..300>
+      settings.video.saturation
+      default: 100
+  --video-gamma <0..1000>
+      settings.video.gamma
+      default: 100
 

@@ -2,7 +2,7 @@
 // Generator G1 (doc 07 §5.3): the typed settings surface for the UI.
 // Regenerate: `cargo xtask schema-gen` (idempotent; CI diffs with --check).
 //
-// 32 entries across 7 screen(s) (14 known areas). The value-bearing table
+// 121 entries across 11 screen(s) (14 known areas). The value-bearing table
 // (ui/src/generated/settings-schema.ts) lands with the settings framework
 // (card 4.E1); this ambient file fixes the type surface only.
 
@@ -33,6 +33,8 @@ export type SettingControl =
 
 /** Screen ids from schemas/settings.toml `[areas]` (doc 07 §5.4). */
 export type SettingScreen =
+  | 'audio'
+  | 'controls'
   | 'engine'
   | 'extensions'
   | 'global'
@@ -40,9 +42,31 @@ export type SettingScreen =
   | 'performance'
   | 'playback'
   | 'privacy'
+  | 'recording'
+  | 'video'
 
 /** Canonical setting keys — globally unique (rule D2). */
 export type SettingKey =
+  | 'audio.enable'
+  | 'audio.maximum-volume'
+  | 'audio.night-mode'
+  | 'audio.normalize-loudness'
+  | 'audio.replay-gain'
+  | 'audio.replay-gain-preamp'
+  | 'audio.speaker-setup'
+  | 'audio.startup-volume'
+  | 'audio.startup-volume-mode'
+  | 'audio.target-level'
+  | 'audio.volume-step'
+  | 'controls.mouse-double-click'
+  | 'controls.mouse-horizontal-scroll'
+  | 'controls.mouse-reverse-scroll-direction'
+  | 'controls.mouse-scroll-wheel'
+  | 'controls.mouse-single-click'
+  | 'controls.skip-long'
+  | 'controls.skip-medium'
+  | 'controls.skip-short'
+  | 'controls.skip-very-short'
   | 'engine.log-level'
   | 'engine.max-event-rate'
   | 'engine.probe-max-bytes'
@@ -54,27 +78,96 @@ export type SettingKey =
   | 'extensions.crash-backoff-multiplier'
   | 'extensions.crash-disabled-reenable-ms'
   | 'extensions.crash-restart-limit'
+  | 'extensions.load-on-startup'
+  | 'global.accent-color'
+  | 'global.collect-playback-statistics'
+  | 'global.developer-mode'
+  | 'global.extra-cli-options'
   | 'global.language'
+  | 'global.log-details'
+  | 'global.log-file'
+  | 'global.log-format'
+  | 'global.save-log'
+  | 'global.show-dialogs'
+  | 'global.show-minor-warnings'
+  | 'global.update-checks'
+  | 'interface.auto-hide-controls'
+  | 'interface.filename-in-title-bar'
+  | 'interface.hide-controls-after'
+  | 'interface.keep-above'
+  | 'interface.open-fullscreen-on'
+  | 'interface.play-video-in-main-window'
   | 'interface.remember-window-geometry'
+  | 'interface.resize-to-fit-video'
+  | 'interface.show-controls-in-fullscreen'
+  | 'interface.skin-file'
+  | 'interface.start-in-compact-mode'
   | 'interface.start-maximized'
   | 'interface.theme'
+  | 'interface.use-custom-skin'
+  | 'interface.window-decorations'
   | 'interface.window-height'
   | 'interface.window-min-height'
   | 'interface.window-min-width'
   | 'interface.window-width'
   | 'performance.cache-demux-mib'
   | 'performance.cache-network-mib'
+  | 'performance.clock-jitter'
+  | 'performance.clock-reference-averaging'
+  | 'performance.clock-synchronisation'
+  | 'performance.decoder'
+  | 'performance.decoding-threads'
+  | 'performance.drop-frames'
+  | 'performance.encoder'
+  | 'performance.h264-loop-filter'
+  | 'performance.hw-decode'
   | 'performance.max-open-sessions'
+  | 'performance.process-priority'
+  | 'performance.realtime-priority'
+  | 'performance.video-post-processing'
+  | 'playback.default-audio-track'
   | 'playback.default-rate'
+  | 'playback.default-subtitle-track'
+  | 'playback.finish-action'
   | 'playback.hw-decode-policy'
+  | 'playback.menu-language'
+  | 'playback.pause-on-audio-focus'
   | 'playback.preferred-audio-languages'
   | 'playback.preferred-subtitle-languages'
+  | 'playback.preferred-video-quality'
+  | 'playback.repeat-mode'
+  | 'playback.resume'
+  | 'playback.seek-precisely'
+  | 'playback.shuffle'
   | 'playback.start-paused'
+  | 'playback.stop-after-each-item'
   | 'playback.subtitle-mode'
   | 'privacy.crash-reports'
+  | 'privacy.fetch-metadata-online'
+  | 'privacy.lastfm-password'
+  | 'privacy.lastfm-submission-url'
+  | 'privacy.lastfm-username'
+  | 'privacy.never-remember-matching'
+  | 'privacy.remember-playback-position'
+  | 'privacy.save-recent-items'
+  | 'privacy.submit-lastfm'
   | 'privacy.telemetry'
-  | 'privacy.update-checks'
   | 'privacy.usage-stats'
+  | 'recording.directory'
+  | 'recording.format'
+  | 'video.aspect-ratio'
+  | 'video.brightness'
+  | 'video.contrast'
+  | 'video.crop'
+  | 'video.deinterlace'
+  | 'video.deinterlace-method'
+  | 'video.disable-screensaver'
+  | 'video.enable'
+  | 'video.gamma'
+  | 'video.hue'
+  | 'video.saturation'
+  | 'video.start-fullscreen'
+  | 'video.wallpaper'
 
 /** The keys of one screen: `Extract<SettingKey, `${S}.${string}`>`. */
 export type SettingKeysOfScreen<S extends SettingScreen> = Extract<SettingKey, `${S}.${string}`>;
@@ -122,6 +215,8 @@ export interface SettingEntry {
 
 /** Entries per screen in `(section, order)` order (doc 07 §5.4 navigation). */
 export interface SettingsByScreen {
+  audio: readonly SettingEntry[];
+  controls: readonly SettingEntry[];
   engine: readonly SettingEntry[];
   extensions: readonly SettingEntry[];
   global: readonly SettingEntry[];
@@ -129,4 +224,6 @@ export interface SettingsByScreen {
   performance: readonly SettingEntry[];
   playback: readonly SettingEntry[];
   privacy: readonly SettingEntry[];
+  recording: readonly SettingEntry[];
+  video: readonly SettingEntry[];
 }

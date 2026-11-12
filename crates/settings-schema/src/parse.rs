@@ -332,8 +332,13 @@ fn convert_entry(
     let domain = convert_domain(ctx, ty, raw, diags);
 
     // --- default (literal type check; ref existence is D1 in validate) ---
+    // w26 Lead: an EMPTY string default on a Path/Url entry is legal — it
+    // models "unconfigured" (frame inputs like Log file / Skin file /
+    // Last.fm URL render empty). Runtime set-setting stays strict (G4).
+    let empty_ok = matches!(ty, SettingType::Path | SettingType::Url)
+        && raw.default.as_ref().and_then(toml::Value::as_str) == Some("");
     let default = match (&raw.default, &raw.default_ref) {
-        (Some(value), _) => {
+        (Some(value), _) if !empty_ok => {
             if let Err(v) = check_value(ty, &domain, value) {
                 ctx.err(
                     diags,
@@ -367,6 +372,9 @@ fn convert_entry(
             }
             DefaultValue::Ref(reference.clone())
         }
+        // w26 Lead: the empty Path/Url default ("unconfigured") — accepted
+        // above without the type check.
+        (Some(value), _) => DefaultValue::Literal(value.clone()),
         (None, None) => DefaultValue::Literal(toml::Value::Boolean(false)),
     };
 
