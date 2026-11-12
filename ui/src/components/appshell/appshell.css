@@ -142,6 +142,30 @@ body {
   min-height: 0;
 }
 
+/* ---- full-window control band (w26.g03 P1-2, Lead) ---------------------- */
+
+/* Player.svg: the transport strip spans the whole window BELOW the frame row
+ * (rail + sidebar end above it, y=1026 @1080). PlayerScreen portals its
+ * footer region here via stripContext; empty on non-player routes. The host
+ * carries `lumen-player lumen-player--strip` so `.lumen-player`-scoped
+ * controls.css rules keep matching the portaled bar (player.css owns the
+ * neutralized --strip variant). */
+.app-shell__strip {
+  display: flex;
+  flex: none;
+  width: 100%;
+}
+
+.app-shell__strip:empty {
+  display: none;
+}
+
+.app-shell__strip > .lumen-player__controls {
+  width: 100%;
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+
 /* ---- icon rail (Player.svg rail · <Panel edges="end">) ----------------- */
 
 /* Square-edged panel fill (--color-surface-panel) + the inline-end 1px
@@ -444,3 +468,36 @@ body {
     transition: none;
   }
 }
+
+/* ---- hide-UI shell fade (w26.g06 P1-1, Lead) ----------------------------- */
+/* stylelint-disable no-descending-specificity -- appended last deliberately:
+ * the html[data-lumen-chrome] state layer must be able to override any base
+ * rule above it; specificity order is the point here. */
+
+/* w26.g06 P1-1 (Lead): "Player - hide UI.svg" is a ZERO-chrome windowed
+ * state — the shell's banner/rail/sidebar/strip fade with the player's own
+ * parts (PlayerScreen mirrors the state onto <html> as data-lumen-chrome). */
+html[data-lumen-chrome='hidden'] .app-shell__banner,
+html[data-lumen-chrome='hidden'] .app-shell__rail,
+html[data-lumen-chrome='hidden'] .app-shell__sidebar,
+html[data-lumen-chrome='hidden'] .app-shell__strip {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-shell__banner,
+.app-shell__rail,
+.app-shell__sidebar,
+.app-shell__strip {
+  transition: opacity 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell__banner,
+  .app-shell__rail,
+  .app-shell__sidebar,
+  .app-shell__strip {
+    transition: none;
+  }
+}
+/* stylelint-enable no-descending-specificity */

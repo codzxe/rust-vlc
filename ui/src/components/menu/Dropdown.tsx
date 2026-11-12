@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, Ref } from "react";
 import { Icon } from "../icon/Icon";
 import type { IconName } from "../icon/icons";
@@ -6,6 +6,10 @@ import { identityResolveLabel } from "./types";
 import type { MenuDensity, ResolveLabel } from "./types";
 import { TYPEAHEAD_RESET_MS } from "./timings";
 import "./menu.css";
+
+/** Scrollport cap for long option lists (w26.g17): ~6-7 rows visible, the
+ * rest scroll — a popup must never run past the viewport edge. */
+const DROPDOWN_LIST_MAX_HEIGHT = 320;
 
 /**
  * Dropdown / Select (W26 frames `Dropdown.svg` + `Setting Preset.svg`:
@@ -73,6 +77,10 @@ export function Dropdown<K extends string>({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [typed, setTyped] = useState("");
+  /* w26.g17/g19 P1 Lead fix: flip-up when the viewport has more room above
+   * the trigger than below, so lists never clip under the viewport edge
+   * (HDR dropdown inside the tools dialog, sorting menu at 1024×768). */
+  const [direction, setDirection] = useState<"down" | "up">("down");
 
   useEffect(
     () => () => {
@@ -106,7 +114,9 @@ export function Dropdown<K extends string>({
 
   const focusIndex = (index: number): void => {
     setActiveIndex(index);
-    optionRefs.current[index]?.focus();
+    const node = optionRefs.current[index];
+    node?.focus();
+    node?.scrollIntoView({ block: "nearest" }); // w26.g17: keep the active row visible in the scrollport
   };
 
   const closeAndRestore = (): void => {
@@ -141,6 +151,20 @@ export function Dropdown<K extends string>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Open-direction measurement (w26.g17/g19): pick the side with room.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    if (trigger === null || typeof window === "undefined") return;
+    const rect = trigger.getBoundingClientRect();
+    const rowPitch = density === "compact" ? 42 : 48;
+    const estimated = Math.min(options.length * rowPitch + 8, DROPDOWN_LIST_MAX_HEIGHT);
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top;
+    setDirection(below < estimated && above > below ? "up" : "down");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure per open
+  }, [open, options.length, density]);
+
   const handleListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const { key } = event;
     if (key === "ArrowDown" || key === "ArrowUp") {
@@ -169,6 +193,11 @@ export function Dropdown<K extends string>({
     }
     if (key === "Escape" || key === "Tab") {
       closeAndRestore();
+      /* w26.g19 P1-2 Lead fix: preventDefault alone does not stop the event
+       * from BUBBLING — host dialogs (subtitle picker, settings window) also
+       * listen for Escape and closed the whole dialog while the dropdown was
+       * still open. stopPropagation keeps the close scoped to the dropdown. */
+      event.stopPropagation();
       event.preventDefault();
       return;
     }
@@ -235,8 +264,12 @@ export function Dropdown<K extends string>({
       </button>
       {open && (
         <div
+          ref={(node) => {
+            if (node !== null) node.scrollTop = 0; // open at top (w26.g17)
+          }}
           role="listbox"
           aria-label={label}
+          data-direction={direction}
           className="lumen-dropdown__list"
           onKeyDown={handleListKeyDown}
         >

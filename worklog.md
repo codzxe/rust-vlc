@@ -1487,3 +1487,22 @@ Work Log:
 
 Stage Summary:
 - main is CI-green again (issue #68 fix complete pending push); GitHub issues #60–#69 filed for waves g–m + releases + Tauri admission + infra. Next: wave g (20 verifiers).
+
+---
+Task ID: w26.lead-gfix
+Agent: Lead (wave-26 orchestration — wave-g fix cycle, program g→f restart)
+Task: Lead shared-file fixes for wave-g P1 clusters (cross-cutting surfaces the fixer lanes cannot own)
+
+Work Log:
+- L1 (g20 P1-1): menu icon accent cascade — the accent rule now reaches the svg itself (.lumen-icon carries a direct color rule beating wrapper inheritance); all menu icons repaint orange on accent rows.
+- L2 (g17/g19 P1): Dropdown scrollport (max-height 320 + overflow + scrollIntoView on focus) + open-direction flip measurement + Escape/Tab stopPropagation (host dialogs no longer close while a dropdown is open).
+- L3 (g03 P2-2, g05 P1, g16 P2-2): light token ramp repinned to the FRAME (Player_-_Light.png pixel-measured): surface #c2c2c2, chrome #ababab, raised/strip #dedede, deep #bababa, hover #b4b4b4, ink #161616/#4e4e4e(WCAG 4.5+)/#5f5f5f(3.9:1), border #acacac, icon #6b6b6b — 9 new gray primitives, real cargo xtask tokens pipeline run, node propagation, pins updated deliberately (sha c5f3adebee82). The light seek track is now visible (track #c2c2c2 on strip #dedede grammar).
+- L4 (g15 P1-1): EQ fader rail shrinks to its mount (width:100%, max-width:748px) and pans inside the 398px tools dialog — faders reachable.
+- L5 (g03 P1-1, g06 P1-3): route-aware sidebar default — no stored preference + /player ⇒ shell sidebar CLOSED (the never-landed f08 seam); plus a route-entry auto-collapse when the player dock is open (session-only). Two new AppShell regression tests.
+- L6 (g03 P1-2): full-window control band — AppShell renders a strip slot after the frame row; PlayerScreen portals its footer region via AppShellStripContext (stripContext.ts); rail/sidebar END above the band; empty slot hidden on non-player routes. Pixel-verified: rail ends y=855, strip spans 0..1440.
+- L7 (g06 P1-1): hide-UI mirrors onto <html data-lumen-chrome> — the shell banner/rail/sidebar/strip fade with the player's own chrome parts ("Player - hide UI.svg" = zero chrome).
+- L8 (g16 P2-3): horizontal slider thumb sits flush with the fill end (frame-exact formula).
+- Lead rulings recorded: (a) dark tertiary ink STAYS #828282 (WCAG 4.6:1 beats the frame's #6B6B6B 3.9:1 — deliberate documented deviation); (b) customize surface = the frames' centered 1048×655 r14 #0E0E0E modal (fixer lane A); (c) canvas context menu trims to the frame's 14 rows (lane C); (d) light-mode ink = WCAG-tuned, not frame-verbatim.
+
+Stage Summary:
+- Battery green after the pass: vitest 1319/1319, e2e a11y+theme+smoke 38/38, stylelint clean, tokens:check OK (c5f3adebee82). Rust toolchain installed (rustup, RUSTUP/CARGO under /home/z/my-project) — the real 3-layer token pipeline runs again. Next: 6 parallel fixer lanes (customize modal, settings composition, controls anatomy, onboarding polish, playlist surfaces, variants/hide-UI), then the re-verify loop.

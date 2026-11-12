@@ -175,8 +175,13 @@
   height: 16px;
 }
 
-/* Selective orange icon accent (frames: profile / wand icons). */
-.lumen-menu__item--icon-accent .lumen-menu__icon {
+/* Selective orange icon accent (frames: profile / wand icons).
+ * w26.g20 P1-1 Lead fix: the accent must reach the svg ITSELF - `.lumen-icon`
+ * carries a direct `color: var(--color-stroke-icon)` rule that beats color
+ * inheritance from the wrapper span (stroke="currentColor" resolves against
+ * the svg's own color), so a wrapper-only rule painted every menu icon gray. */
+.lumen-menu__item--icon-accent .lumen-menu__icon,
+.lumen-menu__item--icon-accent .lumen-menu__icon .lumen-icon {
   color: var(--color-accent-icon);
 }
 
@@ -347,6 +352,19 @@
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-control); /* open list rx6 (`Dropdown.svg`) */
   box-shadow: var(--shadow-overlay); /* frame list drop shadow (dy 4, blur 6.9) */
+
+  /* w26.g17 P1 Lead fix: scrollport — long lists cap and scroll instead of
+   * clipping under the viewport edge (HDR options in the tools dialog). */
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* w26.g17/g19 P1 Lead fix: flip-up when the space above the trigger wins
+ * (Dropdown.tsx measures per open and sets data-direction). */
+.lumen-dropdown__list[data-direction="up"] {
+  top: auto;
+  bottom: calc(100% + var(--space-grid));
 }
 
 .lumen-dropdown__option {

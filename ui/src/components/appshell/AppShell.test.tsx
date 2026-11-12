@@ -21,12 +21,23 @@ import { AppShell } from "./AppShell";
 const renderShell = (
   ui: React.ReactElement = <AppShell><p>screen</p></AppShell>,
   initialEntry = "/player",
-) =>
-  render(
+  /** Seed a stored OPEN preference so anatomy tests see the open sidebar
+   * regardless of the route-aware default (w26.g03 P1-1: /player now
+   * defaults CLOSED). Default-behavior tests pass false. */
+  seedOpenPreference = true,
+) => {
+  // Seed ONLY when no preference exists — persistence tests that collapse
+  // and re-mount must keep their stored "closed" (the seed never fights the
+  // seam the test is proving).
+  if (seedOpenPreference && window.localStorage.getItem("lumen.shell.sidebar.v1") === null) {
+    window.localStorage.setItem("lumen.shell.sidebar.v1", "open");
+  }
+  return render(
     <ClientProvider transport={new MockTransport()}>
       <MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>
     </ClientProvider>,
   );
+};
 
 beforeEach(() => {
   // The sidebar persists openness in localStorage — start every test clean.
@@ -154,6 +165,18 @@ describe("AppShell — icon rail (Player.svg rail, Panel edges adoption)", () =>
 });
 
 describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f08)", () => {
+  it("defaults the sidebar CLOSED on /player (one-sidebar rule, w26.g03 P1-1)", () => {
+    renderShell(<AppShell><p>screen</p></AppShell>, "/player", false);
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("defaults the sidebar OPEN on non-player routes (w26.g03 P1-1 route-aware default)", () => {
+    renderShell(<AppShell><p>screen</p></AppShell>, "/playlist", false);
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("renders the header, meta row, create row and the store rows through the list primitive", () => {
     renderShell();
     const sidebar = getSidebar();
@@ -306,17 +329,24 @@ describe("AppShell — one-sidebar composition seam (lumen:toggle-sidebar)", () 
   it("dispatches lumen:toggle-sidebar when the player's docked sidebar is open (Player.png one-column rule)", () => {
     // The player publishes its dock state as data-sidebar on .lumen-player
     // (PlayerScreen.tsx); the shell reads it, never guesses.
-    renderShell(
+    // w26.g03 P1-1: entering /player with BOTH sidebars open now AUTO-COLLAPSES
+    // the shell sidebar on mount (route-change effect) — so this test starts
+    // from the collapsed state and toggles OPEN: the convergence dispatch
+    // (collapse the player's dock) must still fire.
+    const { container } = renderShell(
       <AppShell>
         <div className="lumen-player" data-sidebar="open" />
       </AppShell>,
     );
+    // the auto-collapse ran on mount: one column on screen
+    expect(getSidebar()).toHaveAttribute("hidden");
     const recorder = recordToggleEvents();
     fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
     recorder.stop();
     expect(recorder.seen).toEqual([PLAYER_TOGGLE_SIDEBAR_EVENT]);
-    // the shell sidebar still toggled (both sides of the composition)
-    expect(getSidebar()).toHaveAttribute("hidden");
+    // the shell sidebar opened (the dispatch collapses the PLAYER's dock)
+    expect(getSidebar()).not.toHaveAttribute("hidden");
+    expect(container.querySelector(".lumen-player")?.getAttribute("data-sidebar")).toBe("open");
   });
 
   it("stays silent when the player's dock is closed or no player is mounted", () => {
@@ -439,7 +469,11 @@ describe("AppShell — narrow viewport (1024×768 graceful collapse)", () => {
 
   it("leaves the sidebar open on wide viewports", () => {
     installMatchMedia(false);
-    renderShell();
+    renderShell(
+      <AppShell><p>screen</p></AppShell>,
+      "/player",
+      true,
+    );
     expect(getSidebar()).not.toHaveAttribute("hidden");
   });
 });

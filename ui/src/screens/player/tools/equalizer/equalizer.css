@@ -161,7 +161,12 @@
  * rail horizontally; every column keeps the frame geometry. */
 .eq-panel__rail {
   display: flex;
-  width: 748px; /* frame: 11 × 68 pitch (EQ.svg columns) */
+
+  /* w26.g15 P1-1 Lead fix: the rail must SHRINK to its mount (max-width, not
+   * fixed width) so the 748px frame geometry pans INSIDE narrow hosts (the
+   * 398px tools dialog) instead of overflowing under the scrim. */
+  width: 100%;
+  max-width: 748px; /* frame: 11 × 68 pitch (EQ.svg columns) */
   overflow-x: auto; /* narrow mounts pan; frame geometry never compresses */
   scrollbar-width: thin;
 }

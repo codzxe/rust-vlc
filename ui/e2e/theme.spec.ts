@@ -28,13 +28,14 @@ test("switching mode + accent swaps the CSS variable cascade", async ({ page }) 
   await expect(swatch).toHaveCSS("background-color", "rgb(211, 121, 24)");
 
   // light mode: surface + accent-bright re-point (doc 08 §3.3; W25 light
-  // surface-raised is #ffffff; the WCAG-repinned light bright #b35f0d is
-  // proven by the matrix below).
+  // surface-raised is the frame's warm gray #dedede — the g03/g05 Lead
+  // light-ramp repin; the WCAG-repinned light bright #b35f0d is proven by
+  // the matrix below).
   await page.getByRole("button", { name: "light", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.getByTestId("swatch-surface-raised")).toHaveCSS(
     "background-color",
-    "rgb(255, 255, 255)",
+    "rgb(222, 222, 222)",
   );
 
   // violet accent: the accent role re-points to #8e42ff.

@@ -46,6 +46,19 @@
   font-size: var(--font-size-body);
 }
 
+/* w26.g03 P1-2 (Lead): the shell strip HOST reuses the .lumen-player class
+ * so `.lumen-player`-scoped controls.css rules match the PORTALED control
+ * bar — but the host is a one-line band, not a screen: neutralize every
+ * screen-level property the base rule sets. */
+.lumen-player--strip {
+  position: static;
+  display: flex;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+}
+
 /* Chrome parts (sidebar, top strip, controls bar, tool panels — never the
  * video canvas): fade on hide, pointer-transparent + focus-hostile when
  * hidden. The transition lives inside no-preference so prefers-reduced-motion

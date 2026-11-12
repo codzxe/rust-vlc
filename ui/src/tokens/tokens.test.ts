@@ -28,7 +28,7 @@ const cssRaw = TOKENS_CSS;
 // (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
 // default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
 // Solstice groups removed; eq band accents added.)
-const PINNED_SHA256 = "6edc89dfdbab0f439b081088b2314e70d326c3de2123fbe23e44ae7e33901f03";
+const PINNED_SHA256 = "c5f3adebee8241c4501f729f37c066da5aa489427d06e12b4b190b5aef453f8c";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -140,13 +140,13 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(rootDecl("--color-content-on-accent")).toBe("#090909");
     expect(rootDecl("--color-record")).toBe("#e15032");
     // Light mode.
-    expect(lightDecl("--color-surface")).toBe("#f0f0f0");
-    expect(lightDecl("--color-surface-chrome")).toBe("#f5f5f5");
-    expect(lightDecl("--color-surface-panel")).toBe("#efefef");
-    expect(lightDecl("--color-content-primary")).toBe("#2b2b2b");
-    expect(lightDecl("--color-content-secondary")).toBe("#6e6e6e");
-    expect(lightDecl("--color-stroke-border")).toBe("#d9d9d9");
-    expect(lightDecl("--color-stroke-icon")).toBe("#9a9a9a");
+    expect(lightDecl("--color-surface")).toBe("#c2c2c2"); // w26 g03/g05 Lead light-ramp repin (frame warm grays)
+    expect(lightDecl("--color-surface-chrome")).toBe("#ababab");
+    expect(lightDecl("--color-surface-panel")).toBe("#c6c6c6");
+    expect(lightDecl("--color-content-primary")).toBe("#161616");
+    expect(lightDecl("--color-content-secondary")).toBe("#4e4e4e"); // WCAG 4.5:1 on the #c2c2c2 ramp
+    expect(lightDecl("--color-stroke-border")).toBe("#acacac");
+    expect(lightDecl("--color-stroke-icon")).toBe("#6b6b6b");
     expect(lightDecl("--color-accent-bright")).toBe("#b35f0d");
   });
 

@@ -56,6 +56,7 @@ import { Icon } from "../icon/Icon";
 import { IconWrapper } from "../icon/IconWrapper";
 import type { IconName } from "../icon/icons";
 import { ScrollArea, VirtualList, naturalSort } from "../list";
+import { AppShellStripContext } from "./stripContext";
 import { Panel } from "../surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
@@ -177,9 +178,15 @@ const SIDEBAR_STORAGE_KEY = "lumen.shell.sidebar.v1";
  * every region unclipped). */
 const NARROW_QUERY = "(max-width: 1100px)";
 
-function loadSidebarOpen(): boolean {
+function loadSidebarOpen(pathname: string): boolean {
   try {
-    return (globalThis.localStorage?.getItem(SIDEBAR_STORAGE_KEY) ?? "open") !== "closed";
+    const stored = globalThis.localStorage?.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === "open" || stored === "closed") return stored === "open";
+    // w26.g03 P1-1 Lead fix (the f08 seam, never landed): with NO stored
+    // preference the default is route-aware — the player composes its OWN
+    // docked sidebar surface, so the shell's playlists sidebar starts CLOSED
+    // there (one-sidebar rule, Player.png); everywhere else it starts open.
+    return !pathname.startsWith("/player");
   } catch {
     return true; // storage unavailable — session default (open)
   }
@@ -271,7 +278,16 @@ export function AppShell({
   }, []);
 
   // ---- sidebar open/close (persisted + narrow auto-collapse) -------------
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(loadSidebarOpen);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => loadSidebarOpen(location.pathname));
+
+  // w26.g03 P1-2 (Lead): the full-width control band slot — the shell footer
+  // under the frame row (rail + sidebar end above it, Player.svg strip at
+  // width=1920). PlayerScreen portals its footer region in when mounted;
+  // state-backed so consumers re-render when the host lands. The element
+  // also carries the lumen-player--strip class so `.lumen-player`-scoped
+  // controls.css rules keep matching the portaled bar (player.css owns the
+  // neutralized --strip variant).
+  const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
   const toggleSidebar = useCallback((): void => {
     setSidebarOpen((open) => {
       persistSidebarOpen(!open);
@@ -299,6 +315,20 @@ export function AppShell({
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, []);
+
+  // w26.g03 P1-1 / g06 P1-3 Lead fix: the one-sidebar rule on ROUTE CHANGE —
+  // entering /player with the shell sidebar open AND the player's own dock
+  // open collapses the SHELL sidebar for that visit (session-only, never
+  // persisted — the user's stored preference survives for other routes).
+  const onPlayerRoute = location.pathname.startsWith("/player");
+  useEffect(() => {
+    if (!onPlayerRoute || !sidebarOpen) return;
+    if (document.querySelector(".lumen-player[data-sidebar='open']") !== null) {
+      setSidebarOpen(false);
+    }
+    // Runs on route entry only; sidebarOpen read live via the query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onPlayerRoute]);
 
   // ---- window controls ----------------------------------------------------
   const [fullscreenActive, toggleFullscreen] = useShellFullscreen();
@@ -611,12 +641,21 @@ export function AppShell({
           </div>
         </Panel>
 
-        {provideMain ? (
-          <main className="app-shell__main">{children}</main>
-        ) : (
-          <div className="app-shell__main">{children}</div>
-        )}
+        <AppShellStripContext.Provider value={stripHost}>
+          {provideMain ? (
+            <main className="app-shell__main">{children}</main>
+          ) : (
+            <div className="app-shell__main">{children}</div>
+          )}
+        </AppShellStripContext.Provider>
       </div>
+
+      {/* w26.g03 P1-2: the full-window control band (empty = hidden; the
+       * player portals its footer region here — see stripContext.ts). */}
+      <div
+        className="app-shell__strip lumen-player lumen-player--strip"
+        ref={setStripHost}
+      />
 
       <OpenMediaDialog open={openMediaOpen} onClose={() => setOpenMediaOpen(false)} />
       <NewPlaylistDialog open={createOpen} onClose={() => setCreateOpen(false)} />

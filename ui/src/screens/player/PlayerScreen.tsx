@@ -108,6 +108,8 @@ import {
 } from "./variants";
 import "./player.css";
 import { useChromeAutoHide } from "./useChromeAutoHide";
+import { createPortal } from "react-dom";
+import { useAppShellStrip } from "../../components/appshell/stripContext";
 import { useFullscreen } from "./useFullscreen";
 
 /**
@@ -642,6 +644,10 @@ function PlayerScreenInner({
           };
   const hasMedia = derivedMedia !== null;
 
+  // w26.g03 P1-2 (Lead): the shell strip slot — when mounted inside the
+  // AppShell, the footer region portals there (full-window control band).
+  const stripHost = useAppShellStrip();
+
   // Doc 08 §4.3 [PROPOSAL]: auto-hide on idle in fullscreen; empty state and
   // any open panel/menu lock the chrome visible (§4.5, §5.3).
   // w26.f10 cleanup (the hook's compensation note): the lock is the
@@ -651,6 +657,17 @@ function PlayerScreenInner({
     enabled: isFullscreen,
     locked: openPanels.length > 0,
   });
+
+  // w26.g06 P1-1 Lead fix: mirror the hide-UI state onto <html> so the SHELL
+  // chrome (title bar, rail, sidebar — outside .lumen-player) fades together
+  // with the player's own parts. "Player - hide UI.svg" is a zero-chrome
+  // windowed state; leaving shell chrome lit broke the frame contract.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (chrome.visibility === "hidden") root.setAttribute("data-lumen-chrome", "hidden");
+    else root.removeAttribute("data-lumen-chrome");
+    return () => root.removeAttribute("data-lumen-chrome");
+  }, [chrome.visibility]);
 
   // Control-bar commands (4.C2) via the shared state seam — keymap DATA
   // drives which bindings reach here (see controls/state-mapping.ts).
@@ -945,22 +962,29 @@ function PlayerScreenInner({
           sidebar and canvas; inside the shell it spans the player root below
           the body row (dock + canvas + panels). The shell's rail hoist to a
           true window-wide band is the appshell seam (f08, lane log). */}
-      {regionsOf("bottom").map((region) => (
-        <footer
-          key={region.id}
-          data-region-id={region.id}
-          data-chrome-part=""
-          data-variant={variant === "music" ? "music" : undefined}
-          role="region"
-          aria-label={m(region.labelKey)}
-          className="lumen-player__controls"
-        >
-          {/* Card 4.C2 — the real control bar: transport (doc 08 §5.1
-              mapping), seekbar (§5.2 truthful pending), volume/mute, track
-              menus — all wired to the command-layer client seam. */}
-          <ControlBar />
-        </footer>
-      ))}
+      {regionsOf("bottom").map((region) => {
+        /* w26.g03 P1-2 (Lead): the band spans the FULL window under rail +
+         * sidebar (Player.svg strip 0..1920) — portal into the shell strip
+         * slot when mounted inside the shell; isolated hosts (tests) keep
+         * the in-place render unchanged. */
+        const node = (
+          <footer
+            key={region.id}
+            data-region-id={region.id}
+            data-chrome-part=""
+            data-variant={variant === "music" ? "music" : undefined}
+            role="region"
+            aria-label={m(region.labelKey)}
+            className="lumen-player__controls"
+          >
+            {/* Card 4.C2 — the real control bar: transport (doc 08 §5.1
+                mapping), seekbar (§5.2 truthful pending), volume/mute, track
+                menus — all wired to the command-layer client seam. */}
+            <ControlBar />
+          </footer>
+        );
+        return stripHost !== null ? createPortal(node, stripHost) : node;
+      })}
 
       {gotoOpen ? (
         <GotoTimeDialog open onClose={() => setGotoOpen(false)} />
