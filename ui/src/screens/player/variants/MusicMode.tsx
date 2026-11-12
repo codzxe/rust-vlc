@@ -33,6 +33,8 @@
 
 import { useLayoutEffect, useState } from "react";
 import { useMsg } from "../../../i18n/messages";
+import type { MessageKey } from "../../../i18n/messages";
+import { keys as i02Keys } from "../../../i18n/keys/w26.i02";
 import { usePlayerControls } from "../context";
 import { usePlaylist } from "../../playlist";
 import { Icon, IconButton } from "../../../components";
@@ -56,8 +58,23 @@ function isPlayerDockOpen(): boolean {
   );
 }
 
+/**
+ * `useMsg` extended with the w26.i02 pre-registration keys the stage toggle
+ * needs (contract §4.5): since w26.i02 (h03 #1) the docked column is the
+ * playlists BROWSER, so the toggle's copy says playlists — the same keys the
+ * canvas menu's Playlist submenu rows use. Lane copy wins while
+ * unregistered; both paths return the same string after the Lead's merge.
+ */
+function useStageMsg() {
+  const m = useMsg();
+  const laneCatalog: Record<string, string> = { ...i02Keys };
+  return (key: MessageKey | keyof typeof i02Keys): string =>
+    m(key as MessageKey) ?? laneCatalog[key];
+}
+
 export function MusicMode({ artRegion }: MusicModeProps) {
   const m = useMsg();
+  const t = useStageMsg();
   const { state } = usePlayerControls();
   const playlist = usePlaylist();
 
@@ -82,7 +99,11 @@ export function MusicMode({ artRegion }: MusicModeProps) {
     playlist.entries.find((entry) => entry.id === playlist.currentId)?.title ?? null;
   const title = state.mediaTitle ?? entryTitle;
 
-  const toggleLabel = m(dockOpen ? "player.canvas.menu.hide-queue" : "player.canvas.menu.show-queue");
+  // w26.i04: the dock is the playlists browser (w26.i02, h03 #1) — the
+  // toggle's copy names its target truthfully (playlists panel).
+  const toggleLabel = t(
+    dockOpen ? "player.canvas.menu.hide-playlists" : "player.canvas.menu.show-playlists",
+  );
 
   return (
     <div
@@ -92,10 +113,10 @@ export function MusicMode({ artRegion }: MusicModeProps) {
       className="lumen-music__art"
       data-placeholder="artwork-engine-data-unwired"
     >
-      {/* Playlist column toggle (e03 F6): the dock is the shell-toggled
+      {/* Playlists-column toggle (e03 F6): the dock is the shell-toggled
           left column; this quiet stage affordance keeps it reachable in
-          both directions from inside music mode. Same seam + copy as the
-          full player's canvas-menu dock toggle (w26.c6 keys). */}
+          both directions from inside music mode. Same seam as the full
+          player's canvas-menu playlists toggle (w26.i02 keys). */}
       <IconButton
         size="sm"
         data-control="playlist-toggle"
