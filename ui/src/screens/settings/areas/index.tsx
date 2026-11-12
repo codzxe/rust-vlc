@@ -5,9 +5,12 @@ import { keys as laneKeys } from "../../../i18n/keys/w26.b02";
 import { GENERATED_AREA_IDS } from "../generated/Screens";
 import { GENERATED_AREA_TITLES } from "../generated/Screens";
 import { GENERATED_SCREENS } from "../generated/Screens";
+import { SETTINGS_ENTRIES } from "../generated/schema";
 import type { SettingEntry } from "../generated/schema";
 import { LocalePicker } from "./language/LocalePicker";
 import { ThemeModePicker } from "./appearance/ThemeModePicker";
+import { AccentColorPicker } from "./appearance/AccentColorPicker";
+import { InterfaceArea } from "./interface";
 import { AboutArea } from "./updates-about";
 import { CodecsArea } from "./codecs";
 import { EffectsArea } from "./effects";
@@ -166,6 +169,11 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   // global composes HERE (both halves already exist: generated language row
   // + the about fold) — no new sibling file for this area.
   global: GlobalAreaScreen,
+  // w26.f03 (e05 F3/F7): interface is HAND-AUTHORED — the Figma frame
+  // (Settings - interface.svg) carries no "Advanced Options" bar, so the
+  // schema sections render flat (areas/interface.tsx); sections stay
+  // schema-driven for the w26.f01 seed.
+  interface: InterfaceArea,
   // controls / recording / extensions: the NEW sibling files own the whole
   // screen (frame order interleaves hand + schema sections — see the SIBLING
   // CONTRACT above); the generated records for these ids are replaced, not
@@ -214,8 +222,23 @@ export function resolveSettingsAreaSlug(slug: string | undefined): SettingsAreaI
  * this registry BEFORE its type-based default renderer — the framework seam.
  * Every key MUST be a real schemas/settings.toml key (AC-asserted in
  * areas.test.tsx).
+ *
+ * w26.f03 (e05 F2/F4): the accent picker wires wherever the seed carries the
+ * accent key (`global.accent-color` per the finding; `interface.accent`/
+ * `global.accent` per the settingsThemeSync gap note), and the theme picker
+ * follows the theme key if the seed moves it from `interface.theme` to
+ * `global.theme` (e05 F3). Both registrations are DERIVED from the schema so
+ * the AC (every key real) holds at every merge state of the parallel f01
+ * seed lane.
  */
+const THEME_SETTING_KEYS: readonly string[] = ["interface.theme", "global.theme"];
+const ACCENT_SETTING_KEYS: readonly string[] = ["global.accent-color", "interface.accent", "global.accent"];
+
+const themeEntry = SETTINGS_ENTRIES.find((e) => THEME_SETTING_KEYS.includes(e.key));
+const accentEntry = SETTINGS_ENTRIES.find((e) => ACCENT_SETTING_KEYS.includes(e.key));
+
 export const SPECIAL_FIELD_WIDGETS: Readonly<Record<string, ComponentType<{ entry: SettingEntry }>>> = {
-  "interface.theme": ThemeModePicker,
+  ...(themeEntry !== undefined ? { [themeEntry.key]: ThemeModePicker } : {}),
+  ...(accentEntry !== undefined ? { [accentEntry.key]: AccentColorPicker } : {}),
   "global.language": LocalePicker,
 };

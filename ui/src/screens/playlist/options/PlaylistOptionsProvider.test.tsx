@@ -2,11 +2,12 @@
 // sortedEntries memoization, the metadata seam and the honest no-provider
 // error.
 
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_VIEW_MODE, usePlaylistOptions } from "./PlaylistOptionsProvider";
+import { DEFAULT_VIEW_MODE, PlaylistOptionsProvider, usePlaylistOptions } from "./PlaylistOptionsProvider";
 import { OPTION_ENTRIES, OPTION_META, OptionsProviders, mountOptions } from "./optionsTestSupport";
 import { DEFAULT_SORT_KEY } from "./sorting";
+import type { PlaylistEntry } from "../PlaylistProvider";
 
 describe("PlaylistOptionsProvider — frame defaults", () => {
   it("default sort is the frame's checked row (Unwatched First)", () => {
@@ -98,5 +99,40 @@ describe("PlaylistOptionsProvider — context guard", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("PlaylistOptionsProvider — local entries scope (w26.f06)", () => {
+  const LOCAL_ENTRIES: readonly PlaylistEntry[] = [
+    { id: -1, title: "The Wand_S01E10.mp4", source: null, durationSeconds: null },
+    { id: -2, title: "The Wand_S01E02.mp4", source: null, durationSeconds: null },
+    { id: -3, title: "The Wand_S01E01.mp4", source: null, durationSeconds: null },
+  ];
+
+  it("entries prop is the data source — no engine PlaylistProvider required", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), {
+      wrapper: ({ children }) => (
+        <PlaylistOptionsProvider entries={LOCAL_ENTRIES}>{children}</PlaylistOptionsProvider>
+      ),
+    });
+    // Default sort keeps local order (unwatched-first, no metadata).
+    expect(result.current.sortedEntries.map((e) => e.title)).toEqual([
+      "The Wand_S01E10.mp4",
+      "The Wand_S01E02.mp4",
+      "The Wand_S01E01.mp4",
+    ]);
+  });
+
+  it("the sort keys order the local scope (title-asc natural: 02 before 10)", async () => {
+    const Consumer = () => {
+      const options = usePlaylistOptions();
+      return <output data-testid="ids">{options.sortedEntries.map((e) => e.id).join(",")}</output>;
+    };
+    const view = render(
+      <PlaylistOptionsProvider entries={LOCAL_ENTRIES} initialSortKey="title-asc">
+        <Consumer />
+      </PlaylistOptionsProvider>,
+    );
+    await waitFor(() => expect(view.getByTestId("ids").textContent).toBe("-3,-2,-1"));
   });
 });

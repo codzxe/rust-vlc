@@ -5,8 +5,8 @@
 import { act, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import type { CommandTransport, Event } from "../../../client/transport";
-import type { CommandError, PlaybackState } from "../../../generated/commands";
+import type { CommandTransport, CommandRequest, CommandResponse, Event } from "../../../client/transport";
+import type { CommandError, PlaybackState, StateSnapshot } from "../../../generated/commands";
 import { usePlayerEngineView, type PlayerEngineView } from "./context-bridge";
 import { resolveOverlay, StateRouter } from "./StateRouter";
 
@@ -287,10 +287,34 @@ describe("states.css — the W26 Figma skin (figma-fidelity-spec §1–§2)", ()
       /\.lumen-player\[data-chrome="hidden"\] \.lumen-state-overlay\[data-overlay="loading"\],\s*\n\.lumen-player\[data-chrome="hidden"\] \.lumen-state-overlay\[data-overlay="buffering"\]\s*\{[^}]*opacity: 0/,
     );
     // …but the selector must NOT reach the failure surfaces (role=alert) or
-    // the empty hero (chrome locks visible while idle).
+    // the empty hero (the hero is canvas content, not chrome — w26.f10 F4:
+    // the chrome AROUND it now fades on idle, the hero itself never does).
     expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*data-overlay="error"/);
     expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*data-overlay="unsupported"/);
     expect(statesCss).not.toMatch(/\[data-chrome="hidden"\][^{]*lumen-state-hero/);
+  });
+
+  it("light mode keeps the overlay scrim + on-scrim ink DARK (picture-frame rule, e19 F7)", () => {
+    // The transient overlays sit ON the stays-dark canvas; the scrim must
+    // not flip light with the theme — light mode pins the dark theme's
+    // frame values (same precedent as the hero pins below).
+    expect(statesCss).toMatch(
+      /:root\[data-theme="light"\] \.lumen-state-overlay\s*\{[^}]*#0e0e0e 72%, transparent/,
+    );
+    expect(statesCss).toMatch(
+      /:root\[data-theme="light"\] \.lumen-state-overlay\s*\{[^}]*color: #c6c6c6/,
+    );
+    expect(statesCss).toMatch(
+      /:root\[data-theme="light"\] \.lumen-state-overlay__label\s*\{[^}]*color: #8f8f8f/,
+    );
+    expect(statesCss).toMatch(
+      /:root\[data-theme="light"\] \.lumen-state-overlay__bar\s*\{[^}]*background: #0e0e0e/,
+    );
+    // Failure cards stay THEMED (Figma panel grammar flips with the theme) —
+    // only the canvas-side scrim + its direct ink pin dark.
+    expect(statesCss).not.toMatch(
+      /:root\[data-theme="light"\] \.lumen-state-overlay__cluster\[data-card\]/,
+    );
   });
 
   it("motion is reduced-motion safe: spinner spin + hide-UI fade are motion-gated", () => {
@@ -305,19 +329,62 @@ describe("states.css — the W26 Figma skin (figma-fidelity-spec §1–§2)", ()
 
 // ------------------------------------------------------------ context bridge ---
 
-/** Minimal scripted transport for the bridge tests (never the MockTransport —
- * these need real event emission). */
+/** Minimal valid snapshot body (only `state` varies per test). */
+const SNAPSHOT_BASE: StateSnapshot = {
+  audioDelayMs: 0,
+  devices: [],
+  duration: { kind: "unknown" },
+  muted: false,
+  playlist: {},
+  rate: 1,
+  selections: {},
+  state: "idle",
+  subtitle: {},
+  subtitleDelayMs: 0,
+  time: null,
+  tracks: [],
+  videoDelayMs: 0,
+  volume: 0.8,
+};
+
+/** Scripted transport for the bridge tests (never the MockTransport —
+ * these need real event emission + a controllable snapshot answer). */
 class ScriptedTransport implements CommandTransport {
   private readonly listeners = new Set<(event: Event) => void>();
-  send(): Promise<never> {
+  /** Requests issued through send() (asserts the mount-time probe). */
+  readonly sent: CommandRequest[] = [];
+  /** The engine's answer to system.get-state-snapshot (default: idle). */
+  snapshotState: PlaybackState = "idle";
+  /** When set, the snapshot response waits for this gate (ordering tests). */
+  snapshotGate: Promise<void> | null = null;
+
+  async send(request: CommandRequest): Promise<CommandResponse> {
+    this.sent.push(request);
+    if (request.cmd === "system.get-state-snapshot") {
+      if (this.snapshotGate !== null) {
+        await this.snapshotGate;
+      }
+      return {
+        gen: 1,
+        requestId: request.requestId,
+        result: {
+          completed: {
+            kind: "state-snapshot",
+            snapshot: { ...SNAPSHOT_BASE, state: this.snapshotState },
+          },
+        },
+      };
+    }
     return Promise.reject(new Error("not used in this test"));
   }
+
   subscribe(listener: (event: Event) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
+
   emit(event: Event): void {
     for (const listener of this.listeners) {
       listener(event);
@@ -378,5 +445,98 @@ describe("context-bridge — engine events reduce into the view (doc 05 C4)", ()
     const { unmount } = render(<ViewCapture />);
     expect(captured).toEqual(IDLE_VIEW);
     unmount();
+  });
+
+  it("issues the mount-time snapshot probe and never seeds from failures", async () => {
+    // Scaffold transports answer `feature-not-exposed` (MockTransport) or
+    // reject outright — the bridge must leave the honest idle view stand.
+    const transport = new ScriptedTransport();
+    transport.snapshotGate = Promise.reject(new Error("wire down"));
+    render(<ViewCapture transport={transport} />);
+    expect(transport.sent.some((request) => request.cmd === "system.get-state-snapshot")).toBe(true);
+    await act(async () => {});
+    expect(captured).toEqual(IDLE_VIEW);
+  });
+});
+
+describe("context-bridge — engine truth survives player-route remounts (w26.f10 F3, e03 F3)", () => {
+  it("seeds the session state from the mount-time engine snapshot", async () => {
+    // Remount against an already-active engine (e.g. media kept playing
+    // while the user was on /playlist): a pure event-reducer would restart
+    // at idle and render the empty hero over playing media.
+    const transport = new ScriptedTransport();
+    transport.snapshotState = "playing";
+    render(<ViewCapture transport={transport} />);
+    expect(transport.sent.some((request) => request.cmd === "system.get-state-snapshot")).toBe(true);
+    await act(async () => {});
+    expect(captured?.state).toBe("playing");
+    // Only the session state seeds — progress stays event-only honest.
+    expect(captured?.openingProgress).toBeNull();
+    expect(captured?.bufferingProgress).toBeNull();
+    expect(captured?.error).toBeNull();
+  });
+
+  it("a remount over the same wire starts from the cached engine view (no idle flash)", () => {
+    const transport = new ScriptedTransport();
+    transport.snapshotState = "playing";
+    const first = render(<ViewCapture transport={transport} />);
+    act(() => {
+      transport.emit({ seq: 1, kind: "session.state-changed", from: "idle", to: "playing" });
+    });
+    expect(captured?.state).toBe("playing");
+    first.unmount();
+    // The very FIRST render of the remount already carries engine truth.
+    render(<ViewCapture transport={transport} />);
+    expect(captured?.state).toBe("playing");
+  });
+
+  it("a fresh transport (different wire) honestly starts from idle", () => {
+    const transportA = new ScriptedTransport();
+    transportA.snapshotState = "playing";
+    const first = render(<ViewCapture transport={transportA} />);
+    act(() => {
+      transportA.emit({ seq: 1, kind: "session.state-changed", from: "idle", to: "playing" });
+    });
+    first.unmount();
+    // A different transport instance = a different engine: no leakage.
+    const transportB = new ScriptedTransport();
+    render(<ViewCapture transport={transportB} />);
+    expect(captured?.state).toBe("idle");
+  });
+
+  it("live session.state-changed beats a late snapshot response", async () => {
+    const transport = new ScriptedTransport();
+    transport.snapshotState = "playing"; // queried before the pause below
+    let release!: () => void;
+    transport.snapshotGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    render(<ViewCapture transport={transport} />);
+    act(() => {
+      transport.emit({ seq: 1, kind: "session.state-changed", from: "playing", to: "paused" });
+    });
+    expect(captured?.state).toBe("paused");
+    release();
+    await act(async () => {});
+    // The stale in-flight snapshot must NOT regress the live truth.
+    expect(captured?.state).toBe("paused");
+  });
+
+  it("a remount's snapshot correction clears the cached state's transient evidence (C6)", async () => {
+    const transport = new ScriptedTransport();
+    const first = render(<ViewCapture transport={transport} />);
+    act(() => {
+      transport.emit({ seq: 1, kind: "session.state-changed", from: "idle", to: "buffering" });
+      transport.emit({ seq: 2, kind: "session.buffering", progress: 0.25 });
+    });
+    first.unmount();
+    // While unmounted the engine moved on — the remount probe says playing.
+    transport.snapshotState = "playing";
+    render(<ViewCapture transport={transport} />);
+    expect(captured?.state).toBe("buffering"); // cached: no flash
+    expect(captured?.bufferingProgress).toBe(0.25);
+    await act(async () => {});
+    expect(captured?.state).toBe("playing");
+    expect(captured?.bufferingProgress).toBeNull(); // stale progress cleared
   });
 });

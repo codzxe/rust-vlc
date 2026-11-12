@@ -7,7 +7,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   label: string;
   /** Error message; presence switches the field into the error state. */
   error?: string;
-  /** Renders the label but hides it visually (keeps the accessible name). */
+  /** Renders the label as the input's aria-label instead of a visible text
+   * node (row grammar hosts that print their own label — w26.f02). */
   hideLabel?: boolean;
 }
 
@@ -24,19 +25,17 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     const errorId = `${inputId}-error`;
     return (
       <div className={["lumen-field", className].filter(Boolean).join(" ")}>
-        <label
-          className={["lumen-field__label", hideLabel ? "lumen-field__label--hidden" : ""]
-            .filter(Boolean)
-            .join(" ")}
-          htmlFor={inputId}
-        >
-          {label}
-        </label>
+        {hideLabel ? null : (
+          <label className="lumen-field__label" htmlFor={inputId}>
+            {label}
+          </label>
+        )}
         <input
           ref={ref}
           id={inputId}
           type={rest.type ?? "text"}
           className="lumen-field__control"
+          aria-label={hideLabel ? label : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           {...rest}

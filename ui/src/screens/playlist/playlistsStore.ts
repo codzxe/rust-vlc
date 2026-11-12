@@ -48,11 +48,31 @@ const STORAGE_KEY = "lumen.playlists.v1";
  * sidebar "Cool Songs"/"Anime to Watch"), same structural-fixture precedent
  * as the shell sidebar (a10). Seeded only when the store is absent; user
  * edits (removals) persist, so the seed never resurrects.
+ *
+ * w26.f06: the fixture rows carry item NAMES too (thumbnail.svg/media.svg's
+ * "The Wand" episodes) so the shipped browse views (grid/list) demonstrate
+ * with frame-shaped content — names only, same honesty as dialog-recorded
+ * items (no sources, no durations, no play seam).
  */
 const SEED: readonly SavedPlaylist[] = [
   { id: "cool-playlist", title: "Cool Playlist", createdAt: 0, itemNames: [] },
-  { id: "cool-songs", title: "Cool Songs", createdAt: 0, itemNames: [] },
-  { id: "anime-to-watch", title: "Anime to Watch", createdAt: 0, itemNames: [] },
+  {
+    id: "cool-songs",
+    title: "Cool Songs",
+    createdAt: 0,
+    itemNames: ["The Wand (Main Theme).flac", "Voltage.mp3", "Paper Planes.mp3"],
+  },
+  {
+    id: "anime-to-watch",
+    title: "Anime to Watch",
+    createdAt: 0,
+    itemNames: [
+      "The Wand_S01E01.mp4",
+      "The Wand_S01E02.mp4",
+      "The Wand_S01E10.mp4",
+      "The Wand_S02E02.mp4",
+    ],
+  },
 ];
 
 export const localStoragePlaylistsPersistence: PlaylistsPersistence = {

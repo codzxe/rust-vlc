@@ -1,70 +1,76 @@
-// EqualizerTool tests (w26.c1) — pins the EQ tool card per the frames
-// (Audio - Equalizer.svg + EQ presets.svg): collapse behavior, the 11 band
-// rows with their chips/sliders/accents, preset selection through the shared
-// Dropdown, and the onChange wire seam.
+// EqualizerTool tests (w26.c1; w26.f05 A2 rewrite) — pins the tools-dialog
+// Equalizer surface per the w26.f05 Lead ruling: the EQ presets selector
+// (EQ presets.svg) above the GraphicEQ vertical-fader panel (EQ.svg). The
+// A1 horizontal rows card is retired; collapse behavior, the 11 vertical
+// faders, preset selection through the shared Dropdown, and the onChange
+// wire seam stay under test.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { keys as toolsKeys } from "../../../../i18n/keys/w26.a18";
+import { keys as panelKeys } from "../../../../i18n/keys/w26.f05";
 import { EqualizerTool } from "./EqualizerTool";
 import { EQ_PRESETS } from "./presets";
 
-const EXPAND = toolsKeys["player.tools.expand-settings"];
-const COLLAPSE = toolsKeys["player.tools.collapse-settings"];
+const OPEN = panelKeys["screen.eq.open-panel"];
+const CLOSE = panelKeys["screen.eq.close-panel"];
 
-describe("EqualizerTool — collapse behavior (frame: two stacked states)", () => {
-  it("ships collapsed per the frames: toggle bar only, body hidden but wired", () => {
+describe("EqualizerTool — collapse behavior (frame: EQ.svg bar↔panel)", () => {
+  it("ships collapsed per the frames: the 'Open Equalizer' bar, faders hidden", () => {
     render(<EqualizerTool />);
-    const toggle = screen.getByRole("button", { name: EXPAND });
+    const toggle = screen.getByRole("button", { name: OPEN });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    const body = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
-    expect(body).not.toBeNull();
-    expect(body).toHaveAttribute("hidden");
-    expect(body).toHaveAttribute("role", "group");
-    // Collapsed card exposes no sliders/chips to the a11y tree.
+    // Collapsed tool exposes no sliders/chips to the a11y tree — and the
+    // preset selector hides with the panel (the frames show the bar only).
     expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Equalizer preset" })).toBeNull();
   });
 
-  it("the card is a named region (settings area mount)", () => {
+  it("the tool hosts the named Equalizer region (GraphicEQ inside)", () => {
     render(<EqualizerTool />);
     expect(screen.getByRole("region", { name: "Equalizer" })).toBeInTheDocument();
   });
 
-  it("expand reveals the rows; collapse hides them again", () => {
+  it("expand reveals the preset selector + the 11 faders; collapse hides them", () => {
     render(<EqualizerTool />);
-    const toggle = screen.getByRole("button", { name: EXPAND });
+    const toggle = screen.getByRole("button", { name: OPEN });
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: COLLAPSE })).toBe(toggle);
+    expect(screen.getByRole("button", { name: CLOSE })).toBe(toggle);
     expect(screen.getAllByRole("slider")).toHaveLength(11);
+    expect(screen.getByRole("button", { name: "Equalizer preset" })).toBeInTheDocument();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Equalizer preset" })).toBeNull();
   });
 
-  it("defaultOpen mounts the card expanded", () => {
+  it("defaultOpen mounts the tool expanded", () => {
     render(<EqualizerTool defaultOpen />);
-    expect(screen.getByRole("button", { name: COLLAPSE })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: CLOSE })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
   });
 });
 
-describe("EqualizerTool — band rows (frame: Preamp + 10 bands, pitch 90)", () => {
-  it("renders Preamp + the 10 frame bands, each with a labelled slider", () => {
+describe("EqualizerTool — fader columns (frame: Preamp + 10 bands, vertical)", () => {
+  it("renders Preamp + the 10 frame bands as vertical faders, labels verbatim", () => {
     render(<EqualizerTool defaultOpen />);
-    expect(screen.getByRole("slider", { name: "Preamp" })).toBeInTheDocument();
-    // Frame labels render verbatim ("60 Hz" … "16 KHz").
-    expect(screen.getByRole("slider", { name: "60 Hz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "170 Hz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "310 Hz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "600 Hz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "1 KHz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "3 KHz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "6 KHz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "12 KHz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "14 KHz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "16 KHz" })).toBeInTheDocument();
+    for (const label of [
+      "Preamp",
+      "60 Hz",
+      "170 Hz",
+      "310 Hz",
+      "600 Hz",
+      "1 KHz",
+      "3 KHz",
+      "6 KHz",
+      "12 KHz",
+      "14 KHz",
+      "16 KHz",
+    ]) {
+      const fader = screen.getByRole("slider", { name: label });
+      expect(fader).toHaveAttribute("aria-orientation", "vertical");
+    }
     expect(screen.getAllByRole("slider")).toHaveLength(11);
   });
 
@@ -74,28 +80,14 @@ describe("EqualizerTool — band rows (frame: Preamp + 10 bands, pitch 90)", () 
     expect(screen.getAllByText("0.0 dB")).toHaveLength(10);
   });
 
-  it("formats slider aria-valuetext with the unit (doc 08 §4.5)", () => {
-    render(<EqualizerTool defaultOpen />);
-    expect(screen.getByRole("slider", { name: "Preamp" })).toHaveAttribute(
-      "aria-valuetext",
-      "12.0 dB",
-    );
-    expect(screen.getByRole("slider", { name: "60 Hz" })).toHaveAttribute(
-      "aria-valuetext",
-      "0.0 dB",
-    );
-  });
-
-  it("carries the ±20 dB band range and 10 accent dots from the eq tokens", () => {
+  it("carries the ±20 dB band range; monochrome columns (no accent dots, F8)", () => {
     const { container } = render(<EqualizerTool defaultOpen />);
     for (const slider of screen.getAllByRole("slider")) {
       expect(slider).toHaveAttribute("aria-valuemin", "-20");
       expect(slider).toHaveAttribute("aria-valuemax", "20");
     }
-    // 10 band dots carry a token index; the Preamp spacer keeps alignment.
-    const accents = container.querySelectorAll(".eq-tool__accent");
-    expect(accents).toHaveLength(11);
-    expect(container.querySelectorAll(".eq-tool__accent[data-accent]")).toHaveLength(10);
+    expect(container.querySelector(".eq-tool__accent")).toBeNull();
+    expect(container.querySelectorAll(".eq-panel__fader--zero")).toHaveLength(10);
   });
 });
 
@@ -114,7 +106,7 @@ describe("EqualizerTool — preset panel (frame: EQ presets.svg)", () => {
     );
   });
 
-  it("selecting a preset applies its band gains to the row chips", () => {
+  it("selecting a preset applies its band gains to the fader chips", () => {
     render(<EqualizerTool defaultOpen />);
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
     fireEvent.click(screen.getByRole("option", { name: "Club" }));
@@ -144,12 +136,12 @@ describe("EqualizerTool — preset panel (frame: EQ presets.svg)", () => {
   });
 });
 
-describe("EqualizerTool — band commits (doc 08 §5: live then commit)", () => {
+describe("EqualizerTool — fader commits (doc 08 §5: live then commit)", () => {
   it("a keyboard step updates the chip and fires onChange with the new gains", () => {
     const onChange = vi.fn();
     render(<EqualizerTool defaultOpen onChange={onChange} />);
     const band60 = screen.getByRole("slider", { name: "60 Hz" });
-    fireEvent.keyDown(band60, { key: "ArrowRight" });
+    fireEvent.keyDown(band60, { key: "ArrowUp" });
     expect(band60).toHaveAttribute("aria-valuenow", "1");
     expect(screen.getAllByText("1.0 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
@@ -163,7 +155,7 @@ describe("EqualizerTool — band commits (doc 08 §5: live then commit)", () => 
     const onChange = vi.fn();
     render(<EqualizerTool defaultOpen onChange={onChange} />);
     fireEvent.keyDown(screen.getByRole("slider", { name: "Preamp" }), {
-      key: "ArrowLeft",
+      key: "ArrowDown",
     });
     expect(screen.getAllByText("11.0 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
@@ -173,7 +165,7 @@ describe("EqualizerTool — band commits (doc 08 §5: live then commit)", () => 
     });
   });
 
-  it("manual band edits keep the last applied preset label (VLC behavior)", () => {
+  it("manual fader edits keep the last applied preset label (VLC behavior)", () => {
     render(<EqualizerTool defaultOpen />);
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
     fireEvent.click(screen.getByRole("option", { name: "Dance" }));

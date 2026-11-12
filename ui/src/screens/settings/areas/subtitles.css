@@ -1,0 +1,160 @@
+/* Settings → Subtitles area (w26.f04) — the `Settings - subtitles.svg`
+ * frame's area-scoped styles. The shared row grammar (settings-section /
+ * settings-field / settings-sections) is f03's settings.css; this sheet
+ * only pins what the frame measures BEYOND the shared primitives:
+ *   * dropdowns — 320px column, 36px compact trigger (frame: 320×36 rx6
+ *     #090909 well + 316×32 #191919 field, value #8F8F8F);
+ *   * the segmented Size-values control fills the same 320px column
+ *     (frame: outer 320×36 rx6, segments 157×32 rx4);
+ *   * the color fields — 320×32 rx6 well, hex #8F8F8F at 17px inset,
+ *     22×22 rx2 swatch at the 5px right inset (frame: Rectangle 15);
+ *   * the Text-opacity slider — 12px rx4 track with FLAT tinted fill and
+ *     an 8×24 rx4 accent-strong thumb (frame: Rectangle 11_4 + thumb),
+ *     9 degree ticks (2×6, 10%–90% step 10%) + the 0/50/100% scale.
+ * Semantic tokens only (contract §4.4); raw px below are frame-measured
+ * structural dimensions with no token, marked `frame:`. */
+
+/* ------------------------------------------------- honest staged note */
+
+/* One quiet single-line note per section (e07 F7 compact direction — no
+ * per-row badges: the note names the seam, every row carries the
+ * data-staged marker instead). */
+.settings-area-subtitles-staged {
+  margin: -4px 0 12px; /* tucks into the section header's 12px gap */
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+/* The ⓘ info glyph the frame pins after 7 labels (frame: 16px circle,
+ * stroke #404040 — stroke-border). */
+.settings-area-subtitles-info {
+  flex: none;
+  color: var(--color-stroke-border);
+}
+
+/* ------------------------------------------------------ dropdown rows */
+
+/* frame: triggers span the 320px control column (x704–1024) */
+.settings-area-subtitles .lumen-dropdown {
+  width: 100%;
+}
+
+/* frame: Settings - subtitles.svg trigger 320×36 (Setting Preset.svg's
+ * shared compact trigger is 40px — this frame measures 36) */
+.settings-area-subtitles .lumen-dropdown--compact .lumen-dropdown__trigger {
+  height: 36px; /* frame: 320×36 rx6 */
+}
+
+/* ---------------------------------------------------- segmented row */
+
+/* frame: the Values.svg control fills the column; two 157×32 rx4 segments
+ * stretch inside the 320×36 rx6 track. */
+.settings-area-subtitles .lumen-segmented {
+  width: 100%;
+}
+
+/* ------------------------------------------------------- color rows */
+
+/* frame: Frame 87 — 320×32 rx6 #090909 well, hex value #8F8F8F at the 17px
+ * left inset, 22×22 swatch at the 5px right inset. */
+.settings-area-subtitles-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px; /* frame: 320×32 */
+  padding-inline: 17px 5px; /* frame: hex x721 − field x704 / swatch inset */
+  border-radius: var(--radius-control); /* frame: rx6 */
+  background: var(--color-surface); /* frame well #090909 */
+  opacity: var(--opacity-disabled); /* staged — matches the disabled fields */
+}
+
+.settings-area-subtitles-color-hex {
+  font-size: var(--font-size-body); /* frame: ≈13–14px hex glyphs */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  font-variant-numeric: tabular-nums;
+}
+
+/* frame: Rectangle 15 — 22×22 rx2 swatch filled with the row's VALUE (set
+ * via the --settings-area-subtitles-swatch custom property from the row
+ * data) + a 1.5px white@21% inner stroke. */
+.settings-area-subtitles-color-swatch {
+  flex: none;
+  width: 22px; /* frame: 22×22 */
+  height: 22px;
+  border-radius: 2px; /* frame: rx2 */
+  background: var(--settings-area-subtitles-swatch);
+  box-shadow: inset 0 0 0 1.5px
+    color-mix(in srgb, var(--color-content-bright) 21%, transparent);
+}
+
+/* ------------------------------------------------------ opacity row */
+
+.settings-area-subtitles-opacity {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* The slider + its tick overlay share one 24px band (thumb overhang). */
+.settings-area-subtitles-opacity-track {
+  position: relative;
+  width: 100%;
+}
+
+/* frame: Rectangle 11_4 — 318×12 rx4 track, FLAT #371F06 fill at 50%,
+ * 8×24 rx4 #AB6314 thumb (the w26.a20/A2 slider grammar, scoped here like
+ * equalizer.css/dynamics.css pin it for their mounts). */
+.settings-area-subtitles-opacity-track .lumen-slider {
+  width: 100%;
+  height: 24px; /* hit band: 12px track + the 24px thumb */
+}
+
+.settings-area-subtitles-opacity-track .lumen-slider__track {
+  top: calc(50% - 6px); /* 12px track centered in the 24px band */
+  height: 12px; /* frame: 318×12 */
+  background: var(--color-surface); /* frame well #090909 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+.settings-area-subtitles-opacity-track .lumen-slider__fill {
+  background: var(--color-accent-tinted); /* frame: flat #371F06 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+.settings-area-subtitles-opacity-track .lumen-slider__thumb {
+  top: calc(50% - 12px); /* 24px thumb, 6px overhang each side */
+  height: 24px; /* frame: 8×24 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+}
+
+/* frame: Vector 48–64 — nine 2×6 degree marks at 10%–90% (pitch 31.6px on
+ * the 318px track), ink #1A1611 (no token yet — surface-muted #151515,
+ * Δ≤5/255; the dynamics.css §D4 mapping). */
+.settings-area-subtitles-opacity-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.settings-area-subtitles-opacity-tick {
+  position: absolute;
+  top: calc(50% - 3px); /* 6px mark centered on the track centerline */
+  width: 2px;
+  height: 6px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-hairline);
+  transform: translateX(-50%);
+}
+
+/* frame: "0% / 50% / 100%" — ≈12px #6B6B6B scale labels under the track
+ * (left / centre / right over the 320px column). */
+.settings-area-subtitles-opacity-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px; /* frame: labels ~y721–730 under the y690–702 track */
+  font-size: var(--font-size-caption); /* frame: ≈12px */
+  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+  font-variant-numeric: tabular-nums;
+}

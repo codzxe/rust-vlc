@@ -46,6 +46,14 @@
   padding: 22px; /* frame: dropdown at x22 */
 }
 
+/* w26.f06 (e09 F6): the strategy control fills the fragment's 362px content
+ * box — the frame's dropdown trigger rect (x22 y22 362×48 rx6). Without this
+ * the bare control shrank to ~189px and the closeup compared against a
+ * half-width trigger. */
+.w26b11-frame--filename .lumen-dropdown.lumen-plsubs-match {
+  width: 362px; /* frame: sub filename.svg dropdown width */
+}
+
 /* subtitle one/multiple.svg fragment: 519-wide rows. */
 .w26b11-frame--rows {
   display: flex;

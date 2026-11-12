@@ -1,10 +1,10 @@
 /* w26.c1 — DEV-ONLY harness layout (harness.tsx; never imported by app
- * routes). Mimics the Audio - Equalizer.svg canvas (400px wide, #090909
- * surface, 20px inset) so screenshots compare 1:1 against the 900px figma
- * render at 2.25 device scale. Not part of the product CSS. */
+ * routes). Mimics the EQ.svg canvas (824px wide — panel x20–804 with 20px
+ * insets) so screenshots compare against the 900px figma render. Not part
+ * of the product CSS. */
 
 /* The standalone export has no app shell — kill the UA body margin so the
- * 400px canvas is the full scroll width. */
+ * 824px canvas is the full scroll width. */
 body {
   margin: 0;
 }
@@ -12,10 +12,10 @@ body {
 .w26c1-stage {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* frame: collapsed card bottom → expanded card top = 20px */
+  gap: 20px; /* frame: bar bottom y56 → panel top y76 = 20px */
   box-sizing: border-box;
-  width: 400px; /* frame: Audio - Equalizer.svg canvas width */
-  padding: 20px; /* frame: cards inset 20px */
-  background: var(--color-surface);
+  width: 824px; /* frame: EQ.svg canvas width */
+  padding: 20px; /* frame: panel inset 20px */
+  background: var(--color-surface); /* ≈ the render's near-black backdrop */
   font-family: var(--font-family-sans);
 }

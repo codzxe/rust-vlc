@@ -42,9 +42,10 @@ describe("TextField", () => {
 
   it("hideLabel keeps the accessible name", () => {
     render(<TextField label="Search" hideLabel />);
-    expect(screen.getByLabelText("Search")).toBeInTheDocument();
-    // visually hidden via the CSS class, not an inline style (contract §6)
-    expect(screen.getByText("Search")).toHaveClass("lumen-field__label--hidden");
+    // w26.f02: hidden = aria-label on the input, no label text node in the
+    // DOM (row-grammar hosts print their own visible label — one text node).
+    expect(screen.getByRole("textbox", { name: "Search" })).toBeInTheDocument();
+    expect(screen.queryByText("Search")).toBeNull();
   });
 
   it("forwards the ref + DOM snapshot", () => {

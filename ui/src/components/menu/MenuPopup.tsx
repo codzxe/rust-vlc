@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { MenuItem } from "./MenuItem";
 import type { MenuDensity, MenuEntry, ResolveLabel } from "./types";
@@ -10,7 +10,39 @@ import { SUBMENU_CLOSE_DELAY_MS, SUBMENU_OPEN_DELAY_MS } from "./timings";
  * restoration, Tab focus trap (card 4.B3), separators skipped, disabled
  * items focusable-but-inert (aria-disabled). Used by MenuBar menus,
  * ContextMenu and nested submenus.
+ *
+ * Viewport clamping (w26.f07): every popup measures itself on mount (a
+ * submenu opening IS a MenuPopup mount) and repositions before paint, so
+ * nothing ever opens clipped off-window (e02 F1 / e12 F1+F2):
+ *  * pointer-anchored popups — `style.left/top` in px are pointer coordinates
+ *    for a fixed-position popup (the ContextMenu / player canvas-menu
+ *    contract); they FLIP across the pointer (up / left) when the panel would
+ *    overflow the bottom/right, shifting to the viewport margin as a last
+ *    resort;
+ *  * submenus (depth > 0) — the CSS anchor opens right of the parent row;
+ *    they flip fully to the LEFT of that row near the right edge and shift UP
+ *    near the bottom.
  */
+
+/** Viewport margin a clamped popup keeps from every window edge (w26.f07) —
+ * structural, no token. */
+const VIEWPORT_MARGIN_PX = 8;
+
+/** Gap between a submenu and its parent row when flipped to the LEFT side —
+ * mirrors the CSS `margin-left: var(--space-grid)` right-side gap. */
+const SUBMENU_FLIP_GAP_PX = 4;
+
+/** `style.left`/`style.top` as a px number, else null (percent/calc values
+ * are anchors, not pointer coordinates — leave them to the CSS). */
+const pointerCoord = (value: string | number | undefined): number | null => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.endsWith("px")) {
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+};
+
 export interface MenuPopupProps<K extends string = string> {
   entries: MenuEntry<K>[];
   resolveLabel: ResolveLabel<K>;
@@ -26,10 +58,16 @@ export interface MenuPopupProps<K extends string = string> {
   *  compact = ~40px rows. @default "comfortable" */
   density?: MenuDensity;
   className?: string;
-  style?: CSSProperties;
   ariaLabel?: string;
   /** Stable prefix for DOM ids (test hooks + aria wiring). */
   idPrefix: string;
+  /**
+   * Popup position. `left`/`top` in px are read as POINTER coordinates of a
+   * fixed-position popup (the ContextMenu / canvas-menu contract) and get
+   * viewport-clamped on mount (flip up/left, shift to the margin). Omit them
+   * for CSS-anchored (menubar-style) popups.
+   */
+  style?: CSSProperties;
 }
 
 export function MenuPopup<K extends string>({
@@ -47,9 +85,59 @@ export function MenuPopup<K extends string>({
 }: MenuPopupProps<K>): ReactElement {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // w26.f07 — viewport clamping: measure via getBoundingClientRect on mount
+  // and reposition BEFORE paint (useLayoutEffect). Re-runs when the caller
+  // supplies a fresh `style` object; idempotent — the flip origin is the
+  // `style` prop, never the mutated DOM style.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (el === null) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = VIEWPORT_MARGIN_PX;
+    const pointerX = pointerCoord(style?.left);
+    const pointerY = pointerCoord(style?.top);
+
+    if (depth === 0 && pointerX !== null && pointerY !== null) {
+      // Pointer-anchored popup: FLIP across the pointer when the panel would
+      // overflow the bottom/right; clamp at the margin as a last resort.
+      const rect = el.getBoundingClientRect();
+      const left =
+        pointerX + rect.width > vw - margin ? Math.max(margin, pointerX - rect.width) : Math.max(margin, pointerX);
+      const top =
+        pointerY + rect.height > vh - margin ? Math.max(margin, pointerY - rect.height) : Math.max(margin, pointerY);
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+      return;
+    }
+
+    if (depth > 0) {
+      // Submenu: the CSS anchor opens right of the parent row; flip fully
+      // LEFT of that row near the right edge (a transform keeps the CSS
+      // anchor for the non-overflow case and for hosts that already flip via
+      // their own CSS) and shift UP near the bottom. Both keep at least the
+      // margin on the opposite edge.
+      const rect = el.getBoundingClientRect();
+      let dx = 0;
+      let dy = 0;
+      if (rect.right > vw - margin) {
+        const hostLeft = el.parentElement?.getBoundingClientRect().left ?? rect.left;
+        const targetLeft = hostLeft - SUBMENU_FLIP_GAP_PX - rect.width;
+        dx = Math.max(targetLeft, margin) - rect.left;
+      }
+      if (rect.bottom > vh - margin) {
+        dy = Math.max(margin - rect.top, vh - margin - rect.height - rect.top);
+      }
+      if (dx !== 0 || dy !== 0) {
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+      }
+    }
+  }, [depth, style]);
 
   useEffect(
     () => () => {
@@ -200,6 +288,7 @@ export function MenuPopup<K extends string>({
 
   return (
     <div
+      ref={rootRef}
       role="menu"
       aria-label={ariaLabel}
       className={["lumen-menu", `lumen-menu--${density}`, className].filter(Boolean).join(" ")}

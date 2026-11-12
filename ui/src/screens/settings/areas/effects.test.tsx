@@ -1,6 +1,7 @@
-// Effects & Tools area tests (w26.c5 integration) — the Settings → Audio
-// Effects section composed to `Settings - audio-1.svg`: the embedded
-// wave-c EqualizerTool (frame "EQ" block), the staged rows around it, and
+// Effects & Tools area tests (w26.c5 integration; w26.f05 A2 rewrite) —
+// the Settings → Audio Effects section composed to `Settings - audio-1.svg`:
+// the "Equalizer preset" settings row OUTSIDE the panel (F6), the embedded
+// A2 GraphicEQ vertical-fader panel (F5/F1), the ⓘ affordances (F7), and
 // the honest-surface rules:
 //   • the embedded EQ + every row control is STAGED (no audio-effects
 //     catalog command exists yet) — markers name the awaited command, the
@@ -12,11 +13,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
-import { keys as toolsKeys } from "../../../i18n/keys/w26.a18";
+import { keys as panelKeys } from "../../../i18n/keys/w26.f05";
 import { EffectsArea } from "./effects";
 import { makeFixtureTransport } from "./audio-fixtures";
 
-const COLLAPSE = toolsKeys["player.tools.collapse-settings"];
+const CLOSE = panelKeys["screen.eq.close-panel"];
 
 const renderArea = () => {
   const transport = makeFixtureTransport(() => ({ completed: { kind: "unit" } }));
@@ -34,23 +35,43 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     expect(screen.getByRole("heading", { name: "Effects" })).toBeInTheDocument();
   });
 
-  it("embeds the EqualizerTool EXPANDED (frame EQ block, 'Close Equalizer')", () => {
+  it("embeds the A2 GraphicEQ panel EXPANDED (frame EQ block, 'Close Equalizer')", () => {
     renderArea();
-    // The tool's expanded toggle + all 11 frame rows (Preamp + 10 bands).
-    expect(screen.getByRole("button", { name: COLLAPSE })).toHaveAttribute(
+    // The panel's expanded toggle + all 11 frame faders (Preamp + 10 bands,
+    // vertical per EQ.svg).
+    expect(screen.getByRole("button", { name: CLOSE })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
-    expect(screen.getAllByRole("slider")).toHaveLength(11);
+    const faders = screen.getAllByRole("slider");
+    expect(faders).toHaveLength(11);
+    for (const fader of faders) {
+      expect(fader).toHaveAttribute("aria-orientation", "vertical");
+    }
     expect(screen.getByRole("slider", { name: "Preamp" })).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "60 Hz" })).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "16 KHz" })).toBeInTheDocument();
+    // The monochrome frame: no band accent dots anywhere (w26.e07 F8).
+    expect(document.querySelector(".eq-tool__accent")).toBeNull();
   });
 
-  it("the EQ presets panel is embedded with the tool (frame 'Equalizer preset' row)", () => {
+  it("'Equalizer preset' is a separate settings row OUTSIDE the panel (F6)", () => {
+    const { container } = renderArea();
+    const presetButton = screen.getByRole("button", { name: "Equalizer preset" });
+    // The row lives in a settings-field, NOT inside the EQ panel region.
+    const row = presetButton.closest(".settings-field");
+    expect(row).not.toBeNull();
+    const panel = screen.getByRole("region", { name: "Equalizer" });
+    expect(row?.contains(panel)).toBe(false);
+    expect(panel.contains(presetButton)).toBe(false);
+    // The staged marker names the awaited command, like the panel wrapper.
+    expect(row?.getAttribute("data-pending-command")).toBe("audio.set-eq");
+    expect(container.querySelectorAll(".eq-panel__fader--zero")).toHaveLength(10);
+  });
+
+  it("the preset row opens the frame's 8 presets (EQ presets.svg)", () => {
     renderArea();
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
-    // The frame's 8 presets (EQ presets.svg) open from the embedded tool.
     for (const name of [
       "None",
       "Flat",
@@ -63,6 +84,34 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     ]) {
       expect(screen.getByRole("option", { name })).toBeInTheDocument();
     }
+  });
+
+  it("a preset pick re-shapes the embedded panel's fader chips (shared state)", () => {
+    renderArea();
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    fireEvent.click(screen.getByRole("option", { name: "Club" }));
+    // Club = [0, 0, 4.8, 3.6, 3.6, 3.6, 2.4, 0, 0, 0] — the panel chips follow.
+    expect(screen.getAllByText("4.8 dB")).toHaveLength(1);
+    expect(screen.getAllByText("3.6 dB")).toHaveLength(3);
+    // The trigger reads the applied preset.
+    expect(
+      screen.getByRole("button", { name: "Equalizer preset" }).textContent,
+    ).toContain("Club");
+  });
+
+  it("carries the frame's ⓘ affordances on the Equalizer + preset rows (F7)", () => {
+    renderArea();
+    const infoDots = document.querySelectorAll(".effects-info");
+    expect(infoDots).toHaveLength(2);
+    // One on the Equalizer row, one on the Equalizer preset row.
+    const eqRow = screen.getByRole("switch", { name: "Equalizer" }).closest(
+      ".settings-field",
+    );
+    const presetRow = screen
+      .getByRole("button", { name: "Equalizer preset" })
+      .closest(".settings-field");
+    expect(eqRow?.querySelector(".effects-info")).not.toBeNull();
+    expect(presetRow?.querySelector(".effects-info")).not.toBeNull();
   });
 });
 
@@ -121,9 +170,15 @@ describe("EffectsArea — staged rows are inert WITH REASON (the old pattern sta
 
   it("staged controls never send anything (no live commands left in the area)", () => {
     const { transport } = renderArea();
-    // Interact with what renders: expand/collapse the EQ, open the presets.
-    fireEvent.click(screen.getByRole("button", { name: COLLAPSE }));
-    fireEvent.click(screen.getByRole("button", { name: toolsKeys["player.tools.expand-settings"] }));
+    // Interact with what renders: pick a preset, scrub a fader by keyboard,
+    // collapse + reopen the panel.
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    fireEvent.click(screen.getByRole("option", { name: "Club" }));
+    fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
+      key: "ArrowUp",
+    });
+    fireEvent.click(screen.getByRole("button", { name: CLOSE }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Equalizer" }));
     // Only the area's own hydration-free surface — no config.set-setting, no
     // invented writes for commands the engine does not own.
     expect(transport.sent).toEqual([]);

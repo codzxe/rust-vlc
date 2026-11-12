@@ -7,15 +7,22 @@
 // attribute set (doc 08 §3.3). Switching is attribute-only by design.
 //
 // Persistence and the settings-schema integration ("Accent color" setting,
-// doc 07 / doc 08 §3.3) land with the settings cards — this provider is the
-// rendering-side seam only, honestly defaulting to the product defaults
-// (dark + orange, the W25 Figma redesign accent; the Solstice gold default
+// doc 07 / doc 08 §3.3) land with the settings cards — the settings→theme
+// CONSUMPTION seam lives in ./settingsThemeSync (mounted by the settings
+// screens; card 4.E2). w26.f08 (e03-F1 / e19-F1): the provider additionally
+// BOOTSTRAPS its mode from the persisted `interface.theme` override via that
+// seam's synchronous read, so every route starts on the user's saved mode
+// (previously the default below won on all fresh loads outside /settings).
+// The accent has no persisted setting yet (no schema key — recorded gap in
+// settingsThemeSync.ts), so it honestly defaults to the product default
+// (orange, the W25 Figma redesign accent; the Solstice gold default
 // is retired). The base stylesheet for the skin is lumen.css, imported
 // below so any host mounting <ThemeProvider> gets the whole theme layer.
 
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -30,6 +37,9 @@ import {
   type ThemeContextValue,
   type ThemeModeSetting,
 } from "./context";
+// w26.f08: synchronous bootstrap read of the persisted interface.theme
+// override (same persistence seam the settings screens hydrate from).
+import { readPersistedThemeMode } from "./settingsThemeSync";
 
 // Compatibility re-exports (issue #36): the context, its value type and the
 // mode-setting type moved to ./context.ts so this file exports only the
@@ -47,7 +57,14 @@ function systemPrefersLight(): boolean {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [modeSetting, setModeSettingState] = useState<ThemeModeSetting>("dark");
+  // Lazy init (w26.f08, e03-F1/e19-F1): the persisted `interface.theme`
+  // override — when valid — wins over the dark default on the FIRST render
+  // of every route, so a saved LIGHT/system choice never boots dark. The
+  // read is synchronous (localStorage seam) and total (absent/corrupt store
+  // → null → product default); it never throws and never guesses.
+  const [modeSetting, setModeSettingState] = useState<ThemeModeSetting>(
+    () => readPersistedThemeMode() ?? "dark",
+  );
   const [accent, setAccentState] = useState<AccentId>("orange");
   const [systemLight, setSystemLight] = useState<boolean>(systemPrefersLight);
 
@@ -69,8 +86,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const resolvedMode: TokenMode = modeSetting === "auto" ? (systemLight ? "light" : "dark") : modeSetting;
 
   // The single side effect that does the theming (doc 08 §3.3: attribute
-  // set on the root element, nothing else).
-  useEffect(() => {
+  // set on the root element, nothing else). LAYOUT effect (w26.f08): it
+  // commits before the browser paints, so the very first painted frame of
+  // the app already carries the hydrated/resolved mode — a passive effect
+  // could flash the pre-React dark default (:root) for one frame.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolvedMode;
     root.dataset.accent = accent;

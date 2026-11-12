@@ -989,6 +989,191 @@ export type MessageKey =
   | "settings.effects.spatial-mode.headphone-virtualization"
   | "settings.effects.stereo-widening"
   | "settings.effects.two-pass"
+  | "settings.section.global.appearance"
+  | "settings.section.global.startup"
+  | "settings.section.global.diagnostics"
+  | "settings.section.privacy.history"
+  | "settings.section.privacy.network"
+  | "settings.section.playback.startup"
+  | "settings.section.playback.order"
+  | "settings.section.playback.seeking"
+  | "settings.section.video.output"
+  | "settings.section.video.picture"
+  | "settings.section.video.deinterlacing"
+  | "settings.section.video.framing"
+  | "settings.section.audio.volume"
+  | "settings.section.audio.loudness"
+  | "settings.section.performance.decoding"
+  | "settings.section.performance.smooth-playback"
+  | "settings.section.performance.developer"
+  | "settings.global.accent-color"
+  | "settings.global.show-dialogs"
+  | "settings.global.developer-mode"
+  | "settings.global.save-log"
+  | "settings.global.log-file"
+  | "settings.global.log-details"
+  | "settings.global.show-minor-warnings"
+  | "settings.global.extra-cli-options"
+  | "settings.global.log-format"
+  | "settings.global.collect-playback-statistics"
+  | "settings.privacy.save-recent-items"
+  | "settings.privacy.remember-playback-position"
+  | "settings.privacy.never-remember-matching"
+  | "settings.privacy.fetch-metadata-online"
+  | "settings.privacy.submit-lastfm"
+  | "settings.privacy.lastfm-username"
+  | "settings.privacy.lastfm-password"
+  | "settings.privacy.lastfm-submission-url"
+  | "settings.playback.preferred-video-quality"
+  | "settings.playback.menu-language"
+  | "settings.playback.default-audio-track"
+  | "settings.playback.default-subtitle-track"
+  | "settings.playback.resume"
+  | "settings.playback.pause-on-audio-focus"
+  | "settings.playback.repeat-mode"
+  | "settings.playback.shuffle"
+  | "settings.playback.stop-after-each-item"
+  | "settings.playback.finish-action"
+  | "settings.playback.seek-precisely"
+  | "settings.video.enable"
+  | "settings.video.start-fullscreen"
+  | "settings.video.disable-screensaver"
+  | "settings.video.wallpaper"
+  | "settings.video.hue"
+  | "settings.video.brightness"
+  | "settings.video.contrast"
+  | "settings.video.saturation"
+  | "settings.video.gamma"
+  | "settings.video.deinterlace"
+  | "settings.video.deinterlace-method"
+  | "settings.video.aspect-ratio"
+  | "settings.video.crop"
+  | "settings.audio.enable"
+  | "settings.audio.speaker-setup"
+  | "settings.audio.maximum-volume"
+  | "settings.audio.startup-volume"
+  | "settings.audio.volume-step"
+  | "settings.audio.normalize-loudness"
+  | "settings.audio.target-level"
+  | "settings.audio.night-mode"
+  | "settings.audio.replay-gain"
+  | "settings.audio.replay-gain-preamp"
+  | "settings.performance.hw-decode"
+  | "settings.performance.video-post-processing"
+  | "settings.performance.h264-loop-filter"
+  | "settings.performance.decoding-threads"
+  | "settings.performance.drop-frames"
+  | "settings.performance.realtime-priority"
+  | "settings.performance.process-priority"
+  | "settings.performance.encoder"
+  | "settings.performance.decoder"
+  | "settings.performance.clock-synchronisation"
+  | "settings.performance.clock-jitter"
+  | "settings.performance.clock-reference-averaging"
+  | "settings.value.global-accent-color.orange"
+  | "settings.value.global-accent-color.red"
+  | "settings.value.global-accent-color.yellow"
+  | "settings.value.global-accent-color.green"
+  | "settings.value.global-accent-color.cyan"
+  | "settings.value.global-accent-color.blue"
+  | "settings.value.global-accent-color.violet"
+  | "settings.value.global-accent-color.pink"
+  | "settings.value.global-accent-color.gray"
+  | "settings.value.global-log-details.errors-only"
+  | "settings.value.global-log-details.errors-and-warnings"
+  | "settings.value.global-log-details.all-messages"
+  | "settings.value.global-log-format.plain-text"
+  | "settings.value.global-log-format.html"
+  | "settings.value.playback-preferred-video-quality.best-available"
+  | "settings.value.playback-preferred-video-quality.high"
+  | "settings.value.playback-preferred-video-quality.medium"
+  | "settings.value.playback-preferred-video-quality.low"
+  | "settings.value.playback-menu-language.en-us"
+  | "settings.value.playback-resume.always"
+  | "settings.value.playback-resume.ask"
+  | "settings.value.playback-resume.never"
+  | "settings.value.playback-repeat-mode.off"
+  | "settings.value.playback-repeat-mode.one"
+  | "settings.value.playback-repeat-mode.all"
+  | "settings.value.playback-finish-action.stop"
+  | "settings.value.playback-finish-action.pause"
+  | "settings.value.playback-finish-action.quit"
+  | "settings.value.video-deinterlace.automatic"
+  | "settings.value.video-deinterlace.on"
+  | "settings.value.video-deinterlace.off"
+  | "settings.value.video-deinterlace-method.automatic"
+  | "settings.value.video-deinterlace-method.blend"
+  | "settings.value.video-deinterlace-method.bob"
+  | "settings.value.video-deinterlace-method.linear"
+  | "settings.value.video-deinterlace-method.yadif"
+  | "settings.value.video-deinterlace-method.yadif2x"
+  | "settings.value.video-aspect-ratio.automatic"
+  | "settings.value.video-crop.none"
+  | "settings.value.audio-speaker-setup.automatic"
+  | "settings.value.audio-speaker-setup.mono"
+  | "settings.value.audio-speaker-setup.stereo"
+  | "settings.value.audio-speaker-setup.quadraphonic"
+  | "settings.value.audio-speaker-setup.5.1"
+  | "settings.value.audio-speaker-setup.7.1"
+  | "settings.value.audio-replay-gain.off"
+  | "settings.value.audio-replay-gain.track"
+  | "settings.value.audio-replay-gain.album"
+  | "settings.value.performance-hw-decode.automatic"
+  | "settings.value.performance-hw-decode.on"
+  | "settings.value.performance-hw-decode.off"
+  | "settings.value.performance-video-post-processing.off"
+  | "settings.value.performance-video-post-processing.automatic"
+  | "settings.value.performance-video-post-processing.always"
+  | "settings.value.performance-h264-loop-filter.never"
+  | "settings.value.performance-h264-loop-filter.non-reference-frames"
+  | "settings.value.performance-h264-loop-filter.always"
+  | "settings.value.performance-encoder.automatic"
+  | "settings.value.performance-encoder.software"
+  | "settings.value.performance-encoder.hardware"
+  | "settings.value.performance-decoder.automatic"
+  | "settings.value.performance-decoder.software"
+  | "settings.value.performance-decoder.hardware"
+  | "settings.value.performance-clock-synchronisation.default"
+  | "settings.value.performance-clock-synchronisation.audio"
+  | "settings.value.performance-clock-synchronisation.video"
+  | "settings.field.more-info"
+  | "settings.search.placeholder"
+  | "settings.value.interface-theme.auto"
+  | "settings.section.subtitles.tracks-languages"
+  | "settings.section.subtitles.loading"
+  | "settings.section.subtitles.appearance"
+  | "settings.subtitles.enable"
+  | "settings.subtitles.preferred-language"
+  | "settings.subtitles.text-encoding"
+  | "settings.subtitles.auto-load"
+  | "settings.subtitles.file-name-matching"
+  | "settings.subtitles.font"
+  | "settings.subtitles.size-values"
+  | "settings.subtitles.font-size"
+  | "settings.subtitles.bold"
+  | "settings.subtitles.text-color"
+  | "settings.subtitles.text-opacity"
+  | "settings.subtitles.outline-thickness"
+  | "settings.subtitles.outline-color"
+  | "settings.subtitles.shadow"
+  | "settings.subtitles.preferred-language.system"
+  | "settings.subtitles.encoding.automatic"
+  | "settings.subtitles.font.system-sans-serif"
+  | "settings.subtitles.size-values.relative"
+  | "settings.subtitles.size-values.pixels"
+  | "settings.subtitles.font-size.automatic"
+  | "settings.subtitles.outline-thickness.normal"
+  | "settings.subtitles.text-color.value"
+  | "settings.subtitles.outline-color.value"
+  | "settings.subtitles.staged"
+  | "screen.eq.open-panel"
+  | "screen.eq.close-panel"
+  | "playlist.browse.back"
+  | "playlist.browse.empty-title"
+  | "playlist.browse.empty-body"
+  | "playlist.library.menu.open"
+  | "playlist.subtitles.open"
+  | "player.canvas.menu.customize-interface"
   | "settings.section.effects";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
@@ -1219,7 +1404,7 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.confirm-leave.body": "Changes that were not applied will be lost.",
   "settings.confirm-leave.discard": "Discard changes",
   "settings.confirm-leave.stay": "Stay",
-  "settings.area.global": "Global",
+  "settings.area.global": "General",
   "settings.area.interface": "Interface",
   "settings.area.privacy": "Privacy",
   "settings.area.playback": "Playback",
@@ -1966,6 +2151,191 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.effects.stereo-widening": "Stereo widening",
   "settings.effects.two-pass": "Two-pass",
   "settings.section.effects": "Effects",
+  "settings.section.global.appearance": "Appearance",
+  "settings.section.global.startup": "Startup",
+  "settings.section.global.diagnostics": "Diagnostics",
+  "settings.section.privacy.history": "History",
+  "settings.section.privacy.network": "Network",
+  "settings.section.playback.startup": "Startup",
+  "settings.section.playback.order": "Order",
+  "settings.section.playback.seeking": "Seeking",
+  "settings.section.video.output": "Output",
+  "settings.section.video.picture": "Picture",
+  "settings.section.video.deinterlacing": "Deinterlacing",
+  "settings.section.video.framing": "Framing",
+  "settings.section.audio.volume": "Volume",
+  "settings.section.audio.loudness": "Loudness",
+  "settings.section.performance.decoding": "Decoding",
+  "settings.section.performance.smooth-playback": "Smooth Playback",
+  "settings.section.performance.developer": "Developer",
+  "settings.global.accent-color": "Accent color",
+  "settings.global.show-dialogs": "Show confirmation and error dialogs",
+  "settings.global.developer-mode": "Developer mode",
+  "settings.global.save-log": "Save a log",
+  "settings.global.log-file": "Log file",
+  "settings.global.log-details": "Log details",
+  "settings.global.show-minor-warnings": "Show minor warnings",
+  "settings.global.extra-cli-options": "Additional command line options",
+  "settings.global.log-format": "Log format",
+  "settings.global.collect-playback-statistics": "Collect playback statistics",
+  "settings.privacy.save-recent-items": "Save recently played items",
+  "settings.privacy.remember-playback-position": "Remember the playback position",
+  "settings.privacy.never-remember-matching": "Never remember items matching",
+  "settings.privacy.fetch-metadata-online": "Fetch titles and cover art from the internet",
+  "settings.privacy.submit-lastfm": "Submit played tracks to last.fm",
+  "settings.privacy.lastfm-username": "Last.fm username",
+  "settings.privacy.lastfm-password": "Last.fm password",
+  "settings.privacy.lastfm-submission-url": "Last.fm submission URL",
+  "settings.playback.preferred-video-quality": "Preferred video quality",
+  "settings.playback.menu-language": "Preferred menu language",
+  "settings.playback.default-audio-track": "Default audio track",
+  "settings.playback.default-subtitle-track": "Default subtitle track",
+  "settings.playback.resume": "Continue where you left off",
+  "settings.playback.pause-on-audio-focus": "Pause when another app uses audio",
+  "settings.playback.repeat-mode": "Repeat",
+  "settings.playback.shuffle": "Shuffle",
+  "settings.playback.stop-after-each-item": "Stop after each item",
+  "settings.playback.finish-action": "When playback finishes",
+  "settings.playback.seek-precisely": "Seek precisely",
+  "settings.video.enable": "Enable video",
+  "settings.video.start-fullscreen": "Start videos in fullscreen",
+  "settings.video.disable-screensaver": "Stop the screensaver during playback",
+  "settings.video.wallpaper": "Play video as desktop wallpaper",
+  "settings.video.hue": "Hue",
+  "settings.video.brightness": "Brightness",
+  "settings.video.contrast": "Contrast",
+  "settings.video.saturation": "Saturation",
+  "settings.video.gamma": "Gamma",
+  "settings.video.deinterlace": "Deinterlacing",
+  "settings.video.deinterlace-method": "Method",
+  "settings.video.aspect-ratio": "Aspect ratio",
+  "settings.video.crop": "Crop",
+  "settings.audio.enable": "Enable audio",
+  "settings.audio.speaker-setup": "Speaker setup",
+  "settings.audio.maximum-volume": "Maximum volume",
+  "settings.audio.startup-volume": "Startup volume",
+  "settings.audio.volume-step": "Volume step",
+  "settings.audio.normalize-loudness": "Normalize loudness",
+  "settings.audio.target-level": "Target level",
+  "settings.audio.night-mode": "Night mode",
+  "settings.audio.replay-gain": "Replay gain",
+  "settings.audio.replay-gain-preamp": "Replay gain preamp",
+  "settings.performance.hw-decode": "Hardware-accelerated decoding",
+  "settings.performance.video-post-processing": "Video post-processing",
+  "settings.performance.h264-loop-filter": "Skip the H.264 loop filter",
+  "settings.performance.decoding-threads": "Decoding threads",
+  "settings.performance.drop-frames": "Drop frames when the system can't keep up",
+  "settings.performance.realtime-priority": "Give VLC real-time priority",
+  "settings.performance.process-priority": "Process priority",
+  "settings.performance.encoder": "Encoder",
+  "settings.performance.decoder": "Decoder",
+  "settings.performance.clock-synchronisation": "Clock synchronisation",
+  "settings.performance.clock-jitter": "Clock jitter",
+  "settings.performance.clock-reference-averaging": "Clock reference averaging",
+  "settings.value.global-accent-color.orange": "Orange",
+  "settings.value.global-accent-color.red": "Red",
+  "settings.value.global-accent-color.yellow": "Yellow",
+  "settings.value.global-accent-color.green": "Green",
+  "settings.value.global-accent-color.cyan": "Cyan",
+  "settings.value.global-accent-color.blue": "Blue",
+  "settings.value.global-accent-color.violet": "Violet",
+  "settings.value.global-accent-color.pink": "Pink",
+  "settings.value.global-accent-color.gray": "Gray",
+  "settings.value.global-log-details.errors-only": "Errors only",
+  "settings.value.global-log-details.errors-and-warnings": "Errors and warnings",
+  "settings.value.global-log-details.all-messages": "All messages",
+  "settings.value.global-log-format.plain-text": "Plain text",
+  "settings.value.global-log-format.html": "HTML",
+  "settings.value.playback-preferred-video-quality.best-available": "Best available",
+  "settings.value.playback-preferred-video-quality.high": "High",
+  "settings.value.playback-preferred-video-quality.medium": "Medium",
+  "settings.value.playback-preferred-video-quality.low": "Low",
+  "settings.value.playback-menu-language.en-us": "English",
+  "settings.value.playback-resume.always": "Always",
+  "settings.value.playback-resume.ask": "Ask",
+  "settings.value.playback-resume.never": "Never",
+  "settings.value.playback-repeat-mode.off": "Off",
+  "settings.value.playback-repeat-mode.one": "One",
+  "settings.value.playback-repeat-mode.all": "All",
+  "settings.value.playback-finish-action.stop": "Stop",
+  "settings.value.playback-finish-action.pause": "Pause",
+  "settings.value.playback-finish-action.quit": "Quit",
+  "settings.value.video-deinterlace.automatic": "Automatic",
+  "settings.value.video-deinterlace.on": "On",
+  "settings.value.video-deinterlace.off": "Off",
+  "settings.value.video-deinterlace-method.automatic": "Automatic",
+  "settings.value.video-deinterlace-method.blend": "Blend",
+  "settings.value.video-deinterlace-method.bob": "Bob",
+  "settings.value.video-deinterlace-method.linear": "Linear",
+  "settings.value.video-deinterlace-method.yadif": "YADIF",
+  "settings.value.video-deinterlace-method.yadif2x": "YADIF 2x",
+  "settings.value.video-aspect-ratio.automatic": "Automatic",
+  "settings.value.video-crop.none": "None",
+  "settings.value.audio-speaker-setup.automatic": "Automatic",
+  "settings.value.audio-speaker-setup.mono": "Mono",
+  "settings.value.audio-speaker-setup.stereo": "Stereo",
+  "settings.value.audio-speaker-setup.quadraphonic": "Quadraphonic",
+  "settings.value.audio-speaker-setup.5.1": "5.1",
+  "settings.value.audio-speaker-setup.7.1": "7.1",
+  "settings.value.audio-replay-gain.off": "Off",
+  "settings.value.audio-replay-gain.track": "Track",
+  "settings.value.audio-replay-gain.album": "Album",
+  "settings.value.performance-hw-decode.automatic": "Automatic",
+  "settings.value.performance-hw-decode.on": "On",
+  "settings.value.performance-hw-decode.off": "Off",
+  "settings.value.performance-video-post-processing.off": "Off",
+  "settings.value.performance-video-post-processing.automatic": "Automatic",
+  "settings.value.performance-video-post-processing.always": "Always",
+  "settings.value.performance-h264-loop-filter.never": "Never",
+  "settings.value.performance-h264-loop-filter.non-reference-frames": "Non-reference frames",
+  "settings.value.performance-h264-loop-filter.always": "Always",
+  "settings.value.performance-encoder.automatic": "Automatic",
+  "settings.value.performance-encoder.software": "Software",
+  "settings.value.performance-encoder.hardware": "Hardware",
+  "settings.value.performance-decoder.automatic": "Automatic",
+  "settings.value.performance-decoder.software": "Software",
+  "settings.value.performance-decoder.hardware": "Hardware",
+  "settings.value.performance-clock-synchronisation.default": "Default",
+  "settings.value.performance-clock-synchronisation.audio": "Audio clock",
+  "settings.value.performance-clock-synchronisation.video": "Video clock",
+  "settings.field.more-info": "More info",
+  "settings.search.placeholder": "Search",
+  "settings.value.interface-theme.auto": "System",
+  "settings.section.subtitles.tracks-languages": "Tracks & Languages",
+  "settings.section.subtitles.loading": "Loading Subtitles",
+  "settings.section.subtitles.appearance": "Appearance",
+  "settings.subtitles.enable": "Enable subtitles",
+  "settings.subtitles.preferred-language": "Preferred language",
+  "settings.subtitles.text-encoding": "Text encoding",
+  "settings.subtitles.auto-load": "Load subtitle files automatically",
+  "settings.subtitles.file-name-matching": "File name matching",
+  "settings.subtitles.font": "Font",
+  "settings.subtitles.size-values": "Size values",
+  "settings.subtitles.font-size": "Font size",
+  "settings.subtitles.bold": "Bold",
+  "settings.subtitles.text-color": "Text color",
+  "settings.subtitles.text-opacity": "Text opacity",
+  "settings.subtitles.outline-thickness": "Outline thickness",
+  "settings.subtitles.outline-color": "Outline color",
+  "settings.subtitles.shadow": "Shadow",
+  "settings.subtitles.preferred-language.system": "System language",
+  "settings.subtitles.encoding.automatic": "Automatic",
+  "settings.subtitles.font.system-sans-serif": "System, sans-serif",
+  "settings.subtitles.size-values.relative": "Relative",
+  "settings.subtitles.size-values.pixels": "Pixels",
+  "settings.subtitles.font-size.automatic": "Automatic",
+  "settings.subtitles.outline-thickness.normal": "Normal",
+  "settings.subtitles.text-color.value": "#FFFFFF",
+  "settings.subtitles.outline-color.value": "#000000",
+  "settings.subtitles.staged": "Staged — controls activate when the subtitles settings seed lands",
+  "screen.eq.open-panel": "Open Equalizer",
+  "screen.eq.close-panel": "Close Equalizer",
+  "playlist.browse.back": "All playlists",
+  "playlist.browse.empty-title": "Nothing in this playlist yet",
+  "playlist.browse.empty-body": "Add files while creating a playlist to fill it.",
+  "playlist.library.menu.open": "Open",
+  "playlist.subtitles.open": "Add subtitles",
+  "player.canvas.menu.customize-interface": "Customize interface…",
 };
 
 export type Msg = (key: MessageKey) => string;

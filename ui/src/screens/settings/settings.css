@@ -164,8 +164,10 @@
   color: color-mix(in srgb, var(--color-content-primary) 15%, var(--color-content-secondary) 85%);
 }
 
-/* Quiet ghost controls on the bar's right end (reset-area; ✕ close). */
-.settings-topbar__reset,
+/* Quiet ghost control skin — still used by the retired advanced area
+ * surface (areas/advanced.tsx); the top-bar reset instance is gone
+ * (w26.f03, e05 F10: the bar carries exactly the frame's three elements —
+ * search pill · window title · ✕). */
 .settings-screen__reset {
   border: none;
   background: transparent;
@@ -179,13 +181,6 @@
   transition:
     background-color var(--motion-duration-fast) ease-out,
     color var(--motion-duration-fast) ease-out;
-}
-
-.settings-topbar__reset {
-  position: absolute;
-  right: 57px; /* frame: 25px inset + the ✕ hit */
-  top: 50%;
-  transform: translateY(-50%);
 }
 
 /* ✕ close — frame: 10×10 #8F8F8F stroke glyph, 25px right inset; ≥24px hit. */
@@ -210,14 +205,12 @@
 }
 
 .settings-topbar__close:hover,
-.settings-topbar__reset:hover,
 .settings-screen__reset:hover {
   background: var(--color-surface-hover);
   color: var(--color-content-primary);
 }
 
 .settings-topbar__close:focus-visible,
-.settings-topbar__reset:focus-visible,
 .settings-screen__reset:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
@@ -410,7 +403,11 @@
   align-items: flex-end;
 }
 
-/* Controls fill the 320px column; the Switch keeps its own 68px width. */
+/* Controls fill the 320px column; the Switch keeps its own 68px width.
+ * w26.f03: the segmented control (Theme) and the 9-swatch group (Accent
+ * color) fill the column like every other row control — the inline-flex
+ * primitives shrink-wrap otherwise (the Dropdown rule lives in
+ * setting-field.css with the rest of the control skins). */
 .settings-field__special {
   display: flex;
   flex-direction: column;
@@ -421,6 +418,11 @@
 .settings-field__control .lumen-radiogroup,
 .settings-field__control .settings-field__special {
   width: 100%;
+}
+
+.settings-field__control .lumen-segmented,
+.settings-field__control .lumen-swatchgroup {
+  width: 100%; /* frame: 320×36 controls right-anchored to the content edge */
 }
 
 .settings-field__control .lumen-switch {
@@ -713,7 +715,6 @@
   .settings-nav__item,
   .settings-topbar__search,
   .settings-topbar__close,
-  .settings-topbar__reset,
   .settings-screen__reset,
   .settings-field__reset,
   .settings-advanced__bar {

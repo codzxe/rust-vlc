@@ -89,20 +89,13 @@ describe("areas layer — the 13-area registry (w26.b02)", () => {
       const field = document.querySelector(`[data-setting="${entry.key}"]`);
       expect(field, `interface entry ${entry.key} must render bound to its schema key`).toBeTruthy();
     }
-    // Advanced-flagged rows sit behind the in-flow "Advanced Options"
-    // disclosure (shell lane b01, Figma D2 grammar): expand it, then every
-    // advanced entry must be bound too — nothing may silently vanish.
+    // w26.f03 (e05 F7): the interface frame carries NO "Advanced Options"
+    // bar — advanced-flagged rows render FLAT in their sections (the
+    // disclosure belongs to the frames that show it: global, performance…).
     const advanced = SETTINGS_ENTRIES.filter((e) => e.screen === "interface" && e.advanced);
-    if (advanced.length > 0) {
-      const bar = document.querySelector<HTMLButtonElement>(".settings-advanced__bar");
-      expect(bar, "the Advanced Options disclosure must exist for advanced rows").toBeTruthy();
-      fireEvent.click(bar as HTMLButtonElement);
-      for (const entry of advanced) {
-        expect(
-          document.querySelector(`[data-setting="${entry.key}"]`),
-          `advanced interface entry ${entry.key} must render behind the disclosure`,
-        ).toBeTruthy();
-      }
+    for (const entry of advanced) {
+      const field = document.querySelector(`[data-setting="${entry.key}"]`);
+      expect(field, `interface advanced entry ${entry.key} renders flat (no disclosure)`).toBeTruthy();
     }
   });
 
@@ -110,7 +103,12 @@ describe("areas layer — the 13-area registry (w26.b02)", () => {
     routed("/settings/global", routes);
     const field = document.querySelector(`[data-setting="${SETTING_GLOBAL_LANGUAGE.key}"]`);
     expect(field).toBeTruthy();
-    expect(screen.getByRole("radio", { name: /English \(United States\)/i })).toBeTruthy();
+    // w26.f03 (e05 F5): the locale control is a closed Dropdown (the frame's
+    // 320×36 grammar), not a radio stack — the trigger's accessible name
+    // carries the current locale.
+    const trigger = field?.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
+    expect(trigger, "the locale picker is a dropdown trigger").toBeTruthy();
+    expect(trigger?.textContent ?? "").toMatch(/English \(United States\)/i);
   });
 
   it("renders the global area with the about fold (w26 merge: about→global)", () => {

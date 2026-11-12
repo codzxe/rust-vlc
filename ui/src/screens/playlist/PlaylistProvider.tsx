@@ -278,3 +278,14 @@ export function usePlaylist(): PlaylistContextValue {
   if (ctx === null) throw new Error("usePlaylist requires a PlaylistProvider ancestor");
   return ctx;
 }
+
+/**
+ * usePlaylistOptional — the same context read, null when NO engine
+ * PlaylistProvider is mounted (w26.f06). The /playlist library page mounts
+ * the options layer over LOCAL saved-playlist data (playlistsStore) without
+ * an engine queue; `usePlaylist()` would throw there. Null = "no engine
+ * scope", the same honest-unknown grammar as the provider's nulls.
+ */
+export function usePlaylistOptional(): PlaylistContextValue | null {
+  return useContext(PlaylistContext);
+}

@@ -57,8 +57,12 @@ describe("ToolsDialog — the AUDIO tab hosts the five audio tools (frame order)
       expect(card).toBeInTheDocument();
       expect(card.querySelector('[aria-expanded="false"]')).not.toBeNull();
     }
-    // Five collapsed toggles (EQ + the four card tools).
-    expect(screen.getAllByRole("button", { name: EXPAND })).toHaveLength(5);
+    // Four collapsed card toggles + the EQ's own frame toggle (EQ.svg: the
+    // equalizer is the A2 vertical-fader panel with its "Open/Close
+    // Equalizer" morphing header — w26.f05).
+    expect(screen.getAllByRole("button", { name: EXPAND })).toHaveLength(4);
+    const eqToggle = screen.getByRole("button", { name: "Open Equalizer" });
+    expect(eqToggle).toHaveAttribute("aria-expanded", "false");
     // The video panel is hidden — none of its tools reach the a11y tree.
     for (const name of VIDEO_TOOL_NAMES) {
       expect(screen.queryByRole("region", { name })).toBeNull();

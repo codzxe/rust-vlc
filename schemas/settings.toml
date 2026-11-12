@@ -61,6 +61,140 @@ cli = { flag = "--global-language", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
+# --- global, w26.f01 seed extension (e05 F1/F2/F8 — "Settings - global" C1) --
+#     Frame sections appended after the pinned `language` row: Appearance
+#     (accent color; Theme + Interface language are the pinned interface.theme
+#     / global.language rows — the global-area lane composes them into
+#     Appearance), Startup, Diagnostics, and the four global-1 advanced rows
+#     behind the Advanced Options bar. Frame rows carry literal defaults
+#     (b02 staged-row pattern: no product.toml slot exists yet → D1 literal).
+
+[[setting]]
+key = "global.accent-color"
+type = "enum"
+enumeration = ["orange", "red", "yellow", "green", "cyan", "blue", "violet", "pink", "gray"]
+default = "orange"        # frame: 9-swatch group, #D37918 selected (C0/C1; ids = themes/tokens.json accents)
+description = "settings.global.accent-color"
+restart_required = false
+placement = { screen = "global", section = "appearance", order = 10, ui = true }
+cli = { flag = "--global-accent-color", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# Startup: "Check for updates automatically" (C1) is NOT re-seeded — it is the
+# same product decision as the pinned privacy.update-checks row
+# (telemetry.update_checks; D6 forbids a second entry on that slot). The
+# about-fold's Updates row is restyled into Startup wording by the global-area
+# lane (e05 F13 Lead decision).
+
+[[setting]]
+key = "global.show-dialogs"
+type = "bool"
+default = false           # frame: "Show confirmation and error dialogs" → OFF
+description = "settings.global.show-dialogs"
+restart_required = false
+placement = { screen = "global", section = "startup", order = 10, ui = true }
+cli = { flag = "--global-show-dialogs", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "global.developer-mode"
+type = "bool"
+default = false           # frame: "Developer mode" → OFF
+description = "settings.global.developer-mode"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 10, ui = true }
+cli = { flag = "--global-developer-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "global.save-log"
+type = "bool"
+default = true            # frame: "Save a log" → ON
+description = "settings.global.save-log"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 20, ui = true }
+cli = { flag = "--global-save-log", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "global.log-file"
+type = "path"
+default = ""              # frame: "Log file" input + Browse, empty (no path configured)
+description = "settings.global.log-file"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 30, ui = true }
+cli = { flag = "--global-log-file", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "global.log-details"
+type = "enum"
+enumeration = ["errors-only", "errors-and-warnings", "all-messages"]
+default = "errors-only"   # frame: "Log details" → "Errors only"; [VERIFY] vocabulary beyond shown value
+description = "settings.global.log-details"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 40, ui = true }
+cli = { flag = "--global-log-details", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# global-1 frame (Advanced Options EXPANDED) — advanced rows render flat
+# behind the in-flow disclosure bar (SettingsSections, e05 F7/F8).
+
+[[setting]]
+key = "global.show-minor-warnings"
+type = "bool"
+default = false           # frame global-1: "Show minor warnings" → OFF
+description = "settings.global.show-minor-warnings"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 50, ui = true }
+cli = { flag = "--global-show-minor-warnings", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "global.extra-cli-options"
+type = "string"
+default = ""              # frame global-1: "Additional command line options" input (no Browse)
+description = "settings.global.extra-cli-options"
+restart_required = true
+placement = { screen = "global", section = "diagnostics", order = 60, ui = true }
+cli = { flag = "--global-extra-cli-options", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "global.log-format"
+type = "enum"
+enumeration = ["plain-text", "html"]
+default = "plain-text"    # frame global-1: "Log format" → "Plain text"; [VERIFY] vocabulary beyond shown value
+description = "settings.global.log-format"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 70, ui = true }
+cli = { flag = "--global-log-format", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "global.collect-playback-statistics"
+type = "bool"
+default = true            # frame global-1: "Collect playback statistics" → ON
+description = "settings.global.collect-playback-statistics"
+restart_required = false
+placement = { screen = "global", section = "diagnostics", order = 80, ui = true }
+cli = { flag = "--global-collect-playback-statistics", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
 # --- interface (product.toml §2.2 window defaults + §2.4 defaults) -----------
 
 [[setting]]
@@ -194,6 +328,100 @@ cli = { flag = "--privacy-update-checks", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
+# --- privacy, w26.f01 seed extension (e06 F4 — "Settings - privacy" C3) ------
+#     Frame sections History + Network (last.fm) appended after the pinned
+#     telemetry `data` section. "Clear history now" is an ACTION button, not a
+#     [[setting]] row — it belongs to the privacy-area composition lane
+#     (no action type exists in the schema; cf. e06 F4 classification).
+
+[[setting]]
+key = "privacy.save-recent-items"
+type = "bool"
+default = true            # frame: "Save recently played items" → ON
+description = "settings.privacy.save-recent-items"
+restart_required = false
+placement = { screen = "privacy", section = "history", order = 10, ui = true }
+cli = { flag = "--privacy-save-recent-items", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.remember-playback-position"
+type = "bool"
+default = true            # frame: "Remember the playback position" → ON
+description = "settings.privacy.remember-playback-position"
+restart_required = false
+placement = { screen = "privacy", section = "history", order = 20, ui = true }
+cli = { flag = "--privacy-remember-playback-position", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.never-remember-matching"
+type = "string"
+default = ""              # frame: "Never remember items matching" → empty input
+description = "settings.privacy.never-remember-matching"
+restart_required = false
+placement = { screen = "privacy", section = "history", order = 30, ui = true }
+cli = { flag = "--privacy-never-remember-matching", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.fetch-metadata-online"
+type = "bool"
+default = false           # frame: "Fetch titles and cover art from the internet" → OFF
+description = "settings.privacy.fetch-metadata-online"
+restart_required = false
+placement = { screen = "privacy", section = "network", order = 10, ui = true }
+cli = { flag = "--privacy-fetch-metadata-online", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.submit-lastfm"
+type = "bool"
+default = false           # frame: "Submit played tracks to last.fm" → OFF
+description = "settings.privacy.submit-lastfm"
+restart_required = false
+placement = { screen = "privacy", section = "network", order = 20, ui = true }
+cli = { flag = "--privacy-submit-lastfm", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.lastfm-username"
+type = "string"
+default = ""              # frame: "Last.fm username" → empty input
+description = "settings.privacy.lastfm-username"
+restart_required = false
+placement = { screen = "privacy", section = "network", order = 30, ui = true }
+cli = { flag = "--privacy-lastfm-username", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.lastfm-password"
+type = "string"
+default = ""              # frame: "Last.fm password" → empty input
+description = "settings.privacy.lastfm-password"
+restart_required = false
+placement = { screen = "privacy", section = "network", order = 40, ui = true }
+cli = { flag = "--privacy-lastfm-password", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "privacy.lastfm-submission-url"
+type = "url"
+default = ""              # frame: "Last.fm submission URL" → empty input
+description = "settings.privacy.lastfm-submission-url"
+restart_required = false
+placement = { screen = "privacy", section = "network", order = 50, ui = true }
+cli = { flag = "--privacy-lastfm-submission-url", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
 # --- playback (product.toml §2.8 defaults & track-selection rules) -----------
 
 [[setting]]
@@ -266,6 +494,426 @@ cli = { flag = "--playback-default-rate", short = "" }
 feature_gate = ""
 since = "0.1.0"
 
+# --- playback, w26.f01 seed extension (e06 F5 — "Settings - playback" C4) ----
+#     Frame sections appended after the pinned tracks/playback sections:
+#     Startup, Order, Seeking. Two C4 Startup rows are NOT re-seeded —
+#     "Start playing as soon as a file opens" is the inverse of the pinned
+#     playback.start-paused and "Default playback speed" IS the pinned
+#     playback.default-rate (D2/D6); the playback-area lane composes them
+#     into the Startup section wording. Frame rows carry literal defaults.
+
+[[setting]]
+key = "playback.preferred-video-quality"
+type = "enum"
+enumeration = ["best-available", "high", "medium", "low"]
+default = "best-available"  # frame: "Preferred video quality" → "Best available"; [VERIFY] vocabulary
+description = "settings.playback.preferred-video-quality"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 50, ui = true }
+cli = { flag = "--playback-preferred-video-quality", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.menu-language"
+type = "enum"
+enumeration = ["en-US"]    # [VERIFY] dynamic locales/ listing (mirrors global.language)
+default = "en-US"
+description = "settings.playback.menu-language"
+restart_required = true
+placement = { screen = "playback", section = "tracks", order = 60, ui = true }
+cli = { flag = "--playback-menu-language", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.default-audio-track"
+type = "int"
+range = { min = 0, max = 64 }
+default = 1                # frame: "Default audio track" → input "1"
+description = "settings.playback.default-audio-track"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 70, ui = true }
+cli = { flag = "--playback-default-audio-track", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.default-subtitle-track"
+type = "int"
+range = { min = 0, max = 64 }
+default = 1                # frame: "Default subtitle track" → input "1"
+description = "settings.playback.default-subtitle-track"
+restart_required = false
+placement = { screen = "playback", section = "tracks", order = 80, ui = true }
+cli = { flag = "--playback-default-subtitle-track", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.resume"
+type = "enum"
+enumeration = ["always", "ask", "never"]
+default = "always"         # frame: "Continue where you left off" → "Always"; [VERIFY] vocabulary
+description = "settings.playback.resume"
+restart_required = false
+placement = { screen = "playback", section = "startup", order = 10, ui = true }
+cli = { flag = "--playback-resume", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.pause-on-audio-focus"
+type = "bool"
+default = true             # frame: "Pause when another app uses audio" → ON
+description = "settings.playback.pause-on-audio-focus"
+restart_required = false
+placement = { screen = "playback", section = "startup", order = 20, ui = true }
+cli = { flag = "--playback-pause-on-audio-focus", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.repeat-mode"
+type = "enum"
+enumeration = ["off", "one", "all"]
+default = "off"            # frame: "Repeat" → "Off"
+description = "settings.playback.repeat-mode"
+restart_required = false
+placement = { screen = "playback", section = "order", order = 10, ui = true }
+cli = { flag = "--playback-repeat-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.shuffle"
+type = "bool"
+default = true             # frame: "Shuffle" → ON
+description = "settings.playback.shuffle"
+restart_required = false
+placement = { screen = "playback", section = "order", order = 20, ui = true }
+cli = { flag = "--playback-shuffle", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.stop-after-each-item"
+type = "bool"
+default = true             # frame: "Stop after each item" → ON
+description = "settings.playback.stop-after-each-item"
+restart_required = false
+placement = { screen = "playback", section = "order", order = 30, ui = true }
+cli = { flag = "--playback-stop-after-each-item", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.finish-action"
+type = "enum"
+enumeration = ["stop", "pause", "quit"]
+default = "stop"           # frame: "When playback finishes" → "Stop"; [VERIFY] vocabulary
+description = "settings.playback.finish-action"
+restart_required = false
+placement = { screen = "playback", section = "order", order = 40, ui = true }
+cli = { flag = "--playback-finish-action", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "playback.seek-precisely"
+type = "bool"
+default = true             # frame: "Seek precisely" → ON
+description = "settings.playback.seek-precisely"
+restart_required = false
+placement = { screen = "playback", section = "seeking", order = 10, ui = true }
+cli = { flag = "--playback-seek-precisely", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- video (w26.f01 seed — e06 F3, "Settings - video" C5: Output · Picture ·
+#     Deinterlacing · Framing; first video.* [[setting]] rows — the generated
+#     screen composes with the codecs fold via the video-area lane). Picture
+#     rows are the VLC adjust-filter semantics expressed as percent (0..200,
+#     100 = neutral 1.0); hue is degrees. "Reset picture" is an ACTION, not a
+#     [[setting]] row (area-lane composition, like Clear history). -----------
+
+[[setting]]
+key = "video.enable"
+type = "bool"
+default = true             # frame: "Enable video" → ON
+description = "settings.video.enable"
+restart_required = false
+placement = { screen = "video", section = "output", order = 10, ui = true }
+cli = { flag = "--video-enable", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.start-fullscreen"
+type = "bool"
+default = false            # frame: "Start videos in fullscreen" → OFF
+description = "settings.video.start-fullscreen"
+restart_required = false
+placement = { screen = "video", section = "output", order = 20, ui = true }
+cli = { flag = "--video-start-fullscreen", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.disable-screensaver"
+type = "bool"
+default = true             # frame: "Stop the screensaver during playback" → ON
+description = "settings.video.disable-screensaver"
+restart_required = false
+placement = { screen = "video", section = "output", order = 30, ui = true }
+cli = { flag = "--video-disable-screensaver", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.wallpaper"
+type = "bool"
+default = false            # frame: "Play video as desktop wallpaper" → OFF
+description = "settings.video.wallpaper"
+restart_required = false
+placement = { screen = "video", section = "output", order = 40, ui = true }
+cli = { flag = "--video-wallpaper", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.hue"
+type = "int"
+range = { min = -180, max = 180 }
+default = 0                # frame: Picture "Hue" inline slider, centered
+description = "settings.video.hue"
+restart_required = false
+placement = { screen = "video", section = "picture", order = 10, ui = true }
+cli = { flag = "--video-hue", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.brightness"
+type = "int"
+range = { min = 0, max = 200 }
+default = 100              # frame: Picture "Brightness" inline slider (100 % = neutral)
+description = "settings.video.brightness"
+restart_required = false
+placement = { screen = "video", section = "picture", order = 20, ui = true }
+cli = { flag = "--video-brightness", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.contrast"
+type = "int"
+range = { min = 0, max = 200 }
+default = 100              # frame: Picture "Contrast" inline slider, fill 158/320
+description = "settings.video.contrast"
+restart_required = false
+placement = { screen = "video", section = "picture", order = 30, ui = true }
+cli = { flag = "--video-contrast", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.saturation"
+type = "int"
+range = { min = 0, max = 200 }
+default = 100              # frame: Picture "Saturation" inline slider (fill 105/320)
+description = "settings.video.saturation"
+restart_required = false
+placement = { screen = "video", section = "picture", order = 40, ui = true }
+cli = { flag = "--video-saturation", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.gamma"
+type = "int"
+range = { min = 0, max = 200 }
+default = 100              # frame: Picture "Gamma" inline slider (fill 32/320)
+description = "settings.video.gamma"
+restart_required = false
+placement = { screen = "video", section = "picture", order = 50, ui = true }
+cli = { flag = "--video-gamma", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.deinterlace"
+type = "enum"
+enumeration = ["automatic", "on", "off"]
+default = "automatic"      # frame: "Deinterlacing" → "Automatic"
+description = "settings.video.deinterlace"
+restart_required = false
+placement = { screen = "video", section = "deinterlacing", order = 10, ui = true }
+cli = { flag = "--video-deinterlace", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.deinterlace-method"
+type = "enum"
+enumeration = ["automatic", "blend", "bob", "linear", "yadif", "yadif2x"]
+default = "automatic"      # frame: "Method" → "Automatic"; [VERIFY] trimmed method vocabulary
+description = "settings.video.deinterlace-method"
+restart_required = false
+placement = { screen = "video", section = "deinterlacing", order = 20, ui = true }
+cli = { flag = "--video-deinterlace-method", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.aspect-ratio"
+type = "enum"
+enumeration = ["automatic", "1:1", "4:3", "16:9", "16:10", "2.35:1", "2.39:1"]
+default = "automatic"      # frame: "Aspect ratio" → "Automatic"
+description = "settings.video.aspect-ratio"
+restart_required = false
+placement = { screen = "video", section = "framing", order = 10, ui = true }
+cli = { flag = "--video-aspect-ratio", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "video.crop"
+type = "enum"
+enumeration = ["none", "1:1", "4:3", "16:9", "16:10"]
+default = "none"           # frame: "Crop" → "None"
+description = "settings.video.crop"
+restart_required = false
+placement = { screen = "video", section = "framing", order = 20, ui = true }
+cli = { flag = "--video-crop", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+# --- audio (w26.f01 seed — e07 F2/F3/F4, "Settings - audio" C6: Output ·
+#     Volume · Loudness. The Output device row stays the capability-backed
+#     AudioDeviceControl hand row (audio.list-devices — dynamic data, not a
+#     [[setting]] row); the audio-area lane composes enable/speaker-setup
+#     around it. Volume percent scale 100/200/300 per frame. The startup-
+#     volume radio-rows control (a19 B5) is a special widget bound to
+#     audio.startup-volume — widget wiring belongs to the audio-area lane.) --
+
+[[setting]]
+key = "audio.enable"
+type = "bool"
+default = true             # frame: "Enable audio" → ON
+description = "settings.audio.enable"
+restart_required = false
+placement = { screen = "audio", section = "output", order = 10, ui = true }
+cli = { flag = "--audio-enable", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.speaker-setup"
+type = "enum"
+enumeration = ["automatic", "mono", "stereo", "quadraphonic", "5.1", "7.1"]
+default = "automatic"      # frame: "Speaker setup" → "Automatic"; [VERIFY] vocabulary
+description = "settings.audio.speaker-setup"
+restart_required = false
+placement = { screen = "audio", section = "output", order = 20, ui = true }
+cli = { flag = "--audio-speaker-setup", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.maximum-volume"
+type = "int"
+range = { min = 100, max = 300 }
+default = 200              # frame: "Maximum volume" slider, scale 100 %/200 %/300 %; [VERIFY] fill ≈ 159/320
+description = "settings.audio.maximum-volume"
+restart_required = false
+placement = { screen = "audio", section = "volume", order = 10, ui = true }
+cli = { flag = "--audio-maximum-volume", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.startup-volume"
+type = "int"
+range = { min = 0, max = 300 }
+default = 200              # frame: "Startup volume" radio-rows, nested input "200 %"; [VERIFY]
+description = "settings.audio.startup-volume"
+restart_required = false
+placement = { screen = "audio", section = "volume", order = 20, ui = true }
+cli = { flag = "--audio-startup-volume", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.volume-step"
+type = "int"
+range = { min = 1, max = 25 }
+default = 1                # frame: "Volume step" → input "1"
+description = "settings.audio.volume-step"
+restart_required = false
+placement = { screen = "audio", section = "volume", order = 30, ui = true }
+cli = { flag = "--audio-volume-step", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.normalize-loudness"
+type = "bool"
+default = false            # frame: "Normalize loudness" → OFF
+description = "settings.audio.normalize-loudness"
+restart_required = false
+placement = { screen = "audio", section = "loudness", order = 10, ui = true }
+cli = { flag = "--audio-normalize-loudness", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.target-level"
+type = "int"
+range = { min = 1, max = 10 }
+default = 1                # frame: "Target level" → input "1"; [VERIFY] unit/range
+description = "settings.audio.target-level"
+restart_required = false
+placement = { screen = "audio", section = "loudness", order = 20, ui = true }
+cli = { flag = "--audio-target-level", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.night-mode"
+type = "bool"
+default = false            # frame: "Night mode" → OFF
+description = "settings.audio.night-mode"
+restart_required = false
+placement = { screen = "audio", section = "loudness", order = 30, ui = true }
+cli = { flag = "--audio-night-mode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.replay-gain"
+type = "enum"
+enumeration = ["off", "track", "album"]
+default = "off"            # frame: "Replay gain" → "Off"
+description = "settings.audio.replay-gain"
+restart_required = false
+placement = { screen = "audio", section = "loudness", order = 40, ui = true }
+cli = { flag = "--audio-replay-gain", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "audio.replay-gain-preamp"
+type = "float"
+range = { min = -15.0, max = 15.0 }
+default = 0.0              # frame: "Replay gain preamp" → input "0.0" (dB)
+description = "settings.audio.replay-gain-preamp"
+restart_required = false
+placement = { screen = "audio", section = "loudness", order = 50, ui = true }
+cli = { flag = "--audio-replay-gain-preamp", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
 # --- performance (product.toml §2.9 cache & resource limits) -----------------
 
 [[setting]]
@@ -303,6 +951,164 @@ description = "settings.performance.max-open-sessions"
 restart_required = false
 placement = { screen = "performance", section = "resources", order = 30, ui = true }
 cli = { flag = "--performance-max-open-sessions", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+# --- performance, w26.f01 seed extension (e08 F3 — "Settings - performance"
+#     C11): frame sections Decoding + Smooth Playback (always visible) and
+#     the advanced Developer rows (behind the Advanced Options bar, with the
+#     existing advanced resources/cache rows — C11 ships the bar EXPANDED with
+#     a Developer header; the flat advanced render is SettingsSections'
+#     documented grammar). "Rescan plugins" is an ACTION, not a [[setting]]
+#     row. The C11 "Hardware-accelerated decoding" row is a separate staged
+#     control from the ADR-001 playback.hw-decode-policy enum (gated,
+#     advanced, playback screen) — different key, different vocabulary, no
+#     shared product-decision slot (D6 clean: literal default). ------------
+
+[[setting]]
+key = "performance.hw-decode"
+type = "enum"
+enumeration = ["automatic", "on", "off"]
+default = "automatic"      # frame: "Hardware-accelerated decoding" → "Automatic"; [VERIFY] vocabulary
+description = "settings.performance.hw-decode"
+restart_required = false
+placement = { screen = "performance", section = "decoding", order = 10, ui = true }
+cli = { flag = "--performance-hw-decode", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.video-post-processing"
+type = "enum"
+enumeration = ["off", "automatic", "always"]
+default = "off"            # frame: "Video post-processing" → "Off"; [VERIFY] vocabulary
+description = "settings.performance.video-post-processing"
+restart_required = false
+placement = { screen = "performance", section = "decoding", order = 20, ui = true }
+cli = { flag = "--performance-video-post-processing", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.h264-loop-filter"
+type = "enum"
+enumeration = ["never", "non-reference-frames", "always"]
+default = "never"          # frame: "Skip the H.264 loop filter" → "Never"; [VERIFY] vocabulary
+description = "settings.performance.h264-loop-filter"
+restart_required = false
+placement = { screen = "performance", section = "decoding", order = 30, ui = true }
+cli = { flag = "--performance-h264-loop-filter", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.decoding-threads"
+type = "int"
+range = { min = 0, max = 64 }
+default = 0                # frame: "Decoding threads" → input "0" (0 = auto)
+description = "settings.performance.decoding-threads"
+restart_required = false
+placement = { screen = "performance", section = "decoding", order = 40, ui = true }
+cli = { flag = "--performance-decoding-threads", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.drop-frames"
+type = "bool"
+default = true             # frame: "Drop frames when the system can't keep up" → ON
+description = "settings.performance.drop-frames"
+restart_required = false
+placement = { screen = "performance", section = "smooth-playback", order = 10, ui = true }
+cli = { flag = "--performance-drop-frames", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.realtime-priority"
+type = "bool"
+default = false            # frame: "Give VLC real-time priority" → OFF (frame-verbatim label; Lead retitle to Lumen at registration)
+description = "settings.performance.realtime-priority"
+restart_required = true
+placement = { screen = "performance", section = "smooth-playback", order = 20, ui = true }
+cli = { flag = "--performance-realtime-priority", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.process-priority"
+type = "int"
+range = { min = 0, max = 6 }
+default = 0                # frame: "Process priority" → input "0"; [VERIFY] class range
+description = "settings.performance.process-priority"
+restart_required = true
+placement = { screen = "performance", section = "smooth-playback", order = 30, ui = true }
+cli = { flag = "--performance-process-priority", short = "" }
+feature_gate = ""
+since = "0.1.0"
+
+[[setting]]
+key = "performance.encoder"
+type = "enum"
+enumeration = ["automatic", "software", "hardware"]
+default = "automatic"      # frame C11 Developer: "Encoder" → "Automatic"; [VERIFY] vocabulary
+description = "settings.performance.encoder"
+restart_required = false
+placement = { screen = "performance", section = "developer", order = 10, ui = true }
+cli = { flag = "--performance-encoder", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.decoder"
+type = "enum"
+enumeration = ["automatic", "software", "hardware"]
+default = "automatic"      # frame C11 Developer: "Decoder" → "Automatic"; [VERIFY] vocabulary
+description = "settings.performance.decoder"
+restart_required = false
+placement = { screen = "performance", section = "developer", order = 20, ui = true }
+cli = { flag = "--performance-decoder", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.clock-synchronisation"
+type = "enum"
+enumeration = ["default", "audio", "video"]
+default = "default"        # frame C11 Developer: "Clock synchronisation" → "Default"; [VERIFY] vocabulary
+description = "settings.performance.clock-synchronisation"
+restart_required = false
+placement = { screen = "performance", section = "developer", order = 30, ui = true }
+cli = { flag = "--performance-clock-synchronisation", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.clock-jitter"
+type = "duration-ms"
+range = { min = 0, max = 60000 }
+default = 5000             # frame C11 Developer: "Clock jitter" → "5000 ms"
+description = "settings.performance.clock-jitter"
+restart_required = false
+placement = { screen = "performance", section = "developer", order = 40, ui = true }
+cli = { flag = "--performance-clock-jitter", short = "" }
+feature_gate = ""
+since = "0.1.0"
+advanced = true
+
+[[setting]]
+key = "performance.clock-reference-averaging"
+type = "int"
+range = { min = 1, max = 1000 }
+default = 40               # frame C11 Developer: "Clock reference averaging" → "40"
+description = "settings.performance.clock-reference-averaging"
+restart_required = false
+placement = { screen = "performance", section = "developer", order = 50, ui = true }
+cli = { flag = "--performance-clock-reference-averaging", short = "" }
 feature_gate = ""
 since = "0.1.0"
 advanced = true

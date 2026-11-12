@@ -19,7 +19,7 @@ const VIEW_MODES: readonly ViewOption[] = [
   { id: "list", labelKey: "playlist.options.view.list", icon: "list" },
 ];
 
-export function ViewOptionsMenu(): ReactElement {
+export function ViewOptionsMenu({ align = "start" }: { align?: "start" | "end" } = {}): ReactElement {
   const t = useOptionsMsg();
   const { viewMode, setViewMode } = usePlaylistOptions();
   const activeIcon = viewMode === "grid" ? "grid" : "list";
@@ -32,6 +32,7 @@ export function ViewOptionsMenu(): ReactElement {
       menuLabel={t("playlist.options.view")}
       triggerLabel={t("playlist.options.view")}
       triggerIcon={activeIcon}
+      align={align}
       className="lumen-plo--view"
     />
   );

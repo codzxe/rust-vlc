@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Dialog } from "../../components/surface/Surface";
@@ -11,6 +12,7 @@ import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../i18n/keys/w26.b02";
+import { keys as fixerKeys } from "../../i18n/keys/w26.f03";
 import { SETTINGS_AREA_IDS } from "./areas";
 import { SETTINGS_AREA_TITLES } from "./areas";
 import { SETTINGS_SCREENS } from "./areas";
@@ -41,25 +43,34 @@ import "./settings.css";
 // Contracts kept (SettingsScreen.test.tsx): schema-driven nav via the area
 // registry's CURRENT API, cross-area search, deep-link /settings/:area with
 // unknown→first redirect, dirty-state Apply/Revert bar, confirm-on-navigate
-// when dirty, restart badges + notices, per-screen reset-to-default, the
-// settings→ThemeProvider seam, and the desktop config-bridge persistence.
+// when dirty, restart badges + notices, the settings→ThemeProvider seam, and
+// the desktop config-bridge persistence. w26.f03: the top-bar reset ghost is
+// GONE (e05 F10 — the per-field resets keep the reset-to-default contract);
+// focus starts on the sidebar's active row and Tab wraps inside the window
+// (e06 F8).
 
 type LaneKey = keyof typeof laneKeys;
 type RegistryKey = keyof typeof registryKeys;
+type FixerKey = keyof typeof fixerKeys;
 /** Pre-registration seam: this lane's keys + the registry lane's (b02) keys —
- * both resolve identically once the Lead registers them post-wave (b19). */
-const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...laneKeys };
+ * both resolve identically once the Lead registers them post-wave. */
+const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...laneKeys, ...fixerKeys };
 
 /**
  * useSettingsMsg — `useMsg` extended with the settings lanes' pre-registration
  * keys (same seam as w26.a10's useShellMsg): lane keys win while unregistered;
  * after the Lead merges them into the catalog both paths return the same
- * string. Every user-visible shell string flows through here.
+ * string. w26.f03: the f03 RETITLES ("settings.area.global" → "General",
+ * e05/e06 F6 — the b02 library precedent) must render pre-registration too,
+ * so the f03 values take precedence over the registered catalog until the
+ * Lead carries them into messages.ts. Every user-visible shell string flows
+ * through here.
  */
 function useSettingsMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | LaneKey | RegistryKey): string => m(key as MessageKey) ?? laneCatalog[key],
+    (key: MessageKey | LaneKey | RegistryKey | FixerKey): string =>
+      fixerKeys[key as FixerKey] ?? m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }
@@ -89,9 +100,13 @@ const SIDEBAR_GROUPS: readonly SidebarGroup[] = [
   { id: "system", labelKey: "settings.group.system", areas: ["network", "performance", "recording", "extensions"] },
 ];
 
-/** Area id → sidebar glyph (Icon.svg registry names; active rows re-stroke). */
+/** Area id → sidebar glyph (Icon.svg registry names; active rows re-stroke).
+ * w26.f03 (e05 F11): General (global) carries the sliders glyph — the frame
+ * row is 3 vertical sliders + offset nubs (Settings - global.svg "Icon_3"),
+ * the Icon.svg "name=preferences" sheet = the `equalizer` glyph. The gear
+ * (`settings`) is the frames' MENU row glyph, not this row's. */
 const AREA_ICONS: Readonly<Record<string, IconName>> = {
-  global: "settings",
+  global: "equalizer",
   interface: "interface",
   privacy: "privacy",
   controls: "keyboard-shortcuts",
@@ -130,6 +145,12 @@ function groupRows(group: SidebarGroup, registered: readonly SettingsAreaId[]): 
   return [...known, ...orphans];
 }
 
+/** Focus-trap candidate selector (w26.f03, e06 F8) — natural tab stops inside
+ * the settings window; roving-tabindex controls (segmented cells, swatches,
+ * dropdown options) surface their active item at tabIndex 0. */
+const FOCUSABLE =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
 function SettingsShell() {
   const m = useMsg();
   const t = useSettingsMsg();
@@ -140,6 +161,46 @@ function SettingsShell() {
   useSettingsThemeSync();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<{ area: SettingsAreaId } | { close: true } | null>(null);
+
+  // w26.f03 (e06 F8) — the settings window is a floating surface: focus
+  // starts INSIDE it, on the sidebar's active area row, and Tab wraps within
+  // the window (the app chrome behind it is never a tab stop while it is
+  // up). Open overlays keep their own traps: the confirm Dialog renders
+  // OUTSIDE this subtree, and dropdown popups handle their own Tab/Escape
+  // (the handler skips already-prevented events).
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const activeNavRef = useRef<HTMLButtonElement | null>(null);
+  // Focus lands on the ACTIVE area row when it MOUNTS (settings data is
+  // async — the nav list may not exist on first paint, so a [area] effect
+  // alone races it). A callback ref fires exactly at mount, including the
+  // async arrival AND every area switch (the active element identity
+  // changes), and never re-fires while the user types in search (same
+  // element re-render ≠ remount).
+  const focusActiveNav = useCallback((el: HTMLButtonElement | null): void => {
+    activeNavRef.current = el;
+    if (el !== null) el.focus();
+  }, []);
+
+  const onWindowKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== "Tab" || event.defaultPrevented) return;
+    const root = windowRef.current;
+    if (root === null) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(FOCUSABLE),
+    ).filter((el) => el.getAttribute("aria-hidden") !== "true");
+    if (focusables.length === 0) return;
+    const first = focusables[0] as HTMLElement;
+    const last = focusables[focusables.length - 1] as HTMLElement;
+    const active = document.activeElement;
+    const inside = active instanceof Node && root.contains(active);
+    if (!event.shiftKey && (!inside || active === last)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && (!inside || active === first)) {
+      event.preventDefault();
+      last.focus();
+    }
+  };
 
   // w26.d1 — Escape closes the settings window (the frames imply dismissal:
   // Settings - *.svg are windowed with a ✕ close; VLC parity) through the
@@ -221,30 +282,23 @@ function SettingsShell() {
             the top bar shows the AREA title). Kept as a real heading so the
             screen keeps its h1 anchor. */}
         <h1 className="settings-vh">{m("settings.nav.title")}</h1>
-        <div className="settings-window">
+        <div className="settings-window" ref={windowRef} onKeyDown={onWindowKeyDown}>
           <header className="settings-topbar">
             <label className="settings-topbar__search">
               <Icon name="search" size={15} className="settings-topbar__search-icon" />
               <input
                 type="search"
                 value={query}
-                placeholder={m("settings.search.label")}
+                placeholder={t("settings.search.placeholder")}
                 aria-label={m("settings.search.label")}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
             <h2 className="settings-topbar__title">{t(windowTitleKey(area))}</h2>
-            {!searching ? (
-              <button
-                type="button"
-                className="settings-topbar__reset"
-                onClick={() => settings.resetArea(area)}
-                aria-label={m("settings.reset-screen")}
-                title={m("settings.reset-screen")}
-              >
-                {m("settings.reset-screen")}
-              </button>
-            ) : null}
+            {/* w26.f03 (e05 F10): the top bar is frame-verbatim — search pill ·
+                window title · ✕ only; the extra per-screen reset ghost is
+                gone (per-field resets + the provider's resetArea seam keep
+                the behavior contract). */}
             <button
               type="button"
               className="settings-topbar__close"
@@ -275,6 +329,7 @@ function SettingsShell() {
                                   : "settings-nav__item"
                               }
                               aria-current={id === area ? "page" : undefined}
+                              ref={id === area ? focusActiveNav : undefined}
                               onClick={() => requestArea(id)}
                             >
                               <Icon

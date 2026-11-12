@@ -1,6 +1,10 @@
 // ThemeProvider tests — card 4.A2 AC: mode (dark/light/auto) + accent
 // switching must land on the root <html> element as data-theme/data-accent
 // attributes (doc 08 §3.3: "no JS style recalculation beyond attribute set").
+// w26.f08 (e03-F1 / e19-F1): the persisted `interface.theme` override must
+// hydrate on the FIRST render (the sync hook used to mount only inside the
+// settings screens, so every other route booted dark regardless of the
+// saved choice).
 
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -69,6 +73,9 @@ function renderProbe() {
 }
 
 beforeEach(() => {
+  // The provider lazy-initializes from the persisted settings overrides
+  // (w26.f08) — start every test with a clean store so cases stay isolated.
+  window.localStorage.clear();
   delete root().dataset.theme;
   delete root().dataset.accent;
 });
@@ -138,5 +145,74 @@ describe("ThemeProvider (doc 08 §3.3)", () => {
       screen.getByText("set-auto").click();
     });
     expect(root().dataset.theme).toBe("dark");
+  });
+});
+
+describe("ThemeProvider — persisted interface.theme hydration (w26.f08)", () => {
+  /** Seeds the settings overrides store exactly like the settings screen's
+   * persistence seam writes it (lumen.settings.overrides.v1). */
+  function seedThemeOverride(value: unknown): void {
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "interface.theme": value }),
+    );
+  }
+
+  it("hydrates a persisted LIGHT choice on mount — the first render already carries it (e03-F1/e19-F1)", () => {
+    seedThemeOverride("light");
+    renderProbe();
+    expect(root().dataset.theme).toBe("light");
+    expect(screen.getByTestId("mode-setting").textContent).toBe("light");
+    expect(screen.getByTestId("resolved-mode").textContent).toBe("light");
+  });
+
+  it("hydrates a persisted DARK choice even when the OS prefers light (the saved choice wins)", () => {
+    installMatchMedia(true);
+    seedThemeOverride("dark");
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+  });
+
+  it("hydrates a persisted SYSTEM (auto) choice and follows the OS preference both ways (e19-F5)", () => {
+    const media = installMatchMedia(true); // OS = light
+    seedThemeOverride("auto");
+    renderProbe();
+    expect(root().dataset.theme).toBe("light");
+    expect(screen.getByTestId("mode-setting").textContent).toBe("auto");
+
+    act(() => {
+      media.flip(false); // OS flips dark
+    });
+    expect(root().dataset.theme).toBe("dark");
+  });
+
+  it("hydrates a persisted SYSTEM (auto) choice against a dark-preferring OS", () => {
+    installMatchMedia(false);
+    seedThemeOverride("auto");
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+    expect(screen.getByTestId("mode-setting").textContent).toBe("auto");
+  });
+
+  it("keeps the dark default for absent, unknown or corrupt persisted values (never guesses)", () => {
+    seedThemeOverride("solarized");
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+    cleanup();
+
+    window.localStorage.setItem("lumen.settings.overrides.v1", "{not json");
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+    cleanup();
+
+    window.localStorage.removeItem("lumen.settings.overrides.v1");
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+  });
+
+  it("still defaults to dark + orange with an empty store (the product defaults stand)", () => {
+    renderProbe();
+    expect(root().dataset.theme).toBe("dark");
+    expect(root().dataset.accent).toBe("orange");
   });
 });

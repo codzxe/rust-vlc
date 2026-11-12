@@ -1,0 +1,183 @@
+/* SettingField — the settings ROW control skin (w26.f02).
+ *
+ * Everything here is scoped to .settings-field__control / .settings-field so
+ * the shared primitives keep their own grammar everywhere else: the form
+ * fields stay on the onboarding input spec (form.css) and the Dropdown keeps
+ * the a19 `Dropdown.svg` comfortable grammar on other surfaces. Selectors are
+ * deliberately one class deeper than the primitive sheets they override
+ * (menu.css / form.css) so the settings skin wins on specificity alone,
+ * independent of bundle import order.
+ *
+ * Frame truth (tools-settings.md §D2 "Row control inventory"; measured on
+ * Settings - playback/controls/video.svg):
+ *   Dropdown trigger  320×36 rx6 #090909 outer + inner 316×32 rx4 #191919,
+ *                     value #8F8F8F ≈15px, chevron-down 10×5 #8F8F8F
+ *                     (~23px right inset) — closed, never a stacked list.
+ *   Text/number input 318×34 rx5 #090909 fill + 2px #191919 stroke, value
+ *                     #8F8F8F ≈15px (~14px inset).
+ *   Open dropdown     r10–12 menu panel, 44px option rows, orange check on
+ *                     the selected row (`Dropdown.svg` Vector 44 #D37918).
+ *   ⓘ hint circle     r7.5 #404040 sw1.125 + i-glyph, ~13px after the label.
+ * Colors map to semantic tokens (#090909 → --color-surface, #191919 →
+ * --color-surface-panel, #1F1F1F → --color-surface-selected, #8F8F8F →
+ * --color-content-secondary, #404040 → --color-stroke-border); raw px is
+ * structural (frame-measured dimensions with no token), marked `frame:`. */
+
+/* ------------------------------------------------ enum rows: Dropdown */
+
+/* Fill the 320px control column (the inline-flex wrapper shrink-wraps). */
+.settings-field__control .lumen-dropdown {
+  width: 100%;
+}
+
+/* Trigger — frame: Settings - playback.svg "Dropdown" 320×36 rx6 #090909 +
+ * inner 316×32 rx4 #191919. A 2px near-black ring around the panel fill
+ * reproduces both rects (the r6 outer radius leaves an r4 inner edge,
+ * exactly the frame's inner rx4). */
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__trigger {
+  height: 36px; /* frame: 320×36 trigger (compact default is ~40px) */
+  padding: 0 20px 0 16px; /* frame: value x721.6 on the x704 control ≈17px inset, chevron ~23px from the right */
+  font-size: 15px; /* frame: value ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  background: var(--color-surface-panel); /* frame: inner rect fill #191919 */
+  border: 2px solid var(--color-surface); /* frame: outer ring #090909 */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__value {
+  font-size: 15px; /* frame: value ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+}
+
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__trigger:hover {
+  background: var(--color-surface-raised); /* quiet step from #191919 (no frame hover state) */
+}
+
+/* Open trigger — frame: `Setting Preset.svg` open trigger inner #1F1F1F. */
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__trigger[aria-expanded="true"] {
+  background: var(--color-surface-selected); /* frame: #1F1F1F */
+}
+
+/* Open list — mission pin (w26.f02): r10–12 menu panel over the rows below
+ * (`Dropdown.svg` shows the borderless #191919 panel + drop shadow). */
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__list {
+  border: none; /* frame: panel fill + shadow only, no stroke */
+  border-radius: var(--radius-menu); /* r10–12 menus (contract §2) */
+}
+
+/* Option rows — frame: `Dropdown.svg` options 360×44 rx4; the selected row
+ * fill #1F1F1F + the orange check come from the component grammar. */
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__option {
+  min-height: 44px; /* frame: 44px rows (~48px pitch) */
+  font-size: 15px; /* frame: option labels ≈15px */
+  border-radius: var(--radius-inset); /* frame: inner rx4 */
+}
+
+/* ------------------------------------------- text/number rows: the well */
+
+/* The settings input well — frame: 318×34 rx5 #090909 fill + 2px #191919
+ * stroke, value #8F8F8F ≈15px (e06 F7: NOT the onboarding #2a2a2a r6 fill). */
+.settings-field__control .lumen-field__control {
+  height: 34px; /* frame: 34px */
+  font-size: 15px; /* frame: value ≈15px */
+  color: var(--color-content-secondary); /* frame: #8F8F8F */
+  background-color: var(--color-surface); /* frame: #090909 recessed well */
+  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
+  border-radius: 5px; /* frame: rx5 */
+}
+
+/* Quiet states — the well keeps its fill; the stroke carries the affordance
+ * (no frame hover/active for settings inputs; focus stays the orange rule). */
+.settings-field__control .lumen-field__control:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-stroke-border); /* frame-adjacent step #404040 */
+}
+
+.settings-field__control .lumen-field__control:active {
+  background-color: var(--color-surface);
+  border-color: var(--color-content-tertiary);
+}
+
+.settings-field__control .lumen-field__control:focus,
+.settings-field__control .lumen-field__control:focus-visible {
+  border-color: var(--color-accent);
+}
+
+/* Number rows fill the column (e08 F10: skip inputs were 199px shrink-to-fit
+ * vs the frame's full-width 318×34 wells). The W26 settings frames carry no
+ * stepper glyph — the pointer steppers retire here (keyboard arrows keep
+ * stepping natively; NumberField keeps its steppers outside settings rows). */
+.settings-field__control .lumen-number {
+  display: flex;
+  width: 100%;
+}
+
+.settings-field__control .lumen-number__control {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  border-top-right-radius: 5px; /* restore the full well radius (steppers gone) */
+  border-bottom-right-radius: 5px;
+}
+
+.settings-field__control .lumen-number__steppers {
+  display: none; /* frame: settings rows show plain wells */
+}
+
+/* ------------------------------------------------- ⓘ hint affordance */
+
+/* Frame §D2: ⓘ circle r7.5 stroke #404040 sw1.125 + i-glyph sw1.5, ~13px
+ * after the label end — a quiet 18px hit around the 14px glyph. */
+.settings-field__info {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%; /* circular hit over the r7.5 glyph */
+  background: transparent;
+  color: var(--color-stroke-border); /* frame: circle #404040 */
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) ease-out;
+}
+
+.settings-field__info:hover {
+  color: var(--color-content-secondary); /* quiet hover step #8F8F8F */
+}
+
+.settings-field__info:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Revealed hint text — one quiet caption line under the row. */
+.settings-field__hinttext {
+  margin: -4px 0 10px; /* tucks under the row's 10px bottom margin */
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* Row grammar (e06 F2): the row's VISIBLE label is the lead span; the
+ * control's own <label> stays associated (a11y) but visually hidden, so the
+ * text never prints twice. */
+.settings-field__control .lumen-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-field__info {
+    transition: none;
+  }
+}

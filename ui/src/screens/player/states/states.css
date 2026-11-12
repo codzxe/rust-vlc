@@ -18,7 +18,9 @@
  *     data-chrome="hidden" from useChromeAutoHide) and return on activity.
  *     Failure surfaces (error/unsupported) are assertive alerts and NEVER
  *     fade on idle (doc 08 §4.5 — an alert that vanished would strand the
- *     user); the empty hero cannot hide (chrome locks visible while idle).
+ *     user); the empty hero is canvas CONTENT, not chrome — it never fades,
+ *     but since w26.f10 (e03 F4) the chrome AROUND it does (windowed and
+ *     fullscreen, empty state included — the fade retired its gates).
  * Semantic tokens only (§3.2); raw px appears solely for structural
  * dimensions with no token (indicator sizes — same precedent as the 4.C1
  * shell's structural px). Spinner/fill motion lives inside a
@@ -43,7 +45,9 @@
   box-sizing: border-box;
   padding: calc(var(--space-inset) * 3);
 
-  /* Dark scrim — quiet, opaque enough that copy reads over any frame. */
+  /* Dark scrim — quiet, opaque enough that copy reads over any frame.
+   * w26.f10 (e19 F7): sits ON the stays-dark canvas, so light mode pins the
+   * dark scrim below (picture-frame rule, W25 spec §1). */
   background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
   color: var(--color-content-primary);
   font-family: var(--font-family-sans);
@@ -58,8 +62,9 @@
 /* Hide-UI (Player - hide UI.svg): the transient overlays fade with the idle
  * chrome — the frame shows NOTHING over the video once the cursor rests.
  * Scoped to loading/buffering ONLY: error/unsupported are role=alert and
- * must stay assertively visible (doc 08 §4.5/§5.4); the empty hero locks
- * chrome visible (PlayerScreen locks while !hasMedia), so it never hides. */
+ * must stay assertively visible (doc 08 §4.5/§5.4); the empty hero is
+ * canvas content, not chrome — it never fades even while the chrome around
+ * it hides (w26.f10 F4). */
 .lumen-player[data-chrome="hidden"] .lumen-state-overlay[data-overlay="loading"],
 .lumen-player[data-chrome="hidden"] .lumen-state-overlay[data-overlay="buffering"] {
   opacity: 0;
@@ -299,4 +304,30 @@
 :root[data-theme="light"] .lumen-state-hero__body {
   /* stylelint-disable-next-line color-no-hex -- frame: dark-mode content ramp pinned up one step from #8f8f8f (4.4:1) to hold AA 4.5:1 on the fixed #2b2b2b canvas */
   color: #c6c6c6;
+}
+
+/* w26.f10 (e19 F7) — the state-overlay scrim sits ON the same stays-dark
+ * canvas as the hero, so it must not flip light with the theme either
+ * (light surface-deep #dedede @72% read as a light veil ≈ #acacac over the
+ * canvas). Light mode pins the dark theme's frame values for the scrim and
+ * the ink that sits directly on it (transient labels, determinate bar
+ * track); the failure CARDS above it stay themed (Figma panel grammar —
+ * a light r12 card on the dark scrim reads as a dialog). Token-lane
+ * handoff (f15): a stays-dark canvas token would replace these pins AND
+ * the hero pins above (log w26.f10). */
+:root[data-theme="light"] .lumen-state-overlay {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-surface-deep #0e0e0e @72%; picture-frame rule (W25 spec §1) */
+  background: color-mix(in srgb, #0e0e0e 72%, transparent);
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-primary #c6c6c6 on the stays-dark scrim */
+  color: #c6c6c6;
+}
+
+:root[data-theme="light"] .lumen-state-overlay__label {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-secondary #8f8f8f (4.4:1 on the dark scrim) */
+  color: #8f8f8f;
+}
+
+:root[data-theme="light"] .lumen-state-overlay__bar {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-surface-deep #0e0e0e track on the stays-dark scrim */
+  background: #0e0e0e;
 }

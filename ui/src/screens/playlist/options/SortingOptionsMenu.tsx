@@ -8,7 +8,7 @@ import { PlaylistOptionsMenu } from "./PlaylistOptionsMenu";
 import { SORT_KEYS, sortLabelKey, type PlaylistSortKey } from "./sorting";
 import { useOptionsMsg, type OptionsLaneKey } from "./useOptionsMsg";
 
-export function SortingOptionsMenu(): ReactElement {
+export function SortingOptionsMenu({ align = "start" }: { align?: "start" | "end" } = {}): ReactElement {
   const t = useOptionsMsg();
   const { sortKey, setSortKey } = usePlaylistOptions();
   return (
@@ -20,6 +20,7 @@ export function SortingOptionsMenu(): ReactElement {
       menuLabel={t("playlist.options.sort")}
       triggerLabel={t("playlist.options.sort")}
       triggerIcon="sort"
+      align={align}
       className="lumen-plo--sorting"
     />
   );

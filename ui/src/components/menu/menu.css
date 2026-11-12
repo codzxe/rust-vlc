@@ -4,21 +4,27 @@
  * W26 figma grammar (design/figma: `menu.svg`, `Profiles.svg`,
  * `right-click menu.svg`, `context menu.svg`, `file|folder|playlist context
  * menu.svg`, `option.svg`, `Dropdown.svg`, `Setting Preset.svg`;
- * design/figma-fidelity-spec.md §2 "Menus"):
+ * design/figma-fidelity-spec.md §2 "Menus"; analysis §A1/§C1 — SVG is
+ * ground truth where the spec conflicts, w26.e12 F3/F4):
  *   Panels: 400px-class, r10–12 (`--radius-menu`), bg `#1c1c1c–#202020` →
  *     `--color-surface-panel`, 1px `--color-stroke-border`, subtle frame
  *     shadow (`menu.svg`: blur 7.5 @ 46% → `--shadow-overlay`).
- *   Big player menu rows (`--density: comfortable`): 58–60px tall, 22–24px
- *     icon left, label 15–16px medium `#e8e8e8`, right-aligned shortcut
- *     13–14px or submenu chevron, r6 row radius (`--radius-control`),
- *     hover `--color-surface-hover`, active/selected `--color-surface-selected`
- *     + selective orange icon accent (profile/wand frames →
- *     `--color-accent-icon`).
+ *   Big player menu rows (`--density: comfortable`): 48px tall
+ *     (`--space-item-pitch`; every menu frame = 8 + 48×rows + 1×separators),
+ *     20px icon left, label ≈15px medium #8F8F8F (`right-click menu.svg`;
+ *     analysis §A1 note 1 — SVG wins over spec §2's #e8e8e8), right-aligned
+ *     shortcut ≈15px #6B6B6B or submenu chevron, r6 row radius
+ *     (`--radius-control`), hover `--color-surface-hover`, active/selected
+ *     `--color-surface-selected` + selective orange icon accent
+ *     (profile/wand frames → `--color-accent-icon`).
  *   Compact rows (`--density: compact`, settings dropdowns ≈ `Setting
  *     Preset.svg`): ~40px, icon 16px, label `--font-size-body`.
- *   Separators: thin 1px `--color-stroke-border` hairlines at row boundaries.
+ *   Separators: 1px hairline ON the row boundary (frame +1px per separator,
+ *     analysis §C1) — not a margined block.
  *   Dropdown: trigger r6 + 1px border + chevron; open list r6, options r6,
  *     selected option shows an orange check (`option.svg` Vector 44).
+ *   Viewport clamping (w26.f07): MenuPopup measures on open and flips/
+ *     shifts fixed popups and submenus inside the viewport (8px margin).
  * Colors are semantic tokens ONLY (doc 08 §3.2); raw px appears solely for
  * structural dimensions with no token (row pitch, panel min-width, icon slot,
  * 2px list inset) — each marked "structural" with its frame provenance.
@@ -92,6 +98,13 @@
   margin-left: var(--space-grid);
 }
 
+/* Comfortable flyouts are 265px panels (`Profiles.svg` flyout; analysis §A10)
+ * — not the 400px-class top-level panel (w26.e12 F2). MenuPopup flips the
+ * side near the right edge (transform, w26.f07). */
+.lumen-menu--comfortable.lumen-menu--submenu {
+  min-width: 265px; /* `Profiles.svg` flyout width — structural */
+}
+
 .lumen-menu__host {
   position: relative; /* anchors a nested submenu */
 }
@@ -102,12 +115,12 @@
   align-items: center;
   gap: calc(var(--space-grid) * 3); /* 12px icon→label gap (frame: icon 21–39, label ≈53) */
   box-sizing: border-box;
-  height: 58px; /* 58–60px big player menu rows (task W26) — structural */
+  height: var(--space-item-pitch); /* 48px rows — every menu frame is 8 + 48×rows + 1×separators (`right-click menu.svg`, analysis §C1; was 58px pre-w26.f07) */
   padding: 0 calc(var(--space-inset) * 2); /* 16px row inset (frame ≈17px) */
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label); /* 15–16px medium labels */
+  font-size: var(--font-size-section); /* ≈15px labels (frame cap 10.4–10.8 → ≈15px, analysis §A1) */
   font-weight: var(--font-weight-medium);
-  color: var(--color-content-bright); /* label #e8e8e8-class (task W26; spec §2 Menus) — nearest semantic token #eaeaea */
+  color: var(--color-content-secondary); /* label #8F8F8F (`menu.svg`; SVG wins over spec §2 #e8e8e8 — w26.e12 F4) */
   cursor: pointer;
   border-radius: var(--radius-control); /* r6 row radius */
   transition: background-color 120ms ease, color 120ms ease;
@@ -125,7 +138,7 @@
 }
 
 /* The roving-focus "active" row (keyboard navigation) reads as selected.
- * Label keeps its base bright tone (frames hold label color on hover/selected;
+ * Label keeps its base quiet tone (frames hold label color on hover/selected;
  * the row fill is the state signal). */
 .lumen-menu__item:focus {
   background: var(--color-surface-selected);
@@ -141,8 +154,9 @@
   pointer-events: none; /* roving focus still reaches it — inert, not hidden */
 }
 
-/* Leading line-icon slot (W26: 22–24px comfortable / 16px compact). The Icon
- * primitive renders 16px attributes; density CSS owns the real box. */
+/* Leading line-icon slot (W26: 20px comfortable / 16px compact — analysis
+ * §C1 row icon 20×20). The Icon primitive renders 16px attributes; density
+ * CSS owns the real box. */
 .lumen-menu__icon {
   display: inline-flex;
   flex: none;
@@ -152,8 +166,8 @@
 /* Defaults size the icon for comfortable density; compact overrides below
  * (equal specificity, later in source order). */
 .lumen-menu .lumen-menu__icon svg {
-  width: 22px; /* 22–24px icon slot (task W26) — structural */
-  height: 22px;
+  width: 20px; /* 20px icon slot (`right-click menu.svg`, analysis §C1) — structural; was 22px pre-w26.f07 */
+  height: 20px;
 }
 
 .lumen-menu--compact .lumen-menu__icon svg {
@@ -172,8 +186,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 22px; /* matches the comfortable icon column — structural */
-  font-size: var(--font-size-label);
+  width: 20px; /* matches the comfortable icon column — structural */
+  font-size: var(--font-size-section);
   color: var(--color-accent-icon);
 }
 
@@ -196,9 +210,9 @@
 .lumen-menu__accelerator {
   margin-left: auto;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-body); /* 13–14px shortcuts at BOTH densities (task W26) */
+  font-size: var(--font-size-section); /* ≈15px shortcuts — SAME size as the label (analysis §A1 note 2; w26.e12 F4/F9) */
   font-variant-numeric: tabular-nums;
-  color: var(--color-content-secondary); /* #9e9e9e-class (task W26) — nearest semantic token #8F8F8F */
+  color: var(--color-content-tertiary); /* frame shortcut #6B6B6B (`right-click menu.svg`) */
 }
 
 /* Submenu affordance: a "›" chevron (frame `menu.svg` Vector 27: 10px chevron,
@@ -208,11 +222,13 @@
   color: var(--color-stroke-icon);
 }
 
-/* Thin separators at row boundaries (frames: full row span, 1px hairline). */
+/* Separators sit ON the row boundary: 1px hairline, no vertical margins
+ * (frame formula 8 + 48×rows + 1×separators, analysis §C1; w26.e02 F4 —
+ * was 4px margins / +9px per separator pre-w26.f07). */
 .lumen-menu__separator {
   height: 1px;
-  margin: var(--space-grid) 0; /* slight breathing room around the hairline */
-  background: var(--color-stroke-border);
+  margin: 0;
+  background: var(--color-surface-raised); /* frame separator #222222 (`right-click menu.svg`) */
 }
 
 /* ---- ContextMenu popup: fixed at the pointer coordinates ---- */

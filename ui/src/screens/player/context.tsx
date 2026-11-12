@@ -130,6 +130,17 @@ export function usePlayerControls(): PlayerControls {
   return ctx;
 }
 
+/**
+ * Nullable reader for the player state seam — same context, no throw when no
+ * `PlayerControlsProvider` is mounted above (w26.f10 F4: hooks that adapt to
+ * the player composition's presence, e.g. useChromeAutoHide's legacy
+ * fallback outside the player screen). Additive export; the throwing
+ * `usePlayerControls` stays the canonical consumer API.
+ */
+export function usePlayerControlsOrNull(): PlayerControls | null {
+  return useContext(PlayerControlsContext);
+}
+
 /** Position-near-target tolerance for clearing a pending seek [PROPOSAL]. */
 const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
 

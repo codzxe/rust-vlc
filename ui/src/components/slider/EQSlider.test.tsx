@@ -91,4 +91,37 @@ describe("EQSlider (w26.a04 additive: EQ.png pill slider)", () => {
     expect(onCommit).not.toHaveBeenCalled();
     expect(slider).toHaveAttribute("aria-valuenow", "3");
   });
+
+  it("w26.f05: orientation=\"vertical\" renders the A2 fader axis (EQ.svg)", () => {
+    render(<EQSlider orientation="vertical" value={0} min={-20} max={20} aria-label="60 Hz" />);
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveAttribute("aria-orientation", "vertical");
+    expect(slider).toHaveAttribute("aria-valuenow", "0");
+    expect(slider).toHaveClass("lumen-slider--vertical");
+    expect(slider).toHaveClass("lumen-eq-slider");
+  });
+
+  it("w26.f05: vertical faders scrub on the Y axis (drag up = up in value)", () => {
+    const onCommit = vi.fn();
+    render(
+      <EQSlider
+        orientation="vertical"
+        value={0}
+        min={-20}
+        max={20}
+        onCommit={onCommit}
+        aria-label="60 Hz"
+      />,
+    );
+    const slider = screen.getByRole("slider");
+    pinRect(slider, 68, 328);
+    // Vertical hit geometry: y=300 of 328 → ≈8.5% from the bottom → ≈ -16.6
+    // snapped onto the 1 dB lattice → -17; y=28 → ≈91.5% → ≈ +16.6 → +17.
+    fireEvent.pointerDown(slider, { pointerId: 1, buttons: 1, clientX: 34, clientY: 300 });
+    fireEvent.pointerUp(slider, { pointerId: 1, buttons: 1, clientX: 34, clientY: 300 });
+    expect(onCommit).toHaveBeenLastCalledWith(-17);
+    fireEvent.pointerDown(slider, { pointerId: 2, buttons: 1, clientX: 34, clientY: 28 });
+    fireEvent.pointerUp(slider, { pointerId: 2, buttons: 1, clientX: 34, clientY: 28 });
+    expect(onCommit).toHaveBeenLastCalledWith(17);
+  });
 });

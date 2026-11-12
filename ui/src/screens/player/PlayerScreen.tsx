@@ -5,22 +5,24 @@
 // COMPOSITION (Player.png, Player-6, Player - Light — all 7 frames agree):
 //   * window title bar + icon rail + PLAYLISTS SIDEBAR — the APP SHELL's
 //     regions (appshell lane owns them, W26); this screen is hosted inside
-//     AppShell's main and never duplicates them — the SHELL sidebar is the
-//     default left rail of Player.png (sidebar.svg grammar)
+//     AppShell's main and never duplicates them. Lead decision (w26.f09,
+//     e02 F3): the ONE default-open left sidebar on /player is the player's
+//     DOCKED QUEUE (the real queue semantics below); the SHELL's playlists
+//     sidebar is default-CLOSED on the player route — the per-route default
+//     lives in AppShell's persisted sidebar state (f08 seam, see the
+//     PLAYER_TOGGLE_SIDEBAR_EVENT note + the lane log).
 //   * DOCKED QUEUE PANEL, left of the canvas, open by default and
-//     collapsible — the cross-lane pin (variants.test.tsx asserts it present
-//     in the full variant; PlayerScreen.test.tsx owns the toggle seam).
-//     NOTE for the Lead: Player.png itself shows ONE left sidebar (the
-//     shell's playlists rail) — whether the queue dock stays in the default
-//     composition is an integration call (see docs/waves/w26/logs/w26.a13.md
-//     open issue 1). It also opens via `openPanels: ["playlist"]` and the
+//     collapsible — the one sidebar of the default composition. It also
+//     opens via `openPanels: ["playlist"]` and the
 //     `lumen:toggle-sidebar` window event (exported below).
 //   * MAIN CANVAS — near-black in BOTH themes (the picture-frame rule); the
 //     honest engine-unwired placeholder (no <video>/<canvas> until 4.H1)
 //     centers the playing media's identity; the first-run EMPTY state is the
 //     onboarding-style hero from ./states (never a blank void)
-//   * BOTTOM CONTROL BAR SLOT — the sibling ControlBar (./controls) renders
-//     into the footer region this shell provides.
+//   * BOTTOM CONTROL BAR — a FULL-WIDTH band below the dock + canvas (w26.f09,
+//     e02 F2: Player.svg's strip is translate(0,1026) width=1920 — the rail,
+//     sidebar and canvas all END ABOVE it; the old canvas-column footer is
+//     gone). The sibling ControlBar (./controls) renders into it.
 //
 // HONEST PLACEHOLDERS still true here:
 //   * video canvas — a labelled region div, NOT a <video>/<canvas> element:
@@ -47,6 +49,15 @@
 // Record (no catalog command — keymap D-1 note), Hide UI (no hide surface —
 // Player - hide UI.svg state unimplemented) and Quit VLC (window close is
 // host-owned) render disabled — never theater.
+//
+// w26.f09 — CUSTOMIZE TRIGGER (e04 F1: the customize surface was unreachable).
+// "Customize interface…" (VLC 4 grammar — the toolbar editor) joins the canvas
+// menu after "More Settings", and Ctrl+A opens the same surface. Both fire
+// the `lumen:open-customize` window event — the same decoupled CustomEvent
+// contract as `lumen:open-media` / `lumen:open-tools`. f12's CustomizeDialog
+// (customize/, mounted here once that export lands) owns the listener; until
+// then the seam fires with no listener and nothing on this side pretends
+// otherwise (dependency recorded in the w26.f09 lane log).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -54,6 +65,7 @@ import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as c6Keys } from "../../i18n/keys/w26.c6";
+import { keys as f09Keys } from "../../i18n/keys/w26.f09";
 import { useClient } from "../../client/ClientProvider";
 import { Icon } from "../../components";
 import { MenuPopup } from "../../components/menu/MenuPopup";
@@ -107,6 +119,15 @@ import { useFullscreen } from "./useFullscreen";
  */
 export const PLAYER_TOGGLE_SIDEBAR_EVENT = "lumen:toggle-sidebar";
 
+/**
+ * Customize-interface trigger seam (w26.f09, e04 F1) — the decoupled
+ * `lumen:open-media` / `lumen:open-tools` CustomEvent contract: the canvas
+ * context-menu row "Customize interface…" and the Ctrl+A keymap combo
+ * dispatch it; f12's CustomizeDialog (customize/) owns the listener and
+ * mounts per-open. Never rename.
+ */
+export const PLAYER_OPEN_CUSTOMIZE_EVENT = "lumen:open-customize";
+
 // ---------------------------------------------------------------------------
 // w26.c6 — canvas context menu (right-click menu.svg)
 // ---------------------------------------------------------------------------
@@ -114,6 +135,46 @@ export const PLAYER_TOGGLE_SIDEBAR_EVENT = "lumen:toggle-sidebar";
 /** c6 lane keys for the canvas menu (contract §4.5 — catalog first, lane
  * copy while unregistered; identical before/after the Lead's merge). */
 const c6Catalog: Readonly<Record<string, string>> = c6Keys;
+
+/** f09 lane keys (the customize trigger row) — same seam-first contract. */
+const f09Catalog: Readonly<Record<string, string>> = f09Keys;
+
+/** Lane keys the canvas menu resolves (c6 frame rows + the f09 trigger). */
+type CanvasLaneKey = keyof typeof c6Keys | keyof typeof f09Keys;
+
+/**
+ * w26.f09 — the customize trigger's keymap row, straight from keymap DATA:
+ * keymaps/default.toml `playlist.advanced-controls` = Ctrl+A (VLC's Advanced
+ * Controls combo — that row's own note: "design replaces the VLC Advanced
+ * Controls toolbar with the Customize Player panel"). Matched through the
+ * shared modifier matcher so the combo is DATA, never a hardcoded string;
+ * graduates into keymap.ts's DIALOG_KEYMAP when the keymap lane adopts the
+ * row (lane-log handoff).
+ */
+const CUSTOMIZE_DIALOG_KEYMAP: ReadonlyMap<string, KeyBinding> = new Map(
+  HOTKEY_BINDINGS.filter((entry) => entry.id === "playlist.advanced-controls").map(
+    (entry): [string, KeyBinding] => [
+      entry.id,
+      {
+        id: entry.id,
+        key: entry.key,
+        command: entry.command,
+        recipe: entry.recipe,
+        uiAction: entry.uiAction,
+        mode: entry.mode,
+        when: entry.when,
+      },
+    ],
+  ),
+);
+
+/** True when a keyboard event originates inside a text-editing field — the
+ * player's Ctrl+A claim (select all) never fires there. */
+function fromEditableField(event: KeyboardEvent): boolean {
+  const target = event.target as Element | null;
+  if (target === null || typeof target.closest !== "function") return false;
+  return target.closest("input, textarea, select, [contenteditable='true']") !== null;
+}
 
 /** Binding-id → accelerator display string from keymap DATA (HOTKEY_BINDINGS
  * is the generated keymaps/default.toml excerpt — doc 05 §8.1: menus render
@@ -189,7 +250,7 @@ function canvasMenuEntries({
   toggleSidebar,
 }: {
   m: (key: MessageKey) => string;
-  tm: (key: keyof typeof c6Keys) => string;
+  tm: (key: CanvasLaneKey) => string;
   controls: PlayerControls;
   playlist: PlaylistContextValue;
   navigate: (to: string) => void;
@@ -323,6 +384,20 @@ function canvasMenuEntries({
           onSelect: () => navigate("/settings"),
         },
       ],
+    },
+    {
+      // w26.f09 — the customize surface's real trigger (e04 F1: unreachable
+      // before). VLC 4's "Customize Interface…" grammar; fires the
+      // lumen:open-customize seam f12's CustomizeDialog listens for. The
+      // accelerator is keymap DATA (playlist.advanced-controls = Ctrl+A,
+      // that row's adapted-to-customize note). Frame: right-click menu.svg
+      // pins 14 rows — this 15th row is the Lead-approved trigger addition.
+      id: "customize-interface",
+      labelKey: tm("player.canvas.menu.customize-interface"),
+      icon: "customize-player",
+      iconAccent: true,
+      accelerator: acceleratorOf("playlist.advanced-controls"),
+      onSelect: () => window.dispatchEvent(new CustomEvent(PLAYER_OPEN_CUSTOMIZE_EVENT)),
     },
     {
       id: "playlist",
@@ -481,15 +556,16 @@ function PlayerScreenInner({
     [onVariantChange],
   );
 
-  // W26 cross-lane pin: the docked queue panel is part of the player's
-  // default composition — OPEN first-run, collapsible (variants.test.tsx
-  // asserts it present in the full variant; this screen owns the toggle
-  // seam). The shell's title-bar sidebar toggle can drive it through the
-  // exported window event (see PLAYER_TOGGLE_SIDEBAR_EVENT); `openPanels`
-  // forcing it open keeps the host seam honest (a host-requested panel
-  // never hides). Whether the dock belongs in the DEFAULT frame beside the
-  // shell's playlists sidebar (Player.png shows one sidebar) is the Lead's
-  // integration call — lane log, open issue 1.
+  // w26.f09 (e02 F3, Lead decision): the docked queue panel is THE one
+  // default-open left sidebar on /player — OPEN first-run, collapsible
+  // (variants.test.tsx asserts it present in the full variant; this screen
+  // owns the toggle seam). Player.png shows exactly one sidebar; the SHELL's
+  // playlists sidebar composes default-CLOSED on this route — that per-route
+  // default lives in AppShell's persisted sidebar state (f08 seam: route-
+  // aware loadSidebarOpen default, noted in the w26.f09 lane log). The
+  // shell's title-bar toggle still drives this dock through the exported
+  // window event (PLAYER_TOGGLE_SIDEBAR_EVENT), and `openPanels` forcing it
+  // open keeps the host seam honest (a host-requested panel never hides).
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     const onToggleSidebar = (): void => setSidebarOpen((open) => !open);
@@ -568,9 +644,12 @@ function PlayerScreenInner({
 
   // Doc 08 §4.3 [PROPOSAL]: auto-hide on idle in fullscreen; empty state and
   // any open panel/menu lock the chrome visible (§4.5, §5.3).
+  // w26.f10 cleanup (the hook's compensation note): the lock is the
+  // panels/menus lock ONLY (doc 08 §4.5) — the retired empty-state gate is
+  // gone; the fade arms windowed and with no media (Player - hide UI.svg).
   const chrome = useChromeAutoHide({
     enabled: isFullscreen,
-    locked: !hasMedia || openPanels.length > 0,
+    locked: openPanels.length > 0,
   });
 
   // Control-bar commands (4.C2) via the shared state seam — keymap DATA
@@ -604,6 +683,16 @@ function PlayerScreenInner({
           // tools render honestly (staged notes) on an idle session too.
           event.preventDefault();
           openToolsDialog("audio");
+        }
+      }
+      for (const binding of matchModifierBindings(CUSTOMIZE_DIALOG_KEYMAP, event)) {
+        // w26.f09 — Ctrl+A → Customize interface (keymap DATA row above).
+        // No `when` gate: the customize surface renders its own honest
+        // empty/capability states. Ctrl+A is also "select all" — the player
+        // never claims it inside a text field (dialogs stay text-editor-safe).
+        if (binding.uiAction === "advanced-controls" && !fromEditableField(event)) {
+          event.preventDefault();
+          window.dispatchEvent(new CustomEvent(PLAYER_OPEN_CUSTOMIZE_EVENT));
         }
       }
       for (const binding of matchBindings(PLAYER_SHELL_KEYMAP, event)) {
@@ -729,133 +818,148 @@ function PlayerScreenInner({
       data-has-media={hasMedia}
       data-sidebar={sidebarVisible ? "open" : "closed"}
     >
-      {/* Docked queue panel (cross-lane pin: open first-run, collapsible).
-          Collapses via the shell toggle event (lumen:toggle-sidebar) or
-          openPanels omission. */}
-      {dockedSidebar !== undefined && sidebarVisible ? (
-        <PlaylistSidebar region={dockedSidebar} />
-      ) : null}
+      {/* w26.f09 (e02 F2) — BODY ROW: docked queue + canvas column + the
+          floating tool panels. Player.svg: the rail, sidebar and canvas all
+          END ABOVE the control strip, so the strip is a full-width sibling
+          BELOW this row — never a column inside the canvas region. */}
+      <div className="lumen-player__body">
+        {/* Docked queue panel (the ONE default-open sidebar on /player — Lead
+            decision w26.f09/e02 F3; the SHELL's playlists sidebar is
+            default-closed on this route, f08 seam). Collapses via the shell
+            toggle event (lumen:toggle-sidebar) or openPanels omission. */}
+        {dockedSidebar !== undefined && sidebarVisible ? (
+          <PlaylistSidebar region={dockedSidebar} />
+        ) : null}
 
-      {leftRegions.map((region) => (
-        <PanelRegion key={region.id} region={region} side="left" />
-      ))}
-
-      <div className="lumen-player__main">
-        {/* Level-1 heading is ALWAYS present for a11y (App gate tests +
-            screen readers); visually hidden — the window title bar is the
-            app shell's (W26). */}
-        <h1 className="lumen-player__sr-title">{m("screen.player")}</h1>
-        {/* Top regions render only when a layout declares one — the default
-            W26 layout does not (the window title bar is the app shell's). */}
-        {regionsOf("top").map((region) => (
-          <header
-            key={region.id}
-            data-region-id={region.id}
-            data-chrome-part=""
-            className="lumen-player__topbar"
-          >
-            <span className="lumen-player__title">{m("screen.player")}</span>
-          </header>
+        {leftRegions.map((region) => (
+          <PanelRegion key={region.id} region={region} side="left" />
         ))}
 
-        {canvasRegion === undefined ? null : variant === "music" ? (
-          /* Music mode (4.F2): the canvas region IS the album-art placeholder
-           * (honest — no fabricated artwork; doc 08 §1.4 album art 737²). */
-          <MusicMode artRegion={canvasRegion} />
-        ) : (
-          <NavigationSeam>
-            {(navigate) => (
-              <div
-                data-region-id={canvasRegion.id}
-                role="region"
-                aria-label={m(canvasRegion.labelKey)}
-                className="lumen-player__canvas"
-                data-placeholder="engine-wiring-4.H1"
-                onContextMenu={(event) => {
-                  // w26.c6 — the canvas context menu (right-click menu.svg)
-                  // opens at the pointer; suppress the native browser menu.
-                  event.preventDefault();
-                  canvasMenuFocus.current = document.activeElement as HTMLElement | null;
-                  setCanvasMenu({ x: event.clientX, y: event.clientY });
-                }}
-              >
-                {/* Honest placeholder: no <video>/<canvas> element until the
-                    render engine is wired (card 4.H1 handoff — recorded in
-                    ui/NEXT-STEPS.md). Screen-reader note says so. */}
-                <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
+        <div className="lumen-player__main">
+          {/* Level-1 heading is ALWAYS present for a11y (App gate tests +
+              screen readers); visually hidden — the window title bar is the
+              app shell's (W26). */}
+          <h1 className="lumen-player__sr-title">{m("screen.player")}</h1>
+          {/* Top regions render only when a layout declares one — the default
+              W26 layout does not (the window title bar is the app shell's). */}
+          {regionsOf("top").map((region) => (
+            <header
+              key={region.id}
+              data-region-id={region.id}
+              data-chrome-part=""
+              className="lumen-player__topbar"
+            >
+              <span className="lumen-player__title">{m("screen.player")}</span>
+            </header>
+          ))}
 
-                {/* Player.png "artwork centered": until the engine paints frames
-                    (4.H1), the honest stand-in is the playing media's IDENTITY —
-                    engine-reported title first (media.info-ready), the playlist
-                    entry's title as fallback, a quiet kind mark when neither
-                    reported. Real data only; renders only while an overlay-free
-                    session state is up (loading/buffering/error take over). */}
-                {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
-                  <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
-                ) : null}
+          {canvasRegion === undefined ? null : variant === "music" ? (
+            /* Music mode (4.F2): the canvas region IS the album-art placeholder
+             * (honest — no fabricated artwork; doc 08 §1.4 album art 737²). */
+            <MusicMode artRegion={canvasRegion} />
+          ) : (
+            <NavigationSeam>
+              {(navigate) => (
+                <div
+                  data-region-id={canvasRegion.id}
+                  role="region"
+                  aria-label={m(canvasRegion.labelKey)}
+                  className="lumen-player__canvas"
+                  data-placeholder="engine-wiring-4.H1"
+                  onContextMenu={(event) => {
+                    // w26.c6 — the canvas context menu (right-click menu.svg)
+                    // opens at the pointer; suppress the native browser menu.
+                    event.preventDefault();
+                    canvasMenuFocus.current = document.activeElement as HTMLElement | null;
+                    setCanvasMenu({ x: event.clientX, y: event.clientY });
+                  }}
+                >
+                  {/* Honest placeholder: no <video>/<canvas> element until the
+                      render engine is wired (card 4.H1 handoff — recorded in
+                      ui/NEXT-STEPS.md). Screen-reader note says so. */}
+                  <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
-                {/* Card 4.C3 playback UX states: exactly zero or one overlay on
-                    the canvas region, driven by the engine view. The first-run
-                    Empty surface only ever appears when NO media is present —
-                    a host-injected `media` context (or a live session) suppresses
-                    it, while engine-truth overlays (loading/buffering/error)
-                    always render. Never a fabricated state. */}
-                {effectiveEngineState.state === "idle" && hasMedia ? null : (
-                  <StateRouter
-                    view={effectiveEngineState}
-                    onRetry={onRetry}
-                    onOpenMedia={onOpenMedia}
-                  />
-                )}
+                  {/* Player.png "artwork centered": until the engine paints frames
+                      (4.H1), the honest stand-in is the playing media's IDENTITY —
+                      engine-reported title first (media.info-ready), the playlist
+                      entry's title as fallback, a quiet kind mark when neither
+                      reported. Real data only; renders only while an overlay-free
+                      session state is up (loading/buffering/error take over). */}
+                  {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
+                    <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
+                  ) : null}
 
-                {/* w26.c6 — the canvas context menu (right-click menu.svg),
-                    fixed at the pointer; the menu API owns the keyboard model
-                    (roving focus, arrows, Escape → closeAndRestore). */}
-                {canvasMenu !== null && (
-                  <MenuPopup
-                    entries={canvasMenuEntries({
-                      m,
-                      tm: (key) => m(key as MessageKey) ?? c6Catalog[key],
-                      controls,
-                      playlist,
-                      navigate,
-                      sidebarOpen,
-                      toggleSidebar: () => setSidebarOpen((open) => !open),
-                    })}
-                    resolveLabel={identityResolveLabel}
-                    idPrefix="lumen-player-canvas-menu"
-                    className="lumen-context-menu__popup"
-                    style={{ left: canvasMenu.x, top: canvasMenu.y }}
-                    ariaLabel={m("player.canvas.menu.title" as MessageKey) ?? c6Catalog["player.canvas.menu.title"]}
-                    onRequestClose={closeCanvasMenu}
-                    onDismissAll={closeCanvasMenu}
-                  />
-                )}
-              </div>
-            )}
-          </NavigationSeam>
-        )}
+                  {/* Card 4.C3 playback UX states: exactly zero or one overlay on
+                      the canvas region, driven by the engine view. The first-run
+                      Empty surface only ever appears when NO media is present —
+                      a host-injected `media` context (or a live session) suppresses
+                      it, while engine-truth overlays (loading/buffering/error)
+                      always render. Never a fabricated state. */}
+                  {effectiveEngineState.state === "idle" && hasMedia ? null : (
+                    <StateRouter
+                      view={effectiveEngineState}
+                      onRetry={onRetry}
+                      onOpenMedia={onOpenMedia}
+                    />
+                  )}
 
-        {regionsOf("bottom").map((region) => (
-          <footer
-            key={region.id}
-            data-region-id={region.id}
-            data-chrome-part=""
-            data-variant={variant === "music" ? "music" : undefined}
-            role="region"
-            aria-label={m(region.labelKey)}
-            className="lumen-player__controls"
-          >
-            {/* Card 4.C2 — the real control bar: transport (doc 08 §5.1
-                mapping), seekbar (§5.2 truthful pending), volume/mute, track
-                menus — all wired to the command-layer client seam. */}
-            <ControlBar />
-          </footer>
+                  {/* w26.c6 — the canvas context menu (right-click menu.svg),
+                      fixed at the pointer; the menu API owns the keyboard model
+                      (roving focus, arrows, Escape → closeAndRestore). */}
+                  {canvasMenu !== null && (
+                    <MenuPopup
+                      entries={canvasMenuEntries({
+                        m,
+                        tm: (key) => m(key as MessageKey) ?? c6Catalog[key] ?? f09Catalog[key],
+                        controls,
+                        playlist,
+                        navigate,
+                        sidebarOpen,
+                        toggleSidebar: () => setSidebarOpen((open) => !open),
+                      })}
+                      resolveLabel={identityResolveLabel}
+                      idPrefix="lumen-player-canvas-menu"
+                      className="lumen-context-menu__popup"
+                      style={{ left: canvasMenu.x, top: canvasMenu.y }}
+                      ariaLabel={m("player.canvas.menu.title" as MessageKey) ?? c6Catalog["player.canvas.menu.title"]}
+                      onRequestClose={closeCanvasMenu}
+                      onDismissAll={closeCanvasMenu}
+                    />
+                  )}
+                </div>
+              )}
+            </NavigationSeam>
+          )}
+        </div>
+
+        {/* Floating right tool panels (media-info, customize; custom
+         * layouts) — anchored to the BODY row so they float over the
+         * canvas and end above the control band. */}
+        {rightRegions.map((region) => (
+          <PanelRegion key={region.id} region={region} side="right" emphasized={variant === "music"} />
         ))}
       </div>
 
-      {rightRegions.map((region) => (
-        <PanelRegion key={region.id} region={region} side="right" emphasized={variant === "music"} />
+      {/* w26.f09 (e02 F2) — the FULL-WIDTH control band: Player.svg's strip
+          (translate(0,1026), width=1920) spans the window BELOW rail,
+          sidebar and canvas; inside the shell it spans the player root below
+          the body row (dock + canvas + panels). The shell's rail hoist to a
+          true window-wide band is the appshell seam (f08, lane log). */}
+      {regionsOf("bottom").map((region) => (
+        <footer
+          key={region.id}
+          data-region-id={region.id}
+          data-chrome-part=""
+          data-variant={variant === "music" ? "music" : undefined}
+          role="region"
+          aria-label={m(region.labelKey)}
+          className="lumen-player__controls"
+        >
+          {/* Card 4.C2 — the real control bar: transport (doc 08 §5.1
+              mapping), seekbar (§5.2 truthful pending), volume/mute, track
+              menus — all wired to the command-layer client seam. */}
+          <ControlBar />
+        </footer>
       ))}
 
       {gotoOpen ? (
@@ -871,11 +975,12 @@ function PlayerScreenInner({
   );
 }
 
-/** The docked queue panel (on-demand left dock): a full-height deep surface
- * with a hairline right edge. Content is the real 4.D1 playlist panel (queue
- * semantics); the playlists-LIST rail (Player.png "Cool Songs"/"Anime to
- * Watch" rows) is the app shell's sidebar (appshell lane) — not duplicated
- * here. */
+/** The docked queue panel: the player's one default-open sidebar (w26.f09) —
+ * a deep surface with a hairline right edge, ending ABOVE the control band
+ * (Player.svg: sidebar y 40..1026, strip 1026..1080). Content is the real
+ * 4.D1 playlist panel (queue semantics); the shell's playlists-LIST rail
+ * (Player.png "Cool Songs"/"Anime to Watch" rows) stays available through
+ * the shell's own toggle — default-closed on this route (f08 seam). */
 function PlaylistSidebar({ region }: { region: LayoutRegion }) {
   const m = useMsg();
   return (

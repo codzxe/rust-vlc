@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "./ThemeProvider";
-import { useSettingsThemeSync } from "./settingsThemeSync";
+import { readPersistedThemeMode, useSettingsThemeSync } from "./settingsThemeSync";
 import { SettingsProvider, useSettings } from "../screens/settings/SettingsProvider";
 import { memorySettingsPersistence } from "../screens/settings/persistence";
 import { SETTING_INTERFACE_THEME } from "../screens/settings/generated/schema";
@@ -33,6 +33,42 @@ const mount = (ui: React.ReactNode) =>
       <SettingsProvider persistence={memorySettingsPersistence}>{ui}</SettingsProvider>
     </ThemeProvider>,
   );
+
+describe("readPersistedThemeMode — the bootstrap read (w26.f08, e03-F1/e19-F1)", () => {
+  /** Writes overrides through the real localStorage seam (same key as Apply). */
+  const seed = (value: unknown): void =>
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "interface.theme": value }),
+    );
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("reads dark/light through the same persistence seam SettingsProvider hydrates from", () => {
+    expect(readPersistedThemeMode()).toBeNull(); // clean store — never guesses
+    seed("light");
+    expect(readPersistedThemeMode()).toBe("light");
+    seed("dark");
+    expect(readPersistedThemeMode()).toBe("dark");
+  });
+
+  it("accepts SYSTEM (auto) — a persisted system choice is a valid mode (e19-F5)", () => {
+    seed("auto");
+    expect(readPersistedThemeMode()).toBe("auto");
+  });
+
+  it("returns null for unknown values and corrupt stores (callers keep their default)", () => {
+    seed("solarized");
+    expect(readPersistedThemeMode()).toBeNull();
+    window.localStorage.setItem("lumen.settings.overrides.v1", "{corrupt");
+    expect(readPersistedThemeMode()).toBeNull();
+  });
+});
 
 describe("useSettingsThemeSync (interface.theme → ThemeProvider → <html>)", () => {
   it("applies the schema default (dark) to the html attribute on mount", () => {
@@ -66,5 +102,21 @@ describe("useSettingsThemeSync (interface.theme → ThemeProvider → <html>)", 
     mount(<Harness mode="light" />);
     fireEvent.click(screen.getByTestId("set-rogue"));
     expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("forwards a SYSTEM (auto) draft — the provider resolves it against the OS preference (e19-F5)", async () => {
+    // jsdom has no matchMedia — stub a LIGHT OS preference (the unit-test
+    // stand-in for Playwright's emulateMedia colorScheme probe).
+    const query = {
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    };
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue(query));
+    mount(<Harness mode="auto" />);
+    fireEvent.click(screen.getByTestId("set-auto"));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset.theme;
   });
 });

@@ -19,7 +19,12 @@
 //   surface-panel, hairline stroke-border border, overlay shadow, secondary
 //   text, one primary action. Never invented detail (doc 05 §1).
 
-import { Button, Icon } from "../../../components";
+// Narrow imports (not the components barrel): the overlays need exactly
+// Button + Icon, and the barrel re-exports every primitive family — one
+// broken sibling module (e.g. a parallel lane's in-flight edit) must not
+// take the player states down with it.
+import { Button } from "../../../components/button";
+import { Icon } from "../../../components/icon";
 import { useMsg, type MessageKey } from "../../../i18n/messages";
 import type { CommandError } from "../../../generated/commands";
 import {

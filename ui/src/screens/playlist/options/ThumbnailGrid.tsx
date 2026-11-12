@@ -5,11 +5,17 @@
 //
 // The frame's artwork is a pattern placeholder — the engine has no artwork
 // seam yet, so the well renders honestly empty with a quiet thumbnail glyph.
+//
+// w26.f06 — ENGINE vs LOCAL scope: with an engine PlaylistProvider ancestor
+// (player dock / harness) cards stay the frame's play buttons. In the
+// /playlist saved-playlist browse (local data, names only) there is NO play
+// seam — the card renders as honest presentation, never a dead button (the
+// "no dead affordance" rule, MediaList's ••• precedent).
 
 import type { ReactElement } from "react";
 import { Icon } from "../../../components/icon";
 import { useMsg } from "../../../i18n/messages";
-import { usePlaylist } from "../PlaylistProvider";
+import { usePlaylistOptional } from "../PlaylistProvider";
 import { usePlaylistOptions } from "./PlaylistOptionsProvider";
 import { entryDisplayTitle, formatDurationClock } from "./sorting";
 import { useOptionsMsg } from "./useOptionsMsg";
@@ -17,7 +23,7 @@ import { useOptionsMsg } from "./useOptionsMsg";
 export function ThumbnailGrid(): ReactElement {
   const m = useMsg();
   const t = useOptionsMsg();
-  const playlist = usePlaylist();
+  const playlist = usePlaylistOptional();
   const { sortedEntries } = usePlaylistOptions();
 
   if (sortedEntries.length === 0) return <></>;
@@ -25,21 +31,33 @@ export function ThumbnailGrid(): ReactElement {
     <ul className="lumen-plo-grid" aria-label={t("playlist.options.grid-label")}>
       {sortedEntries.map((entry) => {
         const duration = formatDurationClock(entry.durationSeconds);
+        const title = entryDisplayTitle(entry, m("playlist.entry.unknown-title"));
+        const cardBody = (
+          <>
+            <span className="lumen-plo-card__art" aria-hidden="true">
+              <Icon name="thumbnail" />
+            </span>
+            <span className="lumen-plo-card__duration">
+              {duration ?? m("playlist.entry.unknown-duration")}
+            </span>
+          </>
+        );
         return (
           <li key={entry.id} className="lumen-plo-grid__cell">
-            <button
-              type="button"
-              className="lumen-plo-card"
-              onClick={() => playlist.playItem(entry.id)}
-              title={entryDisplayTitle(entry, m("playlist.entry.unknown-title"))}
-            >
-              <span className="lumen-plo-card__art" aria-hidden="true">
-                <Icon name="thumbnail" />
-              </span>
-              <span className="lumen-plo-card__duration">
-                {duration ?? m("playlist.entry.unknown-duration")}
-              </span>
-            </button>
+            {playlist !== null ? (
+              <button
+                type="button"
+                className="lumen-plo-card"
+                onClick={() => playlist.playItem(entry.id)}
+                title={title}
+              >
+                {cardBody}
+              </button>
+            ) : (
+              <div className="lumen-plo-card lumen-plo-card--inert" title={title}>
+                {cardBody}
+              </div>
+            )}
           </li>
         );
       })}

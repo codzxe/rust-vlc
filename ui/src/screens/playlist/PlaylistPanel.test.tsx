@@ -295,13 +295,27 @@ describe("PlaylistPanel — queue-row context menu (w26.c6, playlist context men
     expect(seen).toEqual([OPEN_MEDIA_EVENT]);
   });
 
-  it("no-seam rows render honestly disabled (favorite/save/tracks — never theater)", async () => {
+  it("no-seam rows render honestly disabled (favorite/save/audio — never theater)", async () => {
     setup();
     const menu = await openRowMenu("Big Buck Bunny");
-    for (const label of ["Favorite", "Save playlist", "Add subtitle tracks", "Add audio tracks"]) {
+    for (const label of ["Favorite", "Save playlist", "Add audio tracks"]) {
       const item = menuItems(menu).find((row) => row.textContent === label)!;
       expect(item, label).toHaveAttribute("aria-disabled", "true");
     }
+  });
+
+  it("Add subtitle tracks opens the Add-Subtitles flow scoped to the queue (w26.f06, e09 F2)", async () => {
+    setup();
+    const menu = await openRowMenu("Big Buck Bunny");
+    const item = menuItems(menu).find((row) => row.textContent === "Add subtitle tracks")!;
+    expect(item.getAttribute("aria-disabled")).toBe(null); // real seam now
+    fireEvent.click(item);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Add Subtitles")).toBeTruthy();
+    // no folder-scan / OpenSubtitles seam yet — honest empty candidates
+    expect(within(dialog).getByText("No subtitle files found")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("Escape closes the menu (menu API) and restores focus", async () => {

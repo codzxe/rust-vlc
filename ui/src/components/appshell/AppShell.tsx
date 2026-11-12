@@ -17,7 +17,10 @@
 //     with back/…/search, "N Items" meta row + sort/list/grid, create row,
 //     rows composed through the LIST PRIMITIVES' API — VirtualList list
 //     view, ScrollArea grid view; the list components are imported, never
-//     edited).
+//     edited). w26.f08 (e09-F5): the rows read the REAL saved-playlists
+//     store (playlistsStore — the same seam as /playlist) and the create
+//     row opens the same NewPlaylistDialog the page does, landing the user
+//     on /playlist — no dead chrome, no second data source.
 //   * <main> — the routed screen, ONLY when the screen does not render its
 //     own <main> (playlist/settings/media-info do — `provideMain` false
 //     keeps exactly one main landmark per page and valid HTML).
@@ -52,7 +55,7 @@ import { IconButton } from "../button/IconButton";
 import { Icon } from "../icon/Icon";
 import { IconWrapper } from "../icon/IconWrapper";
 import type { IconName } from "../icon/icons";
-import { ScrollArea, VirtualList } from "../list";
+import { ScrollArea, VirtualList, naturalSort } from "../list";
 import { Panel } from "../surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
@@ -61,6 +64,11 @@ import { useClient } from "../../client/ClientProvider";
 import type { CommandRequest } from "../../client/transport";
 import { OpenMediaDialog, OPEN_MEDIA_EVENT } from "../../screens/open-media";
 import { PLAYER_TOGGLE_SIDEBAR_EVENT } from "../../screens/player";
+// w26.f08 (e09-F5): the create flow reuses the playlist core's own dialog +
+// store (imported, never edited) — Save persists locally (playlistsStore)
+// exactly as it does on /playlist; no engine seam exists for saved playlists.
+import { NewPlaylistDialog } from "../../screens/playlist/NewPlaylistDialog";
+import { usePlaylists } from "../../screens/playlist/playlistsStore";
 import {
   GlyphChevronLeft,
   GlyphClose,
@@ -138,17 +146,12 @@ const CRUMB_ITEMS: ReadonlyArray<{
 ];
 
 /**
- * Sidebar rows — the STRUCTURAL reference fixture (Player.png sidebar:
- * "Cool Songs", "Anime to Watch"). The playlists-LIBRARY data seam is not
- * wired in this build (the engine v1 catalog has queue commands only); the
- * rows navigate to the real /playlist surface and the create row renders
- * disabled-honest, mirroring the shell's old menubar discipline (unbacked
- * actions never pretend). The playlist-browse lane owns the real store.
+ * Sidebar rows — the saved-playlists STORE (w26.f08 adoption of the w26.b09
+ * seam): the same `lumen.playlists.v1` data /playlist renders. The store
+ * seeds with the frame rows (playlist.svg "Cool Playlist", Player.png
+ * sidebar "Cool Songs"/"Anime to Watch") when nothing is saved yet, so the
+ * empty first-run sidebar is never bare; user creates/removes persist.
  */
-const SHELL_PLAYLISTS: ReadonlyArray<{ id: string; nameKey: LaneKey }> = [
-  { id: "cool-songs", nameKey: "shell.playlist.cool-songs" },
-  { id: "anime-to-watch", nameKey: "shell.playlist.anime-to-watch" },
-];
 
 /** Playlist row height (Player.svg 42px pitch at 1920 → 36px at our scale). */
 const PLAYLIST_ROW_HEIGHT = 36;
@@ -245,6 +248,9 @@ export function AppShell({
   const navigate = useNavigate();
   const location = useLocation();
   const [openMediaOpen, setOpenMediaOpen] = useState(false);
+  // w26.f08 (e09-F5): the sidebar create row's dialog (same component as
+  // /playlist's "New playlist" — Save goes through the shared store).
+  const [createOpen, setCreateOpen] = useState(false);
   const nextRequestId = useRef(0x9000); // high base — no collisions with the player seam's counters
 
   const dispatch = useCallback(
@@ -313,7 +319,8 @@ export function AppShell({
     return hit ?? { labelKey: "app.name" as LaneKey, icon: "go-home" as IconName };
   }, [location.pathname]);
 
-  // ---- sidebar rows: filter (search) + sort (alpha) over the fixture ------
+  // ---- sidebar rows: filter (search) + sort over the playlists store ----
+  const { playlists } = usePlaylists();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [alphaSort, setAlphaSort] = useState(false);
@@ -332,12 +339,26 @@ export function AppShell({
   }, []);
 
   const rows = useMemo(() => {
-    const named = SHELL_PLAYLISTS.map((playlist) => ({ id: playlist.id, label: t(playlist.nameKey) }));
+    const named = playlists.map((playlist) => ({ id: playlist.id, label: playlist.title }));
     const needle = query.trim().toLowerCase();
     const filtered =
       needle === "" ? named : named.filter((row) => row.label.toLowerCase().includes(needle));
-    return alphaSort ? [...filtered].sort((a, b) => a.label.localeCompare(b.label)) : filtered;
-  }, [alphaSort, query, t]);
+    // Default order mirrors the library screen (naturalSort — "Playlist 2"
+    // before "Playlist 10"); the meta-row toggle re-sorts strictly
+    // alphabetical (localeCompare).
+    return alphaSort
+      ? [...filtered].sort((a, b) => a.label.localeCompare(b.label))
+      : naturalSort(filtered, (row) => row.label);
+  }, [alphaSort, playlists, query]);
+
+  // The create flow lands on the LIBRARY surface and opens the same dialog
+  // the page uses (no-op navigation when already there, so no history spam);
+  // Save persists through playlistsStore — the row then shows up here AND
+  // on /playlist.
+  const onCreatePlaylist = useCallback((): void => {
+    if (!location.pathname.startsWith("/playlist")) navigate("/playlist");
+    setCreateOpen(true);
+  }, [location.pathname, navigate]);
 
   return (
     <div className="app-shell" data-demo={demo || undefined}>
@@ -533,15 +554,15 @@ export function AppShell({
             </div>
           </div>
 
-          {/* Unbacked surface → disabled-honest (the old menubar's rule):
-           * the engine has no create-playlist command; the row never
-           * pretends it can. */}
+          {/* Create row (w26.f08, e09-F5): opens the same NewPlaylistDialog
+           * as /playlist (Save persists via the local playlistsStore — no
+           * engine command exists, and the dialog's own copy says so where
+           * it matters). */}
           <IconButton
             label={t("shell.sidebar.create")}
             size="sm"
             className="app-shell__create"
-            disabled
-            title={t("shell.sidebar.create.hint")}
+            onClick={onCreatePlaylist}
           >
             <GlyphPlus size={14} />
             <span className="app-shell__create-label">{t("shell.sidebar.create")}</span>
@@ -597,6 +618,7 @@ export function AppShell({
       </div>
 
       <OpenMediaDialog open={openMediaOpen} onClose={() => setOpenMediaOpen(false)} />
+      <NewPlaylistDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

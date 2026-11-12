@@ -4,11 +4,18 @@
  *
  * Regions this sheet owns (the window title bar + icon rail are the app
  * shell's — appshell lane):
- *   * docked playlist sidebar  ~216px, deep surface, hairline right edge
+ *   * body row                docked queue sidebar + main column (top strip +
+ *                            canvas) + the floating tool panels
+ *   * docked playlist sidebar  ~216px, deep surface, hairline right edge,
+ *                            ends ABOVE the control band (Player.svg)
  *   * main canvas              near-black in BOTH themes (picture-frame
- *                              rule, W25 spec §1) — the honest engine-
- *                              unwired placeholder until card 4.H1
- *   * bottom control bar slot  ~44px chrome strip, hairline top edge
+ *                            rule, W25 spec §1) — the honest engine-
+ *                            unwired placeholder until card 4.H1
+ *   * bottom control band      ~44px chrome strip, hairline top edge, FULL
+ *                            WIDTH below the body row (w26.f09/e02 F2 —
+ *                            Player.svg's strip spans the window under
+ *                            rail + sidebar + canvas; inside the shell it
+ *                            spans the player root under dock + canvas)
  *   * right tool panels        floating r12–14 cards over the canvas
  *
  * Proportions (Player.svg @1920 → 1440 render): title 40→30, rail 50→38,
@@ -25,8 +32,9 @@
  * dimensions with no token (sidebar width, strip heights, panel width). */
 
 .lumen-player {
-  position: relative; /* anchors the floating tool panels */
+  position: relative; /* anchors the fullscreen element + floating chrome */
   display: flex;
+  flex-direction: column; /* body row OVER the full-width control band (F2) */
   box-sizing: border-box;
   height: 100vh;
   overflow: hidden;
@@ -63,9 +71,11 @@
 }
 
 /* ---- docked playlist sidebar (Player.png, x=50..427) --------------------
- * Full-height deep surface (#0E0E0E in the frame) with ONE hairline on its
- * canvas edge. The panel content (4.D1, screens/playlist) owns its own
- * internals; this is the dock. Square-edged — no radius, no float. */
+ * Deep surface (#0E0E0E in the frame) with ONE hairline on its canvas edge,
+ * running the full height of the BODY row — Player.svg ends it (and the
+ * rail) at y=1026, ABOVE the control strip. The panel content (4.D1,
+ * screens/playlist) owns its own internals; this is the dock. Square-edged
+ * — no radius, no float. */
 .lumen-player__sidebar {
   display: flex;
   flex-direction: column;
@@ -79,7 +89,19 @@
   border-right: 1px solid var(--color-stroke-border);
 }
 
-/* ---- main column: [top strip] / canvas / control bar ------------------- */
+/* ---- body row: [dock | main column | floating panels] (w26.f09, e02 F2) --
+ * The single flex row between the (shell) title bar and the control band;
+ * position:relative anchors the floating tool panels so they end ABOVE the
+ * band. Player.svg: sidebar x 0..377 · canvas x 427..1920, both y 40..1026. */
+.lumen-player__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---- main column: [top strip] / canvas ---------------------------------- */
 
 .lumen-player__main {
   display: flex;
@@ -198,10 +220,15 @@
   --color-stroke-icon: var(--color-content-secondary); /* 3.8:1 on the flipped deep well */
 }
 
-/* ---- bottom control bar slot (Player.svg y=1026..1080) ------------------
- * A chrome strip with ONE hairline on its canvas edge; the sibling
- * ControlBar (./controls) renders into it and owns its own internals.
- * Frame: 54px @1920 ≈ 41px; the W26 mission pins the strip at ~44px. */
+/* ---- bottom control band (Player.svg y=1026..1080; w26.f09, e02 F2) ------
+ * The full-width chrome strip BELOW the body row: Player.svg translates the
+ * band to (0,1026) at width=1920 — the rail, sidebar and canvas all end
+ * above it — and the transport cluster (stop at x=33) sits at the far left
+ * of the WINDOW. Inside the app shell it spans the player root (the shell's
+ * rail is a sibling column; hoisting the band under the rail is the
+ * appshell seam — f08, w26.f09 lane log). ONE hairline on its canvas edge;
+ * the sibling ControlBar (./controls) renders into it and owns its
+ * internals. Frame: 54px @1920 ≈ 41px; the W26 mission pins ~44px. */
 .lumen-player__controls {
   display: flex;
   flex: none;
@@ -214,8 +241,9 @@
 
 /* ---- right tool panels (media-info, customize; custom layouts) ----------
  * Floating r12–14 cards OVER the canvas (the video keeps its size — the
- * customize frames' panels float). Panel surface + hairline + overlay
- * shadow; square panel chrome is gone (spec §1: rounding lives on cards). */
+ * customize frames' panels float), anchored to the BODY row so they end
+ * ABOVE the control band. Panel surface + hairline + overlay shadow;
+ * square panel chrome is gone (spec §1: rounding lives on cards). */
 .lumen-player__panel {
   position: absolute;
   top: calc(var(--space-inset) * 1.5);
@@ -258,4 +286,21 @@
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/* ---- Player-6 composition: rail + sidebars all gone (w26.f09, e02 F8) ----
+ * frame: Player-6.svg — the sidebar-toggled state hides the icon rail AND
+ * both sidebars; the canvas spans the full width under the title bar. The
+ * rail is the app shell's (a sibling of this screen's main region), so this
+ * composes the frame from the two published state seams: the shell sidebar's
+ * collapse ([hidden], the shell toggle's own state) and this screen's dock
+ * state (data-sidebar on .lumen-player). Only when BOTH are collapsed —
+ * Player.png (one sidebar open) and the shell-sidebar-open states keep the
+ * rail — does the rail go, matching Player-6 exactly. f08 note: own this in
+ * AppShell (render the rail hidden when its sidebar is collapsed on /player)
+ * when the rail gains its own data hook; until then this rule is the
+ * documented composition seam. */
+.app-shell__frame:has(> .app-shell__sidebar[hidden]):has(.lumen-player[data-sidebar="closed"])
+  > .app-shell__rail {
+  display: none;
 }

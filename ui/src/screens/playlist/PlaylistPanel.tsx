@@ -18,13 +18,14 @@
 // The frame's labels are "Option" placeholders, so row semantics come from
 // the pinned icons. Honest wiring per contract §5: real seams only —
 // Play (playlist.play-item), Shuffle (playlist.set-shuffle, engine state),
-// Add media… (the shell-wide open-media event) and Media info (the
-// /media-info route). Favorite / Save playlist / Add subtitle tracks /
-// Add audio tracks have NO seam in this build (no favorites store, no
-// queue-export command, no subtitle-dialog event, no per-item track-add)
+// Add media… (the shell-wide open-media event), Add subtitle tracks (the
+// AddSubtitlesDialog, w26.f06) and Media info (the /media-info route).
+// Favorite / Save playlist / Add audio tracks have NO seam in this build
+// (no favorites store, no queue-export command, no per-item track-add)
 // and render disabled — never theater (PlaylistScreen's honest-Play
 // precedent). Right-click coverage spans the row's content box — the
-// .lumen-vrow > wrapper fill needs a list.css rule (menu lane; lane log).
+// .lumen-vrow > wrapper fill is scoped in playlist.css (w26.f06) until the
+// menu lane ships the shared list.css rule.
 
 import { useCallback, useState, type DragEvent, type ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
@@ -37,6 +38,8 @@ import type { MenuEntry } from "../../components/menu";
 import { ListEmpty, ListRow, ROW_HEIGHTS, VirtualList } from "../../components/list";
 import { OPEN_MEDIA_EVENT } from "../open-media";
 import { usePlaylist, type PlaylistContextValue, type PlaylistEntry } from "./PlaylistProvider";
+import { AddSubtitlesDialog } from "./subtitles/AddSubtitlesDialog";
+import { entryDisplayTitle } from "./options/sorting";
 import { cycleRepeat, dragToMoveIndex, formatDuration, sourceLocation } from "./queue";
 import "./playlist.css";
 
@@ -98,6 +101,9 @@ export function PlaylistPanel({
   const m = useMsg();
   const playlist = usePlaylist();
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // w26.f06 (e09 F2): the queue-row "Add subtitle tracks" entry opens the
+  // Add-Subtitles flow scoped to the queue's media names.
+  const [subsOpen, setSubsOpen] = useState(false);
 
   const ids = playlist.entries.map((e) => e.id);
   const currentIndex = playlist.currentId === null ? -1 : ids.indexOf(playlist.currentId);
@@ -193,6 +199,7 @@ export function PlaylistPanel({
               entry={entry}
               index={index}
               isCurrent={entry.id === playlist.currentId}
+              onAddSubtitles={() => setSubsOpen(true)}
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", String(index));
                 setDragFrom(index);
@@ -204,6 +211,15 @@ export function PlaylistPanel({
       )}
 
       <footer className="lumen-playlist__footer">{m("playlist.panel.load-handoff")}</footer>
+
+      {/* Add-Subtitles flow (w26.f06, e09 F2): scoped to the queue's media
+       * names. No folder-scan / OpenSubtitles seam exists yet, so candidates
+       * render the honest empty state — never fabricated. */}
+      <AddSubtitlesDialog
+        open={subsOpen}
+        onClose={() => setSubsOpen(false)}
+        mediaNames={playlist.entries.map((entry) => entryDisplayTitle(entry, m("playlist.entry.unknown-title")))}
+      />
     </section>
   );
 }
@@ -212,12 +228,14 @@ function PlaylistRow({
   entry,
   index,
   isCurrent,
+  onAddSubtitles,
   onDragStart,
   onDrop,
 }: {
   entry: PlaylistEntry;
   index: number;
   isCurrent: boolean;
+  onAddSubtitles: () => void;
   onDragStart: (event: DragEvent<HTMLDivElement>) => void;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }) {
@@ -238,7 +256,7 @@ function PlaylistRow({
     <NavigationSeam>
       {(navigate) => (
         <ContextMenu
-          entries={queueRowMenu({ playlist, entry, navigate })}
+          entries={queueRowMenu({ playlist, entry, navigate, onAddSubtitles })}
           resolveLabel={t}
           ariaLabel={t("playlist.queue.menu.title")}
         >
@@ -293,10 +311,12 @@ function queueRowMenu({
   playlist,
   entry,
   navigate,
+  onAddSubtitles,
 }: {
   playlist: PlaylistContextValue;
   entry: PlaylistEntry;
   navigate: (to: string) => void;
+  onAddSubtitles: () => void;
 }): MenuEntry<QueueMenuKey>[] {
   return [
     // 1 — Play (frame: orange play triangle) → the real play-item command.
@@ -335,10 +355,16 @@ function queueRowMenu({
       iconAccent: true,
       onSelect: () => window.dispatchEvent(new CustomEvent(OPEN_MEDIA_EVENT)),
     },
-    // 6 — Add subtitle tracks (frame: subtitle card + orange dashes). The
-    // AddSubtitlesDialog is the playlist-options lane's and exposes no
-    // event seam — disabled.
-    { id: "add-subtitles", labelKey: "playlist.queue.menu.add-subtitles", icon: "subtitles", iconAccent: true, disabled: true },
+    // 6 — Add subtitle tracks (frame: subtitle card + orange dashes) → the
+    // Add-Subtitles flow scoped to the queue's media names (w26.f06, e09 F2
+    // — the dialog itself is the b11 lane's frame-exact build).
+    {
+      id: "add-subtitles",
+      labelKey: "playlist.queue.menu.add-subtitles",
+      icon: "subtitles",
+      iconAccent: true,
+      onSelect: onAddSubtitles,
+    },
     // 7 — Add audio tracks (frame: two-tone waveform). No per-item
     // track-add seam in the catalog — disabled.
     { id: "add-audio", labelKey: "playlist.queue.menu.add-audio", icon: "audio", iconAccent: true, disabled: true },

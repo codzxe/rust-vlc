@@ -8,9 +8,15 @@
 // artist/album/track/disc sorts and add-date ordering light up when the app
 // shell wires the seam (engine catalog handoff); until then the presentation
 // degrades honestly instead of inventing values.
+//
+// w26.f06 — LOCAL DATA SCOPE: `entries` overrides the engine queue. The
+// /playlist library page browses a SAVED playlist (playlistsStore itemNames —
+// names only, no engine ids); a nested engine PlaylistProvider would let
+// `playlist.changed` events contaminate that view, so the provider reads the
+// engine scope OPTIONALLY and sorts the local list when given one.
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { usePlaylist, type PlaylistEntry } from "../PlaylistProvider";
+import { usePlaylistOptional, type PlaylistEntry } from "../PlaylistProvider";
 import {
   DEFAULT_SORT_KEY,
   sortPlaylistEntries,
@@ -49,20 +55,30 @@ export function PlaylistOptionsProvider({
   initialViewMode = DEFAULT_VIEW_MODE,
   /** Engine metadata seam — wire engine-reported values here (handoff). */
   resolveMeta,
+  /** Local data scope (w26.f06): when set, THESE entries are the data
+   * source instead of the engine queue (saved-playlist browse). No engine
+   * PlaylistProvider is required in that mode. */
+  entries,
 }: {
   children: ReactNode;
   initialSortKey?: PlaylistSortKey;
   initialViewMode?: PlaylistViewMode;
   resolveMeta?: ResolveEntryMeta;
+  entries?: readonly PlaylistEntry[];
 }) {
-  const playlist = usePlaylist();
+  const enginePlaylist = usePlaylistOptional();
   const [sortKey, setSortKey] = useState<PlaylistSortKey>(initialSortKey);
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(initialViewMode);
 
   // Presentation order only — the engine queue is never mutated by sorting.
+  // Local scope (entries prop) wins over the engine queue.
+  const sourceEntries = useMemo(
+    () => entries ?? enginePlaylist?.entries ?? [],
+    [entries, enginePlaylist],
+  );
   const sortedEntries = useMemo(
-    () => sortPlaylistEntries(playlist.entries, sortKey, resolveMeta ?? (() => undefined)),
-    [playlist.entries, sortKey, resolveMeta],
+    () => sortPlaylistEntries(sourceEntries, sortKey, resolveMeta ?? (() => undefined)),
+    [sourceEntries, sortKey, resolveMeta],
   );
 
   const metaOf = useCallback(

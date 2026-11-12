@@ -3,10 +3,12 @@
 // watched, partial from the seam), the ••• hover affordance + its callback
 // seam, single-click play, current-row marking, empty honesty.
 
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MediaList } from "./MediaList";
+import { PlaylistOptionsProvider } from "./PlaylistOptionsProvider";
 import { OPTION_ENTRIES, OPTION_META, mountOptions } from "./optionsTestSupport";
+import type { PlaylistEntry } from "../PlaylistProvider";
 
 const rowOf = (title: string): HTMLElement => {
   const rows = screen.getAllByRole("option");
@@ -90,5 +92,34 @@ describe("MediaList — interaction", () => {
   it("renders nothing when the queue is empty — the panel owns the empty state", () => {
     const { view } = mountOptions(<MediaList />, { entries: [] });
     expect(view.container.querySelector(".lumen-plo-media")).toBeNull();
+  });
+});
+
+describe("MediaList — local scope (w26.f06: saved-playlist browse)", () => {
+  const LOCAL: readonly PlaylistEntry[] = [
+    { id: -1, title: "The Wand_S01E01.mp4", source: null, durationSeconds: null },
+    { id: -2, title: "The Wand_S01E02.mp4", source: null, durationSeconds: null },
+  ];
+
+  it("renders rows from the local entries without any engine provider", () => {
+    const { container } = render(
+      <PlaylistOptionsProvider entries={LOCAL}>
+        <MediaList />
+      </PlaylistOptionsProvider>,
+    );
+    expect(container.querySelectorAll(".lumen-plo-mrow")).toHaveLength(2);
+    expect(screen.getByText("The Wand_S01E01.mp4")).toBeTruthy();
+  });
+
+  it("no play seam → rows are honest presentation (inert, no •••, no current)", () => {
+    const { container } = render(
+      <PlaylistOptionsProvider entries={LOCAL}>
+        <MediaList />
+      </PlaylistOptionsProvider>,
+    );
+    const rows = [...container.querySelectorAll<HTMLElement>(".lumen-plo-mrow")];
+    expect(rows.every((row) => row.classList.contains("lumen-plo-mrow--inert"))).toBe(true);
+    expect(container.querySelector(".lumen-plo-mrow__menu")).toBeNull(); // no menu seam either
+    expect(container.querySelector(".lumen-plo-mrow--current")).toBeNull(); // no engine current
   });
 });

@@ -147,6 +147,16 @@
   outline-offset: 2px;
 }
 
+/* Local-scope card (w26.f06): no play seam for saved-playlist names — the
+ * card is presentation, so it never promises a click. */
+.lumen-plo-card--inert {
+  cursor: default;
+}
+
+.lumen-plo-card--inert:hover {
+  background: var(--color-surface-panel);
+}
+
 /* Artwork well: 252×142 r4 — the frame's artwork is a pattern placeholder;
  * the engine has no artwork seam yet, so the well is honestly empty with a
  * quiet glyph (aria-hidden). */
@@ -209,6 +219,11 @@
 /* Watched rows dim (frame watched #6B6B6B); hover still brightens. */
 .lumen-plo-mrow--watched {
   color: var(--color-content-tertiary);
+}
+
+/* Local-scope row (w26.f06): no play seam — presentation, not a target. */
+.lumen-plo-mrow--inert {
+  cursor: default;
 }
 
 .lumen-plo-mrow--watched:hover,

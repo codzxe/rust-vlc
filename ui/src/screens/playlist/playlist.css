@@ -201,6 +201,24 @@
   margin-left: auto;
 }
 
+/* ------------------------------------------------- opened-playlist browse -- */
+
+/* Back affordance row (w26.f06): a quiet ghost button above the opened
+ * playlist's header returns to the library level. */
+.lumen-plpage__backrow {
+  display: flex;
+  margin-top: calc(var(--space-inset) * -1); /* visually ties into the header's gap rhythm */
+}
+
+.lumen-plpage__backrow .lumen-plpage__back {
+  padding-inline: var(--space-grid);
+  color: var(--color-content-secondary);
+}
+
+.lumen-plpage__backrow .lumen-plpage__back:hover {
+  color: var(--color-content-bright);
+}
+
 /* The library panel — playlist.svg's #000-class surface on the Card
  * primitive's r14 + hairline chrome (frame: black #000 panel r14). The
  * compound selector out-ranks the primitive's own fill regardless of
@@ -225,8 +243,19 @@
 }
 
 /* The ContextMenu wrapper fills its windowed row so the ListRow hover
- * surface spans the full 66px pitch. */
+ * surface spans the full 66px pitch. w26.f06 (e09 F3): WIDTH too — without
+ * it the wrapper shrinks to content (~36% of the row) and hover fill, the
+ * kebab, click-select and right-click die on the rest of each row. */
 .lumen-plpage__row-wrap {
+  height: 100%;
+  width: 100%;
+}
+
+/* Same wrapper-shrink fix for the QUEUE panel's rows (e09 F3 note, c6
+ * lane's log): scoped here until the menu lane ships the shared
+ * `.lumen-vrow > .lumen-context-menu` rule in list.css. */
+.lumen-playlist__list .lumen-context-menu {
+  width: 100%;
   height: 100%;
 }
 

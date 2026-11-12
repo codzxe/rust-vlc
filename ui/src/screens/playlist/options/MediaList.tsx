@@ -8,11 +8,17 @@
 // row renders honestly unwatched (no bar, normal title). One click on a row
 // plays the item (v2 flow brief §1 single-click intent); the engine queue
 // itself is never reordered by views.
+//
+// w26.f06 — ENGINE vs LOCAL scope: with an engine PlaylistProvider ancestor
+// rows stay the frame's click-to-play rows. In the /playlist saved-playlist
+// browse (local data, names only) there is NO play seam — the row renders
+// as honest presentation, never a dead click target (the "no dead
+// affordance" rule).
 
 import type { ReactElement } from "react";
 import { useMsg } from "../../../i18n/messages";
 import { VirtualList } from "../../../components/list";
-import { usePlaylist, type PlaylistEntry } from "../PlaylistProvider";
+import { usePlaylistOptional, type PlaylistEntry } from "../PlaylistProvider";
 import { usePlaylistOptions } from "./PlaylistOptionsProvider";
 import { entryDisplayTitle, type PlaylistEntryMeta } from "./sorting";
 import { useOptionsMsg } from "./useOptionsMsg";
@@ -28,10 +34,11 @@ export interface MediaListProps {
 export function MediaList({ onEntryMenu }: MediaListProps): ReactElement {
   const m = useMsg();
   const t = useOptionsMsg();
-  const playlist = usePlaylist();
+  const playlist = usePlaylistOptional();
   const { sortedEntries, metaOf } = usePlaylistOptions();
 
   if (sortedEntries.length === 0) return <></>;
+  const currentId = playlist?.currentId ?? null;
   return (
     <VirtualList
       data={sortedEntries}
@@ -39,20 +46,20 @@ export function MediaList({ onEntryMenu }: MediaListProps): ReactElement {
       label={t("playlist.options.list-label")}
       className="lumen-plo-media"
       scrollToIndex={
-        playlist.currentId === null
+        currentId === null
           ? null
           : (() => {
-              const index = sortedEntries.findIndex((entry) => entry.id === playlist.currentId);
+              const index = sortedEntries.findIndex((entry) => entry.id === currentId);
               return index >= 0 ? { index, align: "start" } : null;
             })()
       }
       renderItem={(entry) => (
         <MediaRow
           key={entry.id}
-          isCurrent={entry.id === playlist.currentId}
+          isCurrent={entry.id === currentId}
           title={entryDisplayTitle(entry, m("playlist.entry.unknown-title"))}
           meta={metaOf(entry)}
-          onPlay={() => playlist.playItem(entry.id)}
+          onPlay={playlist !== null ? () => playlist.playItem(entry.id) : undefined}
           onMenu={onEntryMenu ? () => onEntryMenu(entry) : undefined}
           menuLabel={t("playlist.options.entry-menu")}
         />
@@ -72,7 +79,8 @@ function MediaRow({
   isCurrent: boolean;
   title: string;
   meta: PlaylistEntryMeta | undefined;
-  onPlay: () => void;
+  /** Play seam — undefined in local scope (no dead click targets). */
+  onPlay: (() => void) | undefined;
   onMenu: (() => void) | undefined;
   menuLabel: string;
 }): ReactElement {
@@ -86,6 +94,7 @@ function MediaRow({
         "lumen-plo-mrow",
         watched ? "lumen-plo-mrow--watched" : "",
         isCurrent ? "lumen-plo-mrow--current" : "",
+        onPlay === undefined ? "lumen-plo-mrow--inert" : "",
       ]
         .filter(Boolean)
         .join(" ")}

@@ -9,13 +9,14 @@
  *     signal gradient (#95D318 → #B2A918 → #D37918 → #FF3737, revealed to
  *     the level) — resolved through the --gradient-volume-level token when
  *     the token lane lands it; the accent is the fallback (same grammar).
- *   EQ.svg / Audio - Equalizer.svg (EQ rows, W25 spec §2): full-width pill
- *     track 14px r7 on the surface well (#090909 on the frames' #1b1b1b
- *     panels), amber gradient fill accent.tinted → accent-strong (#371f06 →
- *     #a5621a per the brief/spec VLM measurement — accent-strong #ab6314 is
- *     Δ≤6/255 per channel from the frame end, so no raw hex is needed),
- *     8×20 r4 amber handle. The value chip (audio value.svg) is rendered by
- *     CONSUMERS, outside the slider.
+ *   EQ.svg / Audio - Equalizer.svg (EQ sliders, W25 spec §2 — re-measured
+ *     against the SVG sources by w26.a20 §A1 and re-pinned by w26.f05 F10:
+ *     the SVG wins over the spec's drifted VLM numbers): 16px rx6 track on
+ *     the surface well (#090909 on the frames' #1b1b1b/#191919 panels),
+ *     FLAT accent-tinted fill (#371F06 — zero <linearGradient> in any audio
+ *     frame), 12px rx4 fill inset 2, 8×24 rx4 accent-strong handle
+ *     (#AB6314; 24×8 in the vertical fader view). The value chip
+ *     (audio value.svg) is rendered by CONSUMERS, outside the slider.
  * Semantic tokens only for colors (eslint + stylelint enforce; the
  * frame-measured hexes above live in comments). Raw px below are structural
  * dimensions pinned by the design exports — no token exists (states.md). */
@@ -122,10 +123,90 @@
 
 /* ------------------------------------------------------------- EQSlider */
 
-/* The EQ band row slider (EQ.png, W25 spec §2): the base pill grammar at
- * full width. The value chip (audio value.svg) is a CONSUMER concern. */
+/* The EQ slider (EQ.svg / Audio - Equalizer.svg, w26.a20 §A1 measurements —
+ * w26.f05 F10 re-pin): 16px rx6 track on the surface well, FLAT
+ * accent-tinted fill 12px rx4 inset 2, 8×24 rx4 accent-strong handle. The
+ * base .lumen-slider pill grammar (14px r7 gradient) stays untouched for
+ * non-EQ consumers; this scope carries the SVG-measured EQ anatomy so every
+ * EQSlider mount renders the frame grammar (the A1 card no longer needs a
+ * per-consumer override). The value chip (audio value.svg) is a CONSUMER
+ * concern. */
 .lumen-eq-slider {
   width: 100%;
+  height: 24px; /* hit area: 16px track + the handle's 4px overhangs */
+}
+
+.lumen-eq-slider .lumen-slider__track {
+  top: calc(50% - 8px); /* frame: 16px track (Audio - Equalizer.svg: 328×16 rx6) */
+  height: 16px;
+  background: var(--color-surface); /* frame: #090909 well */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+/* frame: FLAT #371F06 fill (== accent-tinted) — 12px rx4 inset 2; the a04
+ * gradient default is deliberately replaced in this scope (no audio frame
+ * carries a gradient). */
+.lumen-eq-slider .lumen-slider__fill {
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted);
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: width 120ms ease;
+}
+
+.lumen-eq-slider .lumen-slider__thumb {
+  top: calc(50% - 12px);
+  width: 8px; /* frame: 8×24 handle */
+  height: 24px;
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: left 120ms ease, background-color 120ms ease;
+}
+
+/* Vertical faders — EQ.svg's classic band view (rotate(-90) tracks: 16×320
+ * rx6 well, 12px rx4 flat fill growing UP from the bottom, 24×8 rx4
+ * handle). Caller sizes the extent; the hit area covers the handle's
+ * horizontal overhangs. */
+.lumen-eq-slider.lumen-slider--vertical {
+  width: 24px; /* hit area floor: 16px track + 4px overhangs per side */
+  height: 160px; /* caller-sized extent (structural default) */
+}
+
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__track {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 8px);
+  width: 16px; /* frame: 16×320 track */
+  height: auto;
+  background: var(--color-surface); /* frame: #090909 well */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+/* frame: fill anchored to min (bottom), 12px wide rx4 inset 2, FLAT tint. */
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__fill {
+  top: auto;
+  right: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: auto;
+  height: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame: flat #371F06 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: height 120ms ease;
+}
+
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__thumb {
+  top: auto;
+  left: calc(50% - 12px);
+  width: 24px; /* frame: 24×8 handle in the vertical view */
+  height: 8px;
+  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: bottom 120ms ease, background-color 120ms ease;
 }
 
 /* -------------------------------------------------------------- Seekbar */

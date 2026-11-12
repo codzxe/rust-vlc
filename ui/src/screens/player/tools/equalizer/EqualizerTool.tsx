@@ -1,44 +1,35 @@
-// EqualizerTool (w26.c1) — the 10-band equalizer tool card, composed to the
-// frames `Audio - Equalizer.svg` (both stacked states) + `EQ presets.svg`
-// (the preset selector). Wave-c mission item 1/2/4:
+// EqualizerTool (w26.c1; w26.f05 A2 ruling) — the Audio-tab Equalizer tool:
+// the preset selector (`EQ presets.svg`) above the GraphicEQ vertical-fader
+// panel (`EQ.svg`) — the Lead's frame-true EQUALIZER surface. The w26.f05
+// ruling retires the A1 horizontal rows card (`Audio - Equalizer.svg`): the
+// tools-dialog tool and the settings Effects embed BOTH mount the A2
+// vertical-fader anatomy (the settings frame embeds it at x240 y192.5).
 //
-//   * the collapsible tool card — collapsed 360×48 rx6 #090909 with
-//     "Expand Settings" + chevron-›; expanded rx6 #1B1B1B card whose 59px
-//     header row carries "Collapse Settings" + chevron-∨ (the card MORPHS —
-//     the frames show one card per state, not a bar plus a panel);
-//   * 11 rows (Preamp + 10 bands), label left / value chip right, with a
-//     full-width EQSlider (components/slider, w26.a04) under each row head;
-//     band rows carry a per-band accent dot from the eq token group;
-//   * the preset panel — the shared Dropdown primitive (components/menu,
-//     the `Dropdown.svg`/`Setting Preset.svg` grammar the EQ presets frame
-//     reuses verbatim per w26.a20 §A3), full-width above the rows;
-//   * all state LOCAL to the tool (preamp, band gains, preset, open), with
-//     an `onChange` seam so the effects settings area (settings.audio-1
-//     embeds the EQ in Effects) and the tools dialog shell can wire the
-//     engine command card when it lands. <EqualizerTool/> mounts as-is.
+//   * collapsed — EQ.svg's 784×36 rx2 #090909 bar, centered "Open
+//     Equalizer" + chevron-∨ (the GraphicEQ's own morphing surface);
+//   * expanded — the preset selector (EQ presets.svg grammar: two-layer
+//     48px trigger, 44px option rows @ 46 pitch — w26.e10 F2, scoped in
+//     equalizer.css) above the 784×489 rx2 #191919 panel ("Close
+//     Equalizer" header, 11 vertical faders, labels + value chips below);
+//   * all state LOCAL to the tool (preamp, band gains, preset, open) with
+//     the unchanged `onChange` seam — the frozen w26.c1 contract.
 //
 // The value chip is the form lane's <ValueChip/> COMPOSED (mission item 3:
 // "compose, don't duplicate") — equalizer.css scopes the frame-measured
-// anatomy onto it (138×34 rx5 #090909 + 2px #191919 stroke, #8F8F8F ≈12px
-// value, w26.a20 §A1) the same way dialogs.css scopes the shared TextField
-// into the dialog row grammar.
+// anatomy onto it (60×32 rx6 #090909, #8F8F8F ≈12px value, EQ.svg chips)
+// with the frame ink pinned in scope (w26.e10 F4 — the base chip's white
+// ink is the form lane's call, noted for f15).
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { ValueChip } from "../../../../components/form";
-import { Icon } from "../../../../components/icon";
 import { Dropdown } from "../../../../components/menu";
 import type { DropdownOption } from "../../../../components/menu";
-import { EQSlider } from "../../../../components/slider";
-import { EQ_BANDS } from "./bands";
 import {
   DEFAULT_EQUALIZER_STATE,
-  EQ_GAIN_MAX_DB,
-  EQ_GAIN_MIN_DB,
-  EQ_GAIN_STEP_DB,
   EQ_PRESETS,
   NEUTRAL_GAINS,
 } from "./presets";
+import { GraphicEQ } from "./GraphicEQ";
 import { useEqMsg } from "./useEqMsg";
 import type { EqMessageKey } from "./useEqMsg";
 import "./equalizer.css";
@@ -62,23 +53,20 @@ export interface EqualizerToolProps {
   /** Initial state override (preamp / gains / preset). */
   defaultState?: Partial<EqualizerState>;
   /**
-   * Fires on every committed change (slider commit, preset pick) with the
+   * Fires on every committed change (fader commit, preset pick) with the
    * tool's full state — the wire seam for the effects settings area.
    */
   onChange?: (state: EqualizerState) => void;
-  /** Extra classes on the card root. */
+  /** Extra classes on the tool root. */
   className?: string;
 }
 
-/** "12.0 dB" — one decimal + the i18n unit (frame chip values). */
-function formatDb(value: number, unit: string): string {
-  return `${value.toFixed(1)} ${unit}`;
-}
-
 /**
- * EqualizerTool — the collapsible EQ card. Mount directly into the effects
- * settings area or a tools dialog body; the card is width-agnostic (the
- * frames' 360px tool family at the settings area's 784px column alike).
+ * EqualizerTool — the tools-dialog Equalizer surface: preset selector +
+ * the A2 vertical-fader GraphicEQ panel (the w26.f05 Lead ruling). The
+ * tool root carries the `eq-tool`/`eq-tool--open` classes the tools
+ * dialog's staged-note rules key on (dialogs.css); the GraphicEQ inside
+ * is the named "Equalizer" region.
  */
 export function EqualizerTool({
   defaultOpen = false,
@@ -88,161 +76,56 @@ export function EqualizerTool({
 }: EqualizerToolProps): ReactNode {
   const eq = useEqMsg();
   const [open, setOpen] = useState(defaultOpen);
-  const [preamp, setPreamp] = useState(
-    defaultState?.preamp ?? DEFAULT_EQUALIZER_STATE.preamp,
-  );
-  const [gains, setGains] = useState<readonly number[]>(
-    defaultState?.gains ?? DEFAULT_EQUALIZER_STATE.gains,
-  );
-  const [preset, setPreset] = useState(
-    defaultState?.preset ?? DEFAULT_EQUALIZER_STATE.preset,
-  );
-  const toggleId = useId();
-  const bodyId = `${toggleId}-body`;
-
-  const commitPreamp = (value: number): void => {
-    setPreamp(value);
-    onChange?.({ preamp: value, gains, preset });
-  };
-
-  const commitBand = (index: number, value: number): void => {
-    const next = gains.map((gain, i) => (i === index ? value : gain));
-    setGains(next);
-    // Manual band edits keep the last applied preset label (VLC behavior —
-    // the selection names the last APPLIED preset, not live values).
-    onChange?.({ preamp, gains: next, preset });
-  };
+  const [state, setState] = useState<EqualizerState>({
+    ...DEFAULT_EQUALIZER_STATE,
+    ...defaultState,
+  });
 
   const applyPreset = (id: string): void => {
     const spec = EQ_PRESETS.find((candidate) => candidate.id === id);
-    const next = spec === undefined ? NEUTRAL_GAINS : spec.gains;
-    setGains(next);
-    setPreset(id);
-    onChange?.({ preamp, gains: next, preset: id });
+    const next: EqualizerState = {
+      ...state,
+      gains: spec === undefined ? NEUTRAL_GAINS : spec.gains,
+      preset: id,
+    };
+    setState(next);
+    onChange?.(next);
   };
 
-  const unitDb = eq("screen.eq.unit-db");
+  const commitFader = (next: EqualizerState): void => {
+    setState(next);
+    onChange?.(next);
+  };
+
   const presetOptions: DropdownOption<EqMessageKey>[] = EQ_PRESETS.map(
     (spec) => ({ value: spec.id, labelKey: spec.labelKey }),
   );
 
   return (
-    <section
+    <div
       className={["eq-tool", open ? "eq-tool--open" : "", className]
         .filter(Boolean)
         .join(" ")}
-      aria-label={eq("screen.eq.title")}
+      data-tool="equalizer"
     >
-      <button
-        type="button"
-        id={toggleId}
-        className="eq-tool__toggle"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => {
-          setOpen((prev) => !prev);
-        }}
-      >
-        <span className="eq-tool__toggle-label">
-          {eq(open ? "player.tools.collapse-settings" : "player.tools.expand-settings")}
-        </span>
-        {/* Collapsed: chevron-› (frame Vector 27); expanded: rotated to ∨
-         * (frame Vector 27_2) — same shared glyph, CSS rotates it. */}
-        <Icon name="chevron-right" size={24} className="eq-tool__chevron" />
-      </button>
-      <div
-        id={bodyId}
-        className="eq-tool__body"
-        role="group"
-        aria-labelledby={toggleId}
-        hidden={!open}
-      >
-        {/* The preset panel (EQ presets.svg) — shared Dropdown grammar. */}
+      {/* The preset panel (EQ presets.svg) — visible with the expanded
+       * surface; the frames place the preset control OUTSIDE the fader
+       * panel (w26.e07 F6). */}
+      {open ? (
         <Dropdown
           className="eq-tool__presets"
           options={presetOptions}
-          value={preset}
+          value={state.preset}
           onChange={applyPreset}
           label={eq("screen.eq.preset")}
           resolveLabel={eq}
         />
-        <div className="eq-tool__rows">
-          <EqBandRow
-            key="preamp"
-            label={eq("screen.eq.preamp")}
-            value={preamp}
-            unitDb={unitDb}
-            onCommit={commitPreamp}
-          />
-          {EQ_BANDS.map((band, index) => (
-            <EqBandRow
-              key={band.id}
-              label={eq(band.labelKey)}
-              accent={band.accent}
-              value={gains[index] ?? 0}
-              unitDb={unitDb}
-              onCommit={(value) => {
-                commitBand(index, value);
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-interface EqBandRowProps {
-  /** Row label (already resolved through the i18n seam). */
-  label: string;
-  /** `--color-eq-N` index; omit on Preamp (spacer keeps labels aligned). */
-  accent?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  /** Committed value in dB. */
-  value: number;
-  /** Resolved unit copy ("dB"). */
-  unitDb: string;
-  /** Commit seam (drag release / keyboard set — doc 08 §5). */
-  onCommit: (value: number) => void;
-}
-
-/**
- * EqBandRow — one frame row: label + value chip head (frame pitch 90:
- * head 34 → 15px → slider 16 → 25px), the chip reading the LIVE value
- * during a drag (the EQSlider previews internally; the chip follows via
- * onChangeLive so both stay truthful).
- */
-function EqBandRow({ label, accent, value, unitDb, onCommit }: EqBandRowProps): ReactNode {
-  const [live, setLive] = useState<number | null>(null);
-  const shown = live ?? value;
-  return (
-    <div className="eq-tool__row">
-      <div className="eq-tool__row-head">
-        <span className="eq-tool__row-label">
-          <span
-            className="eq-tool__accent"
-            data-accent={accent}
-            aria-hidden="true"
-          />
-          {label}
-        </span>
-        <ValueChip
-          className="eq-tool__chip"
-          value={formatDb(shown, unitDb)}
-        />
-      </div>
-      <EQSlider
-        className="eq-tool__slider"
-        value={shown}
-        min={EQ_GAIN_MIN_DB}
-        max={EQ_GAIN_MAX_DB}
-        step={EQ_GAIN_STEP_DB}
-        aria-label={label}
-        formatValue={(v) => formatDb(v, unitDb)}
-        onChangeLive={setLive}
-        onCommit={(next) => {
-          setLive(null);
-          onCommit(next);
-        }}
+      ) : null}
+      <GraphicEQ
+        open={open}
+        onOpenChange={setOpen}
+        state={state}
+        onChange={commitFader}
       />
     </div>
   );

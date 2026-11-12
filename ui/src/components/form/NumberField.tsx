@@ -3,8 +3,11 @@ import type { InputHTMLAttributes } from "react";
 import "./form.css";
 
 export interface NumberFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "type"> {
-  /** Visible label. */
+  /** Visible label (unless `labelHidden` — then the accessible name only). */
   label: string;
+  /** Render the label as the input's aria-label instead of a visible text
+   * node (row grammar hosts that print their own label — w26.f02). */
+  labelHidden?: boolean;
   /** Error message; presence switches the field into the error state. */
   error?: string;
   min?: number;
@@ -20,7 +23,7 @@ export interface NumberFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
  * out-of-range values). Keyboard: native number input (arrows, Home/End).
  */
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
-  ({ label, error, min, max, step = 1, id, className = "", onChange, disabled, value, ...rest }, ref) => {
+  ({ label, labelHidden = false, error, min, max, step = 1, id, className = "", onChange, disabled, value, ...rest }, ref) => {
     const autoId = useId();
     const inputId = id ?? autoId;
     const errorId = `${inputId}-error`;
@@ -48,9 +51,11 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
 
     return (
       <div className={["lumen-field", className].filter(Boolean).join(" ")}>
-        <label className="lumen-field__label" htmlFor={inputId}>
-          {label}
-        </label>
+        {labelHidden ? null : (
+          <label className="lumen-field__label" htmlFor={inputId}>
+            {label}
+          </label>
+        )}
         <div className="lumen-number">
           <input
             ref={ref}
@@ -58,6 +63,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
             className="lumen-field__control lumen-number__control"
             type="number"
             inputMode="numeric"
+            aria-label={labelHidden ? label : undefined}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             value={value}

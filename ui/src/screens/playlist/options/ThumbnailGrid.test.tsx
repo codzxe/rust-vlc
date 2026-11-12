@@ -2,10 +2,12 @@
 // quiet centered h:mm:ss footer (00:02:10 zero-padded per frame), honest
 // unknowns ("—"), single-click play dispatch, empty honesty.
 
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ThumbnailGrid } from "./ThumbnailGrid";
+import { PlaylistOptionsProvider } from "./PlaylistOptionsProvider";
 import { mountOptions } from "./optionsTestSupport";
+import type { PlaylistEntry } from "../PlaylistProvider";
 
 describe("ThumbnailGrid — frame anatomy (thumbnail.svg)", () => {
   it("renders one card per entry in a labelled thumbnail grid", () => {
@@ -41,5 +43,32 @@ describe("ThumbnailGrid — interaction", () => {
   it("renders nothing (no empty grid) when the queue is empty — the panel owns the empty state", () => {
     const { view } = mountOptions(<ThumbnailGrid />, { entries: [] });
     expect(view.container.querySelector(".lumen-plo-grid")).toBeNull();
+  });
+});
+
+describe("ThumbnailGrid — local scope (w26.f06: saved-playlist browse)", () => {
+  const LOCAL: readonly PlaylistEntry[] = [
+    { id: -1, title: "The Wand_S01E01.mp4", source: null, durationSeconds: null },
+    { id: -2, title: "The Wand_S01E02.mp4", source: null, durationSeconds: 130 },
+  ];
+
+  it("renders cards from the local entries without any engine provider", () => {
+    const { container } = render(
+      <PlaylistOptionsProvider entries={LOCAL}>
+        <ThumbnailGrid />
+      </PlaylistOptionsProvider>,
+    );
+    expect(container.querySelectorAll(".lumen-plo-card")).toHaveLength(2);
+    expect(screen.getByText("00:02:10")).toBeTruthy(); // 130s local duration
+  });
+
+  it("no play seam → cards are honest presentation, never dead buttons", () => {
+    const { container } = render(
+      <PlaylistOptionsProvider entries={LOCAL}>
+        <ThumbnailGrid />
+      </PlaylistOptionsProvider>,
+    );
+    expect(container.querySelectorAll("button.lumen-plo-card")).toHaveLength(0);
+    expect(container.querySelectorAll("div.lumen-plo-card--inert")).toHaveLength(2);
   });
 });

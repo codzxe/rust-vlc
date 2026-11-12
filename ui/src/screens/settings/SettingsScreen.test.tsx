@@ -35,8 +35,11 @@ describe("SettingsScreen shell (card 4.E1)", () => {
   it("renders the schema-generated area navigation", () => {
     renderAt("/settings/interface");
     // The b02 registry = exactly the 13 Figma areas (App 4 / Media 5 / System 4).
+    // w26.f03 (e05/e06 F6): the first App row is labeled "General" — the
+    // Figma sidebar copy (area id + window title stay `global`/
+    // "Global Settings", tools-settings §D2 pitfall 3).
     for (const area of [
-      "Global",
+      "General",
       "Interface",
       "Privacy",
       "Controls",
@@ -58,8 +61,15 @@ describe("SettingsScreen shell (card 4.E1)", () => {
   it("renders the floating window shell (W26 §D2: top bar + search pill + window title)", () => {
     const { container } = renderAt("/settings/interface");
     expect(container.querySelector(".settings-window")).not.toBeNull();
-    expect(screen.getByPlaceholderText("Search settings")).toBeInTheDocument();
+    // w26.f03 (e05 F9): the pill placeholder is the frame's "Search" — the
+    // registered "Search settings" copy stays the input's accessible name.
+    const search = screen.getByPlaceholderText("Search");
+    expect(search).toHaveAccessibleName("Search settings");
     expect(screen.getByRole("button", { name: "Close settings" })).toBeInTheDocument();
+    // w26.f03 (e05 F10): the top bar carries EXACTLY the frame's three
+    // elements — search pill · window title · ✕; the extra "Reset all to
+    // defaults" ghost is gone.
+    expect(screen.queryByRole("button", { name: "Reset all to defaults" })).toBeNull();
     // The Solstice backdrop veil is gone for good — the window floats on the
     // plain app surface (assertion replaces the old data-backdrop test 1:1:
     // it fails if any tier ever comes back).
@@ -95,20 +105,54 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     expect(screen.getByTestId("settings-applybar")).toBeInTheDocument();
   });
 
-  it("segregates advanced entries behind the in-flow Advanced Options disclosure", () => {
+  it("moves focus into the window on open and traps Tab inside it (e06 F8)", () => {
+    const { container } = renderAt("/settings/interface");
+    // Initial focus: the sidebar's ACTIVE area row (the window is a floating
+    // surface — focus starts inside it, not on the app chrome behind).
+    const active = screen.getByRole("button", { name: "Interface" });
+    expect(active).toHaveFocus();
+    const window_ = container.querySelector(".settings-window") as HTMLElement;
+    // Tab from the LAST focusable stop wraps to the first (the search input).
+    // Same focusable definition as the trap (aria-hidden pointer
+    // affordances like the number steppers are not tab stops).
+    const focusables = window_.querySelectorAll(
+      'button:not([disabled]):not([aria-hidden="true"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    const last = focusables[focusables.length - 1] as HTMLElement;
+    const first = focusables[0] as HTMLElement;
+    last.focus();
+    fireEvent.keyDown(window_, { key: "Tab" });
+    expect(first).toHaveFocus();
+    // Shift+Tab from the first wraps to the last.
+    fireEvent.keyDown(window_, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+    // The wrap stays INSIDE the window — focus never lands on the app chrome.
+    expect(window_.contains(document.activeElement)).toBe(true);
+  });
+
+  it("renders interface rows FLAT — the frame carries no Advanced bar (e05 F7)", () => {
     renderAt("/settings/interface");
+    // Settings - interface.svg has NO "Advanced Options" bar: every seeded
+    // row (advanced-flagged or not) renders in its section (areas/interface).
+    expect(screen.queryByRole("button", { name: "Advanced Options" })).toBeNull();
+    expect(screen.getByText("Minimum window width")).toBeInTheDocument();
+  });
+
+  it("segregates GLOBAL advanced entries behind the in-flow disclosure (global-1, e05 F8)", () => {
+    renderAt("/settings/global");
     const toggle = screen.getByRole("button", { name: "Advanced Options" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByLabelText("Minimum window width")).toBeNull();
+    expect(screen.queryByText("Show minor warnings")).toBeNull();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByLabelText("Minimum window width")).toBeInTheDocument();
+    expect(screen.getByText("Show minor warnings")).toBeInTheDocument();
+    expect(screen.getByText("Collect playback statistics")).toBeInTheDocument();
   });
 
   it("redirects an unknown area to the first schema area", async () => {
     renderAt("/settings/nope");
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page"),
+      expect(screen.getByRole("button", { name: "General" })).toHaveAttribute("aria-current", "page"),
     );
   });
 
@@ -169,7 +213,7 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("searches across areas from another area's screen", () => {
     renderAt("/settings/global");
-    fireEvent.change(screen.getByPlaceholderText("Search settings"), { target: { value: "window width" } });
+    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "window width" } });
     const results = screen.getByTestId("settings-search-results");
     expect(results).toHaveTextContent("Window width");
     expect(results).toHaveTextContent("Interface"); // cross-area hit
@@ -178,7 +222,7 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("shows an honest no-results state", () => {
     renderAt("/settings/global");
-    fireEvent.change(screen.getByPlaceholderText("Search settings"), { target: { value: "zzzz" } });
+    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "zzzz" } });
     expect(screen.getByTestId("settings-search-empty")).toHaveTextContent("No settings match your search");
   });
 
@@ -225,16 +269,9 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     expect(width).toHaveValue(1280); // product.toml window.width
   });
 
-  it("resets the whole screen to schema defaults (vs applied values)", () => {
-    renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
-    fireEvent.click(screen.getByRole("button", { name: "Apply" })); // persisted: true
-    fireEvent.click(screen.getByRole("button", { name: "Reset all to defaults" }));
-    expect((screen.getByRole("switch", { name: "Start maximized" }) as HTMLElement).getAttribute("aria-checked")).toBe("false");
-    expect(screen.getByLabelText("Window height")).toHaveValue(720);
-    // reset is a draft edit vs the applied value — dirty again; the restart
-    // badge stays: the APPLIED value still needs a restart until re-applied.
-    expect(screen.getByTestId("settings-applybar")).toHaveTextContent("Unsaved changes (1)");
-    expect(field("interface.start-maximized")).toHaveTextContent("Restart required");
-  });
+  // w26.f03 (e05 F10): the top-bar "Reset all to defaults" ghost is gone
+  // (frame-verbatim top bar); the reset-to-default contract stays reachable
+  // through the per-field reset buttons above and the provider's resetArea
+  // seam (covered by SettingsProvider.test.tsx "resetArea resets every field
+  // of one area and nothing else").
 });

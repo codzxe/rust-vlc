@@ -54,9 +54,17 @@ describe("Privacy half — telemetry-off defaults on the generated screen", () =
     expect(document.querySelector('[data-setting="privacy.telemetry"]')).not.toBeNull();
   });
 
-  it("renders crash-reports at its shipped off/ask/send default (off)", () => {
+  it("renders crash-reports as a closed dropdown at its shipped off/ask/send default (off)", () => {
     expect(SETTING_PRIVACY_CRASH_REPORTS.defaultValue).toBe("off");
     renderRouted("privacy");
-    expect((screen.getByRole("radio", { name: "Off" }) as HTMLInputElement).checked).toBe(true);
+    // w26.f02 (e06 F1): enum rows are CLOSED dropdowns (§D2 row grammar),
+    // never stacked radio groups.
+    const trigger = screen.getByRole("button", { name: "Crash reports" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveTextContent("Off");
+    expect(
+      document.querySelector('[data-setting="privacy.crash-reports"] .lumen-radiogroup'),
+    ).toBeNull();
   });
 });

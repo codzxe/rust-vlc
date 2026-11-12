@@ -2,9 +2,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { ClientProvider } from "./client/ClientProvider";
 import { MockTransport } from "./client/transport";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import { resetOnboardingForTests } from "./screens/onboarding/onboardingState";
+// w26.f08: the app-level theme hydration cases compose the providers exactly
+// like main.tsx does (ThemeProvider is the mount that owns the bootstrap).
+import { ThemeProvider } from "./theme/ThemeProvider";
 
 function renderAt(path: string): void {
   render(
@@ -44,7 +47,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
   it("renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area", async () => {
     renderAt("/settings/not-a-real-area"); // genuinely unknown slug (audio is real since w26.b02)
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Settings");
-    expect(screen.getByRole("button", { name: "Global" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "General" })).toHaveAttribute("aria-current", "page");
   });
 
   it("renders the onboarding route (real 4.F1 wizard)", () => {
@@ -75,5 +78,63 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     cleanup();
     renderAt("/player");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
+  });
+});
+
+describe("App — persisted theme hydration (w26.f08, e03-F1/e19-F1)", () => {
+  /** Renders the App under the same provider stack main.tsx mounts. */
+  function renderApp(path: string): void {
+    render(
+      <ThemeProvider>
+        <ClientProvider transport={new MockTransport()}>
+          <MemoryRouter initialEntries={[path]}>
+            <App />
+          </MemoryRouter>
+        </ClientProvider>
+      </ThemeProvider>,
+    );
+  }
+
+  /** Seeds a persisted LIGHT theme choice (the settings screen's own shape). */
+  function seedLightTheme(): void {
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "interface.theme": "light" }),
+    );
+  }
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    resetOnboardingForTests(); // leave a fresh run for the route tests above
+    delete document.documentElement.dataset.theme;
+    delete document.documentElement.dataset.accent;
+  });
+
+  it("a fresh load of /player boots LIGHT when interface.theme=light is persisted (used to boot dark — e03-F1)", () => {
+    window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
+    seedLightTheme();
+    resetOnboardingForTests();
+    renderApp("/player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("a fresh load of /discovery (non-settings, non-player) boots LIGHT too — every route hydrates (e19-F1)", () => {
+    window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
+    seedLightTheme();
+    resetOnboardingForTests();
+    renderApp("/discovery");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Discovery");
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("the full-bleed /onboarding gate route hydrates as well (no AppShell there — the provider init is the seam)", () => {
+    // Fresh profile (no onboarding store) + a persisted light choice: the
+    // wizard itself must render light.
+    seedLightTheme();
+    renderApp("/onboarding");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 });

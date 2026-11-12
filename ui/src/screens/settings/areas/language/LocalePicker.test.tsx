@@ -7,8 +7,10 @@ import { LocalePicker } from "./LocalePicker";
 import { AVAILABLE_LOCALES, REFERENCE_LOCALE, localeLabel } from "./locales";
 import { useMsg } from "../../../../i18n/messages";
 
-// Card 4.E2 language area: the locale picker renders ONLY real locales (the
-// localization crate's locales/ dir) and binds to the global.language key.
+// Card 4.E2 language area (w26.f03, e05 F5): the locale picker is a CLOSED
+// dropdown (frame §C0/§C1 — 320×36 trigger + chevron, not a stacked radio
+// list) rendering ONLY real locales (the localization crate's locales/ dir),
+// bound to the global.language key.
 
 const mount = () =>
   render(
@@ -18,22 +20,28 @@ const mount = () =>
   );
 
 describe("LocalePicker (global.language)", () => {
-  it("renders exactly the real available locales (localization crate data)", () => {
+  it("renders a closed dropdown trigger showing the current locale", () => {
     mount();
-    // One radio per available locale; en-US is the only shipped catalog today.
-    const radios = screen.getAllByRole("radio");
-    expect(radios).toHaveLength(AVAILABLE_LOCALES.length);
-    expect(screen.getByRole("radio", { name: /English \(United States\)/i })).toBeTruthy();
+    // The trigger is a combobox (aria-haspopup listbox), labeled by the row.
+    const trigger = screen.getByRole("button", { name: "Language" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveTextContent("English (United States)");
+    // Closed by default — no open listbox until the user opens it.
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
-  it("does not offer schema values that lack a shipped catalog (never invented)", () => {
-    const { container } = mount();
-    const offered = [...container.querySelectorAll("input[type=radio]")].map((i) => (i as HTMLInputElement).value);
-    expect(offered).toEqual(["en-US"]);
-    expect(offered).not.toContain("xx-XX");
+  it("offers exactly the real available locales when opened (localization crate data)", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(AVAILABLE_LOCALES.length);
+    expect(screen.getByRole("option", { name: /English \(United States\)/i })).toBeTruthy();
+    // en-US is the only shipped catalog today.
+    expect(AVAILABLE_LOCALES).toEqual(["en-US"]);
   });
 
-  it("binds to the global.language setting key (change → draft value + dirty)", async () => {
+  it("binds to the global.language setting key (select → draft value + dirty)", async () => {
     let latest = "";
     function Probe() {
       const { value } = useSettings();
@@ -48,11 +56,14 @@ describe("LocalePicker (global.language)", () => {
     );
     expect(latest).toBe(SETTING_GLOBAL_LANGUAGE.defaultValue); // en-US
     // Single-locale world: the option is already selected; the binding is
-    // proven by the radio carrying the schema key's current value.
-    const radio = screen.getByRole("radio", { name: /English \(United States\)/i }) as HTMLInputElement;
-    expect(radio.value).toBe("en-US");
-    fireEvent.click(radio);
+    // proven by the trigger carrying the schema key's current value and the
+    // selected option staying bound after re-selecting it.
+    const trigger = screen.getByRole("button", { name: "Language" });
+    expect(trigger).toHaveTextContent("English (United States)");
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("option", { name: /English \(United States\)/i }));
     expect(latest).toBe("en-US");
+    expect(screen.getByRole("button", { name: "Language" })).toHaveFocus(); // close restores focus
   });
 
   it("labels the reference locale through the i18n catalog", () => {

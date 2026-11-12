@@ -11,7 +11,7 @@ import { MockTransport } from "../../client/transport";
 import type { CommandTransport, CommandResponse, CommandRequest, Event } from "../../client/transport";
 import { fullMediaInfo } from "../media-info/fixtures";
 import { OPEN_MEDIA_EVENT } from "../open-media";
-import { PlayerScreen, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
+import { PlayerScreen, PLAYER_OPEN_CUSTOMIZE_EVENT, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
 
 /** The DOM Event (the catalog `Event` type is imported as a spy shape). */
 type DomEvent = globalThis.Event;
@@ -66,10 +66,12 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
   });
 
   it("composes the docked playlist sidebar (Player.png) with the real 4.D1 panel", () => {
-    // Cross-lane pin: the dock is part of the player's default composition
-    // (open first-run — variants.test.tsx asserts it present in the full
-    // variant; see the PlayerScreen.tsx composition note for the open
-    // Player.png single-sidebar question).
+    // w26.f09 (e02 F3, Lead decision): the dock IS the player's one
+    // default-open sidebar (data-sidebar=open first-run); the SHELL's
+    // playlists sidebar composes default-CLOSED on /player (f08 seam —
+    // AppShell's persisted sidebar default must become route-aware; see the
+    // w26.f09 lane log). variants.test.tsx asserts the dock present in the
+    // full variant; this screen owns the toggle seam.
     renderWithClient(<PlayerScreen />);
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
     expect(playlist).toHaveAttribute("data-region-id", "playlist");
@@ -78,6 +80,28 @@ describe("PlayerScreen — ARIA landmarks + honest placeholders (doc 08 §4.5)",
     // state honest until the app shell wires playlist.load).
     expect(within(playlist).getByText("Nothing in the queue")).toBeInTheDocument();
     expect(within(playlist).getByRole("button", { name: "Shuffle" })).toBeInTheDocument();
+  });
+
+  it("w26.f09 (e02 F2): the control band spans the player width BELOW dock + canvas", () => {
+    // Player.svg: the strip is translate(0,1026) width=1920 — the sidebar and
+    // canvas END ABOVE it. Restructured: the dock + canvas (+ floating
+    // panels) share one body row; the controls footer is a full-width
+    // sibling AFTER that row, never a column inside the canvas region.
+    renderWithClient(<PlayerScreen />);
+    const root = document.querySelector(".lumen-player")!;
+    const body = root.querySelector(":scope > .lumen-player__body")!;
+    expect(body).not.toBeNull();
+    const dock = screen.getByRole("complementary", { name: "Playlist" });
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    expect(dock.closest(".lumen-player__body")).toBe(body);
+    expect(canvas.closest(".lumen-player__body")).toBe(body);
+    const footer = screen.getByRole("region", { name: "Playback controls" });
+    expect(footer.closest(".lumen-player__main")).toBeNull();
+    expect(footer.parentElement).toBe(root);
+    // DOM order: the band renders AFTER the body row (below it on screen).
+    const bodyBeforeFooter =
+      body.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(bodyBeforeFooter).toBeTruthy();
   });
 
   it("renders the bottom control bar slot with the real control bar (4.C2)", () => {
@@ -269,9 +293,12 @@ describe("PlayerScreen — first-run empty state (doc 08 §5.3)", () => {
     expect(screen.queryByRole("complementary", { name: "Media information" })).toBeNull();
   });
 
-  it("chrome stays visible in the empty state (locked, doc 08 §5.3)", () => {
+  it("chrome renders VISIBLE in the empty state — the fade arms, it does not lock (w26.f10, Player - hide UI)", () => {
+    // The retired !hasMedia lock is gone: first-run chrome shows ("visible")
+    // and the idle fade is ARMED windowed too; only an open panel/menu locks
+    // (doc 08 §4.5). The hero itself is canvas content and never fades.
     renderWithClient(<PlayerScreen />);
-    expect(document.querySelector(".lumen-player")).toHaveAttribute("data-chrome", "locked");
+    expect(document.querySelector(".lumen-player")).toHaveAttribute("data-chrome", "visible");
   });
 });
 
@@ -480,6 +507,67 @@ describe("PlayerScreen — Ctrl+E tools dialog (w26.d1, VLC Adjustments and Effe
   });
 });
 
+describe("PlayerScreen — Customize interface trigger (w26.f09, e04 F1)", () => {
+  /** keymaps/default.toml playlist.advanced-controls = Ctrl+A — the row's
+   * note adapts VLC's Advanced Controls combo to the Customize panel. */
+  const pressCtrlA = (target?: Element): void => {
+    act(() => {
+      // window-level when no target: the shell's listener hears the bubbling
+      // event, exactly like a real Ctrl+A with nothing focused.
+      const source: EventTarget = target ?? window;
+      source.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "a", ctrlKey: true, bubbles: true }),
+      );
+    });
+  };
+
+  it("Ctrl+A opens the customize surface through the seam event", () => {
+    const heard = vi.fn();
+    window.addEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    try {
+      renderWithClient(<PlayerScreen />);
+      pressCtrlA();
+      expect(heard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    }
+  });
+
+  it("Ctrl+Shift+A is NOT the combo (exact-modifier matching)", () => {
+    const heard = vi.fn();
+    window.addEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    try {
+      renderWithClient(<PlayerScreen />);
+      act(() => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "a", ctrlKey: true, shiftKey: true }),
+        );
+      });
+      expect(heard).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    }
+  });
+
+  it("Ctrl+A inside a text field stays select-all (never claimed)", () => {
+    // The Go-to-Time dialog's input: Ctrl+A there must keep the browser's
+    // select-all — the player only claims the combo outside editors.
+    const heard = vi.fn();
+    window.addEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    try {
+      renderWithClient(<PlayerScreen media={{ hasVideo: false, hasChapters: false }} />);
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", ctrlKey: true }));
+      });
+      const input = screen.getByLabelText("Time");
+      pressCtrlA(input);
+      expect(heard).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    }
+  });
+});
+
 describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", () => {
   /** Right-click the canvas region; returns the opened menu. */
   const openCanvasMenu = async (): Promise<HTMLElement> => {
@@ -492,10 +580,12 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
   const menuItems = (menu: HTMLElement): HTMLElement[] =>
     [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]')];
 
-  it("opens the frame's 14 rows in pinned order with 3 separators", async () => {
+  it("opens the frame's 14 rows + the w26.f09 customize trigger in pinned order", async () => {
     renderWithClient(<PlayerScreen />);
     const menu = await openCanvasMenu();
-    // REAL frame labels (right-click menu.svg), pinned order.
+    // REAL frame labels (right-click menu.svg), pinned order + the
+    // Lead-approved "Customize interface…" trigger row after More Settings
+    // (w26.f09, e04 F1 — the customize surface's real entry point).
     expect([...menu.querySelectorAll<HTMLElement>(".lumen-menu__label")].map((label) => label.textContent)).toEqual([
       "Play",
       "Stop",
@@ -508,6 +598,7 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
       "Audio",
       "Subtitle",
       "More Settings",
+      "Customize interface…",
       "Playlist",
       "Open Media",
       "Quit VLC",
@@ -522,8 +613,10 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
     const menu = await openCanvasMenu();
     // HOTKEY_BINDINGS rows: navigation.toggle-play-pause=Space, navigation.stop=S,
     // navigation.prev-track=P, navigation.next-track=N, video.record=Shift+R
-    // (the keymap's D-1 resolution of the frame's "R"), window.n=Ctrl+\,
-    // media.quit=Ctrl+Q — re-joined in the frame's "Ctrl + …" spelling.
+    // (the keymap's D-1 resolution of the frame's "R"), window.hide-ui=Ctrl+\,
+    // playlist.advanced-controls=Ctrl+A (w26.f09 customize trigger — that
+    // row's adapted-to-customize note), media.quit=Ctrl+Q — re-joined in the
+    // frame's "Ctrl + …" spelling.
     expect([...menu.querySelectorAll<HTMLElement>(".lumen-menu__accelerator")].map((acc) => acc.textContent)).toEqual([
       "Space",
       "S",
@@ -531,6 +624,7 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
       "N",
       "Shift + R",
       "Ctrl + \\",
+      "Ctrl + A",
       "Ctrl + Q",
     ]);
   });
@@ -543,8 +637,9 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
       const item = menuItems(menu).find((row) => row.textContent?.startsWith(label))!;
       expect(item, label).toHaveAttribute("aria-disabled", "true");
     }
-    // The seven submenu parents stay active (they open honest content).
-    for (const label of ["Playback", "Video", "Audio", "Subtitle", "More Settings", "Playlist", "Open Media"]) {
+    // The seven submenu parents + the customize trigger stay active (they
+    // open honest content / fire the real seam event).
+    for (const label of ["Playback", "Video", "Audio", "Subtitle", "More Settings", "Customize interface…", "Playlist", "Open Media"]) {
       const item = menuItems(menu).find((row) => row.textContent?.startsWith(label))!;
       expect(item, label).not.toHaveAttribute("aria-disabled");
     }
@@ -595,6 +690,22 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
     const submenu = await screen.findByRole("menu", { name: "Playlist" });
     fireEvent.click(within(submenu).getByText("Hide queue panel"));
     expect(document.querySelector("[data-screen='player']")!).toHaveAttribute("data-sidebar", "closed");
+  });
+
+  it("w26.f09 (e04 F1): the Customize interface… row fires the lumen:open-customize seam", async () => {
+    // The trigger's contract mirrors the open-media CTA: a window CustomEvent
+    // f12's CustomizeDialog (customize/) listens for. The seam is real wiring
+    // even while the listener ships in f12's lane.
+    const heard = vi.fn();
+    window.addEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    try {
+      renderWithClient(<PlayerScreen />);
+      const menu = await openCanvasMenu();
+      fireEvent.click(within(menu).getByText("Customize interface…"));
+      expect(heard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(PLAYER_OPEN_CUSTOMIZE_EVENT, heard);
+    }
   });
 
   it("Open Media submenu: the shell event + the network-stream route", async () => {

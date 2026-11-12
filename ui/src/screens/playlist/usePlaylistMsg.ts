@@ -7,20 +7,26 @@
 // falling back to the shared catalog — so NO user-visible string is a
 // literal and none renders `undefined` while unregistered. Same pattern as
 // the discovery/settings lanes (w26.b12 / w26.b01).
+//
+// w26.f06 — the lane catalog now also carries this wave's playlist-surface
+// keys (`ui/src/i18n/keys/w26.f06.ts`: the opened-playlist browse view's
+// back/empty/copy and the toolbar's Add-subtitles action), same seam-first
+// grammar.
 
 import { useCallback } from "react";
 import { useMsg, type MessageKey } from "../../i18n/messages";
-import { keys as laneKeys } from "../../i18n/keys/w26.b09";
+import { keys as b09Keys } from "../../i18n/keys/w26.b09";
+import { keys as f06Keys } from "../../i18n/keys/w26.f06";
 
-/** Keys owned by this lane (registered into messages.ts by the Lead). */
-export type PlaylistLaneKey = keyof typeof laneKeys;
+/** Keys owned by this lane (w26.b09 + the w26.f06 playlist surfaces). */
+export type PlaylistLaneKey = keyof typeof b09Keys | keyof typeof f06Keys;
 
-const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+const laneCatalog: Readonly<Record<string, string>> = { ...b09Keys, ...f06Keys };
 
 /**
- * usePlaylistMsg — `useMsg` extended with this lane's pre-registration keys.
- * Lane keys win while they are unregistered; once the Lead merges them into
- * the catalog both paths return the same string.
+ * usePlaylistMsg — `useMsg` extended with the playlist lane's
+ * pre-registration keys. Lane keys win while they are unregistered; once the
+ * Lead merges them into the catalog both paths return the same string.
  */
 export function usePlaylistMsg() {
   const m = useMsg();
