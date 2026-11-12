@@ -1,77 +1,65 @@
 /* /keyboard-shortcuts — the W26 Figma keyboard-shortcuts window
- * (design/figma/Keyboard Shortcuts.svg, 1048×800 artboard): a floating
- * r14 #191919@95% dialog with 25px backdrop blur and a soft drop shadow,
- * centered over the app surface — the same window grammar as the Settings
- * frames (settings.css). Inside:
+ * (design/figma/Keyboard Shortcuts.svg, 1048×800 artboard), w26.i17 fix
+ * pass (h19 rating 7.3).
+ *
+ * w26.i17 (h19 shame #2): the window wore dialog chrome but was a bare
+ * route page — no role="dialog", no focus trap. It now rides the shared
+ * Dialog primitive: the frame window lives on .lumen-dialog.shortcuts-dialog
+ * below (scrim + trap + Escape/scrim close come from <Dialog>), and the
+ * inner .shortcuts column carries the grid.
+ * Inside:
  *   * 96px #090909 top bar — title row ("Keyboard shortcuts" #8F8F8F ≈14px
- *     at x20, ✕ 10×10 #8F8F8F at the right inset) above the filter row
+ *     at x20, ✕ 10×10 at the right inset) above the filter row
  *     (search pill 820×34 r6 #151515 + field filter 200×34 r6 #151515,
  *     9px side insets, y53);
- *   * scrollable content — sticky column-header row (Action #6B6B6B left,
- *     Hotkey / Global Hotkey centered), #222 hairline rules, 16px #969696
- *     section headers, rows at 47px pitch: action label #C6C6C6 14px left,
- *     then two 270×33 r6 #090909 keycaps with the combo centered #C6C6C6
- *     ≈13px tabular and an edit pencil #404040 at the right inset;
- *   * 52px footer — Cancel 100×32 (Button secondary grammar) left, Save
- *     100×32 #371F06 + #D37918 at 50% (disabled — read-only reference)
- *     right.
+ *   * scrollable content — sticky column-header row (Action left, Hotkey /
+ *     Global Hotkey centered), 1px #222222 rules, 16px section headers,
+ *     rows at 47px pitch: action label left, then two 270×33 r6 #090909
+ *     keycaps with the combo centered and an edit pencil at the right
+ *     inset;
+ *   * 52px footer — Cancel 100×32 (flat #1B1B1B) left, Save 100×32
+ *     #371F06 + #D37918 at 50% (disabled — read-only reference) right.
  *
  * Frame-measured geometry (x/y of the 1048×800 artboard) is marked with
  * `frame:` comments; raw px is structural only (no tokens exist for them).
- * Semantic tokens only (doc 08 §3.2). The stage centers the window in the
- * shell's main region — the screen renders no <main> of its own. */
-
-/* ------------------------------------------------------------- stage */
-
-.shortcuts {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  padding: 16px;
-  background: var(--color-surface);
-  color: var(--color-content-primary);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-body);
-}
-
-/* Visually hidden h1 (the window's accessible name anchor; the top bar
- * shows the same title). */
-.shortcuts__vh {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
+ * Semantic tokens only (doc 08 §3.2). The Dialog scrim veils the shell —
+ * the screen renders no <main> of its own. */
 
 /* ------------------------------------------------------------ window */
 
-.shortcuts__window {
-  display: grid;
-  grid-template-rows: 96px minmax(0, 1fr) 52px; /* frame: top bar 96, footer strip 52 */
-  box-sizing: border-box;
-
+.lumen-dialog.shortcuts-dialog {
   /* frame: Keyboard Shortcuts.svg window 1048×800 (shrinks inside small
    * stages; the content column scrolls) */
-  width: min(1048px, 100%);
-  height: min(800px, 100%);
+  width: min(1048px, 92vw);
+  max-width: min(1048px, 92vw);
+  height: min(800px, 92vh);
+  max-height: min(800px, 92vh);
+  padding: 0;
   overflow: hidden; /* clips children to the r14 corners */
 
   /* frame: #191919 at 95% + 25px backdrop blur */
   background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
   backdrop-filter: blur(var(--blur-backdrop));
 
-  /* frame: drop shadow 0/+8 σ7.5 at 46% (surface ink ≈ the frame's black) */
+  /* frame: drop shadow 0/+8 σ7.5 at 46% (surface ink ≈ the frame's black);
+   * the frame draws NO window stroke — the shared 1px border is voided */
   box-shadow: 0 8px 7.5px color-mix(in srgb, var(--color-surface) 46%, transparent);
+  border-color: transparent;
   border-radius: var(--radius-window);
+}
+
+/* The inner column — frame grid: top bar 96px / content 1fr / footer 52px. */
+.shortcuts {
+  display: grid;
+  grid-template-rows: 96px minmax(0, 1fr) 52px; /* frame: top bar 96, footer strip 52 */
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body);
 }
 
 /* ----------------------------------------------------------- top bar */
@@ -215,6 +203,25 @@
   background: var(--color-surface-hover);
 }
 
+/* w26.i17 (g20-P3-2): the open list — the shared defaults render 48px
+ * flush r6 rows; Dropdown.svg pins 44px rows at 46 pitch (2px gaps) rx4
+ * with the selected label quiet. The EQ picker override (equalizer.css)
+ * proved the grammar; this sheet now uses it too. */
+.shortcuts__filter.lumen-dropdown .lumen-dropdown__list {
+  gap: 2px; /* frame: row pitch 46 = 44 + 2 */
+}
+
+.shortcuts__filter.lumen-dropdown .lumen-dropdown__option {
+  min-height: 44px; /* frame: option rows 44px */
+  border-radius: var(--radius-inset); /* frame: rx4 rows */
+}
+
+/* frame: option.png — the selected row keeps its quiet #8F8F8F label (the
+ * shared brightens to #EAEAEA); the #1F1F1F fill + orange check carry it. */
+.shortcuts__filter.lumen-dropdown .lumen-dropdown__option[aria-selected="true"] {
+  color: var(--color-content-secondary);
+}
+
 .shortcuts__filter.lumen-dropdown .lumen-dropdown__value {
   color: color-mix(
     in srgb,
@@ -264,7 +271,10 @@
 
 .shortcuts__headcell {
   font-size: var(--font-size-body);
-  color: var(--color-content-tertiary); /* frame: #6B6B6B */
+
+  /* frame reads #6B6B6B; ships --color-content-tertiary #828282 — Lead WCAG
+   * ruling (w26.i17): body-tertiary TEXT keeps AA; dividers match the frame. */
+  color: var(--color-content-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -276,13 +286,15 @@
 }
 
 /* Hairline rules — frame: 1px #222222 x20..1028 (header rule y161, section
- * rules y428); mixed from stroke-border over the panel so it stays a quiet
- * darker line in BOTH themes (no #222 token — token-lane ask). */
+ * rules y428). w26.i17 (g20-P3-3): the pre-fix color-mix (stroke-border 55%
+ * over panel) resolved ≈#2e2e2e; the frame's #222222 = --color-surface-raised
+ * in dark (the menu-separator convention, menu.css) — decoration, so it
+ * matches the frame. Light rides the same token (≈#dedede, no light frame). */
 .shortcuts__rule {
   border: none;
   height: 1px;
   margin: 23px 0 0; /* frame: rule y161 = header bottom + 23 */
-  background: color-mix(in srgb, var(--color-stroke-border) 55%, var(--color-surface-panel));
+  background: var(--color-surface-raised); /* frame: #222222 (dark exact) */
 }
 
 /* Section headers — frame: "Basic"/"Playback" ≈16px #969696 at y189/y456. */
@@ -403,10 +415,12 @@ a.shortcuts__edit:focus-visible {
 
 /* Cancel — frame: 100×32 r6 #1B1B1B fill with NO stroke (Frame 140): a flat
  * tonal button barely lifted off the window fill, not the shared secondary's
- * bordered raised pill (mixed from tokens to ≈#1c1c1c). */
+ * bordered raised pill. w26.i17: mix retuned 30%→22% — surface-raised 22%
+ * over surface-panel = #1b1b1b EXACT in dark (was ≈#1c1c1c); ≈#cbcbcb in
+ * light. Same recipe as the netstream dialog's Cancel (network-stream.css). */
 .shortcuts__cancel.lumen-button {
   border-color: transparent;
-  background: color-mix(in srgb, var(--color-surface-raised) 30%, var(--color-surface-panel));
+  background: color-mix(in srgb, var(--color-surface-raised) 22%, var(--color-surface-panel));
 }
 
 /* Disabled Save keeps the frame's tinted look (Frame 141 renders the whole
@@ -428,12 +442,27 @@ a.shortcuts__edit:focus-visible {
   color: var(--color-content-primary);
 }
 
+/* ---------------------------------------- w26.i17 light wells (h19 #3) */
+
+/* The keycaps and the 96px top bar map to --color-surface, which in LIGHT
+ * is #c2c2c2 — Δ4/255 from the #c6c6c6 window, so 292 keycaps and the
+ * strip nearly vanished (pixel-verified in the light shot). Light steps
+ * both to the recessed-well token surface-deep (#bababa, Δ12 ≈ dark's Δ16
+ * step) — the same AA-safe mapping form.css's light sweep uses for input
+ * wells (combo ink #161616 on #bababa = 10.5:1; title #4e4e4e on #bababa =
+ * 4.8:1). The token-level light retune (surface vs panel Δ4) stays with
+ * the token lane. */
+:root[data-theme="light"] .shortcuts__topbar,
+:root[data-theme="light"] .shortcuts__keycap {
+  background: var(--color-surface-deep);
+}
+
 /* ------------------------------------------------- narrow stages */
 
-/* Below ~1120px viewport the 1048px window no longer fits the shell main
- * (52px rail + 32px stage padding): the action column keeps the free
- * width, the keycap columns and gutters compress — nothing clips (labels
- * and combos ellipsize, the body scrolls). */
+/* Below ~1120px viewport the 1048px window no longer fits (the Dialog caps
+ * it at 92vw): the action column keeps the free width, the keycap columns
+ * and gutters compress — nothing clips (labels and combos ellipsize, the
+ * body scrolls). */
 @media (width <= 1120px) {
   .shortcuts__headrow,
   .shortcuts__row {
