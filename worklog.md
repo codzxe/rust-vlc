@@ -1537,3 +1537,18 @@ Work Log:
 
 Stage Summary:
 - Gate open for wave H. CI-red diagnosis track runs in parallel (rerun in flight). Next: integrate wave H → consolidated scoreboard → route findings to wave I.
+
+---
+Task ID: w26.lead-wave-h-close
+Agent: Lead (wave-26 orchestration)
+Task: Wave H integration — 20/20 harsh rater lanes + consolidated scoreboard (issue #61)
+
+Work Log:
+- 20/20 rating lanes completed (h06/h20 relaunched once after context-deadline timeouts; both landed green). All rating files in docs/waves/w26/ratings/w26.h01-20.md; 18 lanes self-pushed branches w26/h<nn> (GET 200 verified); h08/h10 self-push hit 401 Bad Credentials at their end (token verified working from Lead side — local shell quoting at the agent, not the token) — their files ride this main commit instead.
+- Consolidated scoreboard: docs/waves/w26/ratings/w26.h-scoreboard.md. Product mean 7.82/10; families >=8.0: 8/20; families <7.0: 3 (h05 light 6.8, h11 settings controls/library/network 6.8, h12 perf/recording/extensions 6.9). Worst-10 screens list + cross-cutting shames + wave-I routing inside.
+- Top cross-cutting shames: light-mode token debt (tertiary split-brain, accent-text below claimed floor, invisible focus ring, well collapse), #828282-vs-#6B6B6B tertiary (Lead ruling needed), first-run gate guards only player routes, empty-label settings video dropdowns, dead frames in menu family map (folder/queue context menus unreachable live).
+- CI diagnosis (issue #68 update): Actions BROKEN at account level, not code — all workflows on 510f446f instant-fail in ~2s with ZERO steps executed and runner_id=0; logs BlobNotFound even for fresh runs; last green run 16:24:44 (clippy on ba002e04); 34 successful runs ever. Signature = Actions minutes exhausted on the private repo (billing) — needs account top-up/monthly reset; cannot be fixed from the repo. Wave program continues on the local battery (tsc 0 errors verified this session; full battery per gfix-integration entry). release.yml validation (issue #66) blocked until Actions returns; wave M will build locally + publish via the Releases API.
+- Vision tooling held: most lanes got 1-5 vision compares before 429s; every lane completed via the measurement fallback (SVG geometry + DOM probes + pixel sampling) — the §9 codification paid for itself.
+
+Stage Summary:
+- Wave H closed (issue #61 → closed). Next: wave I — 20 fixer lanes per the scoreboard routing; Lead handles i18n key registration + the #828282/#6B6B6B ruling + light-token pins with i19.
