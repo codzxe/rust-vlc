@@ -476,3 +476,308 @@
   /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-stroke-border #404040 on the stays-dark canvas */
   border-color: #404040;
 }
+
+/* --- playlist browse (Player-4.svg) + floating now-playing card (Player-3.svg)
+ * w26.i02 (Lead ruling — the grid+bar composition split). The browse face is
+ * canvas CONTENT (like the home face): it replaces the canvas surface over
+ * the deep main area (Player-4's #0E0E0E), while the transport bar spans the
+ * window bottom below it (the strip portal — player.css's full-width band;
+ * the "bar-under-playlist" reading was ruled wrong, the playlist sits above
+ * the bar). Frame geometry @1920 scaled ×0.75: cards 316×178 r12 → 237×133
+ * r9 on a 336→252px pitch (15px gaps), filename captions below the art box.
+ * The frame's 4px #D37918 watched-progress bars have NO seam (no resume
+ * positions in any transport) and are deliberately absent — the gfix-C
+ * home-card precedent, never fabricated. */
+.lumen-state-browse {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-surface-deep); /* frame: Player-4.svg main area #0E0E0E */
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+}
+
+/* Header — the browse context (exit chevron · title · "N items" · the PiP
+ * toggle), the frame's sidebar browse chrome adapted to the canvas. */
+.lumen-state-browse__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  flex: none;
+  height: 44px; /* structural: the frame's browse meta row scale */
+  padding: 0 var(--space-inset) 0 calc(var(--space-inset) - 1px);
+}
+
+.lumen-state-browse__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary); /* frame breadcrumb #969696 */
+}
+
+.lumen-state-browse__count {
+  flex: none;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary); /* frame "15 items" quiet ink */
+}
+
+.lumen-state-browse__exit,
+.lumen-state-browse__preview-toggle {
+  flex: none;
+}
+
+/* The grid — auto-fill keeps the frame's 5 columns at wide widths and wraps
+ * honestly at 1024. Rows scroll (the frame's grid runs past the fold).
+ * align-content: start — grid's default stretch would inflate the single
+ * auto row to the scrollport height (measured 748px cells); the frame's rows
+ * hug their content top-down (row tops 131 / 387.75 / 644.5 @1920). */
+.lumen-state-browse__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 237px); /* frame card @×0.75 (structural) */
+  place-content: start start; /* rows hug content top-down (frame row tops 131/387.75/644.5 @1920 — no default row stretch) */
+  gap: 24px 15px; /* frame row pitch 256.75 / col pitch 336, @×0.75 (structural) */
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-inset) calc(var(--space-inset) * 2) calc(var(--space-inset) * 3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.lumen-state-browse__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 17.5px; /* frame: caption top 332.1 − card bottom 308.75 = 23.4 @1920 → ×0.75 (structural) */
+  width: 237px; /* structural: frame card width @×0.75 */
+}
+
+/* The art box — the frame's #171717 r12 card (panel token at ×0.75 scale,
+ * r9 — the Player-5 home-card family). Honest presentation: the well
+ * carries the quiet glyph (no artwork seam), and the frame's progress bars
+ * are absent (no resume seam — see the header note). */
+.lumen-state-browse__card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 237px;
+  height: 133px; /* frame 177.75 @1920 → ×0.75 (structural) */
+  background: var(--color-surface-panel);
+  border-radius: 9px; /* frame r12 @1920 → ×0.75 — structural */
+}
+
+.lumen-state-browse__card-art {
+  color: var(--color-content-tertiary); /* quiet honest well glyph */
+}
+
+.lumen-state-browse__card-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  /* frame: Player-4.svg captions — cap 11.64px @1920 → em 16 → ×0.75 = 12px
+   * (no token between caption 11 and body 14; the customize/equalizer
+   * frame-measured font-size precedent) */
+  font-size: 12px;
+  color: var(--color-content-secondary); /* frame captions #969696 */
+}
+
+.lumen-state-browse__empty {
+  margin: 0;
+  padding: calc(var(--space-inset) * 3);
+  font-size: var(--font-size-body);
+  color: var(--color-content-tertiary);
+}
+
+/* w26.i02 light pins — the browse face is canvas CONTENT on the stays-dark
+ * canvas (W25 spec §1 picture-frame rule; the home/hero pins' precedent):
+ * light mode pins the dark theme's frame values (Player-4.svg). Token-lane
+ * handoff: a stays-dark canvas content ramp replaces these. */
+:root[data-theme="light"] .lumen-state-browse {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-surface-deep #0e0e0e main area (picture-frame rule, W25 spec §1) */
+  background: #0e0e0e;
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode --color-content-primary #c6c6c6 on the stays-dark canvas */
+  color: #c6c6c6;
+}
+
+:root[data-theme="light"] .lumen-state-browse__title,
+:root[data-theme="light"] .lumen-state-browse__card-title {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player-4.svg breadcrumb/captions #969696 on the stays-dark canvas */
+  color: #969696;
+}
+
+:root[data-theme="light"] .lumen-state-browse__count,
+:root[data-theme="light"] .lumen-state-browse__empty,
+:root[data-theme="light"] .lumen-state-browse__card-art {
+  /* stylelint-disable-next-line color-no-hex -- frame: dark-mode quiet ink #828282 on the stays-dark canvas */
+  color: #828282;
+}
+
+:root[data-theme="light"] .lumen-state-browse__card {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player-4.svg card fill #171717 (stays dark — canvas content) */
+  background: #171717;
+}
+
+/* --- the floating now-playing card (Player-3.svg preview card) -----------
+ * The frame's floating window is drawn INSIDE the 1920×1080 player
+ * composition (Player-3.svg, group "Miniplayer": 391×339 r14 #1B1B1B at
+ * (1523,735), 6px off the window's right/bottom edges) — so at the
+ * 1440×900 viewport every value scales ×0.75 like the rest of the family
+ * (h03's frame-scale note): 293 wide, r10.5, art 280×157 r3.75, seek well
+ * 281×12 r4.5, title em 12px, 4.5px window offsets. (The /miniplayer ROUTE
+ * card — variants/MiniPlayer, i04 — is 1:1 because Miniplayer.svg is a
+ * 431px-wide component sheet, a different frame contract.) Anchored
+ * bottom-right ABOVE the control band (the strip portal — the Lead's
+ * grid+bar ruling; the frame itself draws no strip, its card parks 6px off
+ * the composition bottom, which the strip's top edge becomes here). Fill
+ * #1B1B1B = surface-elevated (i19's token for the frames' #1B1B1B cards).
+ * It is CHROME ([data-chrome-part]) — it fades with the idle chrome. */
+.lumen-state-preview {
+  position: absolute;
+  right: 4.5px; /* frame: 6px @1920 → ×0.75 (structural) */
+  bottom: 4.5px; /* frame: 6px @1920 → ×0.75 — above the strip band (structural) */
+  z-index: 2; /* above the browse grid, below dialogs */
+  display: flex;
+  flex-direction: column;
+  gap: 4.5px; /* structural: the card's frame rhythm @×0.75 (art → seek → title → meta) */
+  box-sizing: border-box;
+  width: 293px; /* frame: Player-3.svg card 391 @1920 → ×0.75 (structural) */
+  padding: 6px 6px 10.8px; /* frame: 9px content inset @×0.75, mini-card rhythm */
+  background: var(--color-surface-elevated); /* frame: card fill #1B1B1B */
+  border: 1px solid var(--color-stroke-border);
+  border-radius: 10.5px; /* frame: card r14 @1920 → ×0.75 — structural */
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-content-primary);
+  font-family: var(--font-family-sans);
+}
+
+/* Art box — the honest 4.H1 placeholder (the canvas's mounted <video>
+ * surface is the one real media element; a second element would double the
+ * stream). w26.i02 pass-2: the frame's art box base is #303030 (the image
+ * pattern's ground) — no artwork seam exists, so the well renders the
+ * family's media-tile surface (panel, the browse cards' own fill — the
+ * deep value vanished into the browse background, pixel-verified in the
+ * comparison loop). Dark in BOTH themes (picture-frame rule below). */
+.lumen-state-preview__video {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  aspect-ratio: 16 / 9; /* frame: art box 373×209 */
+  overflow: hidden;
+  background: var(--color-surface-panel); /* frame: art base #303030 → the tile family's panel */
+  border: 1px solid var(--color-stroke-border);
+  border-radius: 3.75px; /* frame: Player-3.svg art box rx5 @1920 → ×0.75 (structural) */
+}
+
+.lumen-state-preview__glyph {
+  color: var(--color-content-tertiary); /* quiet honest placeholder glyph */
+}
+
+/* The seek row — the mini grammar (frame @×0.75: 281×12 r4.5 #090909 well,
+ * 0.75px bleed past the 280px art box on both sides), restated for this
+ * card (the mini rules are scoped to .lumen-mini__). */
+.lumen-state-preview__seek {
+  align-self: stretch;
+  height: 12px; /* frame: seek row 375×16 @1920 → ×0.75 (structural) */
+  width: calc(100% + 1.5px); /* frame: seek 375 where the art box is 373, @×0.75 */
+  margin-inline: -0.75px; /* frame: 1px bleed each side past the art box, @×0.75 */
+}
+
+.lumen-state-preview__seek .lumen-slider__track {
+  top: 0;
+  height: 100%;
+  background: var(--color-surface); /* frame: well #090909 */
+  border-radius: 4.5px; /* frame: rx6 @1920 → ×0.75 — structural */
+}
+
+.lumen-state-preview__seek .lumen-slider__fill {
+  top: var(--space-track-inset);
+  bottom: var(--space-track-inset);
+  left: var(--space-track-inset);
+  width: calc((100% - var(--space-track-inset) * 2) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame: played fill #371F06 */
+  border-radius: 1.5px; /* frame: fill rx2 @1920 → ×0.75 (structural) */
+}
+
+.lumen-state-preview__seek .lumen-slider__thumb {
+  top: var(--space-track-inset);
+  width: 6px; /* frame: 8×12 thumb @1920 → ×0.75 (structural) */
+  height: 9px;
+  left: calc((100% - 6px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent);
+  border-radius: 3px; /* frame: rx4 @1920 → ×0.75 — structural */
+  opacity: 1;
+}
+
+.lumen-state-preview__seek[data-empty] .lumen-slider__thumb,
+.lumen-state-preview__seek[data-empty] .lumen-slider__fill {
+  opacity: 0; /* calm unplayed track — no phantom zero thumb/fill */
+}
+
+/* Title line (frame: filename — cap 11.64px @1920 → em 16 → ×0.75 = 12px,
+ * ink #969696 → secondary the nearest token; one ellipsised line).
+ * Null title renders the honest quiet empty — never a fake. */
+.lumen-state-preview__title {
+  margin-top: 15.3px; /* frame: 26.4px seek→title gap @1920 → ×0.75, minus the 4.5px flex gap */
+  flex-shrink: 0;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 3px; /* frame: 4px @1920 → ×0.75 (structural) */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px; /* frame: Player-3.svg title em 16 @1920 → ×0.75 (structural) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary); /* frame: title ink #969696 */
+}
+
+.lumen-state-preview__title[data-empty] {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-content-tertiary);
+}
+
+/* Meta row — the real folder chip left, the collapse ✕ right. */
+.lumen-state-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-grid);
+  min-height: 21px; /* structural: the frame's meta row scale @×0.75 */
+  padding: 0 3px;
+}
+
+.lumen-state-preview__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px; /* structural: chip rhythm @×0.75 */
+  min-width: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-tertiary);
+}
+
+.lumen-state-preview__chip-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lumen-state-preview__hide {
+  margin-inline-start: auto;
+}
+
+/* The card is a themed floating panel (the tool-panel grammar flips in
+ * light); only the ART BOX stays dark — the picture-frame rule. */
+:root[data-theme="light"] .lumen-state-preview__video {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - Light.svg — the picture-frame rule (W25 spec §1): the video surface stays dark (#2b2b2b–#333) in BOTH themes */
+  background: #2b2b2b;
+}
