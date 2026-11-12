@@ -90,7 +90,7 @@ describe("EssentialTool — frame rows", () => {
     expect(hue).toHaveAttribute("aria-valuetext", "0°");
     expect(screen.getByRole("slider", { name: "Gamma" })).toHaveAttribute(
       "aria-valuetext",
-      "1.1",
+      "1.1", // w26.i08: calibrated through the flush travel — paints 10.25% (frame 10.4%)
     );
     expect(
       screen.getByRole("slider", { name: "Banding Removal Radius" }),
