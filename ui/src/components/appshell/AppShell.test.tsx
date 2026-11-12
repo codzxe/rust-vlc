@@ -177,6 +177,40 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("w26.i20 (h20 flow notes): defaults the sidebar CLOSED on /player/music — the music dock is the one open column", () => {
+    // Player - Music-1.svg composes the 377px playlist column as the player's
+    // OWN left dock; the shell's playlists sidebar starts closed so the two
+    // never stack (one-sidebar rule, extended to the whole player family).
+    renderShell(<AppShell><p>screen</p></AppShell>, "/player/music", false);
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("w26.i20 (i04 h06-#5 durable fix): defaults the sidebar CLOSED on /miniplayer — the mini card is the whole surface", () => {
+    // Miniplayer.png floats a rail-less card; live keeps the shell RAIL (the
+    // documented w26 one-shell ruling, App.tsx flow map) but variants.css
+    // suppresses the playlists column while the mini variant is up — so the
+    // route-aware default is CLOSED and the toggle's aria-expanded stays
+    // honest (it used to read "open" over a display:none column — i04's
+    // logged ask, closed here).
+    renderShell(<AppShell><p>screen</p></AppShell>, "/miniplayer", false);
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(getSidebar()).toHaveAttribute("hidden");
+  });
+
+  it("w26.i20: route change INTO /miniplayer collapses the open sidebar (session-only, honest aria)", () => {
+    // The real user path to the mini window: the title-bar minimize control.
+    // The collapse is session-only — nothing is persisted, so the stored
+    // preference (had there been one) survives for other routes.
+    renderShell(<AppShell><p>screen</p></AppShell>, "/playlist", false);
+    expect(getSidebar()).not.toHaveAttribute("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Minimize to miniplayer" }));
+    expect(getShellBanner().textContent).toContain("Miniplayer");
+    expect(getSidebar()).toHaveAttribute("hidden");
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBeNull();
+  });
+
   it("renders the header, meta row, create row and the store rows through the list primitive", () => {
     renderShell();
     const sidebar = getSidebar();
@@ -366,6 +400,26 @@ describe("AppShell — one-sidebar composition seam (lumen:toggle-sidebar)", () 
     fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
     quiet.stop();
     expect(quiet.seen).toEqual([]);
+  });
+
+  it("w26.i20: ROUTE CHANGE into the player family collapses the shell sidebar when the dock is open (session-only)", () => {
+    // gfix-L5 verified as a ROUTE-CHANGE behavior, not just on mount: start
+    // on /playlist (route-aware default OPEN), navigate through the shell's
+    // own rail (the real user path), and the one-sidebar rule collapses the
+    // shell column for the visit without touching the stored preference.
+    renderShell(
+      <AppShell>
+        <div className="lumen-player" data-sidebar="open" />
+      </AppShell>,
+      "/playlist",
+      false,
+    );
+    expect(getSidebar()).not.toHaveAttribute("hidden");
+    const rail = screen.getByRole("navigation", { name: "Primary navigation" });
+    fireEvent.click(within(rail).getByRole("link", { name: "Player" }));
+    expect(getSidebar()).toHaveAttribute("hidden");
+    // session-only: nothing was persisted for other routes.
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBeNull();
   });
 });
 
