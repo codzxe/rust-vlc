@@ -38,10 +38,19 @@ const mountControl = () =>
   );
 
 describe("CodecsArea — routing + schema-bound options", () => {
-  it("is folded under /settings/video via the areas registry (codecs→video)", () => {
+  it("is folded under /settings/video behind an in-flow disclosure (codecs→video, w26.i14)", () => {
     renderRouted("codecs");
-    expect(document.querySelector('[data-settings-area="codecs"]')).not.toBeNull();
     expect(document.querySelector('[data-settings-area="video"]')).not.toBeNull();
+    // The fold starts collapsed (aria-expanded false) — the disclosure is
+    // the registry's promised "fold", so the codecs rows render only once
+    // the bar is opened (w26.i14; the flat append scrolled 270px past the
+    // frame's end).
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    expect(bar).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector('[data-settings-area="codecs"]')).toBeNull();
+    fireEvent.click(bar);
+    expect(bar).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector('[data-settings-area="codecs"]')).not.toBeNull();
   });
 
   it("renders the cache controls bound to their real schema keys", () => {
