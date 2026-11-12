@@ -1,12 +1,23 @@
 // /keyboard-shortcuts — the W26 Figma keyboard-shortcuts window
 // (design/figma/Keyboard Shortcuts.svg): a floating 1048×800 r14 #191919@95%
-// dialog over the app surface (same window grammar as the Settings frames),
-// built from REAL keymap data:
+// dialog over the app (same window grammar as the Settings frames), built
+// from REAL keymap data:
 //   * `HOTKEY_BINDINGS` (settings/areas/hotkeys/generated/bindings.ts — the
 //     generated mirror of keymaps/default.toml, the same source the
 //     HotkeysEditor edits), and
 //   * the shell-owned variant/fullscreen seed rows (player keymap +
 //     variantKeymap [PROPOSAL] seeds), whose labels reuse existing keys.
+//
+// w26.i17 (h19 shame #2 — dialog semantics): the window wore dialog chrome
+// but was a bare route page — no role="dialog", no focus trap, and Tab
+// walked all 146 pencil links before reaching Cancel. The window now rides
+// the shared <Dialog> primitive (same as /open-network-stream): scrim +
+// role=dialog + aria-modal + the surface focus trap (Tab wraps to the
+// window's first focusable — the semantics ui/e2e/a11y.spec.ts encodes) +
+// Escape (yielding to an open popup: the trap defers while a listbox/menu
+// is open inside) + scrim-click close. Initial focus lands on the search
+// field (the first field), not the trap's default ✕ glyph — same h19 #4
+// fix as the netstream dialog.
 //
 // Frame anatomy (measured from the SVG, x/y in the 1048×800 artboard):
 //   * top bar — 96px #090909 strip: "Keyboard Shortcuts" title #8F8F8F ≈14px
@@ -33,12 +44,13 @@
 //
 // The screen renders NO <main> of its own — the AppShell provides it.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/button/Button";
 import { Icon } from "../../components/icon/Icon";
 import { Dropdown } from "../../components/menu/Dropdown";
 import type { DropdownOption } from "../../components/menu/Dropdown";
+import { Dialog } from "../../components/surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b16";
@@ -340,25 +352,25 @@ export function ShortcutsScreen() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<ShortcutFilterScope>("all");
+  const titleId = useId();
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
-  // w26.d1 — Escape closes the shortcuts window (the frame implies dismissal:
-  // Keyboard_Shortcuts.svg is a windowed surface with a ✕ close; same seam as
-  // the ✕ button). Open overlays (the filter dropdown's popup, menus,
-  // dialogs) own Escape first — the guard matches the Dropdown POPUP class,
-  // not every role="listbox" (the shell's sidebar VirtualList is a persistent
-  // listbox, never an overlay).
+  // Every dismissal (Escape / scrim / ✕ / Cancel) is the same exit the
+  // pre-rebuild window shipped: back to the player home. Escape itself is
+  // owned by the Dialog's focus trap (yields while a popup is open — the
+  // filter dropdown's listbox handles its own Escape); the w26.d1
+  // window-level keydown listener is gone (it would have deferred to its
+  // own role="dialog" forever).
+  const exit = (): void => {
+    navigate("/player");
+  };
+
+  // w26.i17 (h19 #4): initial focus belongs on the FIRST FIELD (the search
+  // input — the frame's rest state), not the trap's first-focusable ✕ glyph
+  // with its painted ring. Runs after the child Dialog's trap effect.
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
-      if (event.defaultPrevented) return;
-      if (document.querySelector('[role="dialog"], [role="menu"], .lumen-dropdown__list') !== null) {
-        return; // an open overlay's focus trap handles this key
-      }
-      navigate("/player");
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate]);
+    searchRef.current?.focus();
+  }, []);
 
   const groups = useMemo(() => buildShortcutGroups(), []);
   // Bookmarks and other numbered series render in NUMERIC order (1..10).
@@ -371,18 +383,19 @@ export function ShortcutsScreen() {
   const editLabel = (label: string): string => `${label} — ${m("shortcuts.edit.hint")}`;
 
   return (
-    <div className="shortcuts">
-      <h1 className="shortcuts__vh">{m("shortcuts.title")}</h1>
-      <div className="shortcuts__window">
+    <Dialog open onClose={exit} labelledBy={titleId} className="shortcuts-dialog" closeOnOutsideClick>
+      <div className="shortcuts" data-testid="shortcuts-window">
         <header className="shortcuts__topbar">
           <div className="shortcuts__titlerow">
-            <h2 className="shortcuts__title">{m("shortcuts.title")}</h2>
+            <h2 id={titleId} className="shortcuts__title">
+              {m("shortcuts.title")}
+            </h2>
             <button
               type="button"
               className="shortcuts__close"
               aria-label={t("shortcuts.close")}
               title={t("shortcuts.close")}
-              onClick={() => navigate("/player")}
+              onClick={exit}
             >
               <Icon name="close" size={24} />
             </button>
@@ -391,6 +404,7 @@ export function ShortcutsScreen() {
             <label className="shortcuts__search">
               <Icon name="search" size={24} className="shortcuts__search-icon" />
               <input
+                ref={searchRef}
                 type="search"
                 value={query}
                 placeholder={m("shortcuts.search.placeholder")}
@@ -465,11 +479,7 @@ export function ShortcutsScreen() {
         )}
 
         <footer className="shortcuts__footer">
-          <Button
-            variant="default"
-            className="shortcuts__cancel"
-            onClick={() => navigate("/player")}
-          >
+          <Button variant="default" className="shortcuts__cancel" onClick={exit}>
             {m("open.cancel")}
           </Button>
           <Button variant="tinted" className="shortcuts__save" disabled>
@@ -477,6 +487,6 @@ export function ShortcutsScreen() {
           </Button>
         </footer>
       </div>
-    </div>
+    </Dialog>
   );
 }
