@@ -78,8 +78,14 @@ export function DynamicsCard({
             ? m("player.tools.collapse-settings")
             : m("player.tools.expand-settings")}
         </span>
+        {/* w26.i07 (h14 defect 3): size 24 paints the shared glyph at its
+         * native stroke — 6.5×11.5 (›) / 11.5×6.5 (∨) at sw 1.5, the frame's
+         * Vector 27 / Vector 27_2 measure — where the 16px default rendered
+         * it ~30% undersized at stroke ~1.0. The −7.5px margin in
+         * dynamics.css calibrates the right inset (18.25px, frame). */}
         <Icon
           name={open ? "chevron-down" : "chevron-right"}
+          size={24}
           className="dynamics-tool__chevron"
         />
       </button>
