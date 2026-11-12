@@ -35,7 +35,7 @@
 // seam (names only), so the browse views render them as presentation, never
 // dead play buttons.
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useMsg } from "../../i18n/messages";
 import { Button } from "../../components/button";
@@ -51,6 +51,7 @@ import { AddSubtitlesDialog } from "./subtitles/AddSubtitlesDialog";
 import { PlaylistOptionsProvider } from "./options/PlaylistOptionsProvider";
 import { usePlaylistOptions } from "./options/PlaylistOptionsProvider";
 import { PlaylistOptionsToolbar, PlaylistOptionsViews } from "./options/PlaylistOptionsToolbar";
+import { MEDIA_ROW_HEIGHT } from "./options/MediaList";
 import { fileMenuResolveLabel, fileRowMenu, playlistTargetKey } from "./options/fileRowMenu";
 import { useOptionsMsg } from "./options/useOptionsMsg";
 import { usePlaylistMsg, type PlaylistLaneKey } from "./usePlaylistMsg";
@@ -58,6 +59,163 @@ import "./playlist.css";
 
 /** Lane keys as seen by the row's context menu (same seam, shared hook). */
 type LaneKey = PlaylistLaneKey;
+
+// ---------------------------------------------------------------------------
+// w26.i10 (h16 a11y shame #2) — ARROW-KEY GRID MODEL, both /playlist browse
+// grids (library playlist.svg rows + media.svg rows). APG "grid" pattern in
+// the aria-activedescendant flavor: keyboard focus stays on the VirtualList
+// grid container (tabIndex=0 is pinned by the shared primitive), the active
+// row is pointed at by aria-activedescendant + data-active (playlist.css
+// paints it only while the grid holds focus), ArrowUp/ArrowDown/Home/End
+// move it — scrolling the window when the target row sits outside the
+// rendered range — and Enter/Space run the active row's real seam (library:
+// open the playlist; media: open the row's file context menu).
+//
+// The roving-TABINDEX flavor is deliberately not used: rows embed interactive
+// kebab/••• buttons, so a focusable row div would nest interactive
+// descendants inside a widget role and add a second tab stop beside the
+// container's — the container already owns the tab stop. aria-selected stays
+// false (the shared VirtualList pins it — list-lane seam, logged); arrow
+// movement is focus, not selection.
+// ---------------------------------------------------------------------------
+
+/** Frame budget for the activedescendant settle retries: a moved-to row can
+ * sit outside the rendered window for a few frames until the scrollport's
+ * scroll event re-renders it (30 frames ≈ 500 ms at 60 fps). Structural. */
+const GRID_SYNC_RETRIES = 30;
+
+/** rAF with a jsdom-safe fallback (vitest's jsdom may run without
+ * pretendToBeVisual — the fallback keeps the settle loop testable). */
+const requestFrame = (callback: () => void): number =>
+  typeof requestAnimationFrame === "function"
+    ? requestAnimationFrame(callback)
+    : window.setTimeout(callback, 0);
+const cancelFrame = (handle: number): void => {
+  if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(handle);
+  else window.clearTimeout(handle);
+};
+
+/**
+ * The arrow-key grid controller (see the block comment above). `itemHeight`
+ * resolves a rendered row's absolute index from its pinned `style.top` — the
+ * window renders consecutive indices, and the shared VirtualList keys row
+ * nodes BY INDEX, so the imperative ids stay consistent across window
+ * shifts (a reused node always is its key's index).
+ */
+function useGridRoving({
+  count,
+  itemHeight,
+  onActivate,
+}: {
+  count: number;
+  itemHeight: number;
+  /** The active row's real seam (Enter/Space). */
+  onActivate: (index: number, grid: HTMLElement) => void;
+}): {
+  wrapRef: RefObject<HTMLDivElement | null>;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+} {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const gridId = useId();
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  // Keep the active index inside the dataset (Remove / set changes shrink
+  // it; identical values bail out of the re-render).
+  useEffect(() => {
+    setActiveIndex((index) => (index === null || index < count ? index : Math.max(0, count - 1)));
+  }, [count]);
+
+  // Sync pass: id + data-active over the rendered rows, aria-activedescendant
+  // on the grid container. Runs after EVERY commit (no dep array — the grid
+  // can remount without the index changing: library ↔ browse switch, list ↔
+  // grid view switch), retrying a few frames while the active row sits
+  // outside the rendered window (the scroll nudge below re-renders it
+  // asynchronously). The writes are idempotent DOM attributes React never
+  // manages (the shared VirtualList pins no ids), so re-running is free.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (wrap === null) return;
+    let frame = 0;
+    let attempts = 0;
+    const sync = (): void => {
+      const grid = wrap.querySelector<HTMLElement>('[role="grid"]');
+      if (grid !== null) {
+        let found = false;
+        for (const row of Array.from(grid.querySelectorAll<HTMLElement>('[role="row"]'))) {
+          const top = Number.parseFloat(row.style.top);
+          if (!Number.isFinite(top)) continue;
+          const index = Math.round(top / itemHeight);
+          if (index >= count) continue;
+          row.id = `${gridId}-row-${index}`;
+          if (index === activeIndex) {
+            found = true;
+            row.setAttribute("data-active", "true");
+          } else {
+            row.removeAttribute("data-active");
+          }
+        }
+        if (activeIndex === null) {
+          grid.removeAttribute("aria-activedescendant");
+        } else if (found) {
+          grid.setAttribute("aria-activedescendant", `${gridId}-row-${activeIndex}`);
+        }
+        if (activeIndex !== null && !found && attempts < GRID_SYNC_RETRIES) {
+          attempts += 1;
+          frame = requestFrame(sync);
+        }
+      }
+    };
+    sync();
+    return () => cancelFrame(frame);
+  });
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const wrap = wrapRef.current;
+    const grid = wrap?.querySelector<HTMLElement>('[role="grid"]') ?? null;
+    // Only while the GRID CONTAINER itself holds focus (the
+    // activedescendant model): keys from a row's kebab/••• buttons keep
+    // their own behavior (Enter opens the menu, not the row).
+    if (grid === null || event.target !== grid || count === 0) return;
+    const move = (next: number): void => {
+      event.preventDefault();
+      const clamped = Math.max(0, Math.min(count - 1, next));
+      setActiveIndex(clamped);
+      // Bring the target into the rendered window when it sits outside the
+      // scrollport (the window re-renders on the container's scroll event;
+      // the sync effect retries until the row exists).
+      const top = clamped * itemHeight;
+      if (top < grid.scrollTop) {
+        grid.scrollTop = top;
+      } else if (top + itemHeight > grid.scrollTop + grid.clientHeight) {
+        grid.scrollTop = top + itemHeight - grid.clientHeight;
+      }
+    };
+    const { key } = event;
+    if (key === "ArrowDown") {
+      move((activeIndex ?? -1) + 1);
+      return;
+    }
+    if (key === "ArrowUp") {
+      move(activeIndex === null ? count - 1 : activeIndex - 1);
+      return;
+    }
+    if (key === "Home") {
+      move(0);
+      return;
+    }
+    if (key === "End") {
+      move(count - 1);
+      return;
+    }
+    if (key === "Enter" || key === " ") {
+      if (activeIndex === null) return;
+      event.preventDefault();
+      onActivate(activeIndex, grid);
+    }
+  };
+
+  return { wrapRef, onKeyDown };
+}
 
 /**
  * Saved-playlist items → browse entries. Ids are client-local and NEGATIVE:
@@ -117,6 +275,18 @@ export function PlaylistScreen() {
   };
   const openSubtitles = (id: string) => setSubsId(id);
 
+  // w26.i10 — the library grid's arrow-key model (h16 a11y): Enter/Space
+  // opens the active playlist — the same real seam as the row click and the
+  // row menu's Open entry.
+  const libraryRoving = useGridRoving({
+    count: sorted.length,
+    itemHeight: ROW_HEIGHTS.comfortable,
+    onActivate: (index) => {
+      const target = sorted[index];
+      if (target !== undefined) openBrowse(target.id);
+    },
+  });
+
   return (
     <main className="lumen-plpage" data-screen="playlist" data-browse={opened !== null || undefined}>
       {opened === null ? (
@@ -147,22 +317,28 @@ export function PlaylistScreen() {
                 }
               />
             ) : (
-              <VirtualList
-                data={sorted}
-                itemHeight={ROW_HEIGHTS.comfortable} /* frame: playlist.svg ~66px rows */
-                label={t("playlist.library.list-label")}
-                className="lumen-plpage__list"
-                semantics="grid"
-              renderItem={(playlist) => (
-                  <LibraryRow
-                    key={playlist.id}
-                    playlist={playlist}
-                    selected={playlist.id === selectedId}
-                    onSelect={() => openBrowse(playlist.id)}
-                    onOpenSubtitles={() => openSubtitles(playlist.id)}
-                  />
-                )}
-              />
+              <div
+                ref={libraryRoving.wrapRef}
+                onKeyDown={libraryRoving.onKeyDown}
+                className="lumen-plpage__listwrap"
+              >
+                <VirtualList
+                  data={sorted}
+                  itemHeight={ROW_HEIGHTS.comfortable} /* frame: playlist.svg ~66px rows */
+                  label={t("playlist.library.list-label")}
+                  className="lumen-plpage__list"
+                  semantics="grid"
+                  renderItem={(playlist) => (
+                    <LibraryRow
+                      key={playlist.id}
+                      playlist={playlist}
+                      selected={playlist.id === selectedId}
+                      onSelect={() => openBrowse(playlist.id)}
+                      onOpenSubtitles={() => openSubtitles(playlist.id)}
+                    />
+                  )}
+                />
+              </div>
             )}
           </Card>
         </>
@@ -228,6 +404,21 @@ function PlaylistBrowse({
     [optionsT, targets],
   );
 
+  // w26.i10 — the media grid's arrow-key model (h16 a11y): Enter/Space opens
+  // the active row's file context menu — the row's one real seam in the
+  // saved-playlist scope (rows are presentation; the ••• is the action). In
+  // the thumbnail grid view there is no role=grid — the controller no-ops.
+  const viewRoving = useGridRoving({
+    count: options.sortedEntries.length,
+    itemHeight: MEDIA_ROW_HEIGHT,
+    onActivate: (index, grid) => {
+      const row = Array.from(grid.querySelectorAll<HTMLElement>('[role="row"]')).find(
+        (element) => Math.round(Number.parseFloat(element.style.top) / MEDIA_ROW_HEIGHT) === index,
+      );
+      row?.querySelector<HTMLElement>(".lumen-plo-mrow__menu")?.click();
+    },
+  });
+
   return (
     <>
       <nav className="lumen-plpage__backrow" aria-label={m("nav.playlist")}>
@@ -263,21 +454,27 @@ function PlaylistBrowse({
         ) : (
           <NavigationSeam>
             {(navigate) => (
-              <PlaylistOptionsViews
-                entryMenu={(entry) =>
-                  fileRowMenu({
-                    entry,
-                    watched: options.metaOf(entry)?.watched === true,
-                    otherPlaylists,
-                    onSetWatched: (target, watched) => options.setWatched(target, watched),
-                    onAddToPlaylist: (playlistId, name) => addItemToPlaylist(playlistId, name),
-                    onAddSubtitles: (target) => setSubsEntryName(target.title ?? ""),
-                    navigate,
-                  })
-                }
-                menuResolveLabel={resolveMenuLabel}
-                menuAriaLabel={optionsT("playlist.file.menu.title")}
-              />
+              <div
+                ref={viewRoving.wrapRef}
+                onKeyDown={viewRoving.onKeyDown}
+                className="lumen-plpage__view"
+              >
+                <PlaylistOptionsViews
+                  entryMenu={(entry) =>
+                    fileRowMenu({
+                      entry,
+                      watched: options.metaOf(entry)?.watched === true,
+                      otherPlaylists,
+                      onSetWatched: (target, watched) => options.setWatched(target, watched),
+                      onAddToPlaylist: (playlistId, name) => addItemToPlaylist(playlistId, name),
+                      onAddSubtitles: (target) => setSubsEntryName(target.title ?? ""),
+                      navigate,
+                    })
+                  }
+                  menuResolveLabel={resolveMenuLabel}
+                  menuAriaLabel={optionsT("playlist.file.menu.title")}
+                />
+              </div>
             )}
           </NavigationSeam>
         )}
