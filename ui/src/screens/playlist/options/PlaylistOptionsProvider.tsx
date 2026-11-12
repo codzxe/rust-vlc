@@ -43,6 +43,12 @@ export interface PlaylistOptionsValue {
   readonly resolveMeta: ResolveEntryMeta | undefined;
   /** Meta lookup bound to entry identity — stable for consumers. */
   metaOf(entry: PlaylistEntry): PlaylistEntryMeta | undefined;
+  /** w26.gfix-E — Mark as Watched: a client-local watched override merged
+   * over `resolveMeta` (the file context menu's row 2). No engine command
+   * exists (doc 05 §2.9 has no watched command) and nothing persists — the
+   * row's watched state + the watched-first sorts are the real, visible
+   * effect. */
+  setWatched(entry: PlaylistEntry, watched: boolean): void;
 }
 
 const PlaylistOptionsContext = createContext<PlaylistOptionsValue | null>(null);
@@ -69,6 +75,26 @@ export function PlaylistOptionsProvider({
   const enginePlaylist = usePlaylistOptional();
   const [sortKey, setSortKey] = useState<PlaylistSortKey>(initialSortKey);
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(initialViewMode);
+  // w26.gfix-E — client-local Mark-as-Watched overrides, keyed by entry id.
+  const [watchedOverrides, setWatchedOverrides] = useState<ReadonlyMap<number, boolean>>(
+    () => new Map(),
+  );
+
+  // The EFFECTIVE metadata seam: the local watched override merged over the
+  // engine-reported meta (override wins; unmarking also clears the partial
+  // progress bar — media.svg's watched states). Pure derivation, no clone of
+  // the caller's resolveMeta.
+  const resolveMetaEffective = useCallback(
+    (entry: PlaylistEntry): PlaylistEntryMeta | undefined => {
+      const base = resolveMeta?.(entry);
+      const override = watchedOverrides.get(entry.id);
+      if (override === undefined) return base;
+      return override
+        ? { ...base, watched: true }
+        : { ...base, watched: false, watchedProgress: 0 };
+    },
+    [resolveMeta, watchedOverrides],
+  );
 
   // Presentation order only — the engine queue is never mutated by sorting.
   // Local scope (entries prop) wins over the engine queue.
@@ -77,18 +103,35 @@ export function PlaylistOptionsProvider({
     [entries, enginePlaylist],
   );
   const sortedEntries = useMemo(
-    () => sortPlaylistEntries(sourceEntries, sortKey, resolveMeta ?? (() => undefined)),
-    [sourceEntries, sortKey, resolveMeta],
+    () => sortPlaylistEntries(sourceEntries, sortKey, resolveMetaEffective),
+    [sourceEntries, sortKey, resolveMetaEffective],
   );
 
   const metaOf = useCallback(
-    (entry: PlaylistEntry): PlaylistEntryMeta | undefined => resolveMeta?.(entry),
-    [resolveMeta],
+    (entry: PlaylistEntry): PlaylistEntryMeta | undefined => resolveMetaEffective(entry),
+    [resolveMetaEffective],
   );
 
+  const setWatched = useCallback((entry: PlaylistEntry, watched: boolean): void => {
+    setWatchedOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(entry.id, watched);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<PlaylistOptionsValue>(
-    () => ({ sortKey, setSortKey, viewMode, setViewMode, sortedEntries, resolveMeta, metaOf }),
-    [sortKey, viewMode, sortedEntries, resolveMeta, metaOf],
+    () => ({
+      sortKey,
+      setSortKey,
+      viewMode,
+      setViewMode,
+      sortedEntries,
+      resolveMeta,
+      metaOf,
+      setWatched,
+    }),
+    [sortKey, viewMode, sortedEntries, resolveMeta, metaOf, setWatched],
   );
 
   return <PlaylistOptionsContext.Provider value={value}>{children}</PlaylistOptionsContext.Provider>;

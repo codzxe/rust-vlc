@@ -64,6 +64,35 @@ describe("AddSubtitlesDialog — chrome (Folder.svg)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledTimes(3);
   });
+
+  it("w26.gfix-E (g19 P1-2): first Escape closes only the open dropdown — the dialog survives", () => {
+    const onClose = vi.fn();
+    mount({ onClose });
+    // Open a pill dropdown (the frame's control row).
+    fireEvent.click(screen.getByRole("button", { name: "Apply subtitles to" }));
+    const listbox = screen.getByRole("listbox");
+    // The Dialog focus-trap's NATIVE listener sees the Escape BEFORE the
+    // shared Dropdown's React handler (bubble-phase ancestor of React's
+    // delegation root) — the guard redirects the dismiss to the dropdown.
+    fireEvent.keyDown(listbox, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Add Subtitles" })).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    // The Dropdown's own restore path returned focus to the trigger.
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Apply subtitles to");
+    // With no list open, the next Escape closes the dialog.
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("w26.gfix-E (g19 P1-2): the footer filename-matching dropdown scopes Escape the same way", () => {
+    const onClose = vi.fn();
+    mount({ onClose });
+    fireEvent.click(screen.getByRole("button", { name: "Filename matching" }));
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 describe("AddSubtitlesDialog — control row state machine", () => {
@@ -98,6 +127,9 @@ describe("AddSubtitlesDialog — control row state machine", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByText("To This File"));
     expect(screen.queryByRole("list", { name: "Matched subtitle pairs" })).toBeNull();
     expect(screen.getByRole("listbox", { name: "Subtitle files" })).not.toBeNull();
+    // w26.gfix-E (g19 P2-1): the match dropdown rides the footer in the PAIRS
+    // mode it drives — Folder-2's candidate state has no match control.
+    expect(screen.queryByRole("button", { name: "Filename matching" })).toBeNull();
   });
 });
 

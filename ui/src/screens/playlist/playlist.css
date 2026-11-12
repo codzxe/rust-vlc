@@ -237,6 +237,16 @@
   min-height: 0;
 }
 
+/* w26.gfix-E (g18 P3-1): playlist.svg titles measure ≈14px (cap 10.3px —
+ * the body class, same as the frame-exact media rows). The shared
+ * comfortable ListRow ships --font-size-label (16px); the override is
+ * scoped to THIS screen's library rows so the list lane's other consumers
+ * keep their grammar. */
+/* stylelint-disable-next-line no-descending-specificity -- scoped screen override of the shared title size; the queue rows' own title rules live in list.css and keep their grammar (hotkeys.css precedent) */
+.lumen-plpage__list .lumen-lrow__title {
+  font-size: var(--font-size-body); /* frame: playlist.svg ≈14px titles */
+}
+
 .lumen-plpage__empty {
   flex: 1;
   justify-content: center;
@@ -319,12 +329,16 @@
 /* Frame: the new-playlist title input is a dark INSET well (#090909 on the
  * #191919 panel, rx5) — not the Onboarding raised-input fill. The shared
  * field control keeps geometry + focus grammar; this skin corrects fill and
- * border to the frame's recessed look (same well fill as the thumb/drop). */
+ * border to the frame's recessed look (same well fill as the thumb/drop).
+ * w26.gfix-E (g18 P3-4): geometry pinned to the frame's 0.785 dialog scale
+ * — 539×35 rx5 → height 27.5, radius 5 (the shared control's h34/r6). */
 .lumen-plnew .lumen-field__control,
 .lumen-plnew .lumen-field__control:hover,
 .lumen-plnew .lumen-field__control:active {
   background-color: var(--color-surface);
   border-color: var(--color-stroke-border);
+  height: 27.5px; /* frame: new playlist.svg input 35 × 0.785 scale */
+  border-radius: 5px; /* frame: new playlist.svg input rx5 */
 }
 
 .lumen-plnew .lumen-field__control:hover {
@@ -350,6 +364,12 @@
 .lumen-plnew__thumb:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* w26.gfix-E (g18 P3-5): the disabled picker must not promise interaction —
+ * the pinned `cursor: pointer` above is for the wired state only. */
+.lumen-plnew__thumb:disabled {
+  cursor: not-allowed;
 }
 
 .lumen-plnew__thumb-tile {
@@ -438,6 +458,36 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-grid);
+}
+
+/* w26.gfix-E (g18 P2-3 + P3-4): the frame's OWN default state pins the
+ * footer — Cancel #1B1B1B (the Button default's surface-raised is #222222,
+ * Δ7/255; no token carries it — dark port only, light keeps the shared
+ * default) and the disabled Save as the DIMMED TINTED pill (#371F06 bg +
+ * #D37918 label at 50% group opacity — the shared disabled rule erases the
+ * tint). Light keeps the tinted-ink sweep's content-primary label. */
+:root:not([data-theme="light"]) .lumen-plnew__actions .lumen-plnew__cancel {
+  /* stylelint-disable-next-line color-no-hex -- frame: new playlist.svg Frame 140 Cancel fill #1B1B1B (no token; g18 P3-4) */
+  background: #1b1b1b;
+  border-color: transparent;
+}
+
+:root:not([data-theme="light"]) .lumen-plnew__actions .lumen-button--tinted:disabled {
+  color: var(--color-accent);
+  background: var(--color-accent-tinted);
+  border-color: transparent;
+  opacity: var(--opacity-disabled);
+
+  --color-stroke-icon: var(--color-accent);
+}
+
+:root[data-theme="light"] .lumen-plnew__actions .lumen-button--tinted:disabled {
+  color: var(--color-content-primary);
+  background: var(--color-accent-tinted);
+  border-color: transparent;
+  opacity: var(--opacity-disabled);
+
+  --color-stroke-icon: var(--color-content-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {

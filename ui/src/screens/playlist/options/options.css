@@ -13,7 +13,7 @@
  * frame-measured structural dimensions with no token (panel width, row
  * pitch, tile/bar geometry) — each marked with its frame provenance.
  * Frame-vs-token deltas flagged for the token lane in the lane log:
- *   media.svg tile #303030 → --color-surface-raised (#222222)
+ *   media.svg tile #303030 → pinned below (dark port, g18 P3-3 fix)
  *   media.svg unwatched title #969696 → --color-content-secondary (#8F8F8F)
  */
 
@@ -34,10 +34,15 @@
 /* ------------------------------------------------ option menus --------- */
 
 /* 265px panels (Sorting/View Options.svg) — frame width; the shared sheet
- * pins the 400px player-menu width, overridden here. */
+ * pins the 400px player-menu width, overridden here. w26.gfix-E (g19
+ * P1-1): the scrollport caps tall panels inside the viewport (the 16-row
+ * sorting list) — max-height arrives inline from the open-time measurement
+ * in PlaylistOptionsMenu (flip first, cap as a last resort). */
 .lumen-plo .lumen-plo__menu {
   min-width: 265px; /* frame: Sorting Options.svg / View Options.svg 265 */
   margin-top: var(--space-grid);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .lumen-plo .lumen-plo__menu--end {
@@ -157,9 +162,12 @@
   background: var(--color-surface-panel);
 }
 
-/* Artwork well: 252×142 r4 — the frame's artwork is a pattern placeholder;
- * the engine has no artwork seam yet, so the well is honestly empty with a
- * quiet glyph (aria-hidden). */
+/* Artwork well: 252×142 r4 — the frame's artwork is a full-bleed image and
+ * the card's DOMINANT region; the engine has no artwork seam yet, so the
+ * well renders honestly empty with a quiet glyph (aria-hidden). w26.gfix-E
+ * (g18 P2-2): the fill runs at FULL surface-deep (a deliberate dark inset,
+ * Δ≈10/255 against the #191919 card) and only the GLYPH is muted — the
+ * element-level opacity washed both and made the well imperceptible. */
 .lumen-plo-card__art {
   display: flex;
   align-items: center;
@@ -168,7 +176,10 @@
   border-radius: var(--radius-inset); /* r4 */
   background: var(--color-surface-deep);
   color: var(--color-content-tertiary);
-  opacity: var(--opacity-muted);
+}
+
+.lumen-plo-card__art .lumen-icon {
+  opacity: var(--opacity-muted); /* only the placeholder glyph is muted */
 }
 
 /* Quiet meta footer (37px): the centered h:mm:ss duration, #8F8F8F. */
@@ -239,7 +250,10 @@
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
-/* Media tile: 32×32 r2 (frame fill #303030 → nearest token #222222). */
+/* Media tile: 32×32 r2. w26.gfix-E (g18 P3-3): frame fill #303030 — no
+ * semantic token carries it (nearest: surface-raised #222222, Δ7/255,
+ * flagged for the token lane); the frame-measured port pins the dark value,
+ * light keeps the shared raised token (no light playlist frame exists). */
 .lumen-plo-mrow__tile {
   position: relative;
   flex: none;
@@ -247,6 +261,11 @@
   height: 32px;
   border-radius: 2px; /* frame rx2 — micro radius, no token */
   background: var(--color-surface-raised);
+}
+
+:root:not([data-theme="light"]) .lumen-plo-mrow__tile {
+  /* stylelint-disable-next-line color-no-hex -- frame: media.svg tile fill #303030 (dark frame; no token — token-lane handoff, w26.g18 P3-3) */
+  background: #303030;
 }
 
 /* Watched progress: the frame's completed bar is 28×3 at the tile bottom
@@ -313,6 +332,15 @@
   height: 3px;
   border-radius: 50%;
   background: currentcolor;
+}
+
+/* w26.gfix-E — the per-row ContextMenu wrapper (file context menu.svg):
+ * display:contents keeps the absolute row's containing block the .lumen-vrow
+ * window (frame tile x20 measured from the row edge) while the wrapper adds
+ * the right-click + ••• menu subtree (the LibraryRow row-wrap precedent,
+ * adapted for absolutely-positioned rows). */
+.lumen-plo-media .lumen-plo-mrow-wrap {
+  display: contents;
 }
 
 @media (prefers-reduced-motion: reduce) {

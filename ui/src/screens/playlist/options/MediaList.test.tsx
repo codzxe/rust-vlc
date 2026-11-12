@@ -3,7 +3,7 @@
 // watched, partial from the seam), the ••• hover affordance + its callback
 // seam, single-click play, current-row marking, empty honesty.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MediaList } from "./MediaList";
 import { PlaylistOptionsProvider } from "./PlaylistOptionsProvider";
@@ -92,6 +92,46 @@ describe("MediaList — interaction", () => {
   it("renders nothing when the queue is empty — the panel owns the empty state", () => {
     const { view } = mountOptions(<MediaList />, { entries: [] });
     expect(view.container.querySelector(".lumen-plo-media")).toBeNull();
+  });
+});
+
+describe("MediaList — entryMenu seam (w26.gfix-E, file context menu.svg)", () => {
+  const MENU = [{ id: "play", labelKey: "Play" }, { id: "info", labelKey: "Info" }];
+
+  it("wraps rows in the shared ContextMenu: right-click opens the menu", () => {
+    const { view } = mountOptions(
+      <MediaList entryMenu={() => MENU} menuResolveLabel={(key) => key} menuAriaLabel="File actions" />,
+    );
+    expect(view.container.querySelector(".lumen-plo-mrow-wrap")).not.toBeNull();
+    fireEvent.contextMenu(view.container.querySelector(".lumen-plo-mrow")!);
+    const menu = screen.getByRole("menu", { name: "File actions" });
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(2);
+  });
+
+  it("the ••• opens the SAME menu (synthesized contextmenu at the kebab)", () => {
+    mountOptions(<MediaList entryMenu={() => MENU} menuResolveLabel={(key) => key} />);
+    const kebab = screen.getAllByRole("button", { name: "More actions" })[0]!;
+    fireEvent.click(kebab);
+    expect(screen.getByRole("menu")).toBeTruthy();
+    // The play-through stays stopped (the row's own onClick never fires).
+  });
+
+  it("entryMenu without a resolver renders no wrapper and no dead ••• (raw keys never render)", () => {
+    const { view } = mountOptions(<MediaList entryMenu={() => MENU} />);
+    expect(view.container.querySelector(".lumen-plo-mrow-wrap")).toBeNull();
+    expect(view.container.querySelector(".lumen-plo-mrow__menu")).toBeNull();
+  });
+
+  it("per-entry entries: the menu mirrors the row it was opened on", () => {
+    mountOptions(
+      <MediaList
+        entryMenu={(entry) => [{ id: `info-${entry.id}`, labelKey: `Info ${entry.title}` }]}
+        menuResolveLabel={(key) => key}
+      />,
+    );
+    const rows = screen.getAllByRole("row");
+    fireEvent.contextMenu(rows[0]!.querySelector(".lumen-plo-mrow")!);
+    expect(screen.getByRole("menu").textContent).toContain("Info The Wand_S01E10.mp4");
   });
 });
 

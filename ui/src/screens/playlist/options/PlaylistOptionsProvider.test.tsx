@@ -90,6 +90,56 @@ describe("PlaylistOptionsProvider — state + sortedEntries", () => {
   });
 });
 
+describe("PlaylistOptionsProvider — Mark as Watched override (w26.gfix-E)", () => {
+  const Consumer = () => {
+    const options = usePlaylistOptions();
+    return (
+      <div>
+        <button type="button" onClick={() => options.setWatched(OPTION_ENTRIES[0]!, true)}>
+          mark
+        </button>
+        <button type="button" onClick={() => options.setWatched(OPTION_ENTRIES[1]!, false)}>
+          unmark
+        </button>
+        <output data-testid="watched">
+          {options.sortedEntries.map((entry) => `${entry.id}:${options.metaOf(entry)?.watched ?? "?"}`).join(",")}
+        </output>
+      </div>
+    );
+  };
+
+  it("setWatched(true) marks the row watched (merged over the seam) and re-sorts watched-first", async () => {
+    const mounted = mountOptions(<Consumer />, {
+      resolveMeta: (e) => OPTION_META[e.id],
+      initialSortKey: "watched-first",
+    });
+    // Seam truth first: 2:watched(half), 3:watched, 1:unknown.
+    await waitFor(() => expect(mounted.view.getByTestId("watched").textContent).toBe("2:true,3:true,1:?"));
+    act(() => mounted.view.getByRole("button", { name: "mark" }).click());
+    // Id 1 now watched too — all three watched, stable queue order wins.
+    await waitFor(() => expect(mounted.view.getByTestId("watched").textContent).toBe("1:true,2:true,3:true"));
+  });
+
+  it("setWatched(false) unmarks a seam-watched row AND clears its partial progress", async () => {
+    const { result } = renderHook(() => usePlaylistOptions(), {
+      wrapper: ({ children }) => (
+        <OptionsProviders resolveMeta={(e) => OPTION_META[e.id]}>{children}</OptionsProviders>
+      ),
+    });
+    expect(result.current.metaOf(OPTION_ENTRIES[1]!)!.watchedProgress).toBe(0.5);
+    act(() => result.current.setWatched(OPTION_ENTRIES[1]!, false));
+    expect(result.current.metaOf(OPTION_ENTRIES[1]!)!.watched).toBe(false);
+    expect(result.current.metaOf(OPTION_ENTRIES[1]!)!.watchedProgress).toBe(0);
+    // The raw seam value stays untouched (the override is a merge, not a write).
+    expect(OPTION_META[2]!.watched).toBe(true);
+  });
+
+  it("without any seam/override the rows stay honestly unwatched", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), { wrapper: OptionsProviders });
+    expect(result.current.metaOf(OPTION_ENTRIES[0]!)?.watched).toBeUndefined();
+  });
+});
+
 describe("PlaylistOptionsProvider — context guard", () => {
   it("usePlaylistOptions outside a provider throws the honest error", () => {
     // Silence the expected React error boundary noise in the test output.

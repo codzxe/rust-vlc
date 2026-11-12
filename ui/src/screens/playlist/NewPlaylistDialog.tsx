@@ -174,9 +174,12 @@ export function NewPlaylistDialog({
       </section>
 
       {/* Footer — Cancel left, Save right (frame Frame 225); Save is the
-          tinted confirm and stays disabled until the title is non-empty. */}
+          tinted confirm and stays disabled until the title is non-empty
+          (the frame's default state: the DIMMED tinted pill, w26.gfix-E). */}
       <footer className="lumen-plnew__actions">
-        <Button onClick={close}>{m("playlist.new.cancel")}</Button>
+        <Button className="lumen-plnew__cancel" onClick={close}>
+          {m("playlist.new.cancel")}
+        </Button>
         <Button variant="tinted" disabled={title.trim() === ""} onClick={save}>
           {m("playlist.new.save")}
         </Button>

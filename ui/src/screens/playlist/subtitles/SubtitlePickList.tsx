@@ -2,17 +2,23 @@
 // (APG listbox: roving tabindex, aria-activedescendant, arrows/Home/End,
 // Enter/Space toggles; multi-select in the "From Computer + To This File"
 // mode (Folder-2 — two rows checked), single-select for the online source
-// (Folder-3). Candidates arrive NATURAL-SORTED (naturalSort, the v2 flow
-// brief fix: "S01E2" before "S01E10").
+// (Folder-3).
+//
+// w26.gfix-E (g19 P3-4): candidates render in HOST order — Folder-2.svg
+// pins the given order (English, Spanish, Japanese, German, Dutch, French,
+// the top two checked), which the previous natural-sort re-broke (checked
+// rows scattered to positions 2 & 6). Hosts that want natural order pass
+// natural-ordered candidates (the v2 brief's "S01E2 before S01E10" concern
+// belongs to the seam that PRODUCES the list, not the picker).
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
-import { naturalSort } from "../../../components/list";
 import { SubtitlePickRow } from "./SubtitlePickRow";
 import { useSubtitlesMsg } from "./useSubtitlesMsg";
 
 export interface SubtitlePickListProps {
-  /** Candidate subtitle file names (any order — the list natural-sorts). */
+  /** Candidate subtitle file names, rendered in the GIVEN order (the
+   * frame's host order — Folder-2.svg; sort at the producing seam). */
   candidates: readonly string[];
   /** Selected names (controlled). */
   selected: readonly string[];
@@ -42,7 +48,7 @@ export function SubtitlePickList({
   const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const sorted = naturalSort(candidates, (name) => name);
+  const ordered = candidates;
   const isSelected = (name: string): boolean => selected.includes(name);
 
   // Keep the active row focusable (roving tabindex) and in view.
@@ -67,8 +73,8 @@ export function SubtitlePickList({
   };
 
   const move = (delta: number): void => {
-    if (sorted.length === 0) return;
-    setActiveIndex((index) => (index + delta + sorted.length) % sorted.length);
+    if (ordered.length === 0) return;
+    setActiveIndex((index) => (index + delta + ordered.length) % ordered.length);
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -93,19 +99,19 @@ export function SubtitlePickList({
       return;
     }
     if (key === "End") {
-      setActiveIndex(sorted.length - 1);
+      setActiveIndex(ordered.length - 1);
       handled();
       return;
     }
     if (key === "Enter" || key === " ") {
-      const name = sorted[activeIndex];
+      const name = ordered[activeIndex];
       if (name !== undefined) toggle(name);
       handled();
     }
     // Tab is NOT trapped here: the dialog's focus trap owns Tab cycling.
   };
 
-  if (sorted.length === 0) {
+  if (ordered.length === 0) {
     return (
       <div className="lumen-plsubs-empty" id={rootId}>
         <p className="lumen-plsubs-empty__title">{t("playlist.subtitles.empty-title")}</p>
@@ -114,7 +120,7 @@ export function SubtitlePickList({
     );
   }
 
-  const activeName = sorted[activeIndex];
+  const activeName = ordered[activeIndex];
 
   return (
     <div
@@ -126,7 +132,7 @@ export function SubtitlePickList({
       className={["lumen-plsubs-list", className].filter(Boolean).join(" ")}
       onKeyDown={onKeyDown}
     >
-      {sorted.map((name, index) => (
+      {ordered.map((name, index) => (
         <SubtitlePickRow
           key={name}
           id={`${rootId}-opt-${index}`}

@@ -52,10 +52,15 @@
 
 /* ------------------------------------------------------- header band ---- */
 
-/* Frame: the #090909 path spanning y0–96 with the panel's r14 top corners. */
+/* Frame: the #090909 path spanning y0–96 with the panel's r14 top corners.
+ * w26.gfix-E (g19 P2-1 + P3-1): the band is pinned at exactly 96px —
+ * 14px top + 28px title row (✕ sm = 28) + 11px + 34px pills + 9px bottom —
+ * so the pills land at the frame's y53–87 and the body rows keep their
+ * y118 first-row budget. Horizontal inset is the frame's 9px (pills x9/x219
+ * /x429); the titlebar adds 11px so the title keeps its x20.7 inset. */
 .lumen-plsubs__head {
   flex: none;
-  padding: 16px 20px 9px; /* frame: title baseline y30.5, pills y53–87 */
+  padding: 14px 9px 9px; /* frame: title baseline y30.5, pills y53–87, band 96 */
   background: var(--color-surface);
   border-radius: var(--radius-window) var(--radius-window) 0 0;
 }
@@ -65,7 +70,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-inset);
-  margin-bottom: 13px; /* frame: pills start 13px under the title row */
+  height: 28px; /* frame: title row — pills start 11px below (y53) */
+  margin-bottom: 11px; /* 14 + 28 + 11 = 53 (frame pills y53) */
+  padding: 0 11px; /* frame: title x20.7 (9px band inset + 11px) */
 }
 
 /* Frame: "Add Subtitles" — cap 10.2px (≈14px) #8F8F8F, quiet header ink. */
@@ -80,10 +87,13 @@
   flex: none;
 }
 
-/* Control pills row — frame: h34 r6 #151515 pills, 10px gaps (x209–219). */
+/* Control pills row — frame: h34 r6 #151515 pills, 10px gaps (x209–219).
+ * w26.gfix-E: nowrap — the frame's budget is exactly 200 + 200 + flex crumb
+ * = 1030px (pills x9/x219/x429 w610 in the 1048 window); wrapping broke
+ * the 96px band (g19 P2-1). The crumb ellipsizes when a path exceeds it. */
 .lumen-plsubs__controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px; /* frame: pill gap x209–219 */
 }
@@ -102,6 +112,7 @@
   background: var(--color-surface-muted); /* frame #151515 */
   border: none;
   color: var(--color-content-secondary);
+  padding-left: 12px; /* frame: label ink x21.7 in the x9 pill (w26.gfix-E) */
   padding-right: 15px; /* frame: chevron x184–194 in a 9–209 pill */
 }
 
@@ -182,7 +193,10 @@
 }
 
 /* The filename-matching dropdown (sub filename.svg): 48px two-layer
- * trigger — #090909 ring over a #191919 field — and a 362px list. */
+ * trigger — #090909 ring over a #191919 field — and a 362px list. The
+ * footer placement keeps its frame anatomy intact (g19 P2-1 — see
+ * AddSubtitlesDialog); the open list flips UP over the pairs (the shared
+ * Dropdown's w26.g17/g19 flip + 320px scrollport). */
 .lumen-plsubs .lumen-dropdown.lumen-plsubs-match {
   width: 362px; /* frame: sub filename.svg dropdown width */
 }
@@ -194,6 +208,16 @@
 
 .lumen-plsubs .lumen-plsubs-match .lumen-dropdown__option {
   min-height: 44px; /* frame: option rows 44px */
+}
+
+/* w26.gfix-E (g19 P3-3): sub filename.svg paints ALL option labels #8F8F8F —
+ * including the checked row (selection = fill + check only, option.svg
+ * grammar). Scoped override of the shared dropdown's label lift (the menu
+ * lane's own default stays untouched; delta logged for the Lead). */
+.lumen-plsubs .lumen-dropdown__option:hover,
+.lumen-plsubs .lumen-dropdown__option:focus,
+.lumen-plsubs .lumen-dropdown__option[aria-selected="true"] {
+  color: var(--color-content-secondary);
 }
 
 /* ------------------------------------------------------------- body ----- */
@@ -290,11 +314,15 @@
 
 /* ---------------------------------------------------- matched pairs ----- */
 
-/* Frame: 40px pitch, transparent bands, dotted leaders between the names. */
+/* Frame: pitch 40px with NO inter-row gap (Folder.svg: 15 media glyphs at
+ * y133…693, Δ40; transparent bands — unlike Folder-2's 36px+4 candidate
+ * bands), rows spanning y118–718 static. w26.gfix-E (g19 P2-1 follow-up):
+ * the old 4px gap made the pitch 44 → 15×44 = 656 > the 610px body budget
+ * and rows 14–15 scrolled under the fold. */
 .lumen-plsubs-pairs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -305,6 +333,8 @@
   align-items: center;
   gap: 17px; /* frame: media glyph x33–52, name x68.7 */
   height: 40px; /* frame: pair row pitch */
+  padding-left: 13px; /* frame: glyph x33 in the x20 body (g19 P2-2 — the
+   * candidate rows' 11px analogue; the left column sat 13px too far left) */
   font-size: var(--font-size-body);
   color: var(--color-content-secondary); /* frame names #969696 */
 }
@@ -323,13 +353,16 @@
   white-space: nowrap;
 }
 
-/* The subtitle side — a fixed 479px column (frame: icon x549 in the
- * 1008-wide body; the column width matches subtitle one.svg's row). */
+/* The subtitle side — a fixed column ending at the body's right edge
+ * (x1028; Folder.svg: subtitle glyph x556 → the column spans 556–1028,
+ * w26.gfix-E re-pin from the SVG path starts: first-row glyph M556,126).
+ * The 479px width belongs to subtitle one.svg's standalone candidate band;
+ * inside Folder.svg's 1008px body the pair column is 472px. */
 .lumen-plsubs-pair__side {
   display: flex;
-  flex: 0 0 479px; /* frame: Folder.svg subtitle column */
+  flex: 0 0 472px; /* frame: Folder.svg subtitle column 556–1028 */
   align-items: center;
-  gap: 17px;
+  gap: 12px; /* frame: glyph 556–574, name x585.7 */
   min-width: 0;
 }
 
@@ -371,18 +404,58 @@
 /* ---------------------------------------------------------- footer ------ */
 
 /* Frame Frame 140/141: buttons float on the overlay (no band, no hairline)
- * at 20px insets — Cancel #1B1B1B left, Save #371F06 right. */
+ * at 20px insets — Cancel 100×32 r6 #1B1B1B left (20,748), Save right
+ * (928,748) — a 72px footer band (728–800) whose buttons land y748–780.
+ * w26.gfix-E: the band keeps its 72px height while hosting the
+ * filename-matching dropdown (48px trigger → 12px vertical padding +
+ * centering puts the 32px Cancel/Save back at exactly y748–780); the
+ * 15-pair review keeps its static y118–718 budget (a taller footer pushed
+ * rows 14–15 under the fold — g19 P2-1). The match control sits in the
+ * frame's open middle span, only in the pairs mode it drives. */
 .lumen-plsubs__foot {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-inset);
-  padding: 20px; /* frame: y748–780 in the 800-tall window */
+  padding: 12px 20px; /* frame: 72px band — Cancel/Save y748–780 in the 800 window */
 }
 
 .lumen-plsubs__foot .lumen-button {
   min-width: 100px; /* frame: 100×32 r6 actions */
+}
+
+/* The footer Cancel (frame Frame 140: #1B1B1B — the Button default's
+ * surface-raised is #222222, Δ7/255; no token carries it. Dark port only,
+ * g19 P3-2 — light keeps the shared default; same delta logged for the
+ * netstream dialog by g20-P3-3, button-lane generalization). */
+:root:not([data-theme="light"]) .lumen-plsubs__foot .lumen-plsubs__cancel {
+  /* stylelint-disable-next-line color-no-hex -- frame: Folder.svg Frame 140 Cancel fill #1B1B1B (no token; g19 P3-2) */
+  background: #1b1b1b;
+  border-color: transparent;
+}
+
+/* The disabled Save keeps its dimmed tinted pill (g18 P2-3, the same fix as
+ * the create-playlist dialog): the frame's own default state is the tinted
+ * #371F06/#D37918 pair at 50% group opacity — the shared disabled rule
+ * erases the tint. Light keeps the tinted-ink sweep's content-primary label
+ * (the #D37918-on-tint pairing is 1.75:1 in light, w26.d2). */
+:root:not([data-theme="light"]) .lumen-plsubs__foot .lumen-button--tinted:disabled {
+  color: var(--color-accent);
+  background: var(--color-accent-tinted);
+  border-color: transparent;
+  opacity: var(--opacity-disabled);
+
+  --color-stroke-icon: var(--color-accent);
+}
+
+:root[data-theme="light"] .lumen-plsubs__foot .lumen-button--tinted:disabled {
+  color: var(--color-content-primary);
+  background: var(--color-accent-tinted);
+  border-color: transparent;
+  opacity: var(--opacity-disabled);
+
+  --color-stroke-icon: var(--color-content-primary);
 }
 
 /* --------------------------------------------------- motion guards ------ */
