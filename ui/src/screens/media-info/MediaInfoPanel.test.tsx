@@ -232,6 +232,10 @@ describe("MediaInfoPanel — data flow + honest states", () => {
     expect(screen.getByText(/Media information appears once a media/i)).toBeTruthy();
     // Never a fabricated section:
     expect(container.querySelector('[data-mi-section="general"]')).toBeNull();
+    // w26.i18 (h19 §5): the honest states ride the section-card grammar and
+    // the empty state carries the one real path to a populated body.
+    expect(container.querySelector('[data-testid="media-info-empty-card"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Open media" })).toBeTruthy();
   });
 
   it("not-exposed note with the scaffold MockTransport (honest, no fake data)", async () => {
@@ -243,6 +247,8 @@ describe("MediaInfoPanel — data flow + honest states", () => {
       screen.getByText(/not available — the command layer did not expose/i),
     ).toBeTruthy();
     expect(container.querySelector('[data-mi-section="general"]')).toBeNull();
+    // w26.i18: the not-exposed verdict rides the same card grammar.
+    expect(container.querySelector('[data-testid="media-info-not-exposed"]')).not.toBeNull();
   });
 
   it("media.info-ready events keep the panel authoritative", async () => {
