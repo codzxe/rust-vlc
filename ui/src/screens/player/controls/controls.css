@@ -372,59 +372,372 @@ button.lumen-controls__time[data-editing]::after {
 
 /* -------------------------------------------------- right-cluster popovers */
 
-/* w26.gfix-C (g04 P1-6, Lead ruling: popovers over the full-width strip
- * must open and be reachable) — the Controls.svg variant popovers
- * (audio/subtitles/gear/queue) as MenuPopup mounts: 400px comfortable
- * panels (menu.css floor — the frame sheets' exact width), opening UP from
- * the strip, right-anchored (the triggers sit at the row's right end;
- * downward would fall off-window — the app-menu popup pattern). */
-.lumen-controls__popover {
-  position: relative; /* anchors the popup (portal-free absolute) */
+/* w26.i03 (h04 defect #1 — "every popover covers its own trigger", the
+ * gfix-C regression): the wrapper is STATIC, so the popup's containing
+ * block is the STRIP itself (.lumen-controls, position: relative) — the
+ * panel floats ABOVE the strip and can never paint over its own trigger.
+ * The old wrapper anchor put the popup's bottom edge 26px INTO the strip
+ * (panel bottom y=882 over a bar starting at y=856, 19 of the trigger's
+ * 32px hidden — h04 §2, pixel-proven). */
+
+/* The settings panel (Controls.svg variant sheets, w26.i03 — replacing the
+ * gfix-C MenuPopup mounts): 400 r10 #0E0E0E@95% (frame rects x1520,
+ * 400×946/524 rx10 fill #0E0E0E fill-opacity .95). Anchoring is
+ * frame-measured from the sheet's own geometry: the variant sheet insets
+ * its 1920 window 20px in a 1960 canvas (strip x20–1940), so the panel's
+ * right edge at x1920 sits 20px INSIDE the window edge (1920+20=1940) —
+ * NOT flush — and the panel bottom (y1625) floats 20px above the strip top
+ * (y1645). Both ported literally (fixed margins, 1:1 control scale):
+ * right 20px / bottom calc(100% + 20px) — structural, no token. */
+.lumen-controls__panel {
+  position: absolute;
+  inset: auto 20px calc(100% + 20px) auto;
+  z-index: 10; /* overlays chrome; structural, no token */
+  display: flex;
+  flex-direction: column;
+  width: 400px; /* frame: every variant panel is exactly 400 wide — structural */
+  max-height: calc(100vh - 72px); /* strip 44 + float 20 + 8px top margin — structural (the g17 scrollport grammar) */
+  box-sizing: border-box;
+  overflow: hidden; /* clips the header square into the r10 corners */
+  border-radius: 10px; /* frame: Controls.svg panel rx10 (menu.png pins rx10 too; no 10px token) */
+  background: color-mix(in srgb, var(--color-surface-deep) 95%, transparent); /* frame #0E0E0E @ .95 */
+  box-shadow: var(--shadow-overlay); /* frame queue panel: 0/+4 σ6.9 35% */
 }
 
-.lumen-controls__popover-popup {
-  inset: auto 0 calc(var(--space-inset) + var(--space-grid)) auto;
+/* The tab header (frame header strip 400×50 #090909 + 1px #222222 divider;
+ * tabs are Frame 241 icon+label units, first icon at x=1544 = 24px in). */
+.lumen-controls__panel-header {
+  display: flex;
+  align-items: stretch;
+  gap: 16px; /* frame tab pitch (icon x1544/1649/1735/1825) — structural */
+  flex: none;
+  box-sizing: border-box;
+  height: 50px; /* frame: 400×50 header — structural */
+  padding: 0 24px; /* frame: tab row inset — structural */
+  background: var(--color-surface); /* frame #090909 */
+  border-bottom: 1px solid var(--color-surface-raised); /* frame #222222 */
+}
 
-  /* Scrollport cap (the w26.g17 Dropdown fix grammar): a long queue or
-   * track list scrolls inside the panel instead of overflowing the window
-   * top — the popup stays reachable at every viewport height. */
-  max-height: min(560px, calc(100vh - 120px)); /* structural, no token */
+.lumen-controls__panel-tab {
+  position: relative; /* anchors the active underline */
+  display: inline-flex;
+  align-items: center;
+  gap: 10px; /* frame icon→label gap (icon 1735–1752, label 1762) — structural */
+  padding: 0 8px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sidebar); /* ≈13px (frame cap 9.1 → ≈12–13px) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-tertiary); /* frame inactive #6B6B6B — token-lane handoff (tertiary #828282) */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) ease;
+}
+
+.lumen-controls__panel-tab svg {
+  color: var(--color-stroke-border); /* frame inactive icon stroke #404040 */
+}
+
+.lumen-controls__panel-tab:hover {
+  color: var(--color-content-secondary);
+}
+
+.lumen-controls__panel-tab:hover svg {
+  color: var(--color-stroke-icon);
+}
+
+.lumen-controls__panel-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-controls__panel-tab[data-active] {
+  color: var(--color-content-secondary); /* frame active label #8F8F8F */
+}
+
+.lumen-controls__panel-tab[data-active] svg {
+  color: var(--color-stroke-icon);
+}
+
+/* The active-tab underline (frame Vector_97: 70×2 #D37918 sitting ON the
+ * header's bottom edge under the active tab). */
+.lumen-controls__panel-tab[data-active]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px; /* overlays the header divider — the frame's reading */
+  left: 0;
+  height: 2px;
+  background: var(--color-accent);
+}
+
+/* The content column (frame: inset 20 → x1540, width 360; scrollport).
+ * Vertical rhythm measured on the audio variant: the first section header
+ * text top (y2625) sits 26px below the body start (y2599) — so the body's
+ * top inset is 26, not the horizontal 20. */
+.lumen-controls__panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 26px 20px 20px; /* frame content insets — structural */
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-/* Submenus (the gear's Playback/Video/Audio/Subtitle families) open LEFT —
- * the popovers sit at the strip's right end (the app-menu popup pattern). */
-.lumen-controls__popover-popup .lumen-menu--submenu {
-  left: auto;
-  right: 100%;
-  margin-right: var(--space-grid);
-  margin-left: 0;
+/* Sections separate by SPACING only — no divider lines exist anywhere in
+ * the variant panels (verified against every Controls.svg variant group).
+ * Frame rhythm (audio variant): section title text top y2625 → first row
+ * text top y2672 (47 ≈ one row pitch + 3); last row text bottom y2773 →
+ * next section title text top y2826 (≈53 ≈ 44px row remainder + 36px
+ * section lead). Ported as title margin-bottom 20 + section padding-top
+ * 36 (the 44px row centers its text ≈14.5px below the row box top). */
+.lumen-controls__panel-section {
+  padding: 36px 0 0;
 }
 
-/* w26.gfix-C (g20 P3-1, Lead-directed): the frame's menu-row hover fill is
- * #1F1F1F (option.svg hover rect 261×48 r6; context menu.svg row-1), not
- * the shared --color-surface-hover #262626 menu.css carries (no hovered-row
- * face exists in any of this bar's own popover frames, so the shared menu
- * grammar is the authority). Scoped to THIS bar's popovers only (menu.css
- * is a shared sheet); --color-surface-selected carries exactly #1f1f1f
- * (tokens.json), so the frame value paints through a semantic token and a
- * later global --color-surface-hover repin cannot drift from it. */
-.lumen-controls__popover-popup .lumen-menu__item:hover,
-.lumen-controls__menu-popup .lumen-menu__item:hover {
-  background: var(--color-surface-selected); /* frame: option.svg hover #1F1F1F */
+.lumen-controls__panel-section:first-child {
+  padding-top: 0; /* the body's 26px top inset is the first section's lead */
+}
+
+/* Section headers (frame "Embedded Tracks"/"Defaults"/"Synchronization":
+ * text-path width 118px/15 chars ≈ 14.8px — the section size token, one
+ * step under the previous 16px label token; #969696 ≈ content-secondary). */
+.lumen-controls__panel-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 20px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section); /* ≈15px (frame ≈14.8px measured) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary); /* frame #969696 */
+}
+
+/* The frame's right-aligned header affordance — e.g. the Output Device
+ * rescan glyph (audio variant Vector 19/20, x1870–1890, stroke #6B6B6B
+ * 1.5): quiet icon ink, inert (no seam). */
+.lumen-controls__panel-section-icon {
+  color: var(--color-content-tertiary); /* frame #6B6B6B — token step */
+}
+
+/* Radio rows (frame track/queue rows: 44px pitch, label #969696 ≈15px, the
+ * 2px #D37918 check at x1549 with labels at x1583). */
+.lumen-controls__panel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px; /* frame row pitch — structural */
+  padding: 0 8px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section); /* ≈15px rows */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-secondary); /* frame row labels #969696 */
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.lumen-controls__panel-row:hover {
+  background: var(--color-surface-selected); /* frame hover #1F1F1F (option.svg) */
+}
+
+.lumen-controls__panel-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.lumen-controls__panel-row:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+  pointer-events: none;
+}
+
+.lumen-controls__panel-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right-aligned quiet row value — the queue variant's durations ("23:06"
+ * at x1858–1895, ≈5px off the content's right edge). */
+.lumen-controls__panel-row-value {
+  flex: none;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-content-tertiary); /* frame durations #969696≈secondary; tertiary is the quiet value step */
+}
+
+/* The check column — reserves the frame's 34px check gutter on every row,
+ * ✓ only on the engine-reported selection. */
+.lumen-controls__panel-check {
+  flex: none;
+  width: 20px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-icon); /* frame Vector 44 stroke #D37918 */
+}
+
+.lumen-controls__panel-row[data-checked] .lumen-controls__panel-check::before {
+  content: "\2713"; /* ✓ — graphical glyph, not an i18n string */
+}
+
+/* Honest inert reason row (no engine seam / no media) — doc 08 §4.4. */
+.lumen-controls__panel-reason {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 8px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary);
+}
+
+/* Label left / value-or-control right (frame Defaults rows: label #6B6B6B
+ * at x1545, value #8F8F8F right-aligned to x≈1895). */
+.lumen-controls__panel-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-inset);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 8px;
+}
+
+.lumen-controls__panel-field-label {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary); /* frame row labels #6B6B6B */
+}
+
+.lumen-controls__panel-field-value {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  color: var(--color-content-secondary); /* frame values #8F8F8F */
+}
+
+/* The Repeat segmented control's in-panel instance: compact segments that
+ * size to their labels (the shared 104px segment floor is the Settings
+ * instance; the panel field row has a left label to share the 360px with). */
+.lumen-controls__panel-segmented .lumen-segmented__segment {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+/* The queue meta row (frame "4 items - 2h 3m" #6B6B6B at x1548; 51px
+ * above the first row's text — the section-lead rhythm). */
+.lumen-controls__panel-meta {
+  box-sizing: border-box;
+  padding: 0 8px 26px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section);
+  color: var(--color-content-tertiary); /* frame #6B6B6B */
+}
+
+/* The footer — the frame's two footer faces share the 20px inset.
+ * Button.png's quiet button (B13): Default row 360×32 rx4 #090909, icon
+ * 14.4×15 stroke 1.25 #8F8F8F, label #6B6B6B, content horizontally
+ * CENTERED (icon x106.8 + 9.6 gap + label → x294.9, center 200.85 ≈ button
+ * center 200). Variant2's row (#191919 + #8F8F8F label) is the hover face. */
+.lumen-controls__panel-footer {
+  flex: none;
+  box-sizing: border-box;
+  padding: 0 20px 20px; /* frame: the 360×32 button sits in the 20px inset */
+}
+
+.lumen-controls__quiet-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px; /* frame icon→label ≈9.6px — structural */
+  box-sizing: border-box;
+  width: 100%; /* 360px inside the 20px inset = the frame's 360×32 */
+  height: 32px; /* frame — structural */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section); /* label ≈15px (frame cap 10.7) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-tertiary); /* frame label #6B6B6B — token-lane handoff */
+  background: var(--color-surface); /* frame fill #090909 */
+  border: none;
+  border-radius: var(--radius-inset); /* frame rx4 — CONTRACT §2's input radius */
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+/* The icon keeps the icon token's #8F8F8F stroke (Button.png row 1) — the
+ * label is the only ink the button owns. */
+
+.lumen-controls__quiet-button:hover {
+  background: var(--color-surface-panel); /* Button.png Variant2 fill #191919 */
+  color: var(--color-content-secondary); /* Variant2 label #8F8F8F */
+}
+
+.lumen-controls__quiet-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* The BARE footer face (w26.i03 iteration 2 — pixel-caught live): the 4-tab
+ * settings variants carry the SAME footer content WITHOUT the button chrome
+ * (audio-settings sheet: no 360×32 rect exists in that zone — just the ⓘ +
+ * label 27px above the panel bottom). Without this rule the bare face fell
+ * through to the UA default button (native gray face + white buttontext —
+ * sampled (107,107,107)/(255,255,255) at the gear footer, panel-gear.png).
+ * Transparent, centered, same quiet inks; hover lifts the label only. */
+.lumen-controls__quiet-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px; /* frame icon→label ≈9.6px — structural (shared with the button) */
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px; /* the shared footer rhythm (no frame rect — see above) */
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-section); /* label ≈15px (frame cap 10.7) */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-content-tertiary); /* frame label #6B6B6B — token-lane handoff */
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-inset);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) ease;
+}
+
+.lumen-controls__quiet-label:hover {
+  color: var(--color-content-secondary); /* the quiet hover lift */
+}
+
+.lumen-controls__quiet-label:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 /* -------------------------------------------------- app menu popup */
 
-.lumen-controls__menu {
-  position: relative; /* anchors the popup (portal-free absolute) */
-}
+/* The wrapper is STATIC (w26.i03): the popup anchors to the strip — same
+ * never-cover-the-trigger fix as the settings panels (h04 defect #1: the
+ * old wrapper anchor painted 19 of the menu trigger's 32 rows over). */
 
-/* Opens UP from the bar's right end (the menu button sits at the row's
- * right edge; downward would fall off-window). */
+/* Opens UP from the strip's right end, mirroring the variant panels' frame
+ * anchoring (Controls.svg: panel right edge 20px inside the window edge,
+ * 20px float above the strip — see .lumen-controls__panel above). The
+ * app-menu trigger is the strip's rightmost control, so the same 20px
+ * inset keeps the two popover families visually co-anchored. */
 .lumen-controls__menu-popup {
-  inset: auto 0 calc(var(--space-inset) + var(--space-grid)) auto;
+  inset: auto 20px calc(100% + 20px) auto;
 }
 
 /* menu.png panel width: the shared comfortable floor is the 400px class
@@ -435,6 +748,7 @@ button.lumen-controls__time[data-editing]::after {
  * from the shared comfortable density f07 pinned — nothing re-styled here. */
 .lumen-menu.lumen-controls__menu-popup {
   min-width: 375px;
+  border-radius: 10px; /* frame: menu.svg panel rx10 (h04 §15 nit — r12→r10) */
 }
 
 /* Submenus open LEFT — the base rightward offset would push them off the
@@ -444,6 +758,18 @@ button.lumen-controls__time[data-editing]::after {
   right: 100%;
   margin-right: var(--space-grid);
   margin-left: 0;
+}
+
+/* w26.gfix-C (g20 P3-1, Lead-directed): the frame's menu-row hover fill is
+ * #1F1F1F (option.svg hover rect 261×48 r6; context menu.svg row-1), not
+ * the shared --color-surface-hover #262626 menu.css carries (no hovered-row
+ * face exists in any of this bar's own popover frames, so the shared menu
+ * grammar is the authority). Scoped to THIS bar's menu only (menu.css is a
+ * shared sheet); --color-surface-selected carries exactly #1f1f1f
+ * (tokens.json), so the frame value paints through a semantic token and a
+ * later global --color-surface-hover repin cannot drift from it. */
+.lumen-controls__menu-popup .lumen-menu__item:hover {
+  background: var(--color-surface-selected); /* frame: option.svg hover #1F1F1F */
 }
 
 /* ------------------------------------------------- error chip (§5.4) */
