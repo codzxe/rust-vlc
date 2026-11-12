@@ -83,12 +83,15 @@ export function useEffectsMsg() {
 
 /** The ⓘ info affordance (frame: Settings - audio-1.svg Ellipse 9_5/9_6 —
  * r7.5 circle, stroke #404040 1.125, "i" glyph; the Equalizer and Equalizer
- * preset rows carry it). Graphical, aria-hidden in the DOM; the staged note
- * rides as its tooltip (w26.gfix-B, g12-P3-8: no in-row note line — the
- * frame's row pitch is 42–46, the per-row badges doubled it to 68).
+ * preset rows carry it, plus the four rows below the EQ panel — the frame's
+ * 6 circles y118.5/163.5/707.5/749.5/793.5/837.5). Accessible as role=img
+ * carrying the staged note (w26.i14 — never an aria-hidden glyph the honest
+ * reason is unreachable through); the note also rides as its tooltip
+ * (w26.gfix-B, g12-P3-8: no in-row note line — the frame's row pitch is
+ * 42–46, the per-row badges doubled it to 68).
  */
 function InfoDot({ note }: { note: string }): ReactElement {
-  return <span className="effects-info" aria-hidden="true" title={note} />;
+  return <span className="effects-info" role="img" aria-label={note} title={note} />;
 }
 
 /** The ONE section-level staged note (g12-P3-8): the per-row badges are
@@ -108,12 +111,18 @@ function StagedNote({ msg }: { msg: (key: EffectsLabelKey) => string }): ReactEl
  * A staged toggle row: label left, OFF switch right, awaiting its catalog
  * command (the effects-area staged pattern — disabled WITH reason, never a
  * dead control that looks alive).
+ * w26.i14 (h10 defect #3 + pitch): `kind` drives the shared row-grammar
+ * pitch (settings.css [data-kind] rules) — the four rows below the EQ panel
+ * carry kind="switch" for the frame's 42px pitch (46 default was +16px
+ * cumulative vs the frame); the rows that are already frame-exact at 46
+ * (Equalizer y118.5 vs preset y163.5 — frame gap 45) omit it.
  */
 function StagedToggleRow({
   labelKey,
   pendingCommand,
   info = false,
   note,
+  kind,
 }: {
   labelKey: EffectsLabelKey;
   pendingCommand: string;
@@ -121,12 +130,15 @@ function StagedToggleRow({
   info?: boolean;
   /** The staged note the ⓘ tooltip carries (g12-P3-8). */
   note: string;
+  /** Optional row kind (frame pitch) — omit for the default 46px rows. */
+  kind?: "switch";
 }): ReactElement {
   const m = useEffectsMsg();
   const label = m(labelKey);
   return (
     <div
       className="settings-field"
+      data-kind={kind}
       data-setting-key={`pending.${pendingCommand}`}
       data-pending-command={pendingCommand}
     >
@@ -154,27 +166,40 @@ function StagedToggleRow({
  * A staged dropdown row: label left, the frame's selected value in a compact
  * dropdown right. One honest frame-verbatim option — no invented engine
  * modes (the frame exports no open list for this control).
+ * w26.i14 (h10 defect #3): info/note render the frame's ⓘ (the four rows
+ * below the EQ panel carried a dead `note` prop that never drew anything);
+ * `kind="enum"` keeps the enum-row pitch while the toggle siblings tighten
+ * to 42 — the net cumulative (42+46+42 = 130) equals the frame's
+ * 707.5→837.5 span exactly.
  */
 function StagedDropdownRow({
   labelKey,
   optionKey,
   pendingCommand,
+  info = false,
+  note,
+  kind,
 }: {
   labelKey: EffectsLabelKey;
   optionKey: EffectsLabelKey;
   pendingCommand: string;
+  info?: boolean;
+  note?: string;
+  kind?: "enum";
 }): ReactElement {
   const m = useEffectsMsg();
   const label = m(labelKey);
   return (
     <div
       className="settings-field"
+      data-kind={kind}
       data-setting-key={`pending.${pendingCommand}`}
       data-pending-command={pendingCommand}
     >
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
+          {info && note !== undefined ? <InfoDot note={note} /> : null}
         </div>
         <div className="settings-field__control">
           <Dropdown
@@ -273,22 +298,37 @@ export function EffectsArea(): ReactElement {
           <GraphicEQ defaultOpen state={eqState} onChange={setEqState} />
         </div>
         {/* Frame rows below the EQ panel, in frame order. Two-pass is EQ
-         * configuration (VLC parity) — same awaited command. */}
-        <StagedToggleRow labelKey="settings.effects.two-pass" pendingCommand="audio.set-eq" note={staged} />
+         * configuration (VLC parity) — same awaited command. w26.i14: every
+         * row carries the frame's ⓘ (y707.5/749.5/793.5/837.5 — the dead
+         * `note` props now render) and the frame's 42px pitch via kind. */}
+        <StagedToggleRow
+          labelKey="settings.effects.two-pass"
+          pendingCommand="audio.set-eq"
+          info
+          note={staged}
+          kind="switch"
+        />
         <StagedToggleRow
           labelKey="settings.effects.spatial-audio"
           pendingCommand="audio.set-spatializer"
+          info
           note={staged}
+          kind="switch"
         />
         <StagedDropdownRow
           labelKey="settings.effects.spatial-audio-mode"
           optionKey="settings.effects.spatial-mode.headphone-virtualization"
           pendingCommand="audio.set-spatializer"
+          info
+          note={staged}
+          kind="enum"
         />
         <StagedToggleRow
           labelKey="settings.effects.stereo-widening"
           pendingCommand="audio.set-stereo-widener"
+          info
           note={staged}
+          kind="switch"
         />
         {/* The ONE honest staged note for the whole section (g12-P3-8) —
          * after the last row, never between rows. */}
