@@ -1,14 +1,15 @@
 // Card 4.F2 — player variants tests: variant model + persistence,
 // variant-scoped layout data (design matrix), layout condition evaluation,
 // keymap-driven switching, miniplayer compact transport (C2 mapping reuse),
-// the W26 mini card anatomy (Miniplayer.svg), music-mode playlist emphasis
-// + honest art placeholder (Player - Music.svg).
+// the W26 mini card anatomy (Miniplayer.svg) + sr-only h1 (e17 F5),
+// music-mode LEFT-docked playlist column with the closable no-column state
+// (w26.f11, e03 F5/F6/F8) + honest art placeholder (Player - Music.svg).
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
-import { PlayerScreen } from "../PlayerScreen";
+import { PlayerScreen, PLAYER_TOGGLE_SIDEBAR_EVENT } from "../PlayerScreen";
 import { DEFAULT_LAYOUT, evaluateCondition } from "../layout";
 import {
   MINIPLAYER_LAYOUT,
@@ -72,9 +73,14 @@ describe("variant-scoped layout data (design matrix, doc 08 §1.6)", () => {
     expect(MINIPLAYER_LAYOUT.regions.every((r) => r.visibleWhen === "miniplayer")).toBe(true);
   });
 
-  it("music layout: art + topbar + controls + prominent playlist; no video canvas or library", () => {
+  it("music layout: art + controls + the LEFT-docked playlist; no topbar, canvas or library (w26.f11)", () => {
     const ids = MUSIC_LAYOUT.regions.map((r) => r.id);
-    expect(ids).toEqual(["album-art", "title-bar", "controls-bar", "playlist"]);
+    expect(ids).toEqual(["album-art", "controls-bar", "playlist"]);
+    // w26.f11 (e03 F5): the playlist docks LEFT (Player - Music-1.svg) via
+    // the docked-sidebar seam; e03 F8: no title-bar region (the app shell's
+    // banner is the one topbar — no doubled bar).
+    expect(MUSIC_LAYOUT.regions.find((r) => r.id === "playlist")?.anchor).toBe("left");
+    expect(ids).not.toContain("title-bar");
     expect(ids).not.toContain("video-canvas");
     expect(ids).not.toContain("library");
   });
@@ -172,8 +178,13 @@ describe("miniplayer variant", () => {
     );
   });
 
-  it("W26 card anatomy: honest empty title, meta row, collapsible queue panel ABOVE the video", () => {
+  it("W26 card anatomy: sr-only h1 (e17 F5), honest empty title, meta row, collapsible queue panel ABOVE the video", () => {
     renderWithClient(<PlayerScreen variant="miniplayer" />);
+    // e17 F5 — the wave-a sr-only h1 contract: /miniplayer carries exactly
+    // one level-1 heading, screen-reader-only (PlayerScreen's main-branch
+    // h1 never renders in the miniplayer composition).
+    const h1 = screen.getByRole("heading", { level: 1, name: "Miniplayer" });
+    expect(h1.className).toContain("lumen-player__sr-title");
     const mini = screen.getByRole("region", { name: "Miniplayer" });
     // Honest quiet title while nothing plays — never a fabricated name.
     expect(within(mini).getByText("Nothing playing")).toBeInTheDocument();
@@ -198,7 +209,7 @@ describe("miniplayer variant", () => {
 });
 
 describe("music variant", () => {
-  it("replaces the video canvas with the honest album-art placeholder (no fake art)", () => {
+  it("replaces the video canvas with the honest album-art placeholder (no fake art, no stage waveform)", () => {
     renderWithClient(<PlayerScreen variant="music" />);
     const art = screen.getByRole("region", { name: "Album art" });
     expect(art).toHaveAttribute("data-region-id", "album-art");
@@ -206,12 +217,29 @@ describe("music variant", () => {
     expect(art.querySelector("img")).toBeNull();
     expect(art.textContent).toContain("Album art appears once the engine reports it.");
     expect(screen.queryByRole("region", { name: "Video canvas" })).toBeNull();
+    // w26.f11 (e03 F7): no doubled seek surface in the stage — the waveform
+    // strip is gone; the frame's tick field lives INSIDE the real C2 seek
+    // cluster in the controls row (one interactive seek surface only).
+    expect(art.querySelector(".lumen-music__waveform")).toBeNull();
+    const footer = document.querySelector('[data-region-id="controls-bar"]');
+    expect(footer?.querySelector(".lumen-seekbar")).not.toBeNull();
   });
 
-  it("emphasizes the playlist panel without openPanels and hides the library", () => {
+  it("docks the playlist column LEFT without openPanels and hides the library (w26.f11, e03 F5)", () => {
     renderWithClient(<PlayerScreen variant="music" />);
+    const root = document.querySelector(".lumen-player");
+    expect(root).toHaveAttribute("data-sidebar", "open");
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
-    expect(playlist).toHaveAttribute("data-emphasized", "true");
+    // Player - Music-1.svg: the 377px column docks LEFT of the stage — the
+    // docked-sidebar seam (not the old right-anchored emphasized panel).
+    expect(playlist).toHaveAttribute("data-region-id", "playlist");
+    expect(playlist.className).toContain("lumen-player__sidebar");
+    expect(playlist.getAttribute("data-emphasized")).toBeNull();
+    const stage = screen.getByRole("region", { name: "Album art" });
+    expect(
+      // the stage FOLLOWS the dock in DOM order = the column sits left of it
+      Boolean(playlist.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
     expect(screen.queryByRole("complementary", { name: "Library" })).toBeNull();
     // the real C2 control bar still drives transport in music mode
     const footer = document.querySelector('[data-region-id="controls-bar"]');
@@ -219,11 +247,42 @@ describe("music variant", () => {
     expect(footer?.getAttribute("data-variant")).toBe("music");
   });
 
-  it("v2 audit — the emphasized playlist column carries the panel's Open-media CTA", () => {
-    // The prominent music-mode playlist is never a dead box: the playlist
+  it("e03 F6: closing the playlist collapses to the Player_-_Music.png no-column state; the stage toggle re-opens it", async () => {
+    renderWithClient(<PlayerScreen variant="music" />);
+    const root = document.querySelector(".lumen-player");
+    // Open by default (Player - Music-1.svg composition)...
+    expect(screen.getByRole("complementary", { name: "Playlist" })).toBeInTheDocument();
+
+    // ...the shell's toggle event closes the column — the no-column state
+    // (Player - Music.png) is reachable. Async act: MusicMode mirrors the
+    // dock state through a MutationObserver, whose callback lands on the
+    // microtask queue after the DOM flip.
+    await act(async () => {
+      window.dispatchEvent(new Event(PLAYER_TOGGLE_SIDEBAR_EVENT));
+    });
+    expect(root).toHaveAttribute("data-sidebar", "closed");
+    expect(screen.queryByRole("complementary", { name: "Playlist" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Album art" })).toBeInTheDocument();
+
+    // The stage's quiet toggle re-opens it (MusicMode) — the column is
+    // reachable in BOTH directions from inside music mode.
+    const toggle = await screen.findByRole("button", { name: "Show queue panel" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(root).toHaveAttribute("data-sidebar", "open");
+    const reopened = await screen.findByRole("complementary", { name: "Playlist" });
+    expect(within(reopened).getByRole("button", { name: "Open media" })).toBeInTheDocument();
+    const openToggle = await screen.findByRole("button", { name: "Hide queue panel" });
+    expect(openToggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("v2 audit — the docked music-mode playlist column carries the panel's Open-media CTA", () => {
+    // The docked music-mode playlist is never a dead box: the playlist
     // panel's own empty-state CTA (card 4.D1, screens/playlist) dispatches
     // the shell-wide `lumen:open-media` event — the composition assertion
-    // here pins that the emphasized music-mode panel actually exposes it.
+    // here pins that the docked music-mode column actually exposes it.
     renderWithClient(<PlayerScreen variant="music" />);
     const playlist = screen.getByRole("complementary", { name: "Playlist" });
     const cta = within(playlist).getByRole("button", { name: "Open media" });

@@ -12,21 +12,21 @@
 //   CENTER  current timecode (≈15px tabular) · seekbar — the w26.a04
 //           slider API with the frame-measured anatomy: 28px r6 surface
 //           track, played fill r4 accent-tinted inset 2, and the playhead
-//           as an 8×24 r4 accent BAR (never a circular thumb) · remaining
-//           timecode (Duration.svg's "-00:23:30" click face)
+//           as an 8×24 r4 accent BAR (never a circular thumb).
+//           w26.f13 (e02 F6): the THIRD timecode (remaining) is GONE —
+//           Player.svg shows exactly two (00:02:10 | seekbar | 00:25:40);
+//           Duration.svg's "−00:23:30" click-toggle face stays unported
+//           (logged).
 //   RIGHT   total duration · volume icon + the 89px level wedge
 //           (volume.svg: green→yellow→orange→red gradient anchored to the
 //           FULL track, revealed to the level — the spec §2 "small green
 //           level pill") · fullscreen (Fullscreen API on the player host) ·
-//           cast (honestly not-available — no surface yet) · app menu
-//           (real navigation + the shell open-media seam + the
-//           Video/Audio/Subtitle track SUBMENUS — the track-selector
-//           dropdowns moved off the row into the menu per the w26.a13
-//           controls-strip finding; types.ts "dynamic submenus (tracks…)
-//           arrive as data at runtime") · gear (Settings route)
+//           cast (honestly not-available — no surface yet) · app menu —
+//           rebuilt w26.f13 to the menu.png grammar (see AppMenuButton) ·
+//           gear (A/V tools dialog, w26.c5)
 //
 // Behavior contract UNCHANGED (state-mapping.ts is the doc 08 §5 mapping —
-// play/pause/stop/seek/volume/mute/track wiring below is a restyle of the
+// play/pause/stop/seek/volume/mute wiring below is a restyle of the
 // same dispatch, never a semantic change). New controls are additive seams
 // on the same honest pattern: disabled-with-reason, never fabricated state.
 
@@ -36,52 +36,52 @@ import { useInRouterContext, useNavigate } from "react-router-dom";
 import { Button, IconButton, Icon, Seekbar, VolumeSlider } from "../../../components";
 import { MenuPopup } from "../../../components/menu/MenuPopup";
 import { identityResolveLabel } from "../../../components/menu/types";
-import type { IconName, MenuEntry } from "../../../components";
+import type { MenuEntry } from "../../../components";
 import { useMsg } from "../../../i18n/messages";
-import {
-  selectedTrackId,
-  trackDisplayName,
-  tracksOfKind,
-  usePlayerControls,
-} from "../context";
+import type { MessageKey } from "../../../i18n/messages";
+import { keys as f13Keys } from "../../../i18n/keys/w26.f13";
+import { useClient } from "../../../client/ClientProvider";
+import { isDemoTransport } from "../../../client/demo-transport";
+import { openPathRequest, openPathRoute } from "../../../client/open-path";
+import { HOTKEY_BINDINGS } from "../../settings/areas/hotkeys/generated/bindings";
+import { usePlayerControls } from "../context";
 import { usePlaylist } from "../../playlist";
 import { openToolsDialog } from "../dialogs";
 import { mapTransportControls, seekDisableReason } from "./state-mapping";
 import "./controls.css";
 
 /**
- * w26.a14 local copy — genuinely new keys (CONTRACT §4.5), registered for
- * the Lead in ui/src/i18n/keys/w26.a14.ts. Until the post-wave merge these
- * read from this module copy (the established dialogs COPY-NOTE pattern,
- * w26.a18 — TOOLS_DIALOG_COPY). Every other label below flows through
- * useMsg() + existing MessageKeys.
+ * w26.f13 lane keys (the app menu's frame-exact labels) — contract §4.5:
+ * catalog first, lane copy while the Lead's post-wave merge is pending
+ * (PlayerScreen's c6/f09 seam-first pattern; identical before/after).
  */
-const CONTROLS_COPY = {
-  /** Player.svg Frame 10 glyph — next in the queue. */
-  next: "Next",
-  /** Fullscreen toggle (entering). */
-  fullscreen: "Enter fullscreen",
-  /** Fullscreen toggle (exiting). */
-  exitFullscreen: "Exit fullscreen",
-  /** Remote playback; no surface exists yet (honest disable). */
-  cast: "Cast",
-  /** aria name of the output cluster (fullscreen/cast/menu/gear). */
-  groupOutput: "Player controls",
-} as const;
+const f13Catalog: Readonly<Record<string, string>> = f13Keys;
 
-/** Track-submenu faces (Player.svg right cluster glyphs: the cc card reads
- * "subtitles"; the audio bars read "audio"; the video kind has no bar glyph
- * in the frames — `pip`'s screen-with-video geometry is the closest honest
- * glyph from the shared Icon.svg catalog). */
-const TRACK_KINDS: ReadonlyArray<{
-  readonly kind: "video" | "audio" | "subtitle";
-  readonly labelKey: "player.track.video" | "player.track.audio" | "player.track.subtitle";
-  readonly icon: IconName;
-}> = [
-  { kind: "video", labelKey: "player.track.video", icon: "pip" },
-  { kind: "audio", labelKey: "player.track.audio", icon: "audio" },
-  { kind: "subtitle", labelKey: "player.track.subtitle", icon: "subtitles" },
-];
+/** w26.f13 lane key ids (typed for the seam resolver below). */
+type F13LaneKey = keyof typeof f13Keys;
+
+/**
+ * Binding-id → accelerator display string from keymap DATA (HOTKEY_BINDINGS
+ * is the generated keymaps/default.toml excerpt — doc 05 §8.1: menus render
+ * the binding's key, never a hardcoded string). Frame spelling "Ctrl + O"
+ * (menu.png): modifiers re-joined with spaces, plain keys as-is.
+ * (PlayerScreen's canvas-menu helper, verbatim — that copy is not exported.)
+ */
+const acceleratorOf = (bindingId: string): string | undefined => {
+  const binding = HOTKEY_BINDINGS.find((entry) => entry.id === bindingId);
+  if (binding === undefined) return undefined;
+  return binding.key
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" + ");
+};
+
+/** The customize surface's open seam — PlayerScreen exports this name as
+ * PLAYER_OPEN_CUSTOMIZE_EVENT; the string is the frozen cross-component
+ * contract ("never rename"), restated here because importing PlayerScreen
+ * from this sibling would be a module cycle. */
+const OPEN_CUSTOMIZE_EVENT = "lumen:open-customize";
 
 /** Live document fullscreen truth (never cached — doc 08 §4 honest state). */
 const fullscreenActive = (): boolean => (document.fullscreenElement ?? null) !== null;
@@ -91,8 +91,7 @@ const fullscreenActive = (): boolean => (document.fullscreenElement ?? null) !==
  * "00:02:10"/"00:25:40": zero-padded HH:MM:SS on tabular figures (the CSS
  * sets font-variant-numeric). The shared slider's formatSeekTime (compact
  * m:ss) stays the scrub aria formatter — the bar's visible readouts use the
- * frame format. Negative inputs clamp (the remaining readout handles its
- * own minus sign).
+ * frame format.
  */
 const formatTimecode = (seconds: number): string => {
   const total = Math.max(0, Math.floor(seconds));
@@ -182,12 +181,12 @@ function TransportCluster() {
   // while the queue is empty or the engine exposes no playlist surface.
   const nextDisabled = playlist.notExposed || playlist.entries.length === 0;
   const nextLabel = nextDisabled
-    ? `${CONTROLS_COPY.next} — ${m(
+    ? `${m("player.controls.next")} — ${m(
         playlist.notExposed
           ? "player.controls.reason.unknown"
           : "player.controls.reason.no-media",
       )}`
-    : CONTROLS_COPY.next;
+    : m("player.controls.next");
 
   return (
     <div
@@ -227,20 +226,15 @@ function TransportCluster() {
   );
 }
 
-/** current timecode · seekbar · remaining (doc 08 §5.2/§5.3 honest). */
+/** current timecode · seekbar (doc 08 §5.2/§5.3 honest).
+ * w26.f13 (e02 F6): Player.svg shows exactly TWO timecodes — position left
+ * of the bar, the total in the right cluster. The pre-f13 mid-bar
+ * remaining readout (Duration.svg's "−00:23:30" click face) is dropped. */
 function SeekCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
   const mapped = mapTransportControls(state);
   const reason = seekDisableReason(state);
-
-  // Remaining is honest arithmetic over engine truth only: duration known →
-  // duration − position; unknown → the same "--:--" unknown as the total
-  // (Duration.svg's click face is the minus-prefixed remaining reading).
-  const remaining =
-    state.durationSeconds === null || state.durationSeconds <= 0
-      ? m("player.controls.duration-unknown")
-      : `−${formatTimecode(state.durationSeconds - state.position)}`;
 
   return (
     <div className="lumen-controls__seek">
@@ -267,9 +261,6 @@ function SeekCluster() {
         disabled={mapped.seek.disabled}
         onCommit={actions.seek}
       />
-      <span className="lumen-controls__time" data-time="remaining">
-        {remaining}
-      </span>
     </div>
   );
 }
@@ -331,21 +322,21 @@ function VolumeCluster() {
   );
 }
 
-/** fullscreen · cast · app menu (+ track submenus) · gear (Settings). */
+/** fullscreen · cast · app menu · gear (A/V tools dialog, w26.c5). */
 function OutputCluster() {
   const m = useMsg();
   return (
     <div
       className="lumen-controls__output"
       role="group"
-      aria-label={CONTROLS_COPY.groupOutput}
+      aria-label={m("player.controls.group-output")}
     >
       <FullscreenButton />
       <IconButton
         data-control="cast"
         /* Honest not-available: no cast surface exists in the engine yet —
          * the control renders, disabled with its reason (doc 08 §4.4). */
-        label={`${CONTROLS_COPY.cast} — ${m("player.controls.reason.unknown")}`}
+        label={`${m("player.controls.cast")} — ${m("player.controls.reason.unknown")}`}
         disabled
       >
         <Icon name="tv" size={OUTPUT_ICON_SIZE} />
@@ -384,7 +375,9 @@ function FullscreenButton() {
   }, []);
 
   const supported = fullscreenSupported();
-  const base = active ? CONTROLS_COPY.exitFullscreen : CONTROLS_COPY.fullscreen;
+  const base = active
+    ? m("player.controls.exit-fullscreen")
+    : m("player.controls.fullscreen");
   return (
     <div className="lumen-controls__fs" ref={hostRef}>
       <IconButton
@@ -412,22 +405,42 @@ function FullscreenButton() {
 }
 
 /**
- * The app menu (layout.v1 [[menu]] id="app"): real actions only — the
- * shell-wide open-media event, route navigations, and the three engine-truth
- * track submenus (Video/Audio/Subtitle; types.ts "dynamic submenus (tracks,
- * devices, chapters) arrive as data at runtime"). Labels are pre-resolved
- * through useMsg (dynamic track names arrive as already-resolved strings —
- * the Dropdown identity pattern), so the popup resolves with the identity
- * seam.
+ * The app menu (layout.v1 [[menu]] id="app") — rebuilt w26.f13 to the
+ * menu.png grammar (e12 F5): ONE comfortable panel, the frame's 12 rows in
+ * pinned order (8 + 48×12 + 1 separator = 585), right-aligned accelerators
+ * produced from keymap DATA — the generated keymap already carries every
+ * frame combo verbatim (media.open-file Ctrl+O … window.about Shift+F1).
+ * Honesty per row: real actions only (the shell open-media / open-customize
+ * CustomEvent seams, route navigations, the demo transport's remembered
+ * openings through the ONE open funnel, client/open-path.ts); no-seam rows
+ * (folder — no folder source exists in any transport; disc; capture device;
+ * the profile system) render inert with their frame accelerators — never
+ * theater (doc 08 §4.4).
+ *
+ * w26.f13 Lead ruling: the app menu lives in the ControlBar FOR NOW —
+ * f08/AppShell may relocate the trigger into the shell title bar (MenuBar);
+ * this content moves with it unchanged (logged in the lane log).
+ *
+ * The Video/Audio/Subtitle track submenus that lived here since w26.a13
+ * moved OUT with this rebuild — menu.png has no track rows; their frame
+ * home is the canvas context menu (right-click menu.svg rows, kept by
+ * PlayerScreen), which now solely owns them.
  */
 function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }) {
   const m = useMsg();
-  const { state, actions } = usePlayerControls();
+  const client = useClient();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const nextRequestId = useRef(0);
   const [open, setOpen] = useState(false);
 
+  // Lane resolver (contract §4.5): catalog first, w26.f13 lane copy while
+  // unregistered — identical before/after the Lead's merge.
+  const tm = (key: F13LaneKey): string => m(key as MessageKey) ?? f13Catalog[key];
+
   // Outside pointer dismiss (the MenuPopup pattern's caller half — MenuBar
-  // carries the same listener).
+  // carries the same listener). Focus is not stolen: the click target keeps
+  // it, so this path deliberately does NOT restore trigger focus.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent): void => {
@@ -439,98 +452,152 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
-  const trackMenus: MenuEntry<string>[] = TRACK_KINDS.map(({ kind, labelKey, icon }): MenuEntry<string> => {
-    const tracks = tracksOfKind(state.tracks, kind);
-    const selected = selectedTrackId(state.tracks, state.selections, kind);
-    // No honest track data to show: no media open, still opening, or the
-    // engine has not reported any track list at all (doc §5.5 — never a
-    // fabricated list). The submenu still opens — onto its single disabled
-    // no-media reason row (v2 §4.3's honest-unknown pattern, restated as a
-    // menu: discoverable, labeled, inert).
-    const unreported = !state.engineReported && tracks.length === 0;
-    const noMedia =
-      state.playbackState === "idle" || state.playbackState === "opening" || unreported;
-    if (noMedia) {
-      return {
-        id: `track-${kind}`,
-        labelKey: m(labelKey),
-        icon,
-        submenu: [
-          {
-            id: `track-${kind}-no-media`,
-            labelKey: m("player.controls.reason.no-media"),
-            disabled: true,
-          },
-        ],
-      };
-    }
-    return {
-      id: `track-${kind}`,
-      labelKey: m(labelKey),
-      icon,
-      submenu: [
-        {
-          id: `track-${kind}-auto`,
-          labelKey: m("player.track.auto"),
-          kind: "radio",
-          /* Mirrors the pre-W26 dropdown truth: "Automatic" is an action,
-           * never the engine-reported selection (selections arrive as ids). */
-          checked: false,
-          onSelect: () => actions.selectTrack(kind, { kind: "auto" }),
-        },
-        {
-          id: `track-${kind}-none`,
-          labelKey: m("player.track.disable"),
-          kind: "radio",
-          checked: selected === null,
-          onSelect: () => actions.selectTrack(kind, { kind: "none" }),
-        },
-        ...tracks.map((track, index): MenuEntry<string> => ({
-          id: `track-${kind}-id-${track.id}`,
-          labelKey: trackDisplayName(track, m("player.track.unknown"), index),
-          kind: "radio",
-          checked: selected === track.id,
-          onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
-        })),
-      ],
-    };
-  });
+  // Open Recent — real data through the ONE funnel when the transport
+  // remembers openings (the demo shell; the open-media dialog's own Recent
+  // section reads the same getter); the honest empty reason row otherwise
+  // (v2 §4.3's honest-unknown pattern, restated as a menu: discoverable,
+  // labeled, inert — never a fabricated history).
+  const recents = isDemoTransport(client) ? client.recentOpenings : [];
+  const recentSubmenu: MenuEntry<string>[] =
+    recents.length === 0
+      ? [{ id: "recent-empty", labelKey: m("open.recent.empty"), disabled: true }]
+      : recents.map((entry, index): MenuEntry<string> => {
+          const source = entry.source;
+          return {
+            id: `recent-${index}`,
+            labelKey: entry.title ?? (source.kind === "file" ? source.path : source.url),
+            onSelect: () => {
+              nextRequestId.current += 1;
+              void client
+                .send(openPathRequest(source, nextRequestId.current))
+                .catch(() => {
+                  /* Transport unreachable — the player surfaces its own
+                   * typed errors; the menu still closes and routes (the
+                   * dialog's openSource contract). */
+                });
+              navigate(openPathRoute(source));
+            },
+          };
+        });
 
+  // The frame's 12 rows (menu.png / analysis §A1). Labels are pre-resolved
+  // through useMsg/lane seam (dynamic recent titles arrive as strings — the
+  // Dropdown identity pattern), so the popup resolves with the identity
+  // seam.
   const entries: MenuEntry<string>[] = [
     {
-      id: "open-media",
-      labelKey: m("player.empty.open"),
+      id: "open-files",
+      labelKey: tm("player.appmenu.open-files"),
       icon: "open-file",
+      accelerator: acceleratorOf("media.open-file"),
       onSelect: () => window.dispatchEvent(new CustomEvent("lumen:open-media")),
     },
     {
+      // No folder source exists in any transport (OpenMediaDialog's honest
+      // file/stream subset) — inert with its frame accelerator.
+      id: "open-folder",
+      labelKey: m("hotkeys.open-folder"),
+      icon: "open-folder",
+      accelerator: acceleratorOf("media.open-folder"),
+      disabled: true,
+    },
+    {
       id: "open-network-stream",
-      labelKey: m("menu.file.open-network-stream"),
+      labelKey: m("hotkeys.open-network-stream"),
       icon: "network-stream",
+      accelerator: acceleratorOf("media.open-network-stream"),
       onSelect: () => navigate("/open-network-stream"),
     },
-    { id: "sep-tracks", kind: "separator" },
-    ...trackMenus,
-    { id: "sep-navigation", kind: "separator" },
+    {
+      // No disc seam (the keymap's open-disc uiAction has no surface) — inert.
+      id: "open-disc",
+      labelKey: m("hotkeys.open-disc"),
+      icon: "open-disc",
+      accelerator: acceleratorOf("media.open-disc"),
+      disabled: true,
+    },
+    {
+      // No capture-device surface — inert.
+      id: "open-capture-device",
+      labelKey: m("hotkeys.open-capture-device"),
+      icon: "capture-device",
+      accelerator: acceleratorOf("media.open-capture-device"),
+      disabled: true,
+    },
+    {
+      id: "convert",
+      labelKey: m("hotkeys.convert"),
+      icon: "convert",
+      accelerator: acceleratorOf("media.convert"),
+      onSelect: () => navigate("/convert"),
+    },
+    {
+      id: "open-recent",
+      labelKey: tm("player.appmenu.open-recent"),
+      icon: "recent",
+      submenu: recentSubmenu,
+    },
+    { id: "sep-open", kind: "separator" },
+    {
+      // No profile engine seam (Profiles.png's Movies/Shows/… would be a
+      // fabricated list) — the flyout opens onto the honest unavailable row.
+      id: "profile",
+      labelKey: tm("player.appmenu.profile"),
+      icon: "profile",
+      iconAccent: true, // menu.svg: person glyph with the orange head dot
+      submenu: [
+        {
+          id: "profile-none",
+          labelKey: m("player.controls.reason.unknown"),
+          disabled: true,
+        },
+      ],
+    },
     {
       id: "keyboard-shortcuts",
-      labelKey: m("menu.help.keyboard-shortcuts"),
+      labelKey: tm("player.appmenu.keyboard-shortcuts"),
       icon: "keyboard-shortcuts",
       onSelect: () => navigate("/keyboard-shortcuts"),
+    },
+    {
+      // The customize surface's real trigger — f09's lumen:open-customize
+      // seam (see OPEN_CUSTOMIZE_EVENT above).
+      id: "customize-player",
+      labelKey: tm("player.appmenu.customize"),
+      icon: "customize-player",
+      iconAccent: true, // menu.svg: wand with the orange tip
+      onSelect: () => window.dispatchEvent(new CustomEvent(OPEN_CUSTOMIZE_EVENT)),
     },
     {
       id: "settings",
       labelKey: m("menu.view.settings"),
       icon: "settings",
+      accelerator: acceleratorOf("window.preferences"),
       onSelect: () => navigate("/settings"),
+    },
+    {
+      // The About panel's real home: settings/global (the settings
+      // registry's about→global fold) — no standalone about dialog exists.
+      id: "about",
+      labelKey: tm("player.appmenu.about"),
+      icon: "about",
+      accelerator: acceleratorOf("window.about"),
+      onSelect: () => navigate("/settings/global"),
     },
   ];
 
-  const close = (): void => setOpen(false);
+  // w26.f13 (e12 F8): Escape and item activation restore focus to the
+  // trigger — MenuBar's closeMenu pattern. The outside-pointer path above
+  // stays focus-neutral on purpose.
+  const close = (restoreFocus: boolean): void => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  };
 
   return (
     <div className="lumen-controls__menu" ref={rootRef}>
       <IconButton
+        ref={triggerRef}
         data-control="menu"
         label={m("player.menu.app")}
         aria-haspopup="menu"
@@ -545,11 +612,10 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
           entries={entries}
           resolveLabel={identityResolveLabel}
           idPrefix="lumen-controls-menu"
-          density="compact"
           className="lumen-controls__menu-popup"
           ariaLabel={m("player.menu.app")}
-          onRequestClose={close}
-          onDismissAll={close}
+          onRequestClose={() => close(true)}
+          onDismissAll={() => close(true)}
         />
       ) : null}
     </div>

@@ -13,11 +13,14 @@
 // BOOTSTRAPS its mode from the persisted `interface.theme` override via that
 // seam's synchronous read, so every route starts on the user's saved mode
 // (previously the default below won on all fresh loads outside /settings).
-// The accent has no persisted setting yet (no schema key — recorded gap in
-// settingsThemeSync.ts), so it honestly defaults to the product default
-// (orange, the W25 Figma redesign accent; the Solstice gold default
-// is retired). The base stylesheet for the skin is lumen.css, imported
-// below so any host mounting <ThemeProvider> gets the whole theme layer.
+// w26.f08 ROUND 2: the same hydration now covers the accent — the schema's
+// `global.accent-color` (f01 seed) persists through the same overrides store,
+// so the provider lazy-initializes `data-accent` from it too and a saved
+// violet/gray/… choice survives every fresh load (the orange default still
+// stands for absent/unknown values — the W25 Figma product default; the
+// Solstice gold default is retired). The base stylesheet for the skin is
+// lumen.css, imported below so any host mounting <ThemeProvider> gets the
+// whole theme layer.
 
 import {
   useCallback,
@@ -37,9 +40,10 @@ import {
   type ThemeContextValue,
   type ThemeModeSetting,
 } from "./context";
-// w26.f08: synchronous bootstrap read of the persisted interface.theme
-// override (same persistence seam the settings screens hydrate from).
-import { readPersistedThemeMode } from "./settingsThemeSync";
+// w26.f08: synchronous bootstrap read of the persisted interface.theme and
+// global.accent-color overrides (same persistence seam the settings screens
+// hydrate from).
+import { readPersistedAccent, readPersistedThemeMode } from "./settingsThemeSync";
 
 // Compatibility re-exports (issue #36): the context, its value type and the
 // mode-setting type moved to ./context.ts so this file exports only the
@@ -65,7 +69,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [modeSetting, setModeSettingState] = useState<ThemeModeSetting>(
     () => readPersistedThemeMode() ?? "dark",
   );
-  const [accent, setAccentState] = useState<AccentId>("orange");
+  // Accent lazy-init (w26.f08 round 2): same contract as the mode above — the
+  // persisted `global.accent-color` override wins over the orange default on
+  // the FIRST render of every route; absent/unknown/corrupt store → orange.
+  const [accent, setAccentState] = useState<AccentId>(
+    () => readPersistedAccent() ?? "orange",
+  );
   const [systemLight, setSystemLight] = useState<boolean>(systemPrefersLight);
 
   // Track the OS preference only while the user is in "auto".

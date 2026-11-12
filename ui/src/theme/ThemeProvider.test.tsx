@@ -158,6 +158,14 @@ describe("ThemeProvider — persisted interface.theme hydration (w26.f08)", () =
     );
   }
 
+  /** Same seeding helper for the accent key (global.accent-color). */
+  function seedAccentOverride(value: unknown): void {
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "global.accent-color": value }),
+    );
+  }
+
   it("hydrates a persisted LIGHT choice on mount — the first render already carries it (e03-F1/e19-F1)", () => {
     seedThemeOverride("light");
     renderProbe();
@@ -213,6 +221,36 @@ describe("ThemeProvider — persisted interface.theme hydration (w26.f08)", () =
   it("still defaults to dark + orange with an empty store (the product defaults stand)", () => {
     renderProbe();
     expect(root().dataset.theme).toBe("dark");
+    expect(root().dataset.accent).toBe("orange");
+  });
+
+  it("hydrates a persisted ACCENT (global.accent-color) on mount — the accent half of the finding (w26.f08 round 2)", () => {
+    seedAccentOverride("violet");
+    renderProbe();
+    expect(root().dataset.accent).toBe("violet");
+    expect(screen.getByTestId("accent").textContent).toBe("violet");
+    // Theme hydration is independent — both ride the same store.
+    expect(root().dataset.theme).toBe("dark");
+  });
+
+  it("hydrates theme AND accent together when both are persisted", () => {
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "interface.theme": "light", "global.accent-color": "gray" }),
+    );
+    renderProbe();
+    expect(root().dataset.theme).toBe("light");
+    expect(root().dataset.accent).toBe("gray");
+  });
+
+  it("keeps the orange default for an unknown persisted accent (never guesses)", () => {
+    seedAccentOverride("magenta"); // not one of the generated 9
+    renderProbe();
+    expect(root().dataset.accent).toBe("orange");
+    cleanup();
+
+    window.localStorage.setItem("lumen.settings.overrides.v1", "{corrupt");
+    renderProbe();
     expect(root().dataset.accent).toBe("orange");
   });
 });

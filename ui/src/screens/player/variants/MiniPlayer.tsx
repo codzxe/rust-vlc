@@ -1,11 +1,13 @@
 // Card 4.F2 — MiniPlayer: the compact always-on-top-style card, composed to
-// the W26 frame `design/figma/Miniplayer.svg` (all five artboards):
-//   * floating card (r16, surface-panel, 1px hairline, the frame's card
-//     shadow) ~340px wide — compact desktop density, not the old 391px
-//     Solstice note,
-//   * video area r12 + 1px border, 16:9, dark in both themes,
-//   * slim 4–6px progress with orange fill + circular thumb (the shared
-//     Seekbar grammar, mini-weighted) directly under the video,
+// the W26 frame `design/figma/Miniplayer.svg` (all five artboards — card
+// geometry re-pinned to the frame by w26.f11, e04 F3):
+//   * floating card 391px wide, rx14 (#1B1B1B in the frame — the semantic
+//     surface-panel), 1px hairline, the frame's card shadow — identical on
+//     every artboard (default 391×339, queue-open 391×689.7),
+//   * video area (frame: 373×209 rx5 at a 9px inset) + 1px border, 16:9,
+//     dark in both themes,
+//   * slim seek row DIRECTLY under the video (frame: 375×16 rx6 #090909
+//     well, #371F06 played fill inset 2, 8×12 rx4 accent thumb),
 //   * title row + meta row (folder chip from the REAL file path + the queue
 //     toggle; the frame's person/artist chip stays hidden until the engine
 //     reports artist data — honesty rule doc 05 §1 C4),
@@ -113,6 +115,13 @@ export function MiniPlayer({
       role="region"
       aria-label={m("player.variant.miniplayer.label")}
     >
+      {/* Level-1 heading, screen-reader-only (w26.f11, e17 F5 — the wave-a
+          sr-only h1 contract: every route carries exactly one h1; the
+          miniplayer branch of PlayerScreen renders no visible title bar, so
+          the card owns the heading. Same pattern as PlayerScreen's
+          .lumen-player__sr-title). */}
+      <h1 className="lumen-player__sr-title">{m("player.variant.miniplayer.label")}</h1>
+
       {/* Collapsible queue panel ABOVE the video (Miniplayer.svg artboards
           2/4). Renders only while opened — the meta-row toggle owns it. */}
       {queueOpen ? (

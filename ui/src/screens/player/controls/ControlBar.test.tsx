@@ -3,13 +3,17 @@
 // real TrackInfo fixtures, honest error surfacing (doc 08 §5.4).
 //
 // w26.a14 — updated to the W26 single-row anatomy (Player.svg "Controls"):
-// stop · play pill · next | timecodes · seekbar | total · volume wedge ·
-// fullscreen · cast · app menu · gear. The Video/Audio/Subtitle track
-// selectors moved OFF the row INTO the app menu as dynamic submenus
-// (menu/types.ts data seam; the w26.a13 controls-strip finding) — the
-// track tests below drive the same honest fixtures through that menu.
-// Behavior contracts unchanged: every dispatch assertion is the same
-// command + args as the pre-W26 bar.
+// stop · play pill · next | timecode · seekbar | total · volume wedge ·
+// fullscreen · cast · app menu · gear.
+//
+// w26.f13 — re-anchored with the app-menu rebuild (e12 F5): the menu now
+// carries menu.png's 12 frame rows (comfortable, 375px, accelerators from
+// keymap DATA); the Video/Audio/Subtitle track submenus that lived in it
+// since w26.a13 moved OUT (menu.png has no track rows) — their frame home
+// is the CANVAS context menu (right-click menu.svg rows), so the track
+// tests below drive the SAME honest fixtures through PlayerScreen's canvas
+// menu. Every dispatch assertion is the same command + args as before; the
+// two-timecode anatomy (e02 F6) gets its own pin below.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
@@ -23,6 +27,7 @@ import type {
 } from "../../../client/transport";
 import { PlayerControlsProvider } from "../context";
 import { PlaylistProvider } from "../../playlist";
+import { PlayerScreen } from "../PlayerScreen";
 import { ControlBar } from "./ControlBar";
 
 class FakeTransport {
@@ -117,8 +122,22 @@ const playPauseButton = (): HTMLElement => screen.getByRole("button", { name: /p
 const click = (el: Element): boolean => fireEvent.click(el);
 
 /** Opens the app menu and a track submenu; returns the submenu popup. */
-const openTrackMenu = (kindName: string): HTMLElement => {
+const openAppMenu = (): HTMLElement => {
   click(screen.getByRole("button", { name: "Application menu" }));
+  return screen.getByRole("menu", { name: "Application menu" });
+};
+
+/**
+ * w26.f13 re-anchor: the track selectors' menu home is the canvas context
+ * menu (right-click menu.svg's Video/Audio/Subtitle rows — PlayerScreen's
+ * canvasTrackSubmenu, the same engine-truth builder the app menu used).
+ * Opens the canvas menu and the named track submenu; returns the submenu.
+ */
+const openCanvasTrackMenu = (kindName: string): HTMLElement => {
+  fireEvent.contextMenu(screen.getByRole("region", { name: "Video canvas" }), {
+    clientX: 300,
+    clientY: 200,
+  });
   click(screen.getByRole("menuitem", { name: kindName }));
   return screen.getByRole("menu", { name: kindName });
 };
@@ -377,7 +396,7 @@ describe("volume/mute — engine-reported, never optimistic", () => {
   });
 });
 
-describe("track menus (app-menu submenus) — real ids, real labels, honest unknowns", () => {
+describe("track menus (canvas context-menu submenus, w26.f13 re-anchor) — real ids, real labels, honest unknowns", () => {
   const FIXTURE: TrackInfo[] = [
     track(1, "audio", "English 5.1", "en"),
     track(2, "audio", "Commentaire", "fr", true),
@@ -397,18 +416,30 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
     return fake;
   };
 
+  // PlayerScreen mounts the same provider chain around the bar + the canvas
+  // menu; the track submenus now live only there (see the file header).
+  const renderScreen = (transport: FakeTransport) =>
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen />
+      </ClientProvider>,
+    );
+
   it("v2 §4.3 — no media open: each submenu holds ONLY the disabled no-media reason (never fabricated options)", async () => {
     // The pre-W26 bar showed the no-media truth on disabled dropdown
-    // triggers; the W26 anatomy carries the same honesty into the app
+    // triggers; the W26 anatomy carries the same honesty into the canvas
     // menu: the Video/Audio/Subtitle submenus exist and open, but their
     // single option is the inert "no media open" reason — no "Automatic",
     // no "Disabled", no invented track names anywhere.
     const fake = new FakeTransport();
     fake.respond = () => snapshotResult("idle");
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
-    click(screen.getByRole("button", { name: "Application menu" }));
-    for (const name of ["Video track", "Audio track", "Subtitle track"]) {
+    fireEvent.contextMenu(screen.getByRole("region", { name: "Video canvas" }), {
+      clientX: 300,
+      clientY: 200,
+    });
+    for (const name of ["Video", "Audio", "Subtitle"]) {
       const parent = screen.getByRole("menuitem", { name });
       expect(parent).toHaveAttribute("aria-haspopup", "true");
       click(parent);
@@ -423,9 +454,9 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("v2 §4.3 — with media open the honest menu options return (auto/none/real ids)", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
-    const submenu = openTrackMenu("Audio track");
+    const submenu = openCanvasTrackMenu("Audio");
     expect(within(submenu).getAllByRole("menuitemradio")).toHaveLength(5); // auto + disable + 3 audio
     expect(
       within(submenu).getByRole("menuitemradio", { name: "Automatic" }),
@@ -435,44 +466,47 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("lists real tracks per kind from the tracks.list result", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
     // One open menu; hovering/clicking between the track parents swaps the
     // submenu in place (MenuPopup's openSubmenu switch).
-    click(screen.getByRole("button", { name: "Application menu" }));
-    click(screen.getByRole("menuitem", { name: "Audio track" }));
-    const audio = screen.getByRole("menu", { name: "Audio track" });
+    fireEvent.contextMenu(screen.getByRole("region", { name: "Video canvas" }), {
+      clientX: 300,
+      clientY: 200,
+    });
+    click(screen.getByRole("menuitem", { name: "Audio" }));
+    const audio = screen.getByRole("menu", { name: "Audio" });
     expect(within(audio).getByRole("menuitemradio", { name: "English 5.1" })).toBeInTheDocument();
     expect(within(audio).getByRole("menuitemradio", { name: "Commentaire" })).toBeInTheDocument();
     expect(within(audio).getAllByRole("menuitemradio")).toHaveLength(5); // auto + disable + 3 audio
     // The video menu lists the video track, never the audio ones.
-    click(screen.getByRole("menuitem", { name: "Video track" }));
-    const video = screen.getByRole("menu", { name: "Video track" });
+    click(screen.getByRole("menuitem", { name: "Video" }));
+    const video = screen.getByRole("menu", { name: "Video" });
     expect(within(video).getByRole("menuitemradio", { name: "1080p" })).toBeInTheDocument();
     expect(within(video).getAllByRole("menuitemradio")).toHaveLength(3); // auto + disable + 1 video
     expect(within(video).queryByRole("menuitemradio", { name: "English 5.1" })).toBeNull();
   });
 
   it("subtitle menu only lists subtitle tracks", async () => {
-    renderBar(tracksSetup());
+    renderScreen(tracksSetup());
     await flush();
-    const submenu = openTrackMenu("Subtitle track");
+    const submenu = openCanvasTrackMenu("Subtitle");
     expect(within(submenu).getAllByRole("menuitemradio")).toHaveLength(3); // auto + disable + 1 subtitle
     expect(within(submenu).getByRole("menuitemradio", { name: "English SDH" })).toBeInTheDocument();
     expect(within(submenu).queryByRole("menuitemradio", { name: "English 5.1" })).toBeNull();
   });
 
   it("renders an honest 'Unknown' label — never an invented title", async () => {
-    renderBar(tracksSetup());
+    renderScreen(tracksSetup());
     await flush();
-    const submenu = openTrackMenu("Audio track");
+    const submenu = openCanvasTrackMenu("Audio");
     expect(within(submenu).getByRole("menuitemradio", { name: /Unknown 3/ })).toBeInTheDocument();
   });
 
   it("marks the engine-selected track (aria-checked radio)", async () => {
-    renderBar(tracksSetup());
+    renderScreen(tracksSetup());
     await flush();
-    const submenu = openTrackMenu("Audio track");
+    const submenu = openCanvasTrackMenu("Audio");
     expect(
       within(submenu).getByRole("menuitemradio", { name: "Commentaire" }).getAttribute("aria-checked"),
     ).toBe("true");
@@ -483,9 +517,9 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("switching dispatches tracks.set-audio-track with the real id", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
-    const submenu = openTrackMenu("Audio track");
+    const submenu = openCanvasTrackMenu("Audio");
     click(within(submenu).getByRole("menuitemradio", { name: "English 5.1" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-audio-track");
     expect(select?.args).toEqual({ selector: { kind: "id", id: 1 } });
@@ -493,9 +527,9 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("'Disable' dispatches the none selector", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
-    const submenu = openTrackMenu("Subtitle track");
+    const submenu = openCanvasTrackMenu("Subtitle");
     click(within(submenu).getByRole("menuitemradio", { name: "Disabled" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-subtitle-track");
     expect(select?.args).toEqual({ selector: { kind: "none" } });
@@ -503,9 +537,9 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("'Automatic' dispatches the auto selector", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
-    const submenu = openTrackMenu("Video track");
+    const submenu = openCanvasTrackMenu("Video");
     click(within(submenu).getByRole("menuitemradio", { name: "Automatic" }));
     const select = fake.sent.find((r) => r.cmd === "tracks.set-video-track");
     expect(select?.args).toEqual({ selector: { kind: "auto" } });
@@ -513,12 +547,12 @@ describe("track menus (app-menu submenus) — real ids, real labels, honest unkn
 
   it("tracks.changed event updates the selected marker", async () => {
     const fake = tracksSetup();
-    renderBar(fake);
+    renderScreen(fake);
     await flush();
     act(() => {
       fake.emit({ kind: "tracks.changed", selected: 1, trackKind: "audio", seq: 5 });
     });
-    const submenu = openTrackMenu("Audio track");
+    const submenu = openCanvasTrackMenu("Audio");
     expect(
       within(submenu).getByRole("menuitemradio", { name: "English 5.1" }).getAttribute("aria-checked"),
     ).toBe("true");
@@ -552,5 +586,157 @@ describe("error surfacing — typed errors, never swallowed (§5.4)", () => {
     const bar = document.querySelector(".lumen-controls");
     expect(bar?.getAttribute("data-playback-state")).toBe("error");
     expect(screen.getByRole("status").getAttribute("data-error-code")).toBe("decoder");
+  });
+});
+
+describe("app menu — menu.png grammar (w26.f13, e12 F5)", () => {
+  /** Regex faces: rows with accelerators compose their accessible name from
+   * label + shortcut text, so exact-name queries would miss. */
+  it("opens the frame's 12 rows + 1 separator in pinned order (menu.png)", () => {
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    expect(
+      [...menu.querySelectorAll<HTMLElement>(".lumen-menu__label")].map((label) => label.textContent),
+    ).toEqual([
+      "Open File(s)",
+      "Open Folder",
+      "Open Network Stream",
+      "Open Disc",
+      "Open Capture Device",
+      "Convert",
+      "Open Recent",
+      "Profile",
+      "Keyboard Shortcuts",
+      "Customize Player",
+      "Settings",
+      "About VLC",
+    ]);
+    expect(within(menu).getAllByRole("separator")).toHaveLength(1);
+  });
+
+  it("accelerators are keymap DATA in the frame spelling (Ctrl + O … Shift + F1)", () => {
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    // HOTKEY_BINDINGS rows: media.open-file/-folder/-network-stream/-disc/
+    // -capture-device/convert + window.preferences/window.about — exactly the
+    // eight combos menu.png pins, in row order.
+    expect(
+      [...menu.querySelectorAll<HTMLElement>(".lumen-menu__accelerator")].map((acc) => acc.textContent),
+    ).toEqual([
+      "Ctrl + O",
+      "Ctrl + F",
+      "Ctrl + N",
+      "Ctrl + D",
+      "Ctrl + C",
+      "Ctrl + R",
+      "Ctrl + P",
+      "Shift + F1",
+    ]);
+  });
+
+  it("honest gates: no-seam rows inert, routable rows and submenu parents active", () => {
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    for (const label of ["Open Folder", "Open Disc", "Open Capture Device"]) {
+      expect(within(menu).getByRole("menuitem", { name: new RegExp(`^${label}`) })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+    for (const label of [
+      "Open File(s)",
+      "Open Network Stream",
+      "Convert",
+      "Open Recent",
+      "Profile",
+      "Keyboard Shortcuts",
+      "Customize Player",
+      "Settings",
+      "About VLC",
+    ]) {
+      const face = label.replace(/[()]/g, "\\$&");
+      expect(
+        within(menu).getByRole("menuitem", { name: new RegExp(`^${face}`) }),
+      ).not.toHaveAttribute("aria-disabled");
+    }
+  });
+
+  it("Open Recent opens onto the honest empty reason — never a fabricated history", () => {
+    // FakeTransport is not the demo transport: nothing remembers openings.
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    click(within(menu).getByRole("menuitem", { name: "Open Recent" }));
+    const submenu = screen.getByRole("menu", { name: "Open Recent" });
+    const rows = within(submenu).getAllByRole("menuitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
+    expect(rows[0]?.textContent).toBe("Nothing opened yet");
+  });
+
+  it("Profile flyout holds the honest unavailable row (no profile engine seam)", () => {
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    click(within(menu).getByRole("menuitem", { name: "Profile" }));
+    const submenu = screen.getByRole("menu", { name: "Profile" });
+    const rows = within(submenu).getAllByRole("menuitem");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("aria-disabled", "true");
+    expect(rows[0]?.textContent).toBe("unavailable");
+  });
+
+  it("Open File(s) dispatches the shell-wide open-media event", () => {
+    renderBar(new FakeTransport());
+    let heard = false;
+    const onOpenMedia = (): void => {
+      heard = true;
+    };
+    window.addEventListener("lumen:open-media", onOpenMedia);
+    try {
+      const menu = openAppMenu();
+      click(within(menu).getByRole("menuitem", { name: /^Open File\(s\)/ }));
+      expect(heard).toBe(true);
+    } finally {
+      window.removeEventListener("lumen:open-media", onOpenMedia);
+    }
+  });
+
+  it("Customize Player fires the lumen:open-customize seam (f09's dialog)", () => {
+    renderBar(new FakeTransport());
+    let heard = false;
+    const onOpenCustomize = (): void => {
+      heard = true;
+    };
+    window.addEventListener("lumen:open-customize", onOpenCustomize);
+    try {
+      const menu = openAppMenu();
+      click(within(menu).getByRole("menuitem", { name: /^Customize Player/ }));
+      expect(heard).toBe(true);
+    } finally {
+      window.removeEventListener("lumen:open-customize", onOpenCustomize);
+    }
+  });
+
+  it("Escape closes and restores focus to the trigger (e12 F8)", () => {
+    renderBar(new FakeTransport());
+    const trigger = screen.getByRole("button", { name: "Application menu" });
+    click(trigger);
+    const menu = screen.getByRole("menu", { name: "Application menu" });
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe("seek cluster — the frame's two timecodes (w26.f13, e02 F6)", () => {
+  it("renders exactly current + duration; the third (remaining) face is gone", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing", { time: 10, durationTime: 100 });
+    renderBar(fake);
+    await flush();
+    const times = [...document.querySelectorAll<HTMLElement>(".lumen-controls__time")];
+    // Player.svg anatomy: position | seekbar | … | duration — no remaining.
+    expect(times.map((time) => time.getAttribute("data-time"))).toEqual(["position", "duration"]);
+    expect(times[0]?.textContent).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(times[1]?.textContent).toBe("00:01:40");
   });
 });

@@ -58,14 +58,20 @@
   min-width: 0;
 }
 
-/* The seek row takes all free width; at narrow widths it compresses to the
- * 48px scrub floor — the bar never wraps (single-row invariant). */
+/* The seek row takes all free width — but never shrinks below its content
+ * (w26.f13, e18 F1: the pre-f13 `min-width: 0` let the row compress under
+ * the position timecode + the 48px scrub floor at 900×700, and the
+ * un-shrinkable children overpainted the right cluster's duration — 27px
+ * overlap, measured). `max-content` floors the row at position-timecode +
+ * gap + scrub floor; the bar never wraps (single-row invariant) and the
+ * right cluster (flex: none) never yields, so below that floor the row
+ * overflows as a whole instead of printing timecode on timecode. */
 .lumen-controls__seek {
   display: flex;
   align-items: center;
   gap: var(--space-inset);
   flex: 1 1 48px;
-  min-width: 0;
+  min-width: max-content;
 }
 
 /* -------------------------------------------------- timecodes (B6/B7) */
@@ -125,7 +131,9 @@
 }
 
 /* Disabled (idle/buffering): the pill keeps its glyph state and simply
- * fades — inertness is the opacity, not a third color story. */
+ * fades — inertness is the opacity, not a third color story. The EMPTY
+ * state is the exception — see the [data-playback-state="idle"] block
+ * above (w26.f13, e02 F7). */
 .lumen-controls__play:disabled {
   --color-stroke-icon: var(--color-content-on-accent);
 
@@ -135,6 +143,30 @@
 
 .lumen-controls__play:disabled[data-glyph="pause"] {
   background: var(--color-content-tertiary);
+}
+
+/* w26.f13 (e02 F7): the EMPTY-STATE bar renders SATURATED like Player.png's
+ * strip — the frame shows the full #D37918 pill and full-ink glyphs, not
+ * the .5-opacity reading the pre-f13 idle bar sampled at (rgb(117,71,23)).
+ * Honesty stays SEMANTIC: the controls keep their disabled truth
+ * (pointer-events: none, no dispatch, aria) — inertness reads through the
+ * missing hover chip, never through a fabricated enabled state. Other
+ * states (the buffering fade below, the shared tertiary disabled ink)
+ * keep their quieting. */
+.lumen-controls[data-playback-state="idle"] .lumen-controls__play:disabled {
+  opacity: 1;
+}
+
+.lumen-controls[data-playback-state="idle"] .lumen-slider[aria-disabled="true"] {
+  opacity: 1;
+}
+
+/* (0,6,0) — outranks the shared disabled remap AND its light-mode
+ * companion (button.css) regardless of import order. */
+:root .lumen-player .lumen-controls[data-playback-state="idle"] .lumen-icon-button:disabled {
+  --color-stroke-icon: var(--color-content-secondary);
+
+  color: var(--color-content-secondary);
 }
 
 /* w26.d2 light/a11y sweep — the shared .lumen-icon-button:disabled remap
@@ -259,6 +291,16 @@
  * right edge; downward would fall off-window). */
 .lumen-controls__menu-popup {
   inset: auto 0 calc(var(--space-inset) + var(--space-grid)) auto;
+}
+
+/* menu.png panel width: the shared comfortable floor is the 400px class
+ * (menu.css); this frame's panel is exactly 375px (menu.svg / analysis §A1)
+ * — structural. (0,2,0) beats the `.lumen-menu` floor without relying on
+ * import order. Row grammar (48px rows, 20px icons, ≈15px labels +
+ * right-aligned ≈15px accelerators, separators ON the row boundary) comes
+ * from the shared comfortable density f07 pinned — nothing re-styled here. */
+.lumen-menu.lumen-controls__menu-popup {
+  min-width: 375px;
 }
 
 /* Submenus open LEFT — the base rightward offset would push them off the

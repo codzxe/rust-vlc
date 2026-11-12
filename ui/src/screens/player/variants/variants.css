@@ -7,20 +7,24 @@
  * px appears solely for frame-measured structural dimensions (marked
  * `frame:`), the C1 player.css precedent.
  *
- * Miniplayer (all five artboards): floating card r16 (#191919 + 1px
- * #404040 + the frame's card shadow), video area r12 + 1px border, slim
- * progress with orange fill + circular thumb, title row, meta row (folder
- * chip + queue toggle), the overlay transport on the video (playing
- * artboards), collapsible Queue panel above the video (r10,
+ * Miniplayer (all five artboards; geometry re-pinned by w26.f11/e04 F3):
+ * floating card 391px rx14 (frame: 391×339 default / 391×689.7 queue-open,
+ * fill #1B1B1B ≈ surface-panel + 1px #404040 hairline + the frame's card
+ * shadow), video area 373×209 + 1px border, slim seek row 375×16 rx6 with
+ * the frame's #371F06 played fill + 8×12 rx4 accent thumb, title row, meta
+ * row (folder chip + queue toggle), the overlay transport on the video
+ * (playing artboards), collapsible Queue panel above the video (r10,
  * drag-handle rows, tabular durations). The miniplayer card is a
  * fixed-size compact surface [PROPOSAL: window-level always-on-top is
  * host-owned; the DOM renders the compact frame inside the player root].
  *
- * Music mode (Player - Music.svg): the ONE theatrical screen — large
- * centered artwork treatment (738×737 rx20 on the 1920×1080 stage), ambient
- * accent-tinted glow, quiet meta, static waveform-tick strip with an
- * engine-truth played clip. Near-black + orange ONLY (no sunset
- * gradients); the real C2 ControlBar drives transport in the footer. */
+ * Music mode (Player - Music.svg + Player - Music-1.svg): the ONE
+ * theatrical screen — large centered artwork treatment (738×737 rx20 on
+ * the 1920×1080 stage), ambient accent-tinted glow, quiet meta. The seek
+ * treatment is the frame's tick field rendered INSIDE the real C2 seek
+ * cluster in the controls row (w26.f11/e03 F7 — no stage waveform); the
+ * playlist column is the player's LEFT dock (e03 F5). Near-black + orange
+ * ONLY (no sunset gradients). */
 
 /* ------------------------------------------------------------------ mini */
 
@@ -29,12 +33,12 @@
   flex-direction: column;
   gap: 6px; /* structural: frame card rhythm (thumb → seek → title → meta) */
   box-sizing: border-box;
-  width: 340px; /* frame: Miniplayer.svg card 391px, compacted to the ~320–360 brief */
+  width: 391px; /* frame: Miniplayer.svg card 391px on every artboard (w26.f11, e04 F3) */
   margin: auto; /* centered compact card while window-level placement is host-owned */
-  padding: 8px;
-  background: var(--color-surface-panel);
+  padding: 8px; /* frame: content inset 8px (seek 375 = 391 − 2×8) */
+  background: var(--color-surface-panel); /* frame: card fill #1B1B1B */
   border: 1px solid var(--color-stroke-border);
-  border-radius: 16px; /* frame: card rx14; brief r16–20 */
+  border-radius: var(--radius-card); /* frame: card rx14 */
   box-shadow: var(--shadow-card);
 }
 
@@ -67,21 +71,50 @@
   flex-shrink: 0;
 }
 
-/* Full-width slim progress under the video (frame: 375px seek spans the
- * card). Takes the free width; shows its circular thumb at rest — the
- * frame's miniplayer carries a visible round knob, unlike the full bar's
- * hover-reveal. */
+/* Full-width slim seek row under the video (frame: 375×16 — spans the
+ * card's content width). The frame anatomy (Miniplayer.svg Frame 21 analog,
+ * mini-weighted): 16px rx6 surface well, #371F06 played fill inset 2 (12px
+ * tall, rx2), 8×12 rx4 accent thumb always visible at rest. */
 .lumen-mini__controls .lumen-mini__seek {
   align-self: stretch;
+  height: 16px; /* frame: seek row 375×16 */
 }
 
 .lumen-mini__controls .lumen-mini__seek .lumen-slider__track {
-  top: calc(50% - 2.5px);
-  height: 5px; /* brief: 4–6px progress (frame seek well 375×16 rx6) */
+  top: 0;
+  height: 100%;
+  background: var(--color-surface); /* frame: well #090909 */
+  border-radius: var(--radius-control); /* frame: rx6 */
 }
 
+.lumen-mini__controls .lumen-mini__seek .lumen-slider__fill {
+  top: var(--space-track-inset);
+  bottom: var(--space-track-inset);
+  left: var(--space-track-inset);
+  width: calc((100% - var(--space-track-inset) * 2) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame: played fill #371F06 */
+  border-radius: 2px; /* frame: fill rx2 (12px tall) */
+}
+
+/* The thumb — 8×12 rx4 accent (frame: Rectangle 10), always visible; the
+ * base seekbar's circular hover-revealed knob does not fit the mini
+ * grammar. */
 .lumen-mini__controls .lumen-mini__seek .lumen-slider__thumb {
+  top: var(--space-track-inset);
+  width: 8px; /* frame: 8×12 thumb */
+  height: 12px;
+  left: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent);
+  border-radius: var(--radius-inset); /* frame: rx4 */
   opacity: 1;
+}
+
+/* Engine buffer sub-regions ride inside the fill's inset band (same honest
+ * overlay grammar as the full bar, mini-weighted). */
+.lumen-mini__controls .lumen-mini__seek .lumen-seekbar__buffer {
+  top: var(--space-track-inset);
+  bottom: var(--space-track-inset);
+  border-radius: 2px; /* frame: mirrors the fill band */
 }
 
 /* Calm unplayed track — no phantom zero thumb/fill while there is no
@@ -283,9 +316,10 @@
 
 /* ----------------------------------------------------------------- music */
 
-/* The stage column: art block (claims the free height, anchors its
- * art+meta group in the upper-middle per the frame) + the waveform strip
- * anchored low, grouped with the transport below it. */
+/* The stage column: the art block claims the free height and anchors its
+ * art+meta group in the upper-middle per the frame. (w26.f11/e03 F7: the
+ * old waveform strip above the bar is GONE — the seek treatment lives in
+ * the real C2 seek cluster; see the tick-field rules below.) */
 .lumen-music__art {
   position: relative;
   display: flex;
@@ -299,6 +333,15 @@
   padding: 24px 24px 8px;
   overflow: hidden;
   background: var(--color-surface);
+}
+
+/* w26.f11 (e19 F6): the stage IS the music canvas — it stays DARK in both
+ * themes (the picture-frame rule, W25 spec §1), like the full canvas and
+ * the mini video area. The frame paints it #1B1B1B; no light music frame
+ * exists. */
+:root[data-theme="light"] .lumen-music__art {
+  /* stylelint-disable-next-line color-no-hex -- frame: Player - Music.svg stage #1B1B1B — the picture-frame rule (W25 spec §1): the music stage stays dark in BOTH themes (same override + token-lane handoff as .lumen-player__canvas / .lumen-mini__video). */
+  background: #2b2b2b;
 }
 
 /* Ambient tint — the frame's full-bleed art backdrop, reduced to a quiet
@@ -381,98 +424,125 @@
   color: var(--color-content-secondary);
 }
 
-/* Waveform tick strip (frame Player - Music.svg controls bar: the seek
- * well 1246×28 rx6 #090909 is a dense tick field — 2px ticks at 5px pitch,
- * heights 2–14px on the 28px well, unplayed #404040, played #AB6314
- * accent-strong, 4×24 rx2 #D37918 playhead). This shell cannot restyle
- * C2's ControlBar (frozen seam), so the strip renders in the stage just
- * above the bar in the same grammar: static decorative silhouette (engine
- * audio levels do not exist yet) + an engine-truth played clip + an
- * engine-truth playhead. Two stacked rows: base (stroke-border ticks) + a
- * played copy clipped to the progress. */
-.lumen-music__waveform {
-  position: relative;
-  display: grid;
-  flex: none;
-  width: min(860px, 84%); /* structural: aligns with the C2 seek extent */
-  height: 24px; /* structural: frame well 28px @1920, mini-weighted */
+/* w26.f11 (e19 F6): the stage ink stays readable on the stays-dark stage —
+ * the DARK theme's values, pinned in light (same pattern as player.css's
+ * now-title, w26.d2). */
+:root[data-theme="light"] .lumen-music__title {
+  /* stylelint-disable-next-line color-no-hex -- stays-dark stage ink: the dark theme's --color-content-bright #eaeaea (player.css now-title precedent, w26.d2). */
+  color: #eaeaea;
 }
 
-.lumen-music__waveform-row {
-  grid-area: 1 / 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between; /* structural: frame pitch 2px ticks / 5px */
-  height: 100%;
+:root[data-theme="light"] .lumen-music__caption {
+  /* stylelint-disable-next-line color-no-hex -- stays-dark stage ink: the dark theme's --color-content-secondary #8f8f8f. */
+  color: #8f8f8f;
 }
 
-.lumen-music__waveform-row span {
-  flex: none;
-  width: 2px; /* frame: 2px hairline ticks */
-  border-radius: 1px; /* frame: tick rx1 */
-  background: var(--color-stroke-border);
+/* -------------------------------------------- music seek: the tick field */
+
+/* w26.f11 (e03 F7): the frame's waveform seek treatment lives INSIDE the
+ * controls row — Player - Music.svg Controls group: the seek well
+ * (1246×28 rx6 #090909) is a dense 2px-tick field, unplayed #404040, played
+ * #AB6314 accent-strong, a 4×24 rx2 #D37918 playhead at the progress edge.
+ * The old stage strip (a doubled seek surface above the bar) is gone; the
+ * REAL C2 seek cluster is restyled in place under the shell's
+ * data-variant="music" hook — exactly one seek surface, the interactive
+ * one. Tick heights are pure TEXTURE (three detuned repeating-gradient
+ * layers at a 5px pitch ≈ the frame's 2–14px height range): engine audio
+ * levels do not exist yet, so nothing here claims to be audio data
+ * (honesty rule, doc 05 §1 C4) — the fill width and playhead position are
+ * the engine-truth parts. */
+.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__track {
+  /* well keeps its surface fill + rx6 (controls.css) — the tick texture is
+   * layered on top; layer periods equal their tile widths so repeat-x
+   * tiles seamlessly. */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--color-stroke-border) 0 2px,
+      transparent 2px 35px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-stroke-border) 0 2px,
+      transparent 2px 25px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-stroke-border) 0 2px,
+      transparent 2px 5px
+    );
+  background-size: 35px 14px, 25px 10px, 5px 6px; /* frame: 2px ticks, 5px pitch, 2–14px heights */
+  background-position: 0 center;
+  background-repeat: repeat-x;
 }
 
-.lumen-music__waveform-row--played {
-  clip-path: inset(0 calc(100% - var(--lumen-wave-progress, 0%)) 0 0);
+/* The played region — the same tick texture in accent-strong (frame:
+ * #AB6314 ticks on the well, no solid band). left:0 keeps the tick grid
+ * aligned with the unplayed field (the fill's usual 2px left inset would
+ * shift the grid). */
+.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__fill {
+  left: 0;
+  width: calc(100% * var(--lumen-slider-fill, 0) / 100);
+  background-color: transparent;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--color-accent-strong) 0 2px,
+      transparent 2px 35px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-accent-strong) 0 2px,
+      transparent 2px 25px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-accent-strong) 0 2px,
+      transparent 2px 5px
+    );
+  background-size: 35px 14px, 25px 10px, 5px 6px;
+  background-position: 0 center;
+  background-repeat: repeat-x;
 }
 
-.lumen-music__waveform-row--played span {
-  background: var(--color-accent-strong); /* frame: played ticks #AB6314 */
-}
-
-/* Playhead — the frame's 4×24 rx2 orange marker, engine-truth positioned
- * (position/duration); purely decorative repetition of the C2 seekbar's
- * real thumb, which stays the interactive surface. */
-.lumen-music__waveform::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  left: calc(var(--lumen-wave-progress, 0%) - 1px);
-  width: 3px; /* structural: frame playhead 4px @1920, mini-weighted */
-  border-radius: 1px;
-  background: var(--color-accent);
+/* The playhead — the frame's 4×24 rx2 marker (the C2 bar's 8×24 r4 thumb
+ * re-weighted); position stays engine truth (the slider's own mapping). */
+.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__thumb {
+  width: 4px; /* frame: Player - Music.svg playhead 4×24 rx2 */
+  border-radius: 2px; /* frame: rx2 */
+  left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100);
 }
 
 /* ------------------------------------------------- music-mode chrome hooks */
 
-/* The music layout's title-bar region renders as a quiet centered strip —
- * the window title bar is the app shell's; this is the stage's centered
- * label (frame: centered track name in the bar). */
-.lumen-player[data-variant="music"] .lumen-player__topbar {
-  justify-content: center;
-  background: transparent;
-  border-bottom: 0;
+/* w26.f11 (e03 F5): the playlist column is the player's LEFT dock in music
+ * mode — Player - Music-1.svg docks the 377px column at x=50 (beside the
+ * 50px rail, y=40..1026, fill #0E0E0E@0.95). The docked-sidebar seam
+ * (player.css) already carries the deep surface + hairline canvas edge +
+ * full body height; music mode only re-weights the width. Closable via the
+ * shell's lumen:toggle-sidebar event and the stage toggle (MusicMode) —
+ * the Player - Music.png no-column state (e03 F6). */
+.lumen-player[data-variant="music"] .lumen-player__sidebar {
+  width: 300px; /* structural: frame column 377px @1920 ≈ 19.6% of width ≈ 300px at app scale */
 }
 
-.lumen-player[data-variant="music"] .lumen-player__title {
-  font-size: 13px; /* structural: quiet centered label */
-  font-weight: var(--font-weight-regular);
-  color: var(--color-content-secondary);
-}
-
-/* The emphasized playlist panel docks as a full-height right rail
- * (Player - Music-1.svg sidebar) instead of the floating tool-card
- * treatment — the accent edge marks the prominence (4.F2). */
-.lumen-player[data-variant="music"] .lumen-player__panel[data-emphasized] {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 300px; /* structural: rail width (frame ~300px @1080 scaled) */
-  border: 0;
-  border-left: 1px solid var(--color-stroke-border);
-  background: var(--color-surface-panel);
-}
-
-.lumen-player[data-variant="music"] .lumen-player__panel[data-emphasized] .lumen-playlist__empty {
+.lumen-player[data-variant="music"] .lumen-player__sidebar .lumen-playlist__empty {
   margin: auto;
   max-width: 240px;
 }
 
-/* Music-mode seek re-weighting (doc 08 §1.4 "Music-mode seek"): the C2
- * bar is reused; only tone shifts via the shell's data-variant="music"
- * hook — the strip above carries the waveform treatment. */
+/* The stage's playlist toggle (MusicMode) — pinned to the stage's top-left
+ * corner, adjacent to the column it toggles; quiet ghost chrome that fades
+ * with the hide-UI chrome (data-chrome-part). */
+.lumen-music__playlist-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+/* Music-mode timecode tone (doc 08 §1.4 "Music-mode seek"): the C2 bar is
+ * reused; only tone shifts via the shell's data-variant="music" hook. */
 .lumen-player[data-variant="music"] .lumen-controls__time {
   color: var(--color-content-secondary);
 }

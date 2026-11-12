@@ -81,7 +81,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
   });
 });
 
-describe("App — persisted theme hydration (w26.f08, e03-F1/e19-F1)", () => {
+describe("App — persisted theme + accent hydration (w26.f08, e03-F1/e19-F1)", () => {
   /** Renders the App under the same provider stack main.tsx mounts. */
   function renderApp(path: string): void {
     render(
@@ -136,5 +136,19 @@ describe("App — persisted theme hydration (w26.f08, e03-F1/e19-F1)", () => {
     renderApp("/onboarding");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
     expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("a persisted accent (global.accent-color) boots with the app too — data-accent hydrates on every route (w26.f08 round 2)", () => {
+    window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
+    window.localStorage.setItem(
+      "lumen.settings.overrides.v1",
+      JSON.stringify({ "global.accent-color": "violet" }),
+    );
+    resetOnboardingForTests();
+    renderApp("/player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    expect(document.documentElement.dataset.accent).toBe("violet");
+    // The theme stays at its own default when only the accent is persisted.
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
