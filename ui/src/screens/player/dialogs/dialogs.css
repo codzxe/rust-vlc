@@ -42,13 +42,16 @@
   overflow: hidden; /* the title bar + footer pin while the body scrolls */
 }
 
-/* w26.i09 (h15-P3, card inflation): every tool frame is a 400-wide panel
- * with 20px content insets — mounting the TOOLS dialog at the frame width
- * makes each tool card land frame-exact (360px cards, 328px rails;
- * "Audio - Compressor Settings.svg" 360×48 toggle at x20, 328 track at
- * x36). Go-to-Time and Bookmarks keep the 440px compact-dialog pin above
- * (no frame pins them). :has() is already this sheet's idiom (the EQ
- * staged-note rule below). */
+/* w26.i09 (h15-P3, card inflation): the tool frames measure ≈400-wide
+ * panels with 20px content insets — 399 (Audio - Compressor
+ * Settings.svg, Audio - Equalizer.svg, Video - Colors.svg) and 405
+ * (HDR Options.svg); mounting the TOOLS dialog at 400 (±1-5px frame
+ * noise; live measurements 400×408 in the i09 log) makes each tool card
+ * land frame-exact (360px cards, 328px rails; "Audio - Compressor
+ * Settings.svg" 360×48 toggle at x20, 328 track at x36). Go-to-Time and
+ * Bookmarks keep the 440px compact-dialog pin above (no frame pins
+ * them). :has() is already this sheet's idiom (the EQ staged-note rule
+ * below). */
 .lumen-dialog.player-dialog__surface:has(> .player-dialog--tools) {
   width: min(400px, 92vw);
 }
@@ -102,8 +105,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  /* frame: dialog titles measure 15px semibold; no 15px size token yet
-   * ([PROPOSAL] a --font-size-heading token — see lane log w26.a18) */
+  /* frame: dialog titles measure 15px semibold — --font-size-section IS
+   * the 15px step (tokens.css; the old "no token yet" note was doc rot,
+   * resolved w26.k09) */
   font-size: var(--font-size-section);
   font-weight: var(--font-weight-semibold);
 
@@ -192,6 +196,18 @@
   margin: 0;
   font-size: var(--font-size-body);
   color: var(--color-content-secondary);
+}
+
+/* Inline command-failure line (w26.k09, j09 P2): the dialog's own sends
+ * (load / add / delete) bypass the provider's dispatch, so the player's
+ * lastError surface never sees them — this line IS the error surface.
+ * Mirrors the field-error grammar (form.css .lumen-field__error): caption
+ * size on --color-record, the only red semantic token. role="alert" at
+ * the markup side announces it without moving focus. */
+.player-dialog__error {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-record);
 }
 
 /* --------------------------------------------------------------------------
@@ -380,7 +396,8 @@
   padding: 0 var(--space-inset);
   font-family: var(--font-family-sans);
 
-  /* frame: tool toggle labels measure 15px; no 15px size token yet */
+  /* frame: tool toggle labels measure 15px — --font-size-section IS the
+   * 15px step (tokens.css; doc-rot note resolved w26.k09) */
   font-size: var(--font-size-section);
   font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
