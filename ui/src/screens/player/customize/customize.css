@@ -42,11 +42,26 @@
 
 /* ---- modal surface ------------------------------------------------------- */
 
+/* w26.i05 (h07 defect 5): NO customize frame carries a dark scrim — the
+ * modal floats over the UNDIMMED player (`Player - customize.svg`: the
+ * playing video bleeds behind it at full value). The frame's own
+ * backdrop-blur (bgblur_3 = the 1048×655 rx14 clip, blur 25px) frosts
+ * the video BEHIND the modal body, 5% of it showing through the
+ * #0E0E0E@0.95 fill. The shared Dialog primitive renders `.lumen-scrim`
+ * with no className seam of its own, so this sheet reaches it with :has()
+ * and neutralizes the dim for THIS dialog only — every other dialog keeps
+ * the shared scrim ink. */
+.lumen-scrim:has(> .lumen-dialog.lumen-customize__surface) {
+  background: transparent;
+}
+
 /* The Dialog primitive owns the scrim + chrome (r14 window, hairline,
  * overlay shadow); this pins the frame's 1048×655 deck, kills the
  * primitive's padding (bands bleed to the edges) and sits the modal
  * slightly high of center (frame: modal top 189.5 of 1080 — 2.15vh above
- * the vertical center). */
+ * the vertical center). The frame's own backdrop-blur (bgblur_3) frosts
+ * the video BEHIND the modal body, 5% of it showing through the #0E0E0E@0.95
+ * fill. */
 .lumen-scrim .lumen-dialog.lumen-customize__surface {
   box-sizing: border-box;
   width: min(1048px, 92vw); /* frame: 1048 @1920, Lead-pinned 1:1 */
@@ -56,6 +71,7 @@
   padding: 0;
   overflow: hidden; /* the header/footer pin while the box scrolls */
   margin-block-end: 4.3vh; /* frame: 23.25/1080 above center */
+  backdrop-filter: blur(25px); /* frame: bgblur_3_2107_5604 — backdrop-filter:blur(25px) */
 
   /* frame: Player - customize.svg — modal rect fill #0E0E0E fill-opacity
    * 0.95 (the playing player bleeds through 5%); tone="deep" supplies the
@@ -209,10 +225,17 @@
 /* Placed-in-toolbar tiles carry a data hook only — the frames draw the
  * catalog uniformly (no membership marker in any of the 9 states). */
 
-/* Drag-in-progress ghost (frames -1…-6): the lifted tile fades in place. */
+/* Drag-in-progress ghost (frames -1…-6): the lifted tile fades in place
+ * and its box slot VACATES (frame -6: the Favorite slot renders the bare
+ * dashed well, no glyph) — the styled icon-only ghost follows the cursor
+ * (setDragImage) and the pinned preview ghost rides the band (f5). */
 .lumen-customize__tile[data-dragging] {
   opacity: var(--opacity-muted);
   cursor: grabbing;
+}
+
+.lumen-customize__tile[data-dragging] .lumen-customize__tile-well .lumen-icon {
+  display: none; /* frame -6: the lifted tile's slot is EMPTY */
 }
 
 /* Drop target: the hovered slot lights with the accent. */
@@ -279,6 +302,38 @@
   height: 45px; /* structural: the control band's pinned ~44px + hairline */
   background: var(--color-surface-chrome); /* frame: the band fill */
   border-top: 1px solid var(--color-stroke-border);
+}
+
+/* The promoted seek row (w26.i05, h07 defect 3 — frames -1..-6): the
+ * frames' bottom chrome is TWO strips (bgblur 972..1026 + 1026..1080
+ * @1920) with the seek well in the upper one; the overlay extends 54px
+ * above the measured strip (bottom: 100%) and pins the 35px well at
+ * 9.5px insets inside it — the frame's 1879×35 @20.5,981.5 grammar, 1:1. */
+.lumen-customize-band__seekrow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 54px; /* frame: bgblur_1 strip 972..1026 @1920, 1:1 */
+  padding: 9.5px 20.5px; /* frame: well 981.5..1016.5 in the strip; row @20.5 */
+  background: var(--color-surface-chrome);
+  border-top: 1px solid var(--color-stroke-border);
+}
+
+/* Band timecodes — the preview mirrors the real bar's readouts
+ * (Current Time.svg / Duration.svg read 00:02:10 | 00:25:40); the same
+ * time font + tabular figures grammar controls.css pins. */
+.lumen-customize-band__time {
+  flex: none;
+  min-width: 4.5ch;
+  font-family: var(--font-family-time);
+  font-size: var(--font-size-time); /* frame: ≈15px, the real bar's readouts */
+  color: var(--color-content-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .lumen-customize-band__row {
@@ -352,6 +407,7 @@ button.lumen-customize-band__well:hover {
   background: var(--color-accent); /* frame: #D37918 */
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- sheet groups by surface (box block above, band block here); the two .lumen-icon rules target disjoint trees and never compete */
 .lumen-customize-band__well--play .lumen-icon {
   position: relative;
   color: var(--color-content-on-accent); /* frame: #161616 glyph */
@@ -414,14 +470,21 @@ button.lumen-customize-band__well:hover {
 
 .lumen-customize-band__seek-buffered {
   left: 2px;
-  width: 7%; /* frame: buffered 98 of 1238 */
+  width: 7.9%; /* frame: buffered 98 of 1238 (Player - customize.svg, the in-slot preview) */
   background: var(--color-accent-tinted); /* frame: #371F06 */
 }
 
 .lumen-customize-band__seek-played {
   left: 2px;
-  width: 2px; /* frame: played 8×24 accent bar at the head */
+  width: 8px; /* frame: played 8×24 accent bar at the head (h07 micro-defect: was 2px) */
   background: var(--color-accent); /* frame: #D37918 */
+}
+
+/* The seek track of the promoted row (frame -1: track 1712×28 @104 of the
+ * 1879 row — the 83.5px gutters carry the timecodes); the in-slot
+ * preview (frame 0) keeps its tighter 14px insets. */
+.lumen-customize-band__seek--row {
+  margin: 0 83.5px; /* frame: Player - customize-1.svg gutters 104−20.5 */
 }
 
 /* Drop-active highlight: the accent affordance while a tile hovers (the
@@ -439,6 +502,115 @@ button.lumen-customize-band__well:hover {
 /* Drag-in-progress: the whole band reads as a live drop zone. */
 .lumen-customize-band[data-dragging] {
   border-top-color: var(--color-accent);
+}
+
+/* A lifted band item vacates its well (frame -6's mid-drag lift, the
+ * same vacate grammar as the lifted box tile). */
+button.lumen-customize-band__well[data-dragging] {
+  display: none;
+}
+
+/* ---- per-variant fixed wells (w26.i05, h07 defect 3 — frames -2..-6) ----
+ * All sizes 1:1 from the @1920 frames, each with its citation. */
+
+/* f3's left-edge 130×26 well (frame -3: @20.5, y 1039.5) and the topbar
+ * run's trailing well (frame -4: @184.5). */
+.lumen-customize-band__well--flat {
+  width: 130px; /* frame: 130×26 */
+  height: 26px;
+  align-self: center;
+}
+
+/* f4/f5's topbar well run (frame -4: 27 @21.5 · 27 @59.5 wrapping the
+ * 2×12 divider mark · 23 @87.5 · 60 @111.5 · 130×26 @184.5). The run's
+ * pitch is 1px with widened shoulders (frame gaps 11 / 1 / 1 / 13). */
+.lumen-customize-band__topbarrun {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1px; /* frame -4: 27→23 and 23→60 ride flush */
+}
+
+.lumen-customize-band__topbarrun > :first-child {
+  margin-inline-end: 10px; /* frame: 27 @21.5 → 27 @59.5 = 11 pitch */
+}
+
+.lumen-customize-band__well--27 {
+  width: 27px; /* frame -4: 27×27 */
+}
+
+.lumen-customize-band__well--23 {
+  width: 23px; /* frame -4: 23×27 */
+}
+
+.lumen-customize-band__well--60 {
+  width: 60px; /* frame -4: 60×27 */
+}
+
+/* The divider mark inside the run's second well (frame -4: 2×12 #8F8F8F
+ * @67,1047 — the Divider tile's glyph grammar). */
+.lumen-customize-band__well-mark {
+  width: 2px; /* frame: 2×12 */
+  height: 12px;
+  background: var(--color-content-secondary); /* frame: #8F8F8F */
+  border-radius: var(--radius-hairline);
+}
+
+/* f5's far-right 35×23 well (frame -5: @1864.5, y 1041.5 — the
+ * window-edge anchor after the 51px cluster shift). */
+.lumen-customize-band__well--low {
+  width: 35px; /* frame: 35×23 */
+  height: 23px;
+  align-self: center;
+}
+
+/* The frame-6 drag ghost: icon-only 27×27, pinned band-left just before
+ * the shrunk left slot, z-top over the modal (frame -6: @324.5,1039 —
+ * outside the modal's x-range; h07's "dropped-state preview at the
+ * band's left edge"). */
+.lumen-customize-band__ghost {
+  width: 27px; /* frame -6: ghost 27×27 @324.5 */
+}
+
+/* The fixed right cluster (frame -1: volume 129×35 + three 29×31 + more);
+ * frame -5 shifts the whole run 51px left of its window-edge anchor. */
+.lumen-customize-band__right {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 13px; /* frame -1: cluster pitch */
+}
+
+.lumen-customize-band__right[data-shifted] {
+  margin-inline-end: 51px; /* frame -5: right cluster 51px left */
+}
+
+/* ---- the real bar's customized items (w26.i05, toolbarItems.tsx) -------
+ * The consumer half of the toolbar seam: the saved band items rendered in
+ * the live control bar (frame -7). The cluster rides the bar's own row —
+ * sizing comes from the shared IconButton hits; only the layout
+ * primitives (spacer/divider) need geometry. */
+.lumen-toolbar-items {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-grid); /* the app's compact row pitch */
+}
+
+/* Spacer tile — a layout gap (no glyph, no hit). */
+.lumen-toolbar-items__spacer {
+  flex: none;
+  width: calc(var(--space-grid) * 4); /* a well-sized gap */
+}
+
+/* Divider tile — the 2×12 hairline mark (the band preview's well-mark
+ * grammar, frame -4's divider glyph). */
+.lumen-toolbar-items__divider {
+  flex: none;
+  width: 2px;
+  height: 12px;
+  background: var(--color-content-secondary); /* frame: #8F8F8F */
+  border-radius: var(--radius-hairline);
 }
 
 /* ---- light mode ----------------------------------------------------------- */
