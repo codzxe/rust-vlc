@@ -12,6 +12,34 @@ import "./menu.css";
 const DROPDOWN_LIST_MAX_HEIGHT = 320;
 
 /**
+ * w26.i16 (h15's HDR NO): the open-direction flip must measure the CLIPPING
+ * CONTAINER, not the viewport — `.lumen-dialog { overflow: hidden }` +
+ * `.player-dialog__body { overflow-y: auto }` clip lists that still "fit the
+ * window" (HDR at rest: list bottom 888 vs dialog bottom 646 — 5/6 options
+ * painted nowhere, `elementFromPoint` hit the scrim). Walk up from the
+ * trigger to the nearest ancestor that actually clips (overflow /
+ * overflow-x / overflow-y ≠ visible) and measure against its rect; the
+ * viewport is the fallback (jsdom: nothing clips → viewport, tests unchanged).
+ */
+const clippingBounds = (from: HTMLElement): { top: number; bottom: number } => {
+  if (typeof window === "undefined") return { top: 0, bottom: 0 };
+  let node = from.parentElement;
+  while (node !== null && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    const clips =
+      (style.overflow !== "" && style.overflow !== "visible") ||
+      (style.overflowX !== "" && style.overflowX !== "visible") ||
+      (style.overflowY !== "" && style.overflowY !== "visible");
+    if (clips) {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }
+    node = node.parentElement;
+  }
+  return { top: 0, bottom: window.innerHeight };
+};
+
+/**
  * Dropdown / Select (W26 frames `Dropdown.svg` + `Setting Preset.svg`:
  * trigger rx6 with border + chevron; open list rx6 `#191919` with a subtle
  * drop shadow; option rows rx6, hover/selected `--color-surface-selected`
@@ -41,6 +69,15 @@ export interface DropdownProps<K extends string = string> {
   invalid?: boolean;
   /** Row scale (W26): compact ≈ `Setting Preset.svg` settings dropdowns. @default "comfortable" */
   density?: MenuDensity;
+  /**
+   * w26.i16 — preferred open side. `Setting Preset.svg` pins its picker UP
+   * (chevron-up open state); most hosts ride the measured flip (default
+   * "down"). The preference applies only while the preferred side FITS the
+   * clipping container — the measurement-driven flip still wins whenever
+   * it does not (a pinned preference may never clip the list).
+   * @default "down"
+   */
+  preferredDirection?: "down" | "up";
   id?: string;
   className?: string;
   /** React 19 ref-as-prop on the trigger button. */
@@ -64,6 +101,7 @@ export function Dropdown<K extends string>({
   disabled = false,
   invalid = false,
   density = "comfortable",
+  preferredDirection = "down",
   id,
   className = "",
   ref,
@@ -72,6 +110,7 @@ export function Dropdown<K extends string>({
   const rootId = id ?? autoId;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
@@ -153,19 +192,39 @@ export function Dropdown<K extends string>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Open-direction measurement (w26.g17/g19): pick the side with room.
+  // w26.g17: open the scrollport at the top. w26.i16 root fix (h13/i06's
+  // "Full treble" repro): this used to be an INLINE ref callback
+  // (`ref={(node) => { node.scrollTop = 0 }}`) — a fresh closure every render
+  // re-fires on every re-render, yanking the scrollport to the top mid-click
+  // so scroll-required rows escaped the cursor (equalizer.css sized its list
+  // to 372px as a workaround — revert that to the frame's 348px now). An
+  // effect keyed on `open` runs ONCE per open; the stable ref never re-fires.
+  useEffect(() => {
+    if (!open) return;
+    if (listRef.current !== null) listRef.current.scrollTop = 0;
+  }, [open]);
+
+  // Open-direction measurement (w26.g17/g19): pick the side with room —
+  // against the nearest CLIPPING CONTAINER (w26.i16, h15's HDR repro), not
+  // the viewport (a dialog's overflow:hidden body is what actually clips).
   useLayoutEffect(() => {
     if (!open) return;
     const trigger = triggerRef.current;
     if (trigger === null || typeof window === "undefined") return;
     const rect = trigger.getBoundingClientRect();
-    const rowPitch = density === "compact" ? 42 : 48;
+    const bounds = clippingBounds(trigger);
+    const rowPitch = density === "compact" ? 42 : 46; /* 44+2 / 40+2 — Dropdown.svg grammar */
     const estimated = Math.min(options.length * rowPitch + 8, DROPDOWN_LIST_MAX_HEIGHT);
-    const below = window.innerHeight - rect.bottom;
-    const above = rect.top;
-    setDirection(below < estimated && above > below ? "up" : "down");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure per open
-  }, [open, options.length, density]);
+    const below = bounds.bottom - rect.bottom;
+    const above = rect.top - bounds.top;
+    // w26.i16: the host's preferred side wins while it fits (Setting
+    // Preset.svg pins its picker up); otherwise the measured roomier side.
+    const measured: "down" | "up" = below < estimated && above > below ? "up" : "down";
+    const preferredFits = preferredDirection === "up" ? above >= estimated : below >= estimated;
+    setDirection(preferredFits ? preferredDirection : measured);
+    // Deps: measure per open — density changes re-estimate (no trigger-move
+    // listener; a moved trigger re-measures on the next open).
+  }, [open, options.length, density, preferredDirection]);
 
   const handleListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const { key } = event;
@@ -266,9 +325,7 @@ export function Dropdown<K extends string>({
       </button>
       {open && (
         <div
-          ref={(node) => {
-            if (node !== null) node.scrollTop = 0; // open at top (w26.g17)
-          }}
+          ref={listRef}
           role="listbox"
           aria-label={label}
           data-direction={direction}
