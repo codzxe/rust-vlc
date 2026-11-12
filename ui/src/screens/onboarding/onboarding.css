@@ -72,7 +72,11 @@
   /* frame: 63px side margins, 72px top / 56px bottom air (the dot step
    * indicator — added furniture — spends the top difference). */
   padding: 32px 64px;
-  background: var(--color-surface-chrome); /* frame: Onboarding.svg window fill #161616-class */
+
+  /* frame: Onboarding.svg window fill #0E0E0E — surface-deep's dark value IS
+   * the frame's ink (h01 #4: chrome #161616 rendered the whole window one
+   * step lighter than every reference frame; light remaps to #bababa). */
+  background: var(--color-surface-deep);
   border: 1px solid var(--color-stroke-border);
   border-radius: var(--radius-window); /* r-xl */
   box-shadow: var(--shadow-overlay);
@@ -171,8 +175,11 @@
   width: 592px;
   max-width: 100%;
   margin-inline: auto;
-  font-size: var(--font-size-body);
-  line-height: 1.6;
+
+  /* frame: Onboarding.svg body ≈16px/1.75 (g01-P3-3 / h01 #2 — the 14px
+   * body token undersized the family's primary reading surface 3 waves). */
+  font-size: var(--font-size-label);
+  line-height: 1.75; /* frame: ≈1.75 */
   color: var(--color-content-secondary);
 }
 
@@ -192,10 +199,14 @@
 
 /* --- library step — the real open-path funnel -------------------------- */
 
+/* frame: Onboarding.svg folder row — label above the field, then the input
+ * row: inset field 469×34 ending at x=718, 11px of air, Browse 114×35 from
+ * x=729 (block 594 wide; the wizard's 592px column keeps that ratio ≈79:21
+ * — h01 #1: the old raised-field + 60×32 "Open" read 89:11). */
 .onboarding__open-form {
   display: flex;
-  align-items: center;
-  gap: var(--space-inset);
+  align-items: flex-end; /* frame: Browse bottom shares the input row's bottom (label rides above) */
+  gap: 11px; /* frame: input end 718 → Browse x 729 */
   width: 100%;
   max-width: 592px;
   margin-inline: auto;
@@ -204,6 +215,57 @@
 .onboarding__open-form .lumen-field {
   flex: 1;
   min-width: 0;
+  gap: 20px; /* frame: label bottom 514 → input top 534 */
+}
+
+/* frame: Onboarding.svg Frame 86 — the inset field: #090909 fill (surface),
+ * 2px #191919 stroke (surface-panel IS #191919), rx5 — not the app-wide
+ * raised input (h01 #1, twice-verified). Light remaps both tokens. */
+.onboarding__open-form .lumen-field__control {
+  background-color: var(--color-surface); /* frame: #090909 */
+  border: 2px solid var(--color-surface-panel); /* frame: #191919 2px */
+  border-radius: 5px; /* frame: rx5 */
+}
+
+/* An inset field stays inset — hover/active lift the STROKE, never the fill
+ * (the raised-field fills belong to form.css's anatomy; the rest shorthand
+ * above sits at equal specificity with form.css's state rules and would
+ * otherwise swallow them — §7's hover/focus floor needs the lift restated). */
+.onboarding__open-form .lumen-field__control:hover,
+.onboarding__open-form .lumen-field__control:active {
+  background-color: var(--color-surface);
+  border-color: var(--color-content-tertiary);
+}
+
+/* Focus keeps the app-wide accent border grammar (form.css) — restated for
+ * the same equal-specificity reason; placed after hover so it wins. */
+.onboarding__open-form .lumen-field__control:focus {
+  border-color: var(--color-accent);
+}
+
+/* Light: the wizard window IS the light recessed-well token (surface-deep
+ * #bababa), so form.css's light well fill (#bababa) would vanish into it.
+ * The field steps one ramp down to the chrome token (#ababab, Δ11 — the
+ * Δ12 light-well convention the player-dialog (i09) / network-stream (i17)
+ * lanes landed); the stroke keeps form.css's light border. */
+:root[data-theme="light"] .onboarding__open-form .lumen-field__control,
+:root[data-theme="light"] .onboarding__open-form .lumen-field__control:hover,
+:root[data-theme="light"] .onboarding__open-form .lumen-field__control:active {
+  background-color: var(--color-surface-chrome);
+}
+
+/* frame: Onboarding.svg depicts "~/Videos" as value ink (#8F8F8F-class),
+ * not the muted caption placeholder — the empty state previews the same
+ * presence the frame shows. */
+.onboarding__open-form .lumen-field__control::placeholder {
+  color: var(--color-content-secondary);
+}
+
+/* frame: Onboarding.svg Frame 141 — Browse 114×35 r6 #1B1B1B, no stroke. */
+.onboarding__open-action {
+  min-width: 114px; /* frame: 114px */
+  height: 35px; /* frame: 35px */
+  background: var(--color-surface-panel); /* frame: #1B1B1B — nearest token, dark pins the exact ink below */
 }
 
 .onboarding__open-notice {
@@ -230,13 +292,26 @@
 
 /* --- shortcuts tour (frame: Onboarding-2.svg) --------------------------- */
 
-/* Frame columns: label-left / caps-right pairs, ~375px wide each with a
- * wide gutter between (left caps end x≈420, right labels start x≈606). */
+/* Frame columns (Onboarding-2.svg, measured): left column x=63→420 (357px
+ * — labels left, caps right-aligned), a 186px gutter (420→606), then the
+ * right column x=606→998 (392px). w26.i01: the shipped equal-430px columns
+ * stretched both label→cap rows ~73px wider than the frame (vision-caught,
+ * h01/h02 measured only the label x and row pitch); narrower stages fall
+ * back to the fluid pair below. */
 .onboarding__shortcut-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 430px));
-  justify-content: space-between;
-  column-gap: 48px;
+  grid-template-columns: 357px 392px; /* frame: col1 63→420 / col2 606→998 */
+  column-gap: 186px; /* frame: 420→606 gutter */
+}
+
+/* Below the design stage the frame pair no longer fits — the tour reads as
+ * two equal fluid halves with a plain gutter (no-clip guarantee). */
+@media (width <= 1180px) {
+  .onboarding__shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 430px));
+    justify-content: space-between;
+    column-gap: 48px;
+  }
 }
 
 .onboarding__shortcut-column {
@@ -285,15 +360,19 @@
  * chunky 3px #373737-class inset stroke (inner rx10.5 rect 1.5px inside
  * the cap edge), #EAEAEA glyphs. The two-layer inset shadow reproduces
  * that geometry exactly: a 1.5px fill-colored band, then the 3px stroke
- * 1.5–4.5px from the edge (a plain border would sit at 0–3px). */
+ * 1.5–4.5px from the edge (a plain border would sit at 0–3px). Symbol
+ * caps (arrows, <>, comma) carry the frame's tight 15px side padding
+ * (arrow cap 46 = 16px glyph + 30, "," cap 35 = 5 + 30 — h02 #4: one
+ * 0 22px rule ran them ~6px/side fat); letter/word caps the fatter one
+ * (--text below). */
 .onboarding__key {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 46px; /* frame: single-glyph cap width */
+  min-width: 35px; /* frame: narrowest cap — "," at 35 */
   height: 42px; /* frame: cap height */
-  padding: 0 22px; /* frame: "SHIFT" cap 92px for a 44px glyph */
+  padding: 0 15px; /* frame: symbol-cap side padding */
   font-family: var(--font-family-sans);
   font-size: var(--font-size-label); /* frame: cap glyph ~16px */
   font-weight: var(--font-weight-medium);
@@ -305,6 +384,13 @@
   box-shadow:
     inset 0 0 0 1.5px var(--color-surface-panel), /* frame: the 1.5px fill gap between cap edge and stroke */
     inset 0 0 0 4.5px var(--color-stroke-border); /* frame: 3px #373737-class inset stroke */
+}
+
+/* frame: Onboarding-2.svg letter/word caps — V 57 = 11px glyph + 46,
+ * Q 59, SHIFT 92 = 44 + 48, Space 93 — the tour's chunky caps. */
+.onboarding__key--text {
+  min-width: 55px; /* frame: narrowest letter cap (L 55) */
+  padding: 0 24px; /* frame: letter/word-cap side padding */
 }
 
 /* --- appearance step (frames: Onboarding-1/-3..10) ---------------------- */
@@ -523,8 +609,15 @@
 
 .onboarding__footer-note {
   margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary); /* frame: Onboarding-2.svg #6B6B6B */
+
+  /* frame: Onboarding-2.svg note ≈13px (g01-P3-4 / h02 #3 — the caption
+   * token's 11px was two sizes under the frame). */
+  font-size: 13px; /* frame: ≈13px */
+
+  /* Frame ink #6B6B6B measures 3.6:1 on the #0E0E0E window — below the
+   * 4.5:1 AA floor this family was dinged for in light mode; the tertiary
+   * token holds 5.0:1 (documented deviation — lane log). */
+  color: var(--color-content-tertiary);
 }
 
 .onboarding__footer-actions {
@@ -650,6 +743,72 @@
 }
 /* stylelint-enable color-no-hex */
 
+/* --- dark-mode frame ink pins -------------------------------------------
+ *
+ * The dark theme is the frames' theme, and four inks have no token at the
+ * frame's exact value (each marked `frame:` per contract §4.4 — the same
+ * exemption the accent-dot primaries and theme depictions above carry).
+ * Light mode keeps the semantic remap, so both themes stay coherent. */
+
+/* stylelint-disable color-no-hex -- frame: Onboarding.svg / -1 / -2 (dark-mode ink pins, frame-measured) */
+
+/* Working-step headings only — the hero steps (welcome/done) keep their
+ * bright #EAEAEA display ink (Onboarding.svg "Welcome to VLC!", h01-verified
+ * frame-exact); vision caught the unscoped pin muting them (w26.i01). */
+:root:not([data-theme="light"]) .onboarding__step:not(.onboarding__step--center) .onboarding__title {
+  color: #969696; /* frame: Onboarding-1/-2.svg working-step headings */
+}
+
+:root:not([data-theme="light"]) .onboarding__body,
+:root:not([data-theme="light"]) .onboarding__shortcut-label,
+:root:not([data-theme="light"]) .onboarding__shortcut-sep {
+  color: #969696; /* frame: Onboarding.svg body + Onboarding-2.svg row labels/separators */
+}
+
+/* Keycaps: cap fill #1B1B1B + inset stroke #373737 (h01 #5 / h02 #4 — the
+ * panel/stroke-border tokens sit 2 hex off each and soften the cap depth). */
+:root:not([data-theme="light"]) .onboarding__key {
+  background: #1b1b1b; /* frame: Onboarding-2.svg cap fill */
+  box-shadow:
+    inset 0 0 0 1.5px #1b1b1b, /* frame: the 1.5px fill band */
+    inset 0 0 0 4.5px #373737; /* frame: 3px inset stroke */
+}
+
+/* Browse / Back: frame rects carry #1B1B1B fill and NO stroke (Onboarding.svg
+ * Frame 141 / Onboarding-1.svg Back) — the border paints in the fill so the
+ * 1px default never shows in dark. */
+:root:not([data-theme="light"]) .onboarding__back,
+:root:not([data-theme="light"]) .onboarding__open-action {
+  background: #1b1b1b; /* frame: Onboarding-1.svg Back / Onboarding.svg Browse fill */
+  border-color: #1b1b1b; /* frame: no visible stroke on either rect */
+}
+/* stylelint-enable color-no-hex */
+
+/* --- light-mode AA ink ---------------------------------------------------
+ *
+ * h01 #3 / h02 #1: the light quiet inks (content-secondary #4e4e4e,
+ * tertiary #5f5f5f) measure 3.62:1 / 2.78:1 on the wizard window — below
+ * the 4.5:1 AA floor. Until the token lane (i19) re-derives the light
+ * quiet inks, every reading surface on the window uses the light PRIMARY
+ * ink token (#161616 ≈ 8:1) — a token, never a hardcode (contract §4.4).
+ * Deliberate late, low-specificity-ordered theme override block — the
+ * theme pin must out-rank the component rules above. */
+/* stylelint-disable no-descending-specificity -- deliberate end-of-sheet light-mode override block (i09/i17 usage-side-hold pattern) */
+
+:root[data-theme="light"] .onboarding__title,
+:root[data-theme="light"] .onboarding__body,
+:root[data-theme="light"] .onboarding__shortcut-label,
+:root[data-theme="light"] .onboarding__shortcut-sep,
+:root[data-theme="light"] .onboarding__theme-label,
+:root[data-theme="light"] .onboarding__privacy-description,
+:root[data-theme="light"] .onboarding__privacy-note,
+:root[data-theme="light"] .onboarding__open-notice,
+:root[data-theme="light"] .onboarding__footer-note,
+:root[data-theme="light"] .onboarding__open-form .lumen-field__label {
+  color: var(--color-content-primary); /* light AA: #161616 on the window ≈ 8:1 */
+}
+/* stylelint-enable no-descending-specificity */
+
 /* --- utilities ----------------------------------------------------------- */
 
 /* Screen-local sr-only (the dot numerals; the list carries the count). */
@@ -700,9 +859,14 @@
 
   .onboarding__key {
     height: 36px;
-    min-width: 40px;
-    padding: 0 16px;
+    min-width: 30px;
+    padding: 0 12px;
     font-size: var(--font-size-body);
+  }
+
+  .onboarding__key--text {
+    min-width: 48px;
+    padding: 0 20px;
   }
 
   .onboarding__shortcut-sep {
