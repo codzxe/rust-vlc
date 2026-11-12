@@ -334,8 +334,12 @@ body {
   --color-stroke-icon: var(--color-accent-icon);
 }
 
-/* "+ Create playlist" row (sidebar.svg: plus glyph + label, tertiary ink —
- * disabled-honest until the engine grows a create-playlist command). */
+/* "+ Create playlist" row (sidebar.svg: plus glyph + label, tertiary ink).
+ * LIVE since w26.f08 (e09-F5): opens the same NewPlaylistDialog /playlist
+ * uses; Save persists through the shared playlistsStore. (w26.k05, j05
+ * P3-3: the old "disabled-honest until the engine grows a create-playlist
+ * command" note described the pre-f08 state — the engine still has no
+ * command, but the local-store dialog IS the shipped create flow.) */
 .app-shell__create {
   justify-content: flex-start;
   gap: var(--space-grid);
@@ -484,20 +488,30 @@ body {
 
 /* w26.g06 P1-1 (Lead): "Player - hide UI.svg" is a ZERO-chrome windowed
  * state — the shell's banner/rail/sidebar/strip fade with the player's own
- * parts (PlayerScreen mirrors the state onto <html> as data-lumen-chrome). */
+ * parts (PlayerScreen mirrors the state onto <html> as data-lumen-chrome).
+ * w26.k05 (j05 P2-1): the faded chrome also leaves the TAB ORDER and the
+ * a11y tree — `visibility: hidden` removes focusable/AT content while
+ * keeping the fade a pure opacity animation: the visibility step is 0s,
+ * delayed by the fade duration, so it flips exactly when the fade
+ * completes (WCAG 2.4.3/2.4.7: keyboard/AT users can no longer reach
+ * invisible controls — the banner alone held 4 focusable buttons, the rail
+ * 7 links). Reveal is the mirror: visibility flips at 0s delay (base rules
+ * below) so the chrome is focusable again while it fades back in. */
 html[data-lumen-chrome='hidden'] .app-shell__banner,
 html[data-lumen-chrome='hidden'] .app-shell__rail,
 html[data-lumen-chrome='hidden'] .app-shell__sidebar,
 html[data-lumen-chrome='hidden'] .app-shell__strip {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
+  transition: opacity 160ms ease, visibility 0s 160ms;
 }
 
 .app-shell__banner,
 .app-shell__rail,
 .app-shell__sidebar,
 .app-shell__strip {
-  transition: opacity 160ms ease;
+  transition: opacity 160ms ease, visibility 0s 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -505,6 +519,16 @@ html[data-lumen-chrome='hidden'] .app-shell__strip {
   .app-shell__rail,
   .app-shell__sidebar,
   .app-shell__strip {
+    transition: none;
+  }
+
+  /* The hidden-state rule above carries higher specificity — it needs its
+   * own reduced-motion kill or its transition would survive the block's
+   * `transition: none` (no fade, instant hide: still out of the tab order). */
+  html[data-lumen-chrome='hidden'] .app-shell__banner,
+  html[data-lumen-chrome='hidden'] .app-shell__rail,
+  html[data-lumen-chrome='hidden'] .app-shell__sidebar,
+  html[data-lumen-chrome='hidden'] .app-shell__strip {
     transition: none;
   }
 }
