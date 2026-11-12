@@ -8,9 +8,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import { SettingField } from "./SettingField";
-import { SettingsProvider } from "./SettingsProvider";
+import { SettingsProvider, useSettings } from "./SettingsProvider";
 import {
   SETTING_CONTROLS_SKIP_VERY_SHORT,
+  SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO,
   SETTING_PLAYBACK_PREFERRED_AUDIO_LANGUAGES,
   SETTING_PRIVACY_CRASH_REPORTS,
 } from "./generated/schema";
@@ -19,26 +20,29 @@ const mount = (ui: ReactElement) => render(<SettingsProvider>{ui}</SettingsProvi
 
 describe("SettingField — enum rows are closed dropdowns (e06/e08 F1)", () => {
   it("renders a closed combobox trigger with the selected value, no stacked radio group", () => {
-    mount(<SettingField entry={SETTING_PRIVACY_CRASH_REPORTS} />);
-    const trigger = screen.getByRole("button", { name: "Crash reports" });
+    // w26.gfix-B: privacy.crash-reports left the ui registry with the re-seed
+    // (g11-P2-1: the privacy frame carries no telemetry rows) — a live enum
+    // row carries the closed-dropdown proof (frame value "Never").
+    mount(<SettingField entry={SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO} />);
+    const trigger = screen.getByRole("button", { name: "Resize window to fit video" });
     expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(trigger).toHaveTextContent("Off"); // shipped product default
+    expect(trigger).toHaveTextContent("Never"); // frame C2: "Resize window to fit video" → "Never"
     expect(
-      document.querySelector('[data-setting="privacy.crash-reports"] .lumen-radiogroup'),
+      document.querySelector('[data-setting="interface.resize-to-fit-video"] .lumen-radiogroup'),
     ).toBeNull();
   });
 
   it("opens the listbox, selects an option and marks the row dirty", () => {
-    mount(<SettingField entry={SETTING_PRIVACY_CRASH_REPORTS} />);
-    fireEvent.click(screen.getByRole("button", { name: "Crash reports" }));
-    const list = screen.getByRole("listbox", { name: "Crash reports" });
+    mount(<SettingField entry={SETTING_INTERFACE_RESIZE_TO_FIT_VIDEO} />);
+    fireEvent.click(screen.getByRole("button", { name: "Resize window to fit video" }));
+    const list = screen.getByRole("listbox", { name: "Resize window to fit video" });
     expect(list).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Off", selected: true })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("option", { name: "Send" }));
+    expect(screen.getByRole("option", { name: "Never", selected: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Always" }));
     expect(screen.queryByRole("listbox")).toBeNull(); // closed after selection
-    expect(screen.getByRole("button", { name: "Crash reports" })).toHaveTextContent("Send");
-    expect(document.querySelector('[data-setting="privacy.crash-reports"]')).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Resize window to fit video" })).toHaveTextContent("Always");
+    expect(document.querySelector('[data-setting="interface.resize-to-fit-video"]')).toHaveAttribute(
       "data-dirty",
     );
   });
@@ -55,14 +59,31 @@ describe("SettingField — the row grammar is label-left for every type (e06/e08
     expect(screen.getByRole("textbox", { name: "Preferred audio languages" })).toBeInTheDocument();
   });
 
-  it("number (duration-ms) rows render the visible lead label beside the control", () => {
-    mount(<SettingField entry={SETTING_CONTROLS_SKIP_VERY_SHORT} />);
+  it("duration (duration-ms) rows render the frame's formatted duration (g13-P2-7)", () => {
+    // w26.gfix-B: the controls frame shows "3 s" in the well — a text input
+    // with a numeric parse (native number controls show raw ms and no unit).
+    let latest = -1;
+    function Probe() {
+      const { value } = useSettings();
+      latest = Number(value(SETTING_CONTROLS_SKIP_VERY_SHORT.key));
+      return null;
+    }
+    mount(
+      <>
+        <SettingField entry={SETTING_CONTROLS_SKIP_VERY_SHORT} />
+        <Probe />
+      </>,
+    );
     const field = document.querySelector('[data-setting="controls.skip-very-short"]');
     expect(field?.querySelector(".settings-field__lead .settings-field__label")).toHaveTextContent(
       "Very short skip",
     );
-    const input = screen.getByRole("spinbutton", { name: "Very short skip" }) as HTMLInputElement;
-    expect(input).toHaveValue(3000); // seeded default, 3 s
+    const input = screen.getByRole("textbox", { name: "Very short skip" }) as HTMLInputElement;
+    expect(input).toHaveValue("3 s"); // frame C8: seeded 3000 ms → "3 s"
+    fireEvent.change(input, { target: { value: "10 s" } });
+    expect(input).toHaveValue("10 s");
+    // The human duration parses back to milliseconds in the SAME store.
+    expect(latest).toBe(10000);
   });
 });
 

@@ -95,7 +95,9 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("Escape with unsaved changes routes through the same confirm dialog as the ✕", async () => {
     renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
+    // w26.gfix-B: a live interface frame row (window metrics left the ui
+    // registry with the re-seed — g10-P1-1).
+    fireEvent.click(screen.getByRole("switch", { name: "Keep window above other windows" }));
     fireEvent.keyDown(window, { key: "Escape" });
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Discard unsaved changes?");
@@ -135,7 +137,8 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     // Settings - interface.svg has NO "Advanced Options" bar: every seeded
     // row (advanced-flagged or not) renders in its section (areas/interface).
     expect(screen.queryByRole("button", { name: "Advanced Options" })).toBeNull();
-    expect(screen.getByText("Minimum window width")).toBeInTheDocument();
+    // w26.gfix-B: the frame's 14th row (no window-metric rows exist anymore).
+    expect(screen.getByText("Show controls in fullscreen")).toBeInTheDocument();
   });
 
   it("segregates GLOBAL advanced entries behind the in-flow disclosure (global-1, e05 F8)", () => {
@@ -165,14 +168,21 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("renders schema fields with the right primitives per type", () => {
     renderAt("/settings/interface");
-    expect(screen.getByRole("switch", { name: "Start maximized" })).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Theme" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Dark" })).toBeInTheDocument();
-    const width = screen.getByLabelText("Window width") as HTMLInputElement;
-    expect(width).toHaveValue(1280);
-    // NumberField receives the schema range (min 480 / max 3840) for
-    // stepper clamping; the input itself is a native number control.
-    expect(width).toHaveAttribute("type", "number");
+    // w26.gfix-B: the interface frame's own row inventory (g10-P1-1) — bool,
+    // enum, path, duration-ms slider.
+    expect(screen.getByRole("switch", { name: "Keep window above other windows" })).toBeInTheDocument();
+    const resize = screen.getByRole("button", { name: "Resize window to fit video" });
+    expect(resize).toHaveAttribute("aria-haspopup", "listbox");
+    expect(resize).toHaveTextContent("Never"); // frame value
+    // Path row — input + the honest disabled Browse action (g10-P2-2).
+    const skinFile = screen.getByRole("textbox", { name: "Skin file" }) as HTMLInputElement;
+    expect(skinFile).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: /browse/i })).toBeDisabled();
+    // Duration-ms row — the frame's slider with scale labels (g10-P1-1).
+    const hideAfter = screen.getByRole("slider", { name: "Hide after" });
+    expect(hideAfter).toHaveAttribute("aria-valuemin", "0");
+    expect(hideAfter).toHaveAttribute("aria-valuemax", "10000");
+    expect(screen.getByText("5 s")).toBeInTheDocument(); // scale center label
   });
 
   it("hides feature-gated unexposed entries (playback.hw-decode-policy)", () => {
@@ -183,41 +193,47 @@ describe("SettingsScreen shell (card 4.E1)", () => {
   it("shows the apply bar when dirty; apply persists and clears it", () => {
     renderAt("/settings/interface");
     expect(screen.queryByTestId("settings-applybar")).toBeNull();
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Keep window above other windows" }));
     expect(screen.getByTestId("settings-applybar")).toHaveTextContent("Unsaved changes (1)");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.queryByTestId("settings-applybar")).toBeNull();
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}")).toEqual({
-      "interface.start-maximized": true,
+      "interface.keep-above": true,
     });
   });
 
   it("revert discards draft edits without persisting", () => {
     renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Remember window geometry" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Remember window size and position" }));
     fireEvent.click(screen.getByRole("button", { name: "Revert" }));
     expect(screen.queryByTestId("settings-applybar")).toBeNull();
-    expect((screen.getByRole("switch", { name: "Remember window geometry" }) as HTMLElement).getAttribute("aria-checked")).toBe("true");
+    expect(
+      (screen.getByRole("switch", { name: "Remember window size and position" }) as HTMLElement).getAttribute("aria-checked"),
+    ).toBe("true");
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("badges restart-required fields while changed and after apply", () => {
     renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
-    expect(field("interface.start-maximized")).toHaveTextContent("Restart required");
+    // w26.gfix-B: the live restart-required interface row (the frame relabel
+    // of interface.remember-window-geometry — g10-P1-1).
+    fireEvent.click(screen.getByRole("switch", { name: "Remember window size and position" }));
+    expect(field("interface.remember-window-geometry")).toHaveTextContent("Restart required");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     // still flagged: the applied change needs a restart to take effect
-    expect(field("interface.start-maximized")).toHaveTextContent("Restart required");
+    expect(field("interface.remember-window-geometry")).toHaveTextContent("Restart required");
     expect(screen.getByTestId("settings-restart-notice")).toHaveTextContent("restart");
   });
 
   it("searches across areas from another area's screen", () => {
     renderAt("/settings/global");
-    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "window width" } });
+    // w26.gfix-B: a live cross-area row (window metrics left the registry
+    // with the re-seed); "Hide after" lives on interface, we are on global.
+    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "hide after" } });
     const results = screen.getByTestId("settings-search-results");
-    expect(results).toHaveTextContent("Window width");
+    expect(results).toHaveTextContent("Hide after");
     expect(results).toHaveTextContent("Interface"); // cross-area hit
-    expect(screen.queryByRole("radiogroup", { name: "Language" })).toBeNull(); // current screen hidden while searching
+    expect(screen.queryByRole("heading", { name: "Appearance" })).toBeNull(); // current screen hidden while searching
   });
 
   it("shows an honest no-results state", () => {
@@ -228,7 +244,7 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("confirms before navigating away with unsaved changes (4.B4 Dialog)", async () => {
     renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Keep window above other windows" }));
     fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Discard unsaved changes?");
@@ -240,7 +256,7 @@ describe("SettingsScreen shell (card 4.E1)", () => {
 
   it("discarding the dialog reverts edits and navigates", async () => {
     renderAt("/settings/interface");
-    fireEvent.click(screen.getByRole("switch", { name: "Start maximized" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Keep window above other windows" }));
     fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
     fireEvent.click(await screen.findByRole("button", { name: "Discard changes" }));
     await waitFor(() =>
@@ -255,18 +271,25 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Privacy" })).toHaveAttribute("aria-current", "page"));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("switch", { name: "Share anonymous usage data" })).toBeInTheDocument();
+    // w26.gfix-B: the privacy frame's own rows render (the telemetry rows
+    // left with the re-seed — g11-P2-1).
+    expect(screen.getByRole("switch", { name: "Save recently played items" })).toBeInTheDocument();
+    expect(screen.getByText("Clear history now")).toBeInTheDocument();
   });
 
   it("resets a single field to its schema default", () => {
     renderAt("/settings/interface");
-    const width = screen.getByLabelText("Window width") as HTMLInputElement;
-    fireEvent.change(width, { target: { value: "800" } });
-    expect(width).toHaveValue(800);
+    // w26.gfix-B: a live bool row (default OFF) — toggle on, then reset.
+    const toggle = screen.getByRole("switch", { name: "Keep window above other windows" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
     const resetButtons = screen.getAllByRole("button", { name: "Reset to default" });
     expect(resetButtons.length).toBeGreaterThan(0);
     fireEvent.click(resetButtons[0] as HTMLElement);
-    expect(width).toHaveValue(1280); // product.toml window.width
+    expect(screen.getByRole("switch", { name: "Keep window above other windows" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    ); // schema default
   });
 
   // w26.f03 (e05 F10): the top-bar "Reset all to defaults" ghost is gone

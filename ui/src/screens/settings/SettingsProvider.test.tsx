@@ -30,7 +30,10 @@ describe("SettingsProvider (card 4.E1 framework state)", () => {
     const { result } = setup();
     expect(result.current.dirtyCount).toBe(0);
     expect(result.current.value("interface.theme")).toBe("dark"); // product.toml defaults.theme
-    expect(result.current.value("interface.window-width")).toBe(1280);
+    // w26.gfix-B: interface.window-* went ui=false with the re-seed (the
+    // interface frame shows no window-metric rows) — a live default_ref row
+    // carries the proof (product.toml window.remember_geometry).
+    expect(result.current.value("interface.remember-window-geometry")).toBe(true);
   });
 
   it("loads persisted overrides through the seam and drops unknown keys", () => {
@@ -65,12 +68,12 @@ describe("SettingsProvider (card 4.E1 framework state)", () => {
   it("apply commits draft to persisted and saves only non-default overrides", () => {
     const { result, persistence } = setup();
     act(() => result.current.setValue("interface.theme", "light"));
-    act(() => result.current.setValue("interface.window-width", 1920));
+    act(() => result.current.setValue("interface.keep-above", true));
     act(() => result.current.apply());
     expect(result.current.dirtyCount).toBe(0);
     expect(result.current.persisted["interface.theme"]).toBe("light");
     expect(persistence.saved).toEqual([
-      { "interface.theme": "light", "interface.window-width": 1920 },
+      { "interface.theme": "light", "interface.keep-above": true },
     ]);
   });
 
@@ -92,28 +95,32 @@ describe("SettingsProvider (card 4.E1 framework state)", () => {
   });
 
   it("resetArea resets every field of one area and nothing else", () => {
-    const { result } = setup({ "interface.theme": "light", "privacy.telemetry": true });
-    act(() => result.current.setValue("interface.window-width", 800));
+    // w26.gfix-B: interface.theme lives on the GLOBAL screen now (g10-P1-2) —
+    // an interface-screen key carries the area-reset proof.
+    const { result } = setup({ "interface.start-in-compact-mode": true, "privacy.save-recent-items": false });
+    act(() => result.current.setValue("interface.keep-above", true));
     act(() => result.current.resetArea("interface"));
-    expect(result.current.value("interface.theme")).toBe("dark"); // area reset
-    expect(result.current.value("interface.window-width")).toBe(1280);
-    expect(result.current.value("privacy.telemetry")).toBe(true); // other area untouched
+    expect(result.current.value("interface.start-in-compact-mode")).toBe(false); // area reset
+    expect(result.current.value("interface.keep-above")).toBe(false);
+    expect(result.current.value("privacy.save-recent-items")).toBe(false); // other area untouched
   });
 
   it("records restart-required keys changed by apply", () => {
     const { result } = setup();
-    act(() => result.current.setValue("interface.start-maximized", true)); // restart_required
-    act(() => result.current.setValue("privacy.telemetry", true)); // no restart
+    // w26.gfix-B: interface.start-maximized went ui=false with the re-seed;
+    // interface.remember-window-geometry is the live restart-required row.
+    act(() => result.current.setValue("interface.remember-window-geometry", false)); // restart_required
+    act(() => result.current.setValue("interface.keep-above", true)); // no restart
     expect(result.current.restartPending).toEqual([]);
     act(() => result.current.apply());
-    expect(result.current.restartPending).toEqual(["interface.start-maximized"]);
+    expect(result.current.restartPending).toEqual(["interface.remember-window-geometry"]);
   });
 
   it("clears restart-pending when a later apply has no restart-required changes", () => {
     const { result } = setup();
-    act(() => result.current.setValue("interface.start-maximized", true));
+    act(() => result.current.setValue("interface.remember-window-geometry", false));
     act(() => result.current.apply());
-    act(() => result.current.setValue("privacy.telemetry", true));
+    act(() => result.current.setValue("interface.keep-above", true));
     act(() => result.current.apply());
     expect(result.current.restartPending).toEqual([]);
   });

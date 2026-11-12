@@ -20,12 +20,14 @@
 import { useState } from "react";
 import type { ButtonHTMLAttributes } from "react";
 import type { ReactElement } from "react";
-import { Button } from "../../../components/button/Button";
+import { Switch } from "../../../components/form/Switch";
+import { TextField } from "../../../components/form/TextField";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as shellKeys } from "../../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b07";
+import { keys as fixerKeys } from "../../../i18n/keys/w26.gfixB";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { HotkeysEditor } from "./hotkeys/HotkeysEditor";
 import { localStorageHotkeyOverrides } from "./hotkeys/overrides";
@@ -37,21 +39,30 @@ const GeneratedControlsScreen = GENERATED_SCREENS.controls;
 type LaneKey = keyof typeof laneKeys;
 type ShellKey = keyof typeof shellKeys;
 type RegistryKey = keyof typeof registryKeys;
-/** Pre-registration seam: registry (b02) + shell (b01) + this lane's keys —
- * identical output once the Lead registers them post-wave (b19). */
-const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...shellKeys, ...laneKeys };
+type FixerKey = keyof typeof fixerKeys;
+/** Pre-registration seam: registry (b02) + shell (b01) + b07 + this lane's
+ * keys — the gfixB casing fixes (g13-P2-9: "Keyboard Shortcuts" / "Edit
+ * Keyboard Shortcuts", frame-verbatim, consistent with the sibling title
+ * case sections) win over b07's sentence-case exports until the Lead
+ * registers the retitle. */
+const laneCatalog: Readonly<Record<string, string>> = {
+  ...registryKeys,
+  ...shellKeys,
+  ...laneKeys,
+  ...fixerKeys,
+};
 
 /** useAreaMsg — useMsg + the settings lanes' pre-registration keys. */
 function useAreaMsg() {
   const m = useMsg();
-  return (key: MessageKey | RegistryKey | ShellKey | LaneKey): string =>
+  return (key: MessageKey | RegistryKey | ShellKey | LaneKey | FixerKey): string =>
     m(key as MessageKey) ?? laneCatalog[key];
 }
 
 /**
  * One hand-authored action row (frame §C8: label left, full-width 320×32 r6
- * action button right with a centered label — the standard settings row grid
- * with the Button stretched by the `settings-field__special` wrapper).
+ * action button right with a centered label — the standard settings row
+ * grid; the flat #191919 settings-action skin, g13-P3-10).
  */
 function ActionRow({
   action,
@@ -65,20 +76,76 @@ function ActionRow({
   buttonLabel: string;
 } & ButtonHTMLAttributes<HTMLButtonElement>): ReactElement {
   return (
-    <div className="settings-field" data-controls-action={action}>
+    <div className="settings-field" data-kind="action" data-controls-action={action}>
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
         </div>
         <div className="settings-field__control">
-          <div className="settings-field__special">
-            <Button variant="default" {...buttonRest}>
-              {buttonLabel}
-            </Button>
-          </div>
+          <button type="button" className="settings-action settings-action--wide" {...buttonRest}>
+            {buttonLabel}
+          </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The Remotes section (frame §C8 y762: "Web remote control" → OFF · "Port"
+ * → input, empty). STAGED inert rows — the subtitles-area pattern (w26.f04):
+ * no controls.web-remote / controls.port [[setting]] keys exist and the
+ * control server is Phase 5+ [PROPOSAL] (product.toml [features]
+ * control-server = false), so the frame-verbatim rows render inert with the
+ * honest staged note — visible, full-strength, never a dead control that
+ * looks alive (g13-P2-8).
+ */
+function RemotesSection(): ReactElement {
+  const t = useAreaMsg();
+  const staged = t("settings.controls.remotes-staged");
+  const rows: ReadonlyArray<{
+    key: string;
+    label: string;
+    kind: "switch" | "text";
+  }> = [
+    { key: "controls.web-remote", label: t("settings.controls.web-remote"), kind: "switch" },
+    { key: "controls.port", label: t("settings.controls.port"), kind: "text" },
+  ];
+  return (
+    <section className="settings-section" data-section="remotes">
+      <h2 className="settings-section__title">{t("settings.section.controls.remotes")}</h2>
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          className="settings-field"
+          data-kind={row.kind}
+          data-setting-key={`pending.${row.key}`}
+          data-staged="control-server"
+          title={staged}
+        >
+          <div className="settings-field__row">
+            <div className="settings-field__lead">
+              <span className="settings-field__label">{row.label}</span>
+            </div>
+            <div className="settings-field__control">
+              {row.kind === "switch" ? (
+                <Switch
+                  aria-label={row.label}
+                  checked={false}
+                  disabled
+                  onChange={() => undefined}
+                />
+              ) : (
+                <TextField label={row.label} hideLabel value="" disabled onChange={() => undefined} />
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+      <p className="settings-area-staged-note" role="note">
+        {staged}
+      </p>
+    </section>
   );
 }
 
@@ -103,12 +170,12 @@ export function ControlsArea(): ReactElement {
     <div className="settings-sections" data-settings-area="controls" data-testid="controls-area">
       <section className="settings-section" data-section="keyboard-shortcuts">
         <h2 className="settings-section__title">
-          {t("settings.section.controls.keyboard-shortcuts")}
+          {t("settings.section.controls.shortcuts")}
         </h2>
         <ActionRow
           action="edit-shortcuts"
           label={t("settings.controls.defaults")}
-          buttonLabel={t("settings.controls.edit-shortcuts")}
+          buttonLabel={t("settings.controls.edit-shortcuts-action")}
           aria-expanded={hotkeysOpen}
           aria-controls="controls-hotkeys-fold"
           onClick={() => setHotkeysOpen((open) => !open)}
@@ -133,12 +200,9 @@ export function ControlsArea(): ReactElement {
           screen (its own section headers/rows; search + feature gates apply
           inside it as on every generated area). */}
       <GeneratedControlsScreen />
-      {/* Remotes (frame §C8 y762: "Web remote control" toggle + "Port"
-       * input): NO schemas/settings.toml entries exist, and control-server
-       * is Phase 5+ [PROPOSAL] with the feature off (product.toml
-       * [features]) → rendered as NOTHING, never dead controls that look
-       * alive (config-never-invents). Handoff note for the schema owner:
-       * docs/waves/w26/logs/w26.b07.md. */}
+      {/* Remotes (frame §C8 y762) — staged inert rows while the control
+          server is Phase 5+ (see RemotesSection above; g13-P2-8). */}
+      <RemotesSection />
     </div>
   );
 }

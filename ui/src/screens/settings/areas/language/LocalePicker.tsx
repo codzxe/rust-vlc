@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { Dropdown } from "../../../../components/menu/Dropdown";
 import { useMsg } from "../../../../i18n/messages";
 import type { MessageKey } from "../../../../i18n/messages";
+import { keys as fixerKeys } from "../../../../i18n/keys/w26.gfixB";
 import type { SettingEntry } from "../../generated/schema";
 import { useSettings } from "../../SettingsProvider";
 import { AVAILABLE_LOCALES, localeLabel } from "./locales";
@@ -20,8 +21,18 @@ import { AVAILABLE_LOCALES, localeLabel } from "./locales";
 // (restart badge via the framework, the entry is schema-flagged
 // restart_required).
 
-export function LocalePicker({ entry }: { entry: SettingEntry }): ReactElement {
+type FixerKey = keyof typeof fixerKeys;
+/** Pre-registration seam (w26.gfixB: the frame C1 row label "Interface language"). */
+const laneCatalog: Readonly<Record<string, string>> = fixerKeys;
+
+/** usePickerMsg — useMsg + this lane's pre-registration keys. */
+function usePickerMsg() {
   const m = useMsg();
+  return (key: MessageKey | FixerKey): string => m(key as MessageKey) ?? laneCatalog[key];
+}
+
+export function LocalePicker({ entry }: { entry: SettingEntry }): ReactElement {
+  const m = usePickerMsg();
   const { value, setValue } = useSettings();
 
   // Real locales only: a schema value without a shipped catalog is not

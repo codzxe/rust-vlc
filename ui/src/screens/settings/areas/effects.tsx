@@ -81,21 +81,25 @@ export function useEffectsMsg() {
   return (key: EffectsLabelKey): string => m(key as MessageKey) ?? laneCatalog[key];
 }
 
-/**
- * The ⓘ info affordance (frame: Settings - audio-1.svg Ellipse 9_5/9_6 —
+/** The ⓘ info affordance (frame: Settings - audio-1.svg Ellipse 9_5/9_6 —
  * r7.5 circle, stroke #404040 1.125, "i" glyph; the Equalizer and Equalizer
- * preset rows carry it). Graphical, aria-hidden: the frames show no
- * interaction beyond the affordance.
+ * preset rows carry it). Graphical, aria-hidden in the DOM; the staged note
+ * rides as its tooltip (w26.gfix-B, g12-P3-8: no in-row note line — the
+ * frame's row pitch is 42–46, the per-row badges doubled it to 68).
  */
-function InfoDot(): ReactElement {
-  return <span className="effects-info" aria-hidden="true" />;
+function InfoDot({ note }: { note: string }): ReactElement {
+  return <span className="effects-info" aria-hidden="true" title={note} />;
 }
 
-/** The staged note badge (the honest-unbound line — one per staged field). */
+/** The ONE section-level staged note (g12-P3-8): the per-row badges are
+ * gone — they doubled the Effects row pitch to 68px vs the frame's 42–46.
+ * The honesty stays: the rows keep their data-pending-command markers, the
+ * two ⓘ tooltips carry the reason, and this single quiet line closes the
+ * section (the controls/Remotes pattern, settings.css .settings-area-staged-note). */
 function StagedNote({ msg }: { msg: (key: EffectsLabelKey) => string }): ReactElement {
   return (
-    <p className="settings-field__badges" role="note">
-      <span className="settings-badge">{msg("settings.effects.pending-command")}</span>
+    <p className="settings-area-staged-note" role="note">
+      {msg("settings.effects.pending-command")}
     </p>
   );
 }
@@ -109,11 +113,14 @@ function StagedToggleRow({
   labelKey,
   pendingCommand,
   info = false,
+  note,
 }: {
   labelKey: EffectsLabelKey;
   pendingCommand: string;
   /** The frame's ⓘ affordance (Equalizer row only in the Effects section). */
   info?: boolean;
+  /** The staged note the ⓘ tooltip carries (g12-P3-8). */
+  note: string;
 }): ReactElement {
   const m = useEffectsMsg();
   const label = m(labelKey);
@@ -126,7 +133,7 @@ function StagedToggleRow({
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
-          {info ? <InfoDot /> : null}
+          {info ? <InfoDot note={note} /> : null}
         </div>
         <div className="settings-field__control">
           <Switch
@@ -139,7 +146,6 @@ function StagedToggleRow({
           />
         </div>
       </div>
-      <StagedNote msg={m} />
     </div>
   );
 }
@@ -184,7 +190,6 @@ function StagedDropdownRow({
           />
         </div>
       </div>
-      <StagedNote msg={m} />
     </div>
   );
 }
@@ -217,12 +222,14 @@ export function EffectsArea(): ReactElement {
     labelKey: spec.labelKey,
   }));
 
+  const staged = m("settings.effects.pending-command");
   return (
     <div className="settings-sections" data-settings-area="effects">
       <section className="settings-section" data-section="effects">
         <h2 className="settings-section__title">{m("settings.section.effects")}</h2>
-        {/* Frame row 1 — the EQ enable, staged OFF (audio.set-eq), with ⓘ. */}
-        <StagedToggleRow labelKey="screen.eq.title" pendingCommand="audio.set-eq" info />
+        {/* Frame row 1 — the EQ enable, staged OFF (audio.set-eq), with ⓘ
+         * (the staged note rides the ⓘ tooltip, g12-P3-8). */}
+        <StagedToggleRow labelKey="screen.eq.title" pendingCommand="audio.set-eq" info note={staged} />
         {/* Frame row 2 — "Equalizer preset" OUTSIDE the panel (w26.e07 F6):
          * a settings row whose compact two-layer dropdown (frame EQ_2:
          * 320×36 rx6 #090909 + 316×32 rx4 #191919 field, effects.css) picks
@@ -236,7 +243,7 @@ export function EffectsArea(): ReactElement {
           <div className="settings-field__row">
             <div className="settings-field__lead">
               <span className="settings-field__label">{eq("screen.eq.preset")}</span>
-              <InfoDot />
+              <InfoDot note={staged} />
             </div>
             <div className="settings-field__control">
               <Dropdown
@@ -250,7 +257,6 @@ export function EffectsArea(): ReactElement {
               />
             </div>
           </div>
-          <StagedNote msg={m} />
         </div>
         {/* Frame row 3 — the EQ PANEL (Settings - audio-1 x240 y192.5): the
          * A2 vertical-fader GraphicEQ (w26.f05 F5), full-width, expanded per
@@ -265,14 +271,14 @@ export function EffectsArea(): ReactElement {
           data-pending-command="audio.set-eq"
         >
           <GraphicEQ defaultOpen state={eqState} onChange={setEqState} />
-          <StagedNote msg={m} />
         </div>
         {/* Frame rows below the EQ panel, in frame order. Two-pass is EQ
          * configuration (VLC parity) — same awaited command. */}
-        <StagedToggleRow labelKey="settings.effects.two-pass" pendingCommand="audio.set-eq" />
+        <StagedToggleRow labelKey="settings.effects.two-pass" pendingCommand="audio.set-eq" note={staged} />
         <StagedToggleRow
           labelKey="settings.effects.spatial-audio"
           pendingCommand="audio.set-spatializer"
+          note={staged}
         />
         <StagedDropdownRow
           labelKey="settings.effects.spatial-audio-mode"
@@ -282,7 +288,11 @@ export function EffectsArea(): ReactElement {
         <StagedToggleRow
           labelKey="settings.effects.stereo-widening"
           pendingCommand="audio.set-stereo-widener"
+          note={staged}
         />
+        {/* The ONE honest staged note for the whole section (g12-P3-8) —
+         * after the last row, never between rows. */}
+        <StagedNote msg={m} />
       </section>
     </div>
   );

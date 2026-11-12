@@ -50,7 +50,8 @@ describe("ControlsArea — routing + the b02 sibling contract", () => {
     renderRouted("hotkeys");
     expect(screen.getByRole("button", { name: "Controls" })).toHaveAttribute("aria-current", "page");
     expect(document.querySelector('[data-testid="controls-area"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Edit keyboard shortcuts" })).toBeInTheDocument();
+    // w26.gfix-B (g13-P2-9): frame-verbatim title case.
+    expect(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" })).toBeInTheDocument();
   });
 
   it("embeds GENERATED_SCREENS.controls — every seeded schema row renders bound to its key", () => {
@@ -69,9 +70,10 @@ describe("ControlsArea — routing + the b02 sibling contract", () => {
 describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () => {
   it("renders the two frame rows with full-width action buttons", () => {
     mountArea();
+    expect(screen.getByRole("heading", { name: "Keyboard Shortcuts" })).toBeInTheDocument();
     expect(screen.getByText("Defaults")).toBeInTheDocument();
     expect(screen.getByText("Reset all shortcuts")).toBeInTheDocument();
-    const edit = screen.getByRole("button", { name: "Edit keyboard shortcuts" });
+    const edit = screen.getByRole("button", { name: "Edit Keyboard Shortcuts" });
     expect(edit).toHaveAttribute("aria-expanded", "false");
     expect(edit.closest(".settings-field")).toHaveAttribute("data-controls-action", "edit-shortcuts");
     expect(
@@ -82,8 +84,8 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
   it("the fold mounts the HotkeysEditor on demand and unmounts on toggle", () => {
     mountArea();
     expect(screen.queryByTestId("hotkeys-table")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Edit keyboard shortcuts" }));
-    expect(screen.getByRole("button", { name: "Edit keyboard shortcuts" })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" }));
+    expect(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
@@ -92,7 +94,7 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
     // Real keymap data, not a fixture: the editor's first binding renders.
     const first = HOTKEY_BINDINGS[0]!;
     expect(screen.getByTestId(`hotkeys-input-${first.id}`)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Edit keyboard shortcuts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" }));
     expect(screen.queryByTestId("hotkeys-table")).toBeNull();
   });
 
@@ -100,7 +102,7 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
     const first = HOTKEY_BINDINGS[0]!;
     localStorageHotkeyOverrides.save({ [first.id]: "Ctrl+Alt+Test" });
     mountArea();
-    fireEvent.click(screen.getByRole("button", { name: "Edit keyboard shortcuts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Keyboard Shortcuts" }));
     const before = screen.getByTestId(`hotkeys-input-${first.id}`) as HTMLInputElement;
     expect(before.value).toBe("Ctrl+Alt+Test");
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
@@ -112,12 +114,21 @@ describe("ControlsArea — Keyboard Shortcuts section + the hotkeys fold", () =>
 });
 
 describe("ControlsArea — honest surface (config-never-invents)", () => {
-  it("renders NO dead Remotes controls (no schema keys, control-server off)", () => {
+  it("renders the frame's Remotes section as STAGED inert rows (g13-P2-8)", () => {
     mountArea();
-    expect(screen.queryByText("Web remote control")).toBeNull();
-    expect(screen.queryByText("Port")).toBeNull();
-    expect(
-      document.querySelectorAll('[data-setting^="controls.remote"], [data-setting^="controls.web"]'),
-    ).toHaveLength(0);
+    // The two frame rows render (frame C8 y762) — inert with the honest
+    // staged note while the control server is Phase 5+; never dead-but-alive.
+    const webRemote = screen.getByRole("switch", { name: "Web remote control" });
+    expect(webRemote).toBeDisabled();
+    expect(webRemote).toHaveAttribute("aria-checked", "false"); // frame: OFF
+    const port = screen.getByRole("textbox", { name: "Port" }) as HTMLInputElement;
+    expect(port).toBeDisabled();
+    expect(port.value).toBe(""); // frame: empty
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Staged — the web remote activates when the control server ships",
+    );
+    // No live bindings: every Remotes row awaits its schema key.
+    expect(document.querySelectorAll('[data-staged="control-server"]')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-setting^="controls.remote"]')).toHaveLength(0);
   });
 });

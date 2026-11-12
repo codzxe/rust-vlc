@@ -65,3 +65,14 @@
   background: var(--color-surface-hover); /* house hover (a19 B14) */
   border-color: var(--color-surface);
 }
+
+/* ------------------------------------------------- staged presentation
+ * w26.gfix-B (g12-P3-8): staged rows render FULL-STRENGTH while inert — the
+ * audio-1 frame shows live-looking controls (OFF toggles at full ink); the
+ * honesty lives in the disabled state + the row markers + the one section
+ * note, never in dimming (the subtitles-area precedent, subtitles.css). */
+[data-settings-area="effects"] .lumen-switch:disabled,
+[data-settings-area="effects"] .lumen-dropdown__trigger:disabled {
+  opacity: 1;
+}
+

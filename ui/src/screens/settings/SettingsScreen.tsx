@@ -13,6 +13,7 @@ import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../i18n/keys/w26.b02";
 import { keys as fixerKeys } from "../../i18n/keys/w26.f03";
+import { keys as gfixKeys } from "../../i18n/keys/w26.gfixB";
 import { SETTINGS_AREA_IDS } from "./areas";
 import { SETTINGS_AREA_TITLES } from "./areas";
 import { SETTINGS_SCREENS } from "./areas";
@@ -52,9 +53,16 @@ import "./settings.css";
 type LaneKey = keyof typeof laneKeys;
 type RegistryKey = keyof typeof registryKeys;
 type FixerKey = keyof typeof fixerKeys;
-/** Pre-registration seam: this lane's keys + the registry lane's (b02) keys —
- * both resolve identically once the Lead registers them post-wave. */
-const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...laneKeys, ...fixerKeys };
+type GfixKey = keyof typeof gfixKeys;
+/** Pre-registration seam: this lane's keys + the registry lane's (b02) + the
+ * gfix-B seed keys — all resolve identically once the Lead registers them
+ * post-wave. */
+const laneCatalog: Readonly<Record<string, string>> = {
+  ...registryKeys,
+  ...laneKeys,
+  ...fixerKeys,
+  ...gfixKeys,
+};
 
 /**
  * useSettingsMsg — `useMsg` extended with the settings lanes' pre-registration
@@ -69,7 +77,7 @@ const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...lane
 function useSettingsMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | LaneKey | RegistryKey | FixerKey): string =>
+    (key: MessageKey | LaneKey | RegistryKey | FixerKey | GfixKey): string =>
       fixerKeys[key as FixerKey] ?? m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
@@ -114,7 +122,10 @@ const AREA_ICONS: Readonly<Record<string, IconName>> = {
   video: "tv",
   audio: "audio",
   subtitles: "subtitles",
-  library: "lists",
+  // w26.gfix-B: the frames' Library row is the FOLDER glyph (global.svg
+  // "setting category_9" = the Icon.svg folder sheet's Vector 23 shape;
+  // vision-compared twice) — not the lists glyph.
+  library: "folder",
   network: "network-stream",
   performance: "wrench",
   recording: "record",
@@ -176,9 +187,31 @@ function SettingsShell() {
   // async arrival AND every area switch (the active element identity
   // changes), and never re-fires while the user types in search (same
   // element re-render ≠ remount).
+  //
+  // w26.gfix-B: the mount focus must not PAINT the keyboard ring at rest —
+  // the frames' active row shows the #222222 fill only, and Chromium matches
+  // :focus-visible for script focus before any user interaction, so the
+  // focused row is marked data-mount-focus (ring suppressed, see settings.css)
+  // and the FIRST keydown anywhere clears the marker — real keyboard use gets
+  // the 2px accent ring back (the e2e tab audit passes through it).
   const focusActiveNav = useCallback((el: HTMLButtonElement | null): void => {
     activeNavRef.current = el;
-    if (el !== null) el.focus();
+    if (el !== null) {
+      el.dataset.mountFocus = "";
+      el.focus();
+    }
+  }, []);
+
+  // Clears every mount-focus marker on the first keydown (capture phase —
+  // runs before the focus moves, so the newly focused stop paints its ring).
+  useEffect(() => {
+    const clearMountFocus = (): void => {
+      for (const el of document.querySelectorAll("[data-mount-focus]")) {
+        el.removeAttribute("data-mount-focus");
+      }
+    };
+    window.addEventListener("keydown", clearMountFocus, true);
+    return () => window.removeEventListener("keydown", clearMountFocus, true);
   }, []);
 
   const onWindowKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {

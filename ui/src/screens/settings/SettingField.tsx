@@ -10,8 +10,11 @@ import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../i18n/keys/w26.b02";
 import { keys as f02Keys } from "../../i18n/keys/w26.f02";
+import { keys as fixerKeys } from "../../i18n/keys/w26.gfixB";
 import type { SettingEntry } from "./generated/schema";
 import { SPECIAL_FIELD_WIDGETS } from "./areas";
+import { WIDGET_GROUPED_KEYS } from "./SettingWidgets";
+import { isSliderFieldKey, isValuesFieldKey } from "./SettingWidgets";
 import { useSettings } from "./SettingsProvider";
 import "./setting-field.css";
 
@@ -24,7 +27,11 @@ import "./setting-field.css";
 //   row grammar; the stacked RadioGroup was the always-expanded Values-1
 //   grammar, e06/e08 F1) · int/float/duration-ms → NumberField (schema
 //   min/max; step derived — the schema carries no step: int 1, float 0.05,
-//   duration-ms 50) · string/list<string>/path/url/percent → TextField.
+//   duration-ms 50) · path → the 208×34 well + Browse companion (§C0; the
+//   frame shows Browse ONLY on the path rows — global.log-file,
+//   interface.skin-file, recording.directory) · url/list<string>/string →
+//   plain TextField well (the privacy frame's Last.fm rows carry no Browse,
+//   w26.gfix-B url-vs-path split).
 // The settings-row CONTROL skin (dropdown trigger 320×36, input well
 // 318×34 rx5, number fields stretched to the column) lives in
 // setting-field.css, scoped to .settings-field__control so the shared form
@@ -45,18 +52,20 @@ const labelOf = (entry: SettingEntry): MessageKey => entry.description as Messag
 type LaneKey = keyof typeof laneKeys;
 type RegistryKey = keyof typeof registryKeys;
 type F02Key = keyof typeof f02Keys;
-/** Pre-registration seam: b01 + b02 (registry/seed) + f02 lane keys —
+type FixerKey = keyof typeof fixerKeys;
+/** Pre-registration seam: b01 + b02 (registry/seed) + f02 + gfixB lane keys —
  * identical output once the Lead registers them post-wave (b19). */
 const laneCatalog: Readonly<Record<string, string>> = {
   ...registryKeys,
   ...laneKeys,
   ...f02Keys,
+  ...fixerKeys,
 };
 
 /** useFieldMsg — useMsg + the settings lanes' pre-registration keys. */
 function useFieldMsg() {
   const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | F02Key): string =>
+  return (key: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey): string =>
     m(key as MessageKey) ?? laneCatalog[key];
 }
 
@@ -66,6 +75,29 @@ function numberStep(entry: SettingEntry): number {
   return 1;
 }
 
+/**
+ * Duration display (g13-P2-7): the controls frame shows the skip rows as
+ * human seconds ("3 s"), the performance frame keeps raw ms ("5000 ms") —
+ * so the format is keyed: controls.skip* render seconds, every other
+ * duration-ms row keeps its millisecond spelling.
+ */
+const secondsDuration = (key: string): boolean => key.startsWith("controls.skip");
+
+const formatDurationMs = (key: string, value: number): string =>
+  secondsDuration(key) ? `${value / 1000} s` : `${value} ms`;
+
+const parseDurationMs = (key: string, text: string): number | null => {
+  const digits = text.replace(/[^0-9.]/g, "");
+  if (digits === "") return null;
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) return null;
+  return secondsDuration(key) ? parsed * 1000 : parsed;
+};
+
+/** Float display (audio frame: "0.0"): one decimal minimum, natural beyond. */
+const formatFloatValue = (value: number): string =>
+  Number.isInteger(value) ? value.toFixed(1) : String(value);
+
 export interface SettingFieldProps {
   entry: SettingEntry;
   /**
@@ -73,7 +105,7 @@ export interface SettingFieldProps {
    * the row label. `undefined` (today's seed carries no hint text) renders
    * no ⓘ — honest absence, never a fabricated description.
    */
-  hint?: MessageKey | LaneKey | RegistryKey | F02Key;
+  hint?: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey;
 }
 
 /** SettingField — one schema entry as a labeled, dirty-tracked control row. */
@@ -83,6 +115,9 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
   const [hintOpen, setHintOpen] = useState(false);
   // Feature not exposed in product.toml [features] → hidden + inert (F1/F2).
   if (!entry.featureExposed) return null;
+  // Compound-widget keys (g12-P1-4): rendered INSIDE another key's special
+  // widget — never a standalone row (search included).
+  if (WIDGET_GROUPED_KEYS.has(entry.key)) return null;
 
   const rowLabel = m(labelOf(entry));
   // Seed seam (b01 log item 2): when the generator grows a `hint` msgid
@@ -98,10 +133,14 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
   const canReset = current !== entry.defaultValue;
 
   let control: ReactNode;
+  // Every branch below assigns; no dead initializer (eslint no-useless-assignment).
+  let kind: string;
   const Special = SPECIAL_FIELD_WIDGETS[entry.key];
   if (Special !== undefined) {
     control = <Special entry={entry} />;
+    kind = isSliderFieldKey(entry.key) ? "slider" : isValuesFieldKey(entry.key) ? "values" : "special";
   } else if (entry.type === "bool") {
+    kind = "switch";
     control = (
       <Switch
         aria-label={rowLabel}
@@ -114,6 +153,7 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
     // #191919, value #8F8F8F ≈15px — skinned in setting-field.css. Option
     // labels arrive pre-resolved through the labelKey + identity resolver
     // seam (the component's i18n contract stays key-driven for other hosts).
+    kind = "enum";
     control = (
       <Dropdown
         className="settings-field__dropdown"
@@ -121,13 +161,61 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         label={rowLabel}
         options={entry.enumeration.map((o) => ({
           value: o.value,
-          labelKey: m(o.msgid as MessageKey | LaneKey | RegistryKey | F02Key),
+          labelKey: m(o.msgid as MessageKey | LaneKey | RegistryKey | F02Key | FixerKey),
         }))}
         value={String(current)}
         onChange={(next) => setValue(entry.key, next)}
       />
     );
-  } else if (entry.type === "int" || entry.type === "float" || entry.type === "duration-ms") {
+  } else if (entry.type === "duration-ms") {
+    // Duration rows (g13-P2-7): the frame shows formatted durations ("3 s",
+    // "5000 ms") in the standard 318×34 well — a text field with a numeric
+    // parse, not a bare number input.
+    kind = "duration";
+    const numeric = typeof current === "number" ? current : (entry.min ?? 0);
+    control = (
+      <TextField
+        className="settings-field__bare"
+        label={rowLabel}
+        hideLabel
+        inputMode="numeric"
+        value={formatDurationMs(entry.key, numeric)}
+        onChange={(e) => {
+          const next = parseDurationMs(entry.key, e.target.value);
+          if (next !== null) {
+            const min = entry.min ?? -Infinity;
+            const max = entry.max ?? Infinity;
+            setValue(entry.key, Math.min(max, Math.max(min, next)));
+          }
+        }}
+      />
+    );
+  } else if (entry.type === "float") {
+    // Float rows (audio.replay-gain-preamp — frame value "0.0"): a formatted
+    // text well, not a bare number input — the frame spells one decimal
+    // ("0.0", the EQ chip grammar "12.0 dB"); the steppers are display:none
+    // in the settings skin anyway. Parse + clamp keeps the schema range.
+    kind = "number";
+    const numeric = typeof current === "number" ? current : (entry.min ?? 0);
+    control = (
+      <TextField
+        className="settings-field__bare"
+        label={rowLabel}
+        hideLabel
+        inputMode="decimal"
+        value={formatFloatValue(numeric)}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (Number.isFinite(next) && e.target.value.trim() !== "") {
+            const min = entry.min ?? -Infinity;
+            const max = entry.max ?? Infinity;
+            setValue(entry.key, Math.min(max, Math.max(min, next)));
+          }
+        }}
+      />
+    );
+  } else if (entry.type === "int") {
+    kind = "number";
     control = (
       <NumberField
         className="settings-field__bare"
@@ -143,7 +231,42 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         }}
       />
     );
+  } else if (entry.type === "path") {
+    // Path rows (g10-P2-2): 208×34 well + Browse 100×32 r6 (§C0 control
+    // inventory — the frame shows the companion on every PATH row: log
+    // file, skin file, recording directory). The input is LIVE (a typed
+    // path is a real value); the Browse ACTION has no file-dialog command
+    // in the catalog → disabled with the honest reason (visible, inert,
+    // never a dead control that looks alive). URL rows (privacy's Last.fm
+    // submission URL) fall through to the plain well below — their frame
+    // carries no Browse.
+    kind = "path";
+    const browseNoteId = `${entry.key}-browse-note`;
+    control = (
+      <div className="settings-field__path">
+        <TextField
+          className="settings-field__bare"
+          label={rowLabel}
+          hideLabel
+          value={String(current)}
+          onChange={(e) => setValue(entry.key, e.target.value)}
+        />
+        <button
+          type="button"
+          className="settings-action settings-field__browse-action"
+          disabled
+          aria-describedby={browseNoteId}
+          title={m("settings.capability-unavailable")}
+        >
+          {m("settings.field.browse")}
+        </button>
+        <span id={browseNoteId} className="settings-vh">
+          {m("settings.capability-unavailable")}
+        </span>
+      </div>
+    );
   } else if (entry.type === "list<string>") {
+    kind = "text";
     const list = Array.isArray(current) ? current : [];
     control = (
       <TextField
@@ -163,6 +286,7 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
       />
     );
   } else {
+    kind = "text";
     control = (
       <TextField
         className="settings-field__bare"
@@ -178,6 +302,7 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
     <div
       className="settings-field"
       data-setting={entry.key}
+      data-kind={kind}
       data-dirty={isDirty(entry.key) || undefined}
       data-advanced={entry.advanced || undefined}
     >

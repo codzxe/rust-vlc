@@ -1,6 +1,8 @@
 // Card 4.E4 — Updates & About area tests: the About panel shows REAL version
-// data imported from the package manifest (never a hardcoded literal), and
-// the update-check toggle is bound to its real schema key, default OFF.
+// data imported from the package manifest (never a hardcoded literal).
+// w26.gfix-B: the update-check row MOVED to the global screen's Startup
+// section (g10-P2-1 — key global.update-checks, frame copy "Check for
+// updates automatically"); this fold renders the About panel only.
 
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -11,7 +13,7 @@ import { MockTransport } from "../../../client/transport";
 import { SettingsScreen } from "../SettingsScreen";
 import { SettingsProvider } from "../SettingsProvider";
 import { AboutArea } from "./updates-about";
-import { SETTING_PRIVACY_UPDATE_CHECKS } from "../generated/schema";
+import { SETTING_GLOBAL_UPDATE_CHECKS } from "../generated/schema";
 
 // The build-injected package identity (vite.config.ts reads ui/package.json
 // and `define`s it; src/build-info.ts re-exports it). The test proves the
@@ -41,28 +43,47 @@ describe("AboutArea — About panel shows real package data", () => {
     expect(UI_PACKAGE_VERSION).toMatch(/^\d+\.\d+\.\d+/); // real semver, not a placeholder
   });
 
-  it("is routed at /settings/about via the areas registry", () => {
+  it("is routed at /settings/about via the areas registry (about→global fold)", () => {
     renderRouted("about");
     expect(document.querySelector('[data-settings-area="about"]')).not.toBeNull();
     expect(screen.getByTestId("about-version").textContent).toBe(UI_PACKAGE_VERSION);
   });
-});
 
-describe("AboutArea — update checks (schema + features)", () => {
-  it("schema truth: privacy.update-checks defaults false via telemetry.update_checks (opt-in)", () => {
-    expect(SETTING_PRIVACY_UPDATE_CHECKS.defaultValue).toBe(false);
-    expect(SETTING_PRIVACY_UPDATE_CHECKS.defaultRef).toBe("telemetry.update_checks");
-    expect(SETTING_PRIVACY_UPDATE_CHECKS.featureGate).toBe(""); // ungated: follows schema, not features
-  });
-
-  it("renders the update-check toggle bound to its key, OFF by default", () => {
-    render(
+  it("renders the About rows in the settings row grammar (g10-P2-3 restyle)", () => {
+    const { container } = render(
       <SettingsProvider>
         <AboutArea />
       </SettingsProvider>,
     );
-    expect(document.querySelector('[data-setting="privacy.update-checks"]')).not.toBeNull();
-    expect(screen.getByRole("switch", { name: /update/i }).getAttribute("aria-checked")).toBe("false");
+    const rows = container.querySelectorAll("[data-about-row]");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.querySelector(".settings-field__lead .settings-field__label")).toBeTruthy();
+      expect(row.querySelector(".settings-about__value")).toBeTruthy();
+    }
+  });
+});
+
+describe("update checks — moved to the global Startup section (w26.gfix-B)", () => {
+  it("schema truth: global.update-checks defaults false via telemetry.update_checks (opt-in)", () => {
+    expect(SETTING_GLOBAL_UPDATE_CHECKS.key).toBe("global.update-checks");
+    expect(SETTING_GLOBAL_UPDATE_CHECKS.defaultValue).toBe(false);
+    expect(SETTING_GLOBAL_UPDATE_CHECKS.defaultRef).toBe("telemetry.update_checks");
+    expect(SETTING_GLOBAL_UPDATE_CHECKS.featureGate).toBe(""); // ungated: follows schema, not features
+  });
+
+  it("renders the frame-verbatim row on /settings/global, OFF by default — the fold no longer duplicates it", () => {
+    const { container } = renderRouted("global");
+    const field = container.querySelector('[data-setting="global.update-checks"]');
+    expect(field).not.toBeNull();
+    expect(screen.getByText("Check for updates automatically")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Check for updates automatically" }).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    // The Updates fold is GONE from the global screen (g10-P2-1): exactly one
+    // update-check row renders.
+    expect(container.querySelectorAll('[data-setting="global.update-checks"]')).toHaveLength(1);
+    expect(screen.queryByText("Check for updates")).toBeNull();
   });
 
   it("renders no update action the command catalog does not define (config-never-invents)", () => {

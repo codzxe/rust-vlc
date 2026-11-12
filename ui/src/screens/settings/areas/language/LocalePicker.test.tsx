@@ -22,8 +22,9 @@ const mount = () =>
 describe("LocalePicker (global.language)", () => {
   it("renders a closed dropdown trigger showing the current locale", () => {
     mount();
-    // The trigger is a combobox (aria-haspopup listbox), labeled by the row.
-    const trigger = screen.getByRole("button", { name: "Language" });
+    // The trigger is a combobox (aria-haspopup listbox), labeled by the row
+    // (w26.gfix-B: frame C1 label "Interface language", g10-P3-1).
+    const trigger = screen.getByRole("button", { name: "Interface language" });
     expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveTextContent("English (United States)");
@@ -33,7 +34,7 @@ describe("LocalePicker (global.language)", () => {
 
   it("offers exactly the real available locales when opened (localization crate data)", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    fireEvent.click(screen.getByRole("button", { name: "Interface language" }));
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(AVAILABLE_LOCALES.length);
     expect(screen.getByRole("option", { name: /English \(United States\)/i })).toBeTruthy();
@@ -58,12 +59,12 @@ describe("LocalePicker (global.language)", () => {
     // Single-locale world: the option is already selected; the binding is
     // proven by the trigger carrying the schema key's current value and the
     // selected option staying bound after re-selecting it.
-    const trigger = screen.getByRole("button", { name: "Language" });
+    const trigger = screen.getByRole("button", { name: "Interface language" });
     expect(trigger).toHaveTextContent("English (United States)");
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("option", { name: /English \(United States\)/i }));
     expect(latest).toBe("en-US");
-    expect(screen.getByRole("button", { name: "Language" })).toHaveFocus(); // close restores focus
+    expect(screen.getByRole("button", { name: "Interface language" })).toHaveFocus(); // close restores focus
   });
 
   it("labels the reference locale through the i18n catalog", () => {

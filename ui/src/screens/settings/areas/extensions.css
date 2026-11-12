@@ -1,0 +1,57 @@
+/* Extensions area skin (w26.gfix-B — findings g14-P1-1 / P2-1 / P2-2).
+ *
+ * Frame truth (Settings - extensions.svg, tools-settings.md §C13 + §C0):
+ *   list well      782×192 rx5 #090909 fill + 2px #191919 stroke @ (241,110)
+ *   toolbar search 208×34 rx5 #090909 + 2px #191919, placeholder #404040
+ *                  (the settings input well family, setting-field.css)
+ *   toolbar action 100×32 rx6 #191919 (#8F8F8F label ≈15px); the primary
+ *                  action 185×32 @ x619 (Add/Remove @ x814/x924, 10px gaps)
+ * Colors map to semantic tokens (#090909 → --color-surface, #191919 →
+ * --color-surface-panel, #8F8F8F → --color-content-secondary); raw px is
+ * structural (frame-measured dimensions with no token), marked `frame:`. */
+
+/* The add-on list well — the frame's dominant surface. */
+.settings-extensions-list {
+  box-sizing: border-box;
+  min-height: 192px; /* frame: well height */
+  padding: 8px;
+  background: var(--color-surface); /* frame: #090909 recessed fill */
+  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
+  border-radius: 5px; /* frame: rx5 */
+}
+
+/* Toolbar — search left, the three frame actions right-aligned to the
+ * content edge (frame y311: search @x241, actions @x619–x1024). */
+.settings-extensions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* frame: 10px action gaps */
+  margin-top: 10px;
+}
+
+.settings-extensions-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* frame: 10px between x619/x814/x924 */
+  margin-left: auto; /* right-aligns the cluster to the content edge */
+}
+
+/* The toolbar search — the settings input well skin (g14-P2-1), 208px wide
+ * (frame). Scoped one class deeper than form.css so the settings skin wins
+ * on specificity alone, the setting-field.css pattern. */
+.settings-extensions-toolbar .lumen-field__control {
+  width: 208px; /* frame: search width */
+  height: 34px;
+  font-size: var(--font-size-section);
+  color: var(--color-content-secondary);
+  background-color: var(--color-surface); /* frame: #090909 well */
+  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
+  border-radius: 5px; /* frame: rx5 */
+}
+
+/* The primary toolbar action — the frame's 185×32 small action (g14-P2-2).
+ * w26.gfix-B: doubled selector — .settings-action's min-width must not win
+ * on bundle order (the measured button was 159px vs the frame's 185). */
+.settings-extensions-toolbar .settings-extensions-toolbar__find {
+  min-width: 185px; /* frame: "Find more extensions" width */
+}

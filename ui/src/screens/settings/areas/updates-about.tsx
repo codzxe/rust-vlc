@@ -1,4 +1,6 @@
-// Settings area: Updates & About — card 4.E4, doc 07 §5.4.
+// Settings area: About — card 4.E4, doc 07 §5.4 (the about→global registry
+// fold; renders BEFORE the Advanced Options bar on the global screen —
+// w26.gfix-B, g10-P2-3: the bar is the column's last element again).
 //
 // HONEST SURFACE RULES:
 //   • Version data: REAL values only — injected at build time from
@@ -8,55 +10,56 @@
 //     protocol versions come from system.get-engine-info (doc 05 §2.12) on
 //     surfaces that have a client; this static About panel sticks to the
 //     build-injected package data.
-//   • Update checks: privacy.update-checks is a REAL schema key (bool,
-//     product default false — opt-in, product.toml §2.6) rendered via E1's
-//     SettingField. NOTE: its schema placement also renders it on the
-//     generated "privacy" screen — flagged to the schema owner in
-//     ui/NEXT-STEPS.md to consolidate placement (D5/D6 safe).
+//   • Update checks (w26.gfix-B, g10-P2-1): the "Check for updates
+//     automatically" row MOVED to the global screen's Startup section with
+//     the w26.gfix-B re-seed (key global.update-checks) — this fold no
+//     longer duplicates it.
 //   • No "check now" action exists in the command catalog (no update
 //     command) → no button is rendered. Inventing one would violate MP §5.
+//
+// w26.gfix-B (g10-P2-3): the About rows render in the settings ROW grammar
+// (label left, value right in the control column) — the legacy stacked
+// .settings-field__head grammar is gone.
 
 import type { ReactElement } from "react";
 import { UI_PACKAGE_NAME, UI_PACKAGE_VERSION } from "../../../build-info";
 import { useMsg } from "../../../i18n/messages";
-import { SettingField } from "../SettingField";
-import { SETTING_PRIVACY_UPDATE_CHECKS } from "../generated/schema";
 
-/** About panel — version facts from imported package data (never hardcoded).
- * w26.d2 a11y sweep: the field head (a plain span label) moved OUT of the
- * <dl> — axe definition-list requires every direct <div> child of a <dl> to
- * hold an ordered dt/dd group; the head wrapper held only the span. */
+/** About panel — version facts from imported package data (never hardcoded),
+ * rendered as settings rows (label left, value right). */
 export function AboutPanel(): ReactElement {
   const m = useMsg();
   return (
-    <div className="settings-field" data-testid="about-panel" data-about-package={UI_PACKAGE_NAME}>
-      <div className="settings-field__head">
-        <span className="settings-field__label">{m("settings.about.product")}</span>
+    <div className="settings-about" data-testid="about-panel" data-about-package={UI_PACKAGE_NAME}>
+      <div className="settings-field" data-kind="about" data-about-row="package">
+        <div className="settings-field__row">
+          <div className="settings-field__lead">
+            <span className="settings-field__label">{m("settings.about.ui-package")}</span>
+          </div>
+          <div className="settings-field__control settings-about__value" data-testid="about-package-name">
+            {UI_PACKAGE_NAME}
+          </div>
+        </div>
       </div>
-      <dl className="settings-about__rows">
-        <div className="settings-about__row">
-          <dt>{m("settings.about.ui-package")}</dt>
-          <dd data-testid="about-package-name">{UI_PACKAGE_NAME}</dd>
+      <div className="settings-field" data-kind="about" data-about-row="version">
+        <div className="settings-field__row">
+          <div className="settings-field__lead">
+            <span className="settings-field__label">{m("settings.about.version")}</span>
+          </div>
+          <div className="settings-field__control settings-about__value" data-testid="about-version">
+            {UI_PACKAGE_VERSION}
+          </div>
         </div>
-        <div className="settings-about__row">
-          <dt>{m("settings.about.version")}</dt>
-          <dd data-testid="about-version">{UI_PACKAGE_VERSION}</dd>
-        </div>
-      </dl>
+      </div>
     </div>
   );
 }
 
-/** Updates & About settings area. */
+/** About fold — the About panel only (the Updates row moved to Startup). */
 export function AboutArea(): ReactElement {
   const m = useMsg();
   return (
     <div className="settings-sections" data-settings-area="about" data-testid="about-area">
-      <section className="settings-section" data-section="updates">
-        <h2 className="settings-section__title">{m("settings.section.about.updates")}</h2>
-        <SettingField entry={SETTING_PRIVACY_UPDATE_CHECKS} />
-        {/* "Check for updates now": no command in the catalog → nothing. */}
-      </section>
       <section className="settings-section" data-section="about">
         <h2 className="settings-section__title">{m("settings.section.about.about")}</h2>
         <AboutPanel />

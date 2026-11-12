@@ -1,7 +1,8 @@
-// Card 4.E4 — Input & Codecs area tests: the hw-decode policy control is
-// bound to the REAL schema key, rendered disabled-with-reason per ADR-001's
-// honest status + product.toml F2 exposure, and the cache controls are bound
-// to their real schema keys (options-bound-to-schema proof).
+// w26.gfix-B — Input & Codecs area tests (g12-P1-6 rewrite): the hw-decode
+// policy control is bound to the REAL schema key, rendered as the settings
+// row grammar's CLOSED dropdown (never the retired always-expanded radio
+// stack), disabled-with-reason per ADR-001's honest status + product.toml F2
+// exposure; the cache controls stay bound to their real schema keys.
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -29,10 +30,18 @@ const renderRouted = (area: string) =>
     </ClientProvider>,
   );
 
+const mountControl = () =>
+  render(
+    <SettingsProvider>
+      <HwDecodePolicyControl />
+    </SettingsProvider>,
+  );
+
 describe("CodecsArea — routing + schema-bound options", () => {
-  it("is routed at /settings/codecs via the areas registry", () => {
+  it("is folded under /settings/video via the areas registry (codecs→video)", () => {
     renderRouted("codecs");
     expect(document.querySelector('[data-settings-area="codecs"]')).not.toBeNull();
+    expect(document.querySelector('[data-settings-area="video"]')).not.toBeNull();
   });
 
   it("renders the cache controls bound to their real schema keys", () => {
@@ -43,22 +52,17 @@ describe("CodecsArea — routing + schema-bound options", () => {
     );
     expect(document.querySelector(`[data-setting="${SETTING_PERFORMANCE_CACHE_DEMUX_MIB.key}"]`)).not.toBeNull();
     expect(document.querySelector(`[data-setting="${SETTING_PERFORMANCE_CACHE_NETWORK_MIB.key}"]`)).not.toBeNull();
-    // Both are advanced-flagged in the schema. Since w26.b02 the E1 advanced
-    // presentation is the area-level in-flow disclosure (one grouped badge /
-    // fold, not one badge per row) — at least one Advanced affordance shows.
-    expect(screen.getAllByText("Advanced").length).toBeGreaterThanOrEqual(1);
+    // w26.gfix-B (g12-P1-6): the row-level "Advanced" badge is gone with the
+    // radio stack — the honest status is the gate note under the policy row.
+    expect(screen.queryByText("Advanced")).toBeNull();
   });
 
   it("binds the hw-decode control to playback.hw-decode-policy with the full schema enumeration", () => {
-    render(
-      <SettingsProvider>
-        <HwDecodePolicyControl />
-      </SettingsProvider>,
-    );
+    mountControl();
     expect(document.querySelector('[data-setting="playback.hw-decode-policy"]')).not.toBeNull();
-    for (const option of SETTING_PLAYBACK_HW_DECODE_POLICY.enumeration) {
-      expect(screen.getByRole("radio", { name: new RegExp(option.value.replace("-", " "), "i") })).toBeInTheDocument();
-    }
+    const trigger = screen.getByRole("button", { name: "Hardware decode policy" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
+    expect(trigger).toBeDisabled(); // F2-gated — the list never opens
   });
 });
 
@@ -69,39 +73,29 @@ describe("hw-decode — ADR-001 honest status + F2 feature gating", () => {
   });
 
   it("renders disabled with the honest reason (never a dead-but-alive control)", () => {
-    render(
-      <SettingsProvider>
-        <HwDecodePolicyControl />
-      </SettingsProvider>,
-    );
-    for (const radio of screen.getAllByRole("radio")) {
-      expect(radio).toBeDisabled();
-    }
+    mountControl();
+    const trigger = screen.getByRole("button", { name: "Hardware decode policy" });
+    expect(trigger).toBeDisabled();
     expect(document.querySelector('[data-gate-reason="hw-decode"]')).not.toBeNull();
     expect(screen.getByText(/ADR-001/i)).toBeInTheDocument();
     expect(screen.getByText(/F2/)).toBeInTheDocument();
+    // The closed trigger keeps the frame's 320×36 shape with the shipped
+    // product default selected — never a collapsed stub.
+    expect(trigger).toHaveTextContent("Software only");
   });
 
-  it("stays inert: clicking a policy radio cannot change the value while gated", () => {
-    render(
-      <SettingsProvider>
-        <HwDecodePolicyControl />
-      </SettingsProvider>,
-    );
-    const software = screen.getByRole("radio", { name: /software only/i }) as HTMLInputElement;
-    expect(software.checked).toBe(true);
-    fireEvent.click(screen.getByRole("radio", { name: /hardware only/i }));
-    expect(software.checked).toBe(true);
+  it("stays inert: the gated policy cannot be changed while disabled", () => {
+    mountControl();
+    const trigger = screen.getByRole("button", { name: "Hardware decode policy" });
+    fireEvent.click(trigger); // disabled — nothing opens, nothing changes
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(trigger).toHaveTextContent("Software only");
   });
 
   it("shows the shipped product default (software-only, product.toml §2.8) as selected", () => {
-    render(
-      <SettingsProvider>
-        <HwDecodePolicyControl />
-      </SettingsProvider>,
-    );
+    mountControl();
     expect(SETTING_PLAYBACK_HW_DECODE_POLICY.defaultValue).toBe("software-only");
-    expect((screen.getByRole("radio", { name: /software only/i }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Hardware decode policy" })).toHaveTextContent("Software only");
   });
 
   it("renders no codec-family options the schema does not define (config-never-invents)", () => {

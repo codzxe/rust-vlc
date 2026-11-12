@@ -4,8 +4,9 @@
 // A2 GraphicEQ vertical-fader panel (F5/F1), the ⓘ affordances (F7), and
 // the honest-surface rules:
 //   • the embedded EQ + every row control is STAGED (no audio-effects
-//     catalog command exists yet) — markers name the awaited command, the
-//     note badge gives the honest reason, nothing ever sends;
+//     catalog command exists yet) — markers name the awaited command, ONE
+//     section-level note line gives the honest reason (g12-P3-8: the per-row
+//     badges doubled the frame's row pitch), nothing ever sends;
 //   • the retired v0 widgets (master volume, mute, balance, video adjust)
 //     are gone per the frame — live playback control stays in the player
 //     ControlBar (see the effects.tsx module header + the w26.c5 lane log).
@@ -112,6 +113,13 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
       .closest(".settings-field");
     expect(eqRow?.querySelector(".effects-info")).not.toBeNull();
     expect(presetRow?.querySelector(".effects-info")).not.toBeNull();
+    // g12-P3-8: the staged note rides the ⓘ tooltips (no in-row note lines).
+    expect(eqRow?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+      "Engine stage ready",
+    );
+    expect(presetRow?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+      "Engine stage ready",
+    );
   });
 });
 
@@ -133,8 +141,12 @@ describe("EffectsArea — staged rows are inert WITH REASON (the old pattern sta
     expect(staged).not.toBeNull();
     expect(staged).toHaveAttribute("data-staged-tool", "equalizer");
     expect(staged).toHaveAttribute("data-pending-command", "audio.set-eq");
-    // The honest reason renders (old pattern: visible, never silent).
-    expect(screen.getAllByRole("note").length).toBeGreaterThan(0);
+    // The honest reason renders — as ONE section-level note line after the
+    // last row (g12-P3-8), never as per-row badges between rows.
+    const notes = screen.getAllByRole("note");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.className).toContain("settings-area-staged-note");
+    expect(notes[0]!.textContent).toContain("Engine stage ready");
   });
 
   it("Two-pass / Spatial audio / Stereo widening toggles are staged, naming their commands", () => {

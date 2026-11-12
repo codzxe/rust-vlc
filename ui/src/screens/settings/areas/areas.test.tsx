@@ -137,10 +137,13 @@ describe("areas layer — the 13-area registry (w26.b02)", () => {
   });
 
   it("the special theme picker replaces the interface.theme control inside the shell (live wiring)", async () => {
+    // w26.gfix-B (g10-P1-2): the theme row MOVED to the global screen's
+    // Appearance section (the interface frame carries no theme control) — the
+    // live wiring proof follows it there.
     render(
       <ThemeProvider>
         <ClientProvider transport={new MockTransport()}>
-          <MemoryRouter initialEntries={["/settings/interface"]}>{routes}</MemoryRouter>
+          <MemoryRouter initialEntries={["/settings/global"]}>{routes}</MemoryRouter>
         </ClientProvider>
       </ThemeProvider>,
     );
