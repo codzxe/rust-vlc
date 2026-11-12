@@ -67,6 +67,16 @@ export interface VirtualListProps<T> {
   label: string;
   /** When this prop changes, the list scrolls so `index` is at `align`. */
   scrollToIndex?: VirtualScrollTarget | null;
+  /**
+   * Widget semantics (w26 Lead fix, axe nested-interactive):
+   * - "listbox" (default): rows are `role="option"` — ARIA options must NOT
+   *   contain interactive descendants (links, buttons). Use only for pure
+   *   selection lists.
+   * - "grid": rows are `role="row"` + `role="gridcell"` — the ARIA pattern
+   *   for media rows that embed links/buttons (sidebar playlists, queue
+   *   rows with per-row play actions, kebab affordances).
+   */
+  semantics?: "listbox" | "grid";
   className?: string;
   style?: React.CSSProperties;
 }
@@ -80,7 +90,7 @@ export interface VirtualListProps<T> {
  * range can lag one render behind a shrinking dataset (a filter applied),
  * and consumers must never see a stale `data[i]` (AppShell relies on this).
  */
-export function VirtualList<T>({ data, itemHeight, overscan = 5, renderItem, label, scrollToIndex = null, className = "", style }: VirtualListProps<T>) {
+export function VirtualList<T>({ data, itemHeight, overscan = 5, renderItem, label, scrollToIndex = null, semantics = "listbox", className = "", style }: VirtualListProps<T>) {
   const { viewportRef, range, onScroll, scrollToIndex: scroll } = useWindowedRange(data.length, itemHeight, overscan);
 
   useEffect(() => {
@@ -92,13 +102,30 @@ export function VirtualList<T>({ data, itemHeight, overscan = 5, renderItem, lab
   const rows: ReactNode[] = [];
   for (let i = startIndex; i <= endIndex; i++) {
     rows.push(
-      <div key={i} role="option" aria-selected={false} className="lumen-vrow" style={{ top: i * itemHeight, height: itemHeight }}>
-        {renderItem(data[i]!, i)}
-      </div>,
+      semantics === "grid" ? (
+        <div key={i} role="row" aria-selected={false} className="lumen-vrow" style={{ top: i * itemHeight, height: itemHeight }}>
+          <div role="gridcell" className="lumen-vrow__cell">
+            {renderItem(data[i]!, i)}
+          </div>
+        </div>
+      ) : (
+        <div key={i} role="option" aria-selected={false} className="lumen-vrow" style={{ top: i * itemHeight, height: itemHeight }}>
+          {renderItem(data[i]!, i)}
+        </div>
+      ),
     );
   }
   return (
-    <div ref={viewportRef} role="listbox" aria-label={label} tabIndex={0} className={`lumen-vlist ${className}`.trim()} style={style} onScroll={onScroll}>
+    <div
+      ref={viewportRef}
+      role={semantics === "grid" ? "grid" : "listbox"}
+      aria-label={label}
+      aria-rowcount={semantics === "grid" ? data.length : undefined}
+      tabIndex={0}
+      className={`lumen-vlist ${className}`.trim()}
+      style={style}
+      onScroll={onScroll}
+    >
       <div className="lumen-vlist__spacer" style={{ height: range.totalHeight }}>
         {rows}
       </div>

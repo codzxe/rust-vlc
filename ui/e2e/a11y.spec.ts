@@ -141,14 +141,28 @@ for (const route of TAB_ROUTES) {
     // Every screen must have at least one interactive keyboard stop.
     expect(stops.length, `tab stops on ${route.path}`).toBeGreaterThan(0);
 
-    // DOM order == focus order (no positive-tabIndex jumps).
-    for (let i = 1; i < stops.length; i += 1) {
+    // DOM order == focus order (no positive-tabIndex jumps). One documented
+    // exception: a MODAL FOCUS TRAP (w26.f03, e06 F8 — the settings window
+    // is a floating surface whose Tab wraps within it). A wrap is legal ONLY
+    // as a jump back to the trapped container's FIRST focusable (the lowest
+    // DOM index recorded) — anything else is a real order violation.
+    const firstDomIndex = Math.min(...stops.map((s) => s.domIndex));
+    for (const [i, stop] of stops.entries()) {
+      if (i === 0) continue;
       const prev = stops[i - 1]?.domIndex;
-      const curr = stops[i]?.domIndex;
+      const curr = stop.domIndex;
       if (prev === undefined || curr === undefined) break;
+      if (curr < prev) {
+        // Trap wrap: must land exactly on the window's first focusable.
+        expect(
+          curr,
+          `focus wrap on ${route.path} (stop ${i}, "${stop.label}") must return to the trapped window's first focusable, not jump randomly`,
+        ).toBe(firstDomIndex);
+        break; // traversal exhausted — the trap cycles from here
+      }
       expect(
         curr,
-        `focus order left DOM order between stops ${i - 1} ("${stops[i - 1]?.label}") and ${i} ("${stops[i]?.label}") on ${route.path}`,
+        `focus order left DOM order between stops ${i - 1} ("${stops[i - 1]?.label}") and ${i} ("${stop.label}") on ${route.path}`,
       ).toBeGreaterThan(prev);
     }
 

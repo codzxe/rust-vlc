@@ -53,6 +53,7 @@ export function MediaList({ onEntryMenu }: MediaListProps): ReactElement {
               return index >= 0 ? { index, align: "start" } : null;
             })()
       }
+      semantics="grid"
       renderItem={(entry) => (
         <MediaRow
           key={entry.id}

@@ -11,14 +11,14 @@ import { OPTION_ENTRIES, OPTION_META, mountOptions } from "./optionsTestSupport"
 import type { PlaylistEntry } from "../PlaylistProvider";
 
 const rowOf = (title: string): HTMLElement => {
-  const rows = screen.getAllByRole("option");
+  const rows = screen.getAllByRole("row");
   return rows.find((row) => row.textContent?.includes(title))!;
 };
 
 describe("MediaList — frame anatomy (media.svg)", () => {
   it("renders one 51px row per entry (VirtualList pitch)", () => {
     const { view } = mountOptions(<MediaList />);
-    expect(screen.getAllByRole("option")).toHaveLength(3);
+    expect(screen.getAllByRole("row")).toHaveLength(3);
     const rows = view.container.querySelectorAll(".lumen-plo-mrow");
     expect(rows).toHaveLength(3);
   });

@@ -122,7 +122,8 @@ export function PlaylistScreen() {
                 itemHeight={ROW_HEIGHTS.comfortable} /* frame: playlist.svg ~66px rows */
                 label={t("playlist.library.list-label")}
                 className="lumen-plpage__list"
-                renderItem={(playlist) => (
+                semantics="grid"
+              renderItem={(playlist) => (
                   <LibraryRow
                     key={playlist.id}
                     playlist={playlist}

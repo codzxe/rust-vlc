@@ -193,6 +193,7 @@ export function PlaylistPanel({
           label={m("playlist.panel.title")}
           scrollToIndex={currentIndex >= 0 ? { index: currentIndex, align: "start" } : null}
           className="lumen-playlist__list"
+          semantics="grid"
           renderItem={(entry, index) => (
             <PlaylistRow
               key={entry.id}

@@ -98,14 +98,14 @@ const setup = (entries: readonly PlaylistEntry[] = ENTRIES, exposed = true) => {
 };
 
 const rowOf = (title: string) => {
-  const rows = screen.getAllByRole("option");
+  const rows = screen.getAllByRole("row");
   return rows.find((row) => within(row).queryByText(title) !== null)!;
 };
 
 describe("PlaylistPanel — render (doc 08 §4.5/§1.6)", () => {
   it("renders M3U-shaped entries: title, location, duration", async () => {
     setup();
-    expect(screen.getAllByRole("option").length).toBe(3);
+    expect(screen.getAllByRole("row").length).toBe(3);
     expect(screen.getByText("Big Buck Bunny")).toBeTruthy();
     expect(screen.getByText("/media/bbb.mkv")).toBeTruthy();
     expect(screen.getByText("10:34")).toBeTruthy(); // 634s
@@ -137,7 +137,7 @@ describe("PlaylistPanel — render (doc 08 §4.5/§1.6)", () => {
       durationSeconds: null,
     }));
     setup(many);
-    const rows = screen.getAllByRole("option");
+    const rows = screen.getAllByRole("row");
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(100);
     const spacer = document.querySelector<HTMLElement>(".lumen-vlist__spacer")!;
@@ -147,7 +147,7 @@ describe("PlaylistPanel — render (doc 08 §4.5/§1.6)", () => {
   it("shows the honest empty state when the queue has no items", async () => {
     setup([]);
     expect(screen.getByText("Nothing in the queue")).toBeTruthy();
-    expect(screen.queryByRole("option")).toBeNull();
+    expect(screen.queryByRole("row")).toBeNull();
   });
 
   it("shows the not-exposed note instead of pretending (mock transport)", async () => {
@@ -214,7 +214,7 @@ describe("PlaylistPanel — queue controls + entry actions (dispatch spy)", () =
   it("drag reorder dispatches playlist.move with post-removal to_index", async () => {
     const { transport } = setup();
     await waitFor(() => expect(transport.sent.length).toBeGreaterThan(0));
-    const rows = screen.getAllByRole("option");
+    const rows = screen.getAllByRole("row");
     const target = rows[0]!.querySelector<HTMLElement>(".lumen-plrow")!;
     fireEvent.drop(target, { dataTransfer: { getData: () => "2" } }); // drag row 2 before row 0
     const move = transport.sent.find((r) => r.cmd === "playlist.move");

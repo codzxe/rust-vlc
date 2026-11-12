@@ -61,7 +61,7 @@ afterEach(() => {
 
 const optionTitles = (): string[] =>
   screen
-    .getAllByRole("option")
+    .getAllByRole("row")
     .map((row) => row.querySelector(".lumen-lrow__title, .lumen-plo-mrow__title")?.textContent ?? "");
 
 /** Opens the browse view for `title` by clicking its library row. */
@@ -89,7 +89,7 @@ describe("PlaylistScreen — library panel (playlist.svg)", () => {
     expect(title?.textContent).toBe("Playlist");
     const panel = container.querySelector(".lumen-plpage__panel");
     expect(panel).not.toBeNull();
-    // the panel owns the rows listbox (playlist.svg list surface)
+    // the panel owns the rows grid (playlist.svg list surface; grid semantics since the w26 a11y fix)
     expect(panel!.querySelector(".lumen-plpage__list")).not.toBeNull();
   });
 
@@ -128,7 +128,7 @@ describe("PlaylistScreen — opened-playlist browse (w26.f06: thumbnail/media + 
     expect(screen.getByRole("button", { name: "Sorting options" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "View options" })).toBeTruthy();
     // frame default (View Options.svg): List View → media rows, not cards
-    expect(screen.getAllByRole("option").length).toBe(4);
+    expect(screen.getAllByRole("row").length).toBe(4);
     expect(screen.getByText("The Wand_S01E01.mp4")).toBeTruthy();
     expect(container.querySelector(".lumen-plo-card")).toBeNull();
   });
@@ -142,7 +142,7 @@ describe("PlaylistScreen — opened-playlist browse (w26.f06: thumbnail/media + 
     await waitFor(() => {
       expect(container.querySelectorAll(".lumen-plo-card").length).toBe(4);
     });
-    expect(screen.queryAllByRole("option")).toEqual([]);
+    expect(screen.queryAllByRole("row")).toEqual([]);
     // saved items are names only — durations render the honest unknown
     expect(screen.getAllByText("—").length).toBe(4);
   });
@@ -182,7 +182,7 @@ describe("PlaylistScreen — opened-playlist browse (w26.f06: thumbnail/media + 
     openBrowse("Cool Playlist");
     expect(screen.getByText("Nothing in this playlist yet")).toBeTruthy();
     expect(screen.getByText("Add files while creating a playlist to fill it.")).toBeTruthy();
-    expect(screen.queryByRole("option")).toBeNull();
+    expect(screen.queryByRole("row")).toBeNull();
     expect(containerHasCards()).toBe(false);
   });
 
@@ -308,7 +308,7 @@ describe("PlaylistScreen — honest empty state", () => {
     render(<PlaylistScreen />);
     expect(screen.getByText("No playlists yet")).toBeTruthy();
     expect(screen.getByText("Playlists you create are saved on this device.")).toBeTruthy();
-    expect(screen.queryByRole("option")).toBeNull();
+    expect(screen.queryByRole("row")).toBeNull();
     // the CTA teaches the create flow (header CTA + empty-state action share
     // the label; either one opens the dialog)
     fireEvent.click(screen.getAllByRole("button", { name: "New playlist" })[0]!);

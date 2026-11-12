@@ -168,11 +168,12 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     expect(within(sidebar).getByRole("button", { name: "Grid view" })).toBeInTheDocument();
     // create row is LIVE (w26.f08, e09-F5): opens the shared create dialog
     expect(within(sidebar).getByRole("button", { name: "Create playlist" })).toBeEnabled();
-    // rows render through VirtualList's listbox API (same data as /playlist)
-    const list = within(sidebar).getByRole("listbox", { name: "Playlists" });
-    expect(within(list).getByRole("option", { name: /Cool Playlist/ })).toBeInTheDocument();
-    expect(within(list).getByRole("option", { name: /Cool Songs/ })).toBeInTheDocument();
-    expect(within(list).getByRole("option", { name: /Anime to Watch/ })).toBeInTheDocument();
+    // rows render through VirtualList's GRID API (w26 Lead a11y fix: sidebar rows
+    // contain links, so the widget is role="grid" with row/gridcell rows)
+    const list = within(sidebar).getByRole("grid", { name: "Playlists" });
+    expect(within(list).getByRole("row", { name: /Cool Playlist/ })).toBeInTheDocument();
+    expect(within(list).getByRole("row", { name: /Cool Songs/ })).toBeInTheDocument();
+    expect(within(list).getByRole("row", { name: /Anime to Watch/ })).toBeInTheDocument();
   });
 
   it("collapses and re-opens via the title-bar toggle (aria-expanded follows)", () => {
@@ -201,13 +202,13 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     fireEvent.click(within(sidebar).getByRole("button", { name: "Search playlists" }));
     const input = within(sidebar).getByRole("searchbox");
     fireEvent.change(input, { target: { value: "cool" } });
-    const list = within(sidebar).getByRole("listbox", { name: "Playlists" });
-    expect(within(list).getByRole("option", { name: /Cool Songs/ })).toBeInTheDocument();
-    expect(within(list).queryByRole("option", { name: /Anime to Watch/ })).toBeNull();
+    const list = within(sidebar).getByRole("grid", { name: "Playlists" });
+    expect(within(list).getByRole("row", { name: /Cool Songs/ })).toBeInTheDocument();
+    expect(within(list).queryByRole("row", { name: /Anime to Watch/ })).toBeNull();
     // closing search drops the filter (no stale hidden rows)
     fireEvent.click(within(sidebar).getByRole("button", { name: "Search playlists" }));
-    const listAfter = within(sidebar).getByRole("listbox", { name: "Playlists" });
-    expect(within(listAfter).getByRole("option", { name: /Anime to Watch/ })).toBeInTheDocument();
+    const listAfter = within(sidebar).getByRole("grid", { name: "Playlists" });
+    expect(within(listAfter).getByRole("row", { name: /Anime to Watch/ })).toBeInTheDocument();
   });
 
   it("shows the honest empty message when the search matches nothing", () => {
@@ -229,8 +230,8 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     ]);
     renderShell();
     const sidebar = getSidebar();
-    const list = () => within(sidebar).getByRole("listbox", { name: "Playlists" });
-    const labels = () => within(list()).getAllByRole("option").map((option) => option.textContent);
+    const list = () => within(sidebar).getByRole("grid", { name: "Playlists" });
+    const labels = () => within(list()).getAllByRole("row").map((row) => row.textContent);
     expect(labels()).toEqual(["Playlist 2", "Playlist 10"]);
     const sort = within(sidebar).getByRole("button", { name: "Sort playlists alphabetically" });
     expect(sort).toHaveAttribute("aria-pressed", "false");
@@ -247,7 +248,7 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     expect(within(grid).getAllByRole("link")).toHaveLength(3); // store seed rows
     // and back to the windowed list
     fireEvent.click(within(sidebar).getByRole("button", { name: "List view" }));
-    expect(within(sidebar).getByRole("listbox", { name: "Playlists" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("grid", { name: "Playlists" })).toBeInTheDocument();
   });
 });
 
@@ -281,8 +282,8 @@ describe("AppShell — create-playlist flow (w26.f08, e09-F5: no dead chrome)", 
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     // the sidebar reflects the shared store immediately (count + row)…
     expect(within(getSidebar()).getByText("4 Items")).toBeInTheDocument();
-    const list = within(getSidebar()).getByRole("listbox", { name: "Playlists" });
-    expect(within(list).getByRole("option", { name: /Road Trips/ })).toBeInTheDocument();
+    const list = within(getSidebar()).getByRole("grid", { name: "Playlists" });
+    expect(within(list).getByRole("row", { name: /Road Trips/ })).toBeInTheDocument();
     // …and it truly persisted (the same seam /playlist hydrates from)
     const saved: { playlists?: Array<{ title?: string }> } = JSON.parse(
       window.localStorage.getItem("lumen.playlists.v1") ?? "{}",

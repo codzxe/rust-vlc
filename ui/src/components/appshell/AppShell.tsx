@@ -580,6 +580,7 @@ export function AppShell({
                 itemHeight={PLAYLIST_ROW_HEIGHT}
                 label={t("shell.sidebar.list-label")}
                 className="app-shell__sidebar-list"
+                semantics="grid"
                 renderItem={(row) =>
                   /* Guard: VirtualList's windowed range can lag one render
                    * behind a shrinking dataset (filter applied) — the list

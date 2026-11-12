@@ -140,6 +140,16 @@
   border-radius: 10px;
 }
 
+.lumen-vrow__cell {
+  /* grid-semantics cell (w26 Lead fix): the row stays the positioned flex
+   * box; the cell fills it so ListRow/Link consumers keep their layout. */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  align-self: stretch;
+}
+
 .lumen-vrow:hover {
   background: var(--color-surface-hover);
   color: var(--color-content-bright);

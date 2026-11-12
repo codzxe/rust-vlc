@@ -60,7 +60,7 @@ describe("SortingOptionsMenu — frame data (Sorting Options.svg)", () => {
     openSorting();
     fireEvent.click(screen.getByText("Title A-Z"));
     await waitFor(() => {
-      const rows = mounted.view.getAllByRole("option");
+      const rows = mounted.view.getAllByRole("row");
       expect(rows.map((row) => row.textContent)).toEqual([
         "The Wand_S01E01.mp4",
         "The Wand_S01E02.mp4",
@@ -98,10 +98,10 @@ describe("ViewOptionsMenu — frame data (View Options.svg)", () => {
       </div>,
     );
     // Default: media list rows.
-    expect(mounted.view.getAllByRole("option").length).toBe(3);
+    expect(mounted.view.getAllByRole("row").length).toBe(3);
     openView();
     fireEvent.click(screen.getByText("Grid View"));
     await waitFor(() => expect(mounted.view.getAllByRole("list", { name: "Playlist thumbnails" }).length).toBe(1));
-    expect(mounted.view.queryAllByRole("option")).toEqual([]);
+    expect(mounted.view.queryAllByRole("row")).toEqual([]);
   });
 });

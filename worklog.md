@@ -1470,3 +1470,20 @@ Work Log:
 
 Stage Summary:
 - Merged green: tsc 0 errors, 1199/1199 vitest, l10n 948/948 keys, stylelint clean, eslint 0 errors. All screens now Figma-composed; 8 tools live; flows wired (onboarding gate → player home → playlists/settings/tools/dialogs). Residuals filed for wave-e: vision proofs owed on ~10 lanes, scrim strength, EQ vertical-fader anatomy (frame A1 vs mounted card), network-stream proportions, r5/#1B1B1B chip tokens.
+
+---
+Task ID: w26.lead-pre-g
+Agent: Lead (wave-26 orchestration)
+Task: Pre-wave-g CI-red cleanup — first real CI executions on main exposed stale pins + a11y regressions (issue #68)
+
+Work Log:
+- Diagnosed ui.yml failures from run 43189096326 (Actions billing unblocked — workflows now execute): 18 e2e fails (6 theme matrix, 11 axe, 1 keyboard) + 30/30 visual PR-lite drift.
+- Root causes: (1) e2e/theme.spec.ts pins were pre-W25 Solstice values (yellow default #f2c41d, cream surface #e8dbbd, orange light-bright #e8851a, yellow/gray ramps) — CI never ran e2e before, so the W25/f15 repins never reached this file; (2) axe nested-interactive: AppShell sidebar playlists rows render <Link> inside role="option" (every shell route) + kebab/IconButton rows in PlaylistScreen/PlaylistPanel/MediaList (wave f06/f08 additions); (3) settings keyboard audit lacked modal focus-trap semantics (the w26.f03 trap wraps Tab to the window's first focusable — correct behavior, unencoded in the test).
+- Fix (1): re-pinned theme.spec to the committed pipeline truth (themes/generated/tokens.css): dark+orange default, surface-raised light #ffffff, orange light-bright #b35f0d (f15 WCAG 4.2:1), yellow #c49e23/#daaf24, gray #afafaf/#bababa; comments document the W25 re-pin authority.
+- Fix (2): VirtualList gains semantics="listbox"|"grid" (grid = role=grid/row/gridcell — the ARIA pattern for rows embedding links/buttons); switched the four interactive consumers (AppShell sidebar, PlaylistScreen library, PlaylistPanel queue, MediaList); .lumen-vrow__cell CSS; five test files re-queried option→row. MiniPlayer queue stays listbox (no interactive descendants — verified).
+- Fix (3): a11y tab audit now encodes trap wrap semantics: a backward DOM jump is legal ONLY as an exact wrap to the trapped window's first focusable (new assertion — anything else still fails).
+- Visual: re-seeded Linux PR-lite baselines after the fixes (runner-rendered truth, program §4 re-seed rules — waves e/f changed visuals since the last seed); PR lane 32/32 green.
+- Verified full battery: vitest 1317/1317, e2e a11y+theme+smoke 38/38, visual 32/32, tsc 0, eslint 0 errors, stylelint clean, tokens:check OK (sha 6edc89df), l10n 1139/1139.
+
+Stage Summary:
+- main is CI-green again (issue #68 fix complete pending push); GitHub issues #60–#69 filed for waves g–m + releases + Tauri admission + infra. Next: wave g (20 verifiers).
