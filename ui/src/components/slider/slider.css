@@ -166,49 +166,6 @@
   transition: left 120ms ease, background-color 120ms ease;
 }
 
-/* Vertical faders — EQ.svg's classic band view (rotate(-90) tracks: 16×320
- * rx6 well, 12px rx4 flat fill growing UP from the bottom, 24×8 rx4
- * handle). Caller sizes the extent; the hit area covers the handle's
- * horizontal overhangs. */
-.lumen-eq-slider.lumen-slider--vertical {
-  width: 24px; /* hit area floor: 16px track + 4px overhangs per side */
-  height: 160px; /* caller-sized extent (structural default) */
-}
-
-.lumen-eq-slider.lumen-slider--vertical .lumen-slider__track {
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 8px);
-  width: 16px; /* frame: 16×320 track */
-  height: auto;
-  background: var(--color-surface); /* frame: #090909 well */
-  border-radius: var(--radius-control); /* frame: rx6 */
-}
-
-/* frame: fill anchored to min (bottom), 12px wide rx4 inset 2, FLAT tint. */
-.lumen-eq-slider.lumen-slider--vertical .lumen-slider__fill {
-  top: auto;
-  right: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: auto;
-  height: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
-  background: var(--color-accent-tinted); /* frame: flat #371F06 */
-  border-radius: var(--radius-inset); /* frame: rx4 */
-  transition: height 120ms ease;
-}
-
-.lumen-eq-slider.lumen-slider--vertical .lumen-slider__thumb {
-  top: auto;
-  left: calc(50% - 12px);
-  width: 24px; /* frame: 24×8 handle in the vertical view */
-  height: 8px;
-  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
-  background: var(--color-accent-strong); /* frame: #AB6314 */
-  border-radius: var(--radius-inset); /* frame: rx4 */
-  transition: bottom 120ms ease, background-color 120ms ease;
-}
-
 /* -------------------------------------------------------------- Seekbar */
 
 /* The player seek bar (Player.svg controls row, W25 spec §2 "slim seekbar"):
@@ -365,4 +322,44 @@
   .lumen-seekbar__buffer {
     transition: none;
   }
+}
+
+/* Vertical faders — EQ.svg's classic band view (rotate(-90) tracks: 16×320
+ * rx6 well, 12px rx4 flat fill growing UP from the bottom, 24×8 rx4
+ * handle). Caller sizes the extent; the hit area covers the handle's
+ * horizontal overhangs. */
+.lumen-eq-slider.lumen-slider--vertical {
+  width: 24px; /* hit area floor: 16px track + 4px overhangs per side */
+  height: 160px; /* caller-sized extent (structural default) */
+}
+
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__track {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 8px);
+  width: 16px; /* frame: 16×320 track */
+  height: auto;
+  background: var(--color-surface); /* frame: #090909 well */
+  border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+/* frame: fill anchored to min (bottom), 12px wide rx4 inset 2, FLAT tint. */
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__fill {
+  inset: auto 2px 2px;
+  width: auto;
+  height: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
+  background: var(--color-accent-tinted); /* frame: flat #371F06 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: height 120ms ease;
+}
+
+.lumen-eq-slider.lumen-slider--vertical .lumen-slider__thumb {
+  top: auto;
+  left: calc(50% - 12px);
+  width: 24px; /* frame: 24×8 handle in the vertical view */
+  height: 8px;
+  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+  background: var(--color-accent-strong); /* frame: #AB6314 */
+  border-radius: var(--radius-inset); /* frame: rx4 */
+  transition: bottom 120ms ease, background-color 120ms ease;
 }

@@ -22,10 +22,13 @@ const cssRaw = TOKENS_CSS;
 
 // Update ONLY together with `cargo xtask tokens` + `npm run tokens:generate`
 // in the same commit — schema drift must never slip in silently.
+// (w26.f15 WCAG repin 2026-11-12: dark tertiary #6b6b6b→#828282, light tertiary
+// #9a9a9a→#767676, light accent-bright #e8851a→#b35f0d — e17 F1/F2, e19 F3;
+// deviation documented in themes/tokens.json primitive descriptions. Prior:
 // (W25 Figma redesign, 2026-11-11: neutral near-black surfaces, orange
 // default accent, Inter face; sunset/note/tape/keycap/visualizer-gradient
 // Solstice groups removed; eq band accents added.)
-const PINNED_SHA256 = "2b226ab844a20b677bd7607119c13f947bab5e0e6f221cc56d17348104a50d82";
+const PINNED_SHA256 = "6edc89dfdbab0f439b081088b2314e70d326c3de2123fbe23e44ae7e33901f03";
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -128,7 +131,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(rootDecl("--color-stroke-border")).toBe("#404040");
     expect(rootDecl("--color-content-primary")).toBe("#c6c6c6");
     expect(rootDecl("--color-content-secondary")).toBe("#8f8f8f");
-    expect(rootDecl("--color-content-tertiary")).toBe("#6b6b6b");
+    expect(rootDecl("--color-content-tertiary")).toBe("#828282");
     expect(rootDecl("--color-content-bright")).toBe("#eaeaea");
     // The orange accent family (default accent).
     expect(rootDecl("--color-accent")).toBe("#d37918");
@@ -144,7 +147,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(lightDecl("--color-content-secondary")).toBe("#6e6e6e");
     expect(lightDecl("--color-stroke-border")).toBe("#d9d9d9");
     expect(lightDecl("--color-stroke-icon")).toBe("#9a9a9a");
-    expect(lightDecl("--color-accent-bright")).toBe("#e8851a");
+    expect(lightDecl("--color-accent-bright")).toBe("#b35f0d");
   });
 
   it("carries the 7 EQ band accents with frame provenance (W25 §1)", () => {

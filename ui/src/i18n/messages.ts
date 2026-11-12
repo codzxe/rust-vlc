@@ -1174,6 +1174,12 @@ export type MessageKey =
   | "playlist.library.menu.open"
   | "playlist.subtitles.open"
   | "player.canvas.menu.customize-interface"
+  | "player.appmenu.open-files"
+  | "player.appmenu.open-recent"
+  | "player.appmenu.profile"
+  | "player.appmenu.keyboard-shortcuts"
+  | "player.appmenu.customize"
+  | "player.appmenu.about"
   | "settings.section.effects";
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
@@ -2336,6 +2342,12 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "playlist.library.menu.open": "Open",
   "playlist.subtitles.open": "Add subtitles",
   "player.canvas.menu.customize-interface": "Customize interface…",
+  "player.appmenu.open-files": "Open File(s)",
+  "player.appmenu.open-recent": "Open Recent",
+  "player.appmenu.profile": "Profile",
+  "player.appmenu.keyboard-shortcuts": "Keyboard Shortcuts",
+  "player.appmenu.customize": "Customize Player",
+  "player.appmenu.about": "About VLC",
 };
 
 export type Msg = (key: MessageKey) => string;

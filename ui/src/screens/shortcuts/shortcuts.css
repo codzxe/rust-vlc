@@ -336,7 +336,7 @@
 
 .shortcuts__combo {
   max-width: calc(100% - 48px); /* keeps long combos clear of the pencil */
-  font-size: 13px; /* frame: keycap text ≈13px (cap 9.8 ÷ 0.727) */
+  font-size: var(--font-size-sidebar); /* frame: keycap text ≈13px (cap 9.8 ÷ 0.727) */
   line-height: 1;
   color: var(--color-content-primary); /* frame: #C6C6C6 */
   font-variant-numeric: tabular-nums; /* F1..F10, Ctrl+0..9 columns */

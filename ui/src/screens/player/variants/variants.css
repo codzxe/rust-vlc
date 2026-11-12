@@ -201,7 +201,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px; /* structural: frame title ~13px on the 391px card */
+  font-size: var(--font-size-sidebar); /* structural: frame title ~13px on the 391px card */
   font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
 }
@@ -275,7 +275,7 @@
 
 .lumen-mini__queue-title {
   margin: 0;
-  font-size: 13px; /* structural: frame header ~13px */
+  font-size: var(--font-size-sidebar); /* structural: frame header ~13px */
   font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
 }
@@ -420,7 +420,7 @@
   margin: 0;
   max-width: 480px;
   text-align: center;
-  font-size: 13px; /* structural: quiet placeholder caption */
+  font-size: var(--font-size-sidebar); /* structural: quiet placeholder caption */
   color: var(--color-content-secondary);
 }
 

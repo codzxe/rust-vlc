@@ -121,7 +121,7 @@
   background: transparent;
   color: var(--color-content-primary);
   font: inherit;
-  font-size: 15px; /* frame: "Search" ≈15px */
+  font-size: var(--font-size-section); /* frame: "Search" ≈15px */
 }
 
 /* w26.d2 a11y sweep — the input itself paints the keyboard focus ring
@@ -283,7 +283,7 @@
   background: transparent;
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   font: inherit;
-  font-size: 15px; /* frame: row labels ≈15px */
+  font-size: var(--font-size-section); /* frame: row labels ≈15px */
   font-weight: var(--font-weight-regular);
   cursor: pointer;
   transition:
@@ -390,7 +390,7 @@
 }
 
 .settings-field__label {
-  font-size: 15px; /* frame: row labels ≈15px */
+  font-size: var(--font-size-section); /* frame: row labels ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   overflow-wrap: anywhere;
 }
@@ -444,7 +444,7 @@
 }
 
 .settings-field__control .lumen-field__label {
-  font-size: 15px;
+  font-size: var(--font-size-section);
   color: var(--color-content-secondary);
 }
 
@@ -602,7 +602,7 @@
   background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent);
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   font: inherit;
-  font-size: 15px; /* frame: ≈15px */
+  font-size: var(--font-size-section); /* frame: ≈15px */
   cursor: pointer;
   transition: background-color var(--motion-duration-fast) ease-out;
 }

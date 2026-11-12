@@ -75,7 +75,7 @@
 
   /* frame: dialog titles measure 15px semibold; no 15px size token yet
    * ([PROPOSAL] a --font-size-heading token — see lane log w26.a18) */
-  font-size: 15px;
+  font-size: var(--font-size-section);
   font-weight: var(--font-weight-semibold);
 
   /* frame: both dialog titles are #8F8F8F (secondary ink, quiet header) */
@@ -342,7 +342,7 @@
   font-family: var(--font-family-sans);
 
   /* frame: tool toggle labels measure 15px; no 15px size token yet */
-  font-size: 15px;
+  font-size: var(--font-size-section);
   font-weight: var(--font-weight-medium);
   color: var(--color-content-primary);
   background: var(--color-surface);

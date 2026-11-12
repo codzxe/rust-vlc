@@ -57,7 +57,7 @@
 
   /* frame: dialog titles measure 15px semibold; no 15px size token yet
    * ([PROPOSAL] --font-size-heading, same seam the a18 lane logged) */
-  font-size: 15px;
+  font-size: var(--font-size-section);
   font-weight: var(--font-weight-semibold);
 
   /* frame: the title is the quiet #8F8F8F class */

@@ -37,7 +37,7 @@
 .settings-field__control .lumen-dropdown--compact .lumen-dropdown__trigger {
   height: 36px; /* frame: 320×36 trigger (compact default is ~40px) */
   padding: 0 20px 0 16px; /* frame: value x721.6 on the x704 control ≈17px inset, chevron ~23px from the right */
-  font-size: 15px; /* frame: value ≈15px */
+  font-size: var(--font-size-section); /* frame: value ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   background: var(--color-surface-panel); /* frame: inner rect fill #191919 */
   border: 2px solid var(--color-surface); /* frame: outer ring #090909 */
@@ -45,7 +45,7 @@
 }
 
 .settings-field__control .lumen-dropdown--compact .lumen-dropdown__value {
-  font-size: 15px; /* frame: value ≈15px */
+  font-size: var(--font-size-section); /* frame: value ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
 }
 
@@ -69,7 +69,7 @@
  * fill #1F1F1F + the orange check come from the component grammar. */
 .settings-field__control .lumen-dropdown--compact .lumen-dropdown__option {
   min-height: 44px; /* frame: 44px rows (~48px pitch) */
-  font-size: 15px; /* frame: option labels ≈15px */
+  font-size: var(--font-size-section); /* frame: option labels ≈15px */
   border-radius: var(--radius-inset); /* frame: inner rx4 */
 }
 
@@ -79,7 +79,7 @@
  * stroke, value #8F8F8F ≈15px (e06 F7: NOT the onboarding #2a2a2a r6 fill). */
 .settings-field__control .lumen-field__control {
   height: 34px; /* frame: 34px */
-  font-size: 15px; /* frame: value ≈15px */
+  font-size: var(--font-size-section); /* frame: value ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   background-color: var(--color-surface); /* frame: #090909 recessed well */
   border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
