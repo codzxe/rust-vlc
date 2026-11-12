@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global window: readonly -- the addInitScript callbacks below evaluate in the PAGE context; window is the browser global (eslint no-undef). */
 // dev-shots.mjs — wave-26 agent screenshot tool (contract §4.7 / §5).
 //
 // Usage:
@@ -78,7 +79,6 @@ for (const { name, route } of pairs) {
   const consoleErrors = [];
   page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
   page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
-  // eslint-disable-next-line no-undef -- the init script evaluates in the PAGE context (window is the browser global, not a Node one)
   await page.addInitScript(({ route: r, seed, light, accent }) => {
     if (seed && !r.startsWith("/onboarding")) {
       window.localStorage.setItem("lumen.onboarding.v1", JSON.stringify({

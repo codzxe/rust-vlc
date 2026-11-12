@@ -1566,3 +1566,18 @@ Work Log:
 
 Stage Summary:
 - Wave I closed. Rating families from wave H: light tokens + settings-C gaps closed (expected >= 8.0 vs 6.8/6.9). Next: wave J — 20 harsh UI code reviewers (issue #63).
+
+---
+Task ID: w26.lead-wave-j-close
+Agent: Lead (wave-26 orchestration)
+Task: Wave J integration — 20/20 harsh code reviewers + consolidated scoreboard (issue #63)
+
+Work Log:
+- 20/20 reviewer lanes completed; every lane self-pushed branch w26/j<nn> (2 in 2 batches of 10 — backend held). Review files: docs/waves/w26/reviews/w26.j01-20.md + w26.j-scoreboard.md.
+- Results: mean 7.20/10; 19 KEEP + 1 REFACTOR (j20 build tooling 6.7); P0 total 0; P1 total 15 (2 Lead-fixed already: merge-i18n-keys.py anchor self-consumption — rewritten with structural anchors, merge/idempotent/revert proven with a synthetic probe; dev-shots.mjs window no-undef — file-level /* global window */, lint now 0 errors/62 warnings).
+- Notable P2s routed to wave K: NumberField min/max/step never forwarded (j01), Tooltip aria-describedby on non-focusable wrapper (j02), VirtualList grid half-delivered (j03), two-tone icons zero tests + 9/85 dead icon names (j04), hide-UI chrome stays focusable (j05), MiniPlayer 45-line inline enqueue duplication (j08/j14), enqueueSources zero coverage (j14), dead 114/1401 i18n keys + Nunito woff2 binary still in tree (j18), 853kB single chunk no code-splitting + visual baselines re-pinned without MATRIX record (j20), emit.rs *7 vs 8 ramp roles (j18).
+- Reviewers verified wave-I landings sound: profiles flyout, toolbar.v1 round-trip, overlay lock, focus-order landings, rail pan, sanitizer lineage — all confirmed. CONTRACT §8 refs URL typo (missing /git/) flagged by j06/j08 — noted for future prompts (already corrected in wave-J prompts).
+- Battery at close: tsc 0, eslint 0 errors, stylelint clean, l10n 1401/1401 PASS, vitest/e2e green per lane verifications.
+
+Stage Summary:
+- Wave J closed (issue #63 → closed). Next: wave K — 20 fixer lanes closing all 13 remaining P1s + P2/P3 triage (issue #64); then wave L (final verification + polish + baselines), wave M (releases).
