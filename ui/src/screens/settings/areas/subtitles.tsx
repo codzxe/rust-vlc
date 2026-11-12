@@ -45,6 +45,7 @@
 //     docs/waves/w26/logs/w26.f04.md.
 
 import type { CSSProperties, ReactElement } from "react";
+import { useState } from "react";
 import { Switch } from "../../../components/form";
 import { SegmentedControl } from "../../../components/form";
 import { TextField } from "../../../components/form";
@@ -68,13 +69,6 @@ export type SubtitlesLabelKey = MessageKey | LaneKey;
 export function useSubtitlesMsg() {
   const m = useMsg();
   return (key: SubtitlesLabelKey): string => m(key as MessageKey) ?? (laneKeys as Record<string, string>)[key];
-}
-
-/** The ⓘ info glyph the frame pins after 7 of the 14 labels — carries the
- * staged note as its accessible name (an affordance with honest content,
- * never a dead glyph). */
-function InfoGlyph({ note }: { note: string }): ReactElement {
-  return <Icon name="info" size={16} title={note} className="settings-area-subtitles-info" />;
 }
 
 /** One staged row shell — label (+ optional ⓘ) left, control right in the
@@ -102,6 +96,11 @@ function StagedRow({
 }): ReactElement {
   const m = useSubtitlesMsg();
   const label = m(labelKey);
+  // w26.i14: the ⓘ is operable — it toggles the honest note under the row
+  // (aria-expanded + the hint line), so keyboard/AT users reach the staged
+  // reason without a mouse hover. Closed by default: the 815px single-view
+  // fit (g13-P1-1) is untouched until the user asks.
+  const [hintOpen, setHintOpen] = useState(false);
   return (
     <div
       className="settings-field"
@@ -112,10 +111,22 @@ function StagedRow({
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
-          {info ? <InfoGlyph note={note} /> : null}
+          {info ? (
+            <button
+              type="button"
+              className="settings-field__info settings-area-subtitles-info"
+              aria-expanded={hintOpen}
+              aria-label={note}
+              title={note}
+              onClick={() => setHintOpen((open) => !open)}
+            >
+              <Icon name="info" size={14} />
+            </button>
+          ) : null}
         </div>
         <div className="settings-field__control">{children}</div>
       </div>
+      {hintOpen ? <p className="settings-field__hinttext">{note}</p> : null}
     </div>
   );
 }
