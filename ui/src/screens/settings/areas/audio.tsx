@@ -22,8 +22,22 @@
 //     options. When the capability is absent (product.toml
 //     [features] audio-device-enumeration = false) the control renders the
 //     CLOSED 320×36 trigger (value "System default" — the honest fallback
-//     output), DISABLED WITH THE HONEST REASON below the row — visible,
-//     inert, never a 4×4 stub (g12-P1-5).
+//     output), DISABLED WITH THE HONEST REASON — visible, inert, never a 4×4
+//     stub (g12-P1-5).
+//   • w26.i14 (h10 defects #2/#3/#5): the not-ready states reuse the
+//     staged-inert grammar — FULL-STRENGTH trigger (never the 0.5 opacity
+//     dimming that contradicted the staged siblings 700px below), the reason
+//     rides the frame's ⓘ affordance (r7.5 circle, Settings - audio.svg
+//     Output rows) + a screen-reader note — NO in-flow badge line (the
+//     "Device enumeration is not available" pill injected +22px no frame
+//     carries: Speaker setup y224 vs frame 202, Effects header +39).
+//   • w26.i14 (h10 defect #1): the frame hangs a ⓘ circle on 10 of the 11
+//     rows (Output×3 · Startup volume · Volume step · the 5 Loudness rows;
+//     only the Maximum-volume slider carries none) — so this module
+//     hand-renders its sections (the InterfaceArea/PrivacyArea precedent) to
+//     pass per-row `hint` props through SettingField, with this lane's hint
+//     copy (ui/src/i18n/keys/w26.i14.ts). The screen stays schema-driven:
+//     sections/entries/order come from the generated seed.
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -33,9 +47,13 @@ import type { CommandResponse } from "../../../client/transport";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.gfixB";
-import { SettingsSections } from "../SettingsSections";
+import { keys as i14Keys } from "../../../i18n/keys/w26.i14";
+import type { SettingEntry } from "../generated/schema";
 import { schemaSectionsOf } from "../SettingsSections";
-import { withRows } from "../SettingsSections";
+import { SettingField } from "../SettingField";
+import { SettingInfoDot } from "../SettingField";
+import { useSettingsSearch } from "../search";
+import "./audio.css";
 
 // Wire types derived through the transport seam (transport.ts is the only
 // module that reaches into src/generated — we keep it that way).
@@ -62,14 +80,35 @@ const reasonFor = (code: string): MessageKey =>
 const SYSTEM_DEFAULT = "system-default";
 
 type FixerKey = keyof typeof fixerKeys;
+type I14Key = keyof typeof i14Keys;
 /** Pre-registration seam (w26.gfixB: the fallback value copy). */
 const laneCatalog: Readonly<Record<string, string>> = fixerKeys;
 
 /** useAreaMsg — useMsg + this lane's pre-registration keys. */
 function useAreaMsg() {
   const m = useMsg();
-  return (key: MessageKey | FixerKey): string => m(key as MessageKey) ?? laneCatalog[key];
+  return (key: MessageKey | FixerKey | I14Key): string => m(key as MessageKey) ?? laneCatalog[key];
 }
+
+/** The ⓘ hint msgid cast through the registry seam (the laneMsg precedent). */
+const hintMsg = (key: I14Key): MessageKey => key as string as MessageKey;
+
+/** ⓘ hint msgids per schema row (w26.i14, h10 #1 — the frame's 10 circles;
+ * the Maximum-volume slider row carries none, reproduced honestly). */
+const AUDIO_HINTS: Readonly<Record<string, MessageKey>> = {
+  "audio.enable": hintMsg("settings.hint.audio.enable"),
+  "audio.speaker-setup": hintMsg("settings.hint.audio.speaker-setup"),
+  "audio.startup-volume": hintMsg("settings.hint.audio.startup-volume"),
+  "audio.volume-step": hintMsg("settings.hint.audio.volume-step"),
+  "audio.normalize-loudness": hintMsg("settings.hint.audio.normalize-loudness"),
+  "audio.target-level": hintMsg("settings.hint.audio.target-level"),
+  "audio.night-mode": hintMsg("settings.hint.audio.night-mode"),
+  "audio.replay-gain": hintMsg("settings.hint.audio.replay-gain"),
+  "audio.replay-gain-preamp": hintMsg("settings.hint.audio.replay-gain-preamp"),
+};
+
+/** The hand row's search terms (SettingsSections' SettingRowNode contract). */
+const OUTPUT_DEVICE_KEYWORDS = ["Output device", "System default"] as const;
 
 /**
  * Engine-enumerated output-device picker (audio.list-devices /
@@ -143,6 +182,12 @@ export function AudioDeviceControl(): ReactElement {
       : query.status === "unavailable"
         ? query.reason
         : null;
+  // Resolved ONCE — the ⓘ title, the trigger state and the note all read
+  // the same honest reason string (no layout footprint, w26.i14). When the
+  // enumeration is live the ⓘ carries the row's plain hint, exactly like
+  // every other ⓘ on the screen (the frame's circle is unconditional).
+  const reasonText = reason !== null ? m(reason) : null;
+  const infoNote = reasonText ?? m("settings.hint.audio.output-device");
 
   return (
     <div
@@ -150,10 +195,17 @@ export function AudioDeviceControl(): ReactElement {
       data-kind="enum"
       data-setting-capability="audio.list-devices"
       data-capability={query.status}
+      data-staged={ready ? undefined : "audio-device-enumeration"}
     >
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
+          <SettingInfoDot note={infoNote} label={m("settings.field.more-info")} />
+          {reasonText !== null ? (
+            <span className="settings-area-audio-reason" role="note" data-capability-reason={query.status}>
+              {reasonText}
+            </span>
+          ) : null}
         </div>
         <div className="settings-field__control">
           <Dropdown
@@ -167,11 +219,6 @@ export function AudioDeviceControl(): ReactElement {
           />
         </div>
       </div>
-      {reason !== null ? (
-        <p className="settings-field__badges" role="note" data-capability-reason={query.status}>
-          <span className="settings-badge">{m(reason)}</span>
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -179,23 +226,55 @@ export function AudioDeviceControl(): ReactElement {
 /**
  * Audio settings area (route /settings/audio; Media group) — the frame's 3
  * schema sections with the capability-backed Output device row interleaved
- * (frame order: Enable audio · Output device · Speaker setup).
+ * (frame order: Enable audio · Output device · Speaker setup), hand-rendered
+ * with per-row ⓘ hints (h10 #1).
  */
 export function AudioArea(): ReactElement {
+  const m = useAreaMsg();
+  const { query, matches } = useSettingsSearch();
+  const needle = query.trim().toLowerCase();
+  const deviceRowMatches =
+    needle === "" ||
+    OUTPUT_DEVICE_KEYWORDS.some((keyword) => keyword.toLowerCase().includes(needle));
+
   return (
-    <SettingsSections
-      area="audio"
-      sections={withRows(schemaSectionsOf("audio"), "output", [
-        {
-          after: "audio.enable",
-          row: {
-            rowId: "output-device",
-            keywords: ["Output device", "System default"],
-            node: <AudioDeviceControl />,
-          },
-        },
-      ])}
-    />
+    <div className="settings-sections" data-settings-area="audio">
+      {schemaSectionsOf("audio").map((section) => {
+        // Pure-schema sections (the Output device hand row is rendered by
+        // this module, not spliced into the section data): narrow the row
+        // union so the schema-entry fields type-check below.
+        const entries = section.entries
+          .filter((row): row is SettingEntry => "key" in row)
+          .filter((entry) => entry.featureExposed && matches(entry));
+        // The Output device row (frame C6 y156) rides the Output section's
+        // own visibility while a query is live (its keywords are its filter)
+        // and sits right after Enable audio in frame order — or first when a
+        // live query has filtered the schema sibling out.
+        const showDeviceRow = section.id === "output" && deviceRowMatches;
+        if (entries.length === 0 && !showDeviceRow) return null;
+        const deviceAt = showDeviceRow
+          ? entries.findIndex((entry) => entry.key === "audio.enable") + 1
+          : entries.length;
+        const head = entries.slice(0, deviceAt);
+        const tail = entries.slice(deviceAt);
+        return (
+          <section key={section.id} className="settings-section" data-section={section.id}>
+            <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
+            {head.map((entry) => (
+              <SettingField key={entry.key} entry={entry} hint={AUDIO_HINTS[entry.key]} />
+            ))}
+            {showDeviceRow ? (
+              <div data-setting-row="output-device">
+                <AudioDeviceControl />
+              </div>
+            ) : null}
+            {tail.map((entry) => (
+              <SettingField key={entry.key} entry={entry} hint={AUDIO_HINTS[entry.key]} />
+            ))}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
