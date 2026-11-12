@@ -1,4 +1,5 @@
-/* Extensions area skin (w26.gfix-B — findings g14-P1-1 / P2-1 / P2-2).
+/* Extensions area skin (w26.gfix-B — findings g14-P1-1 / P2-1 / P2-2;
+ * w26.i15 relaunch — h12 #2/#3).
  *
  * Frame truth (Settings - extensions.svg, tools-settings.md §C13 + §C0):
  *   list well      782×192 rx5 #090909 fill + 2px #191919 stroke @ (241,110)
@@ -8,7 +9,19 @@
  *                  action 185×32 @ x619 (Add/Remove @ x814/x924, 10px gaps)
  * Colors map to semantic tokens (#090909 → --color-surface, #191919 →
  * --color-surface-panel, #8F8F8F → --color-content-secondary); raw px is
- * structural (frame-measured dimensions with no token), marked `frame:`. */
+ * structural (frame-measured dimensions with no token), marked `frame:`.
+ *
+ * w26.i15 (h12 #2): the well is RECESSED in both themes. Dark rides the
+ * base surface step (#090909 vs the window's #0E0E0E). In light the base
+ * step is #C2C2C2 — the page background — so the well rides the token
+ * sheet's own recessed-wells step, --color-surface-deep (#BABABA: darker
+ * than the window face, 8 steps under the page), with the search field in
+ * the same family. Token sheet: "surface.deep — wells: seek track, chips,
+ * input bg, toggle track; Light = #bababa (recessed wells)".
+ * w26.i15 (h12 #3): the placeholder rides --color-stroke-border (dark
+ * #404040, the topbar search's exact token) + the topbar's light sweep
+ * (--color-content-secondary) — one placeholder grammar per screen, both
+ * search fields unified. */
 
 /* The add-on list well — the frame's dominant surface. */
 .settings-extensions-list {
@@ -18,6 +31,28 @@
   background: var(--color-surface); /* frame: #090909 recessed fill */
   border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
   border-radius: 5px; /* frame: rx5 */
+}
+
+/* w26.i15 (h12 #2): light mode — the well (and the toolbar search below)
+ * take the recessed-wells step instead of the page-background step. */
+
+/* The toolbar search — the settings input well skin (g14-P2-1), 208px wide
+ * (frame). Scoped one class deeper than form.css so the settings skin wins
+ * on specificity alone, the setting-field.css pattern. Declared BEFORE the
+ * light sweep below it (stylelint no-descending-specificity). */
+.settings-extensions-toolbar .lumen-field__control {
+  width: 208px; /* frame: search width */
+  height: 34px;
+  font-size: var(--font-size-section);
+  color: var(--color-content-secondary);
+  background-color: var(--color-surface); /* frame: #090909 well */
+  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
+  border-radius: 5px; /* frame: rx5 */
+}
+
+:root[data-theme="light"] .settings-extensions-list,
+:root[data-theme="light"] .settings-extensions-toolbar .lumen-field__control {
+  background-color: var(--color-surface-deep); /* light recessed wells #BABABA */
 }
 
 /* Toolbar — search left, the three frame actions right-aligned to the
@@ -36,17 +71,14 @@
   margin-left: auto; /* right-aligns the cluster to the content edge */
 }
 
-/* The toolbar search — the settings input well skin (g14-P2-1), 208px wide
- * (frame). Scoped one class deeper than form.css so the settings skin wins
- * on specificity alone, the setting-field.css pattern. */
-.settings-extensions-toolbar .lumen-field__control {
-  width: 208px; /* frame: search width */
-  height: 34px;
-  font-size: var(--font-size-section);
-  color: var(--color-content-secondary);
-  background-color: var(--color-surface); /* frame: #090909 well */
-  border: 2px solid var(--color-surface-panel); /* frame: 2px #191919 stroke */
-  border-radius: 5px; /* frame: rx5 */
+/* w26.i15 (h12 #3): the placeholder — the topbar search's token and light
+ * sweep, verbatim (one search grammar per screen; was #828282/#474747). */
+.settings-extensions-toolbar .lumen-field__control::placeholder {
+  color: var(--color-stroke-border); /* frame: placeholder #404040 */
+}
+
+:root[data-theme="light"] .settings-extensions-toolbar .lumen-field__control::placeholder {
+  color: var(--color-content-secondary); /* the topbar light sweep, unified */
 }
 
 /* The primary toolbar action — the frame's 185×32 small action (g14-P2-2).
