@@ -39,8 +39,9 @@ export interface OptionsMenuEntry<K extends string = string> {
 const VIEWPORT_MARGIN_PX = 8;
 
 /** Menu chrome overhead for the natural-height estimate: 4px panel inset
- * top + bottom + the 1px border twice (Sorting Options.svg = 8 + 48×16). */
-const MENU_CHROME_PX = 10;
+ * top + bottom (Sorting Options.svg = 8 + 48×16 — borderless r10 panel,
+ * w26.i11; the 1px border added 2px pre-fix). */
+const MENU_CHROME_PX = 8;
 
 export interface PlaylistOptionsMenuProps<K extends string = string> {
   entries: readonly OptionsMenuEntry<K>[];
