@@ -5,29 +5,41 @@
 // COMPOSITION (Player.png, Player-6, Player - Light — all 7 frames agree):
 //   * window title bar + icon rail + PLAYLISTS SIDEBAR — the APP SHELL's
 //     regions (appshell lane owns them, W26); this screen is hosted inside
-//     AppShell's main and never duplicates them. Lead decision (w26.f09,
-//     e02 F3): the ONE default-open left sidebar on /player is the player's
-//     DOCKED QUEUE (the real queue semantics below); the SHELL's playlists
-//     sidebar is default-CLOSED on the player route — the per-route default
-//     lives in AppShell's persisted sidebar state (f08 seam, see the
-//     PLAYER_TOGGLE_SIDEBAR_EVENT note + the lane log).
-//   * DOCKED QUEUE PANEL, left of the canvas, open by default and
-//     collapsible — the one sidebar of the default composition. It also
-//     opens via `openPanels: ["playlist"]` and the
-//     `lumen:toggle-sidebar` window event (exported below).
-//   * MAIN CANVAS — near-black in BOTH themes (the picture-frame rule); the
-//     honest engine-unwired placeholder (no <video>/<canvas> until 4.H1)
-//     centers the playing media's identity; the first-run EMPTY state is the
-//     onboarding-style hero from ./states (never a blank void)
+//     AppShell's main and never duplicates them. The SHELL's playlists
+//     sidebar is default-CLOSED on the player route (route-aware persisted
+//     default, f08 seam).
+//   * DOCKED PLAYLISTS BROWSER, left of the canvas, open by default and
+//     collapsible — the ONE sidebar of the default composition (w26.i02,
+//     h03 #1: Player.png's single sidebar is the playlists browser — the
+//     frame's own sidebar anatomy "Playlists / 2 items / Create playlist /
+//     rows" plus its affordance row (back chevron · forward · ··· ·
+//     sort/list/search — Player.svg Frame 20, measured), NOT the empty
+//     queue dock that shipped as the default. The rows read the REAL
+//     saved-playlists store (the same seam as /playlist and the shell
+//     sidebar); the create row opens the same NewPlaylistDialog the page
+//     does. The queue panel (4.D1) stays reachable through its layout
+//     region (music mode / openPanels) and /playlist. The dock also opens
+//     via `openPanels: ["playlist"]` and the `lumen:toggle-sidebar`
+//     window event (exported below).
+//   * MAIN CANVAS — near-black in BOTH themes (the picture-frame rule). The
+//     real MEDIA SURFACE is a <video> element mounted while a session is up
+//     (w26.i02, h03 #2 — the UI half of the 4.H1 render seam: url sources
+//     render real bytes through the browser's media stack; file sources
+//     mount with no src until the engine lands, and the playing media's
+//     IDENTITY stays the honest visible stand-in). The first-run EMPTY
+//     state is the onboarding-style hero from ./states (never a blank void).
 //   * BOTTOM CONTROL BAR — a FULL-WIDTH band below the dock + canvas (w26.f09,
 //     e02 F2: Player.svg's strip is translate(0,1026) width=1920 — the rail,
 //     sidebar and canvas all END ABOVE it; the old canvas-column footer is
 //     gone). The sibling ControlBar (./controls) renders into it.
 //
 // HONEST PLACEHOLDERS still true here:
-//   * video canvas — a labelled region div, NOT a <video>/<canvas> element:
-//     nothing is wired to the render engine yet; the engine wiring handoff
-//     for card 4.H1 is the sr-only note + this comment + ui/NEXT-STEPS.md.
+//   * render engine — the DECODE/FRAMES half of the media surface is still
+//     engine-wired nowhere (card 4.H1 handoff: sr-only note + this comment +
+//     ui/NEXT-STEPS.md). The <video> media surface below is the UI half only:
+//     it renders real bytes where the source addresses the browser's media
+//     stack (url sources — the demo transport's live/radio streams), and
+//     NOTHING synthetic otherwise (no poster, no generated frames).
 //   * "Open media" affordances dispatch the shell-wide `lumen:open-media`
 //     event (the app-shell file dialog, another workstream, listens for it).
 //
@@ -69,8 +81,13 @@ import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as c6Keys } from "../../i18n/keys/w26.c6";
 import { keys as f09Keys } from "../../i18n/keys/w26.f09";
+import { keys as i02Keys } from "../../i18n/keys/w26.i02";
 import { useClient } from "../../client/ClientProvider";
+import { isDemoTransport } from "../../client/demo-transport";
+import type { SourceSpec } from "../../generated/commands";
+import { naturalSort } from "../../components/list";
 import { Icon } from "../../components";
+import { IconButton } from "../../components/button/IconButton";
 import { MenuPopup } from "../../components/menu/MenuPopup";
 import { identityResolveLabel } from "../../components/menu/types";
 import type { MenuEntry } from "../../components/menu";
@@ -78,6 +95,8 @@ import { HOTKEY_BINDINGS } from "../settings/areas/hotkeys/generated/bindings";
 import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider, usePlaylist } from "../playlist";
 import type { PlaylistContextValue } from "../playlist";
+import { NewPlaylistDialog } from "../playlist/NewPlaylistDialog";
+import { usePlaylists } from "../playlist/playlistsStore";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import type { PlayerControls } from "./context";
 import { ControlBar, controlCommandOf, mapTransportControls } from "./controls";
@@ -99,7 +118,7 @@ import {
   type LayoutConditionContext,
   type LayoutRegion,
 } from "./layout";
-import { StateRouter, resolveOverlay, type PlayerEngineView } from "./states";
+import { StateRouter, resolveOverlay, PlaylistBrowse, type PlayerEngineView } from "./states";
 import {
   MiniPlayer,
   MusicMode,
@@ -144,8 +163,11 @@ const c6Catalog: Readonly<Record<string, string>> = c6Keys;
 /** f09 lane keys (the customize trigger row) — same seam-first contract. */
 const f09Catalog: Readonly<Record<string, string>> = f09Keys;
 
-/** Lane keys the canvas menu resolves (c6 frame rows + the f09 trigger). */
-type CanvasLaneKey = keyof typeof c6Keys | keyof typeof f09Keys;
+/** i02 lane keys (the playlists-dock rows) — same seam-first contract. */
+const i02Catalog: Readonly<Record<string, string>> = i02Keys;
+
+/** Lane keys the canvas menu resolves (c6 frame rows + f09 + i02). */
+type CanvasLaneKey = keyof typeof c6Keys | keyof typeof f09Keys | keyof typeof i02Keys;
 
 /**
  * w26.f09 — the customize trigger's keymap row, straight from keymap DATA:
@@ -410,11 +432,14 @@ function canvasMenuEntries({
       icon: "playlist",
       iconAccent: true,
       submenu: [
-        // The docked queue panel's real toggle seam (this screen's own
-        // PLAYER_TOGGLE_SIDEBAR_EVENT state) + the library route.
+        // The docked playlists browser's real toggle seam (this screen's own
+        // PLAYER_TOGGLE_SIDEBAR_EVENT state — w26.i02: the dock is the
+        // playlists browser, so the rows say playlists) + the library route.
         {
           id: "playlist-toggle-dock",
-          labelKey: sidebarOpen ? tm("player.canvas.menu.hide-queue") : tm("player.canvas.menu.show-queue"),
+          labelKey: sidebarOpen
+            ? tm("player.canvas.menu.hide-playlists")
+            : tm("player.canvas.menu.show-playlists"),
           onSelect: toggleSidebar,
         },
         {
@@ -561,16 +586,13 @@ function PlayerScreenInner({
     [onVariantChange],
   );
 
-  // w26.f09 (e02 F3, Lead decision): the docked queue panel is THE one
-  // default-open left sidebar on /player — OPEN first-run, collapsible
-  // (variants.test.tsx asserts it present in the full variant; this screen
-  // owns the toggle seam). Player.png shows exactly one sidebar; the SHELL's
-  // playlists sidebar composes default-CLOSED on this route — that per-route
-  // default lives in AppShell's persisted sidebar state (f08 seam: route-
-  // aware loadSidebarOpen default, noted in the w26.f09 lane log). The
-  // shell's title-bar toggle still drives this dock through the exported
-  // window event (PLAYER_TOGGLE_SIDEBAR_EVENT), and `openPanels` forcing it
-  // open keeps the host seam honest (a host-requested panel never hides).
+  // w26.i02 (h03 #1, Lead ruling): the docked sidebar is THE one
+  // default-open left sidebar on /player and its content is the playlists
+  // BROWSER (Player.png's single sidebar — "Playlists / 2 items / Create
+  // playlist / rows"), NOT the queue. Collapsible via the shell toggle event
+  // (lumen:toggle-sidebar); `openPanels` forcing it open keeps the host seam
+  // honest (a host-requested panel never hides). The queue panel (4.D1)
+  // remains reachable through its layout region (music mode) and /playlist.
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     const onToggleSidebar = (): void => setSidebarOpen((open) => !open);
@@ -659,6 +681,54 @@ function PlayerScreenInner({
             hasChapters: false,
           };
   const hasMedia = derivedMedia !== null;
+
+  // w26.i02 (h03 #2) — the media surface's SOURCE, resolved from the seams
+  // that exist today (never fabricated): the engine queue's current entry
+  // first (real engines carry the source there once playlist.load lands);
+  // while the render engine is unwired (4.H1), the demo transport's most
+  // recent opening — the same remembered history the open-media dialog and
+  // the app menu read (the transport's own record: the last opening through
+  // the ONE funnel is the current session's source while a session is up).
+  // A file source has no browser-addressable bytes in the web shell, so the
+  // surface mounts without a src for it; a url source addresses the
+  // browser's media stack directly (the demo live/radio streams).
+  const queueSource =
+    playlist.entries.find((entry) => entry.id === playlist.currentId)?.source ?? null;
+  // ORDERING NOTE (client-lane handoff): the demo transport's
+  // `recentOpenings` getter DOCUMENTS "most recent first" but SHIPS
+  // oldest-first (rememberOpening prepends newest; the getter reverses an
+  // already-newest-first list). The most recent opening is therefore the
+  // LAST element today; this seam takes `.at(-1)` and the player test
+  // (`url sources carry REAL bytes`) pins the user-visible contract — if
+  // the client lane ever makes the getter match its own comment, flip this
+  // seam to `[0]` in the same change (the failing test will say so).
+  const demoSource = isDemoTransport(client)
+    ? (client.recentOpenings.at(-1)?.source ?? null)
+    : null;
+  const surfaceSource: SourceSpec | null = queueSource ?? demoSource;
+  // Real video bytes are addressable only for url sources the engine
+  // reports a video track for — only then does the surface replace the
+  // identity stand-in (an audio stream keeps the identity card: the frame
+  // canvas stays dark either way, picture-frame rule).
+  const hasRealVideoSurface =
+    surfaceSource !== null &&
+    surfaceSource.kind === "url" &&
+    (derivedMedia?.hasVideo ?? false);
+
+  // w26.i02 (Lead ruling — Player-4/Player-3): the canvas's PLAYLIST
+  // BROWSE face. Opening a docked playlists-browser row shows that saved
+  // playlist's media grid in the canvas (Player-4: grid + the strip bar at
+  // the window bottom, the playlist above it); while a session is up the
+  // floating now-playing card rides bottom-right (Player-3's floating
+  // window — previewOpen, collapsed via the card's ✕, re-opened from the
+  // browse header's PiP toggle). Exiting returns to the player canvas.
+  const [browseId, setBrowseId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const { playlists } = usePlaylists();
+  const browsePlaylist =
+    browseId === null
+      ? null
+      : (playlists.find((playlist) => playlist.id === browseId) ?? null);
 
   // w26.g03 P1-2 (Lead): the shell strip slot — when mounted inside the
   // AppShell, the footer region portals there (full-window control band).
@@ -858,17 +928,29 @@ function PlayerScreenInner({
       data-has-media={hasMedia}
       data-sidebar={sidebarVisible ? "open" : "closed"}
     >
-      {/* w26.f09 (e02 F2) — BODY ROW: docked queue + canvas column + the
-          floating tool panels. Player.svg: the rail, sidebar and canvas all
-          END ABOVE the control strip, so the strip is a full-width sibling
-          BELOW this row — never a column inside the canvas region. */}
+      {/* w26.f09 (e02 F2) + w26.i02 — BODY ROW: docked playlists browser +
+          canvas column + the floating tool panels. Player.svg: the rail,
+          sidebar and canvas all END ABOVE the control strip, so the strip is a
+          full-width sibling BELOW this row — never a column inside the canvas
+          region. */}
       <div className="lumen-player__body">
-        {/* Docked queue panel (the ONE default-open sidebar on /player — Lead
-            decision w26.f09/e02 F3; the SHELL's playlists sidebar is
-            default-closed on this route, f08 seam). Collapses via the shell
-            toggle event (lumen:toggle-sidebar) or openPanels omission. */}
+        {/* Docked playlists browser (w26.i02, h03 #1 — Player.png's single
+            sidebar: "Playlists / 2 items / Create playlist / rows"; the
+            SHELL's playlists sidebar stays default-closed on this route,
+            f08 seam). Collapses via the shell toggle event
+            (lumen:toggle-sidebar) or openPanels omission. */}
         {dockedSidebar !== undefined && sidebarVisible ? (
-          <PlaylistSidebar region={dockedSidebar} />
+          <PlaylistsDock
+            region={dockedSidebar}
+            onHide={() => setSidebarOpen(false)}
+            onOpenPlaylist={(id) => {
+              // w26.i02 (Player-4 ruling): a dock row opens that playlist's
+              // media grid in the CANVAS (the library route stays reachable
+              // through the context menu's Playlist → Open playlist row and
+              // the shell sidebar — the browse face is the player's own).
+              setBrowseId(id);
+            }}
+          />
         ) : null}
 
         {leftRegions.map((region) => (
@@ -914,33 +996,91 @@ function PlayerScreenInner({
                     setCanvasMenu({ x: event.clientX, y: event.clientY });
                   }}
                 >
-                  {/* Honest placeholder: no <video>/<canvas> element until the
-                      render engine is wired (card 4.H1 handoff — recorded in
+                  {/* Honest placeholder note: the DECODE/FRAMES half stays
+                      engine-wired nowhere (card 4.H1 handoff — recorded in
                       ui/NEXT-STEPS.md). Screen-reader note says so. */}
                   <p className="lumen-player__sr-note">{m("player.canvas.placeholder")}</p>
 
-                  {/* Player.png "artwork centered": until the engine paints frames
-                      (4.H1), the honest stand-in is the playing media's IDENTITY —
-                      engine-reported title first (media.info-ready), the playlist
-                      entry's title as fallback, a quiet kind mark when neither
-                      reported. Real data only; renders only while an overlay-free
-                      session state is up (loading/buffering/error take over). */}
-                  {hasMedia && resolveOverlay(effectiveEngineState) === "none" ? (
-                    <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
-                  ) : null}
+                  {browsePlaylist !== null ? (
+                    <>
+                      {/* w26.i02 (Player-4/3, Lead ruling): the playlist
+                          BROWSE face replaces the canvas content. The media
+                          surface stays MOUNTED underneath the opaque grid so
+                          url sources keep their real bytes and audio flowing
+                          while the user browses — never a silently stalled
+                          engine (file sources carry no bytes either way). */}
+                      {hasMedia ? (
+                        <MediaSurface
+                          source={surfaceSource}
+                          playing={effectiveEngineState.state === "playing"}
+                        />
+                      ) : null}
+                      <PlaylistBrowse
+                        playlist={browsePlaylist}
+                        hasMedia={hasMedia}
+                        previewOpen={previewOpen}
+                        onPreviewToggle={setPreviewOpen}
+                        onExit={() => setBrowseId(null)}
+                      />
+                      {/* Failure/transient overlays stay assertive ABOVE the
+                          grid (an error that hid behind the browse face
+                          would strand the user); the idle hero does not —
+                          the grid is the canvas content while browsing. */}
+                      {resolveOverlay(effectiveEngineState) === "empty" ||
+                      resolveOverlay(effectiveEngineState) === "none" ? null : (
+                        <StateRouter
+                          view={effectiveEngineState}
+                          onRetry={onRetry}
+                          onOpenMedia={onOpenMedia}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* w26.i02 (h03 #2) — the real MEDIA SURFACE: a <video>
+                          element mounted while a session is up (the UI half of
+                          the 4.H1 render seam). Real bytes only: url sources
+                          address the browser's media stack; file sources mount
+                          with no src (honest empty dark surface — never a
+                          fabricated poster or synthetic frames). The element
+                          follows the session state (the bridge view); its own
+                          events never drive state. */}
+                      {hasMedia ? (
+                        <MediaSurface
+                          source={surfaceSource}
+                          playing={effectiveEngineState.state === "playing"}
+                        />
+                      ) : null}
 
-                  {/* Card 4.C3 playback UX states: exactly zero or one overlay on
-                      the canvas region, driven by the engine view. The first-run
-                      Empty surface only ever appears when NO media is present —
-                      a host-injected `media` context (or a live session) suppresses
-                      it, while engine-truth overlays (loading/buffering/error)
-                      always render. Never a fabricated state. */}
-                  {effectiveEngineState.state === "idle" && hasMedia ? null : (
-                    <StateRouter
-                      view={effectiveEngineState}
-                      onRetry={onRetry}
-                      onOpenMedia={onOpenMedia}
-                    />
+                      {/* Player.png "artwork centered": while the surface has no
+                          addressable video bytes (engine unwired — 4.H1), the
+                          honest visible stand-in is the playing media's IDENTITY —
+                          engine-reported title first (media.info-ready), the
+                          playlist entry's title as fallback, a quiet kind mark
+                          when neither reported. Real data only; renders only while
+                          an overlay-free session state is up AND the surface is
+                          not already carrying real video (loading/buffering/error
+                          take over). */}
+                      {hasMedia &&
+                      resolveOverlay(effectiveEngineState) === "none" &&
+                      !hasRealVideoSurface ? (
+                        <NowPlayingMark hasVideo={derivedMedia?.hasVideo ?? false} />
+                      ) : null}
+
+                      {/* Card 4.C3 playback UX states: exactly zero or one overlay on
+                          the canvas region, driven by the engine view. The first-run
+                          Empty surface only ever appears when NO media is present —
+                          a host-injected `media` context (or a live session) suppresses
+                          it, while engine-truth overlays (loading/buffering/error)
+                          always render. Never a fabricated state. */}
+                      {effectiveEngineState.state === "idle" && hasMedia ? null : (
+                        <StateRouter
+                          view={effectiveEngineState}
+                          onRetry={onRetry}
+                          onOpenMedia={onOpenMedia}
+                        />
+                      )}
+                    </>
                   )}
 
                   {/* w26.c6 — the canvas context menu (right-click menu.svg),
@@ -950,7 +1090,7 @@ function PlayerScreenInner({
                     <MenuPopup
                       entries={canvasMenuEntries({
                         m,
-                        tm: (key) => m(key as MessageKey) ?? c6Catalog[key] ?? f09Catalog[key],
+                        tm: (key) => m(key as MessageKey) ?? c6Catalog[key] ?? f09Catalog[key] ?? i02Catalog[key],
                         controls,
                         playlist,
                         navigate,
@@ -1029,24 +1169,286 @@ function PlayerScreenInner({
   );
 }
 
-/** The docked queue panel: the player's one default-open sidebar (w26.f09) —
- * a deep surface with a hairline right edge, ending ABOVE the control band
- * (Player.svg: sidebar y 40..1026, strip 1026..1080). Content is the real
- * 4.D1 playlist panel (queue semantics); the shell's playlists-LIST rail
- * (Player.png "Cool Songs"/"Anime to Watch" rows) stays available through
- * the shell's own toggle — default-closed on this route (f08 seam). */
-function PlaylistSidebar({ region }: { region: LayoutRegion }) {
+/** The docked playlists browser (w26.i02, h03 #1): the player's one
+ * default-open left sidebar — Player.png's single sidebar, the frame's own
+ * anatomy (Player.svg 377px sidebar @1920 → 283px at 1440). Anatomy is
+ * MEASURED from Player.svg Frame 20 (pass 2, the i02 comparison loop — the
+ * first pass shipped the rows without the affordance row the frame draws
+ * around them):
+ *   * header — back chevron (active) · forward chevron (frame opacity 0.3 =
+ *     disabled) · "Playlists" (#8F8F8F) · "···" (#6B6B6B, right)
+ *   * meta — "N items" (#6B6B6B) · sort ↑↓ · list · search ○ (right cluster)
+ *   * "Create playlist" row · the saved-playlist rows (#969696)
+ * Semantics mirror the shell sidebar (a10's verified grammar over the same
+ * playlistsStore seam) wherever the two sheets disagree: sort toggles
+ * naturalSort → strict alphabetical; search reveals a live filter (closing
+ * drops it); view flips rows ↔ grid cards. Honest wiring only — the frame's
+ * active back chevron collapses THIS dock (the tested lumen:toggle-sidebar
+ * state seam), and the two affordances with no honest command (forward —
+ * no history surface exists in the dock; ··· — same "not exposed by this
+ * build" call the shell made) render disabled with title hints, never
+ * theater. The frame's external-link header glyph has no honest command
+ * either and is omitted (the shell omits it too — g03 verified that call).
+ * Deep surface with a hairline right edge, ending ABOVE the control band
+ * (Player.svg: sidebar y 40..1026, strip 1026..1080). The create row opens
+ * the same NewPlaylistDialog /playlist uses (Save persists through the
+ * shared store — no engine command exists, and the dialog says so).
+ * Rows open the playlist's media grid in the player canvas (w26.i02,
+ * Player-4's Lead ruling — the browse face in ./states/PlaylistBrowse);
+ * the /playlist library route stays reachable through the canvas context
+ * menu's Playlist → Open playlist row and the shell sidebar. */
+function PlaylistsDock({
+  region,
+  onHide,
+  onOpenPlaylist,
+}: {
+  region: LayoutRegion;
+  onHide: () => void;
+  /** w26.i02 (Player-4 ruling): open a saved playlist's media grid in the
+   * player canvas (the dock rows are the playlists browser's openers). */
+  onOpenPlaylist: (id: string) => void;
+}) {
   const m = useMsg();
+  const { playlists } = usePlaylists();
+  const [createOpen, setCreateOpen] = useState(false);
+  // The affordance row's state (the shell sidebar's cluster, verbatim):
+  // view list/grid, sort natural → alpha, search filter with drop-on-close.
+  const [view, setView] = useState<"list" | "grid">("list");
+  const [alphaSort, setAlphaSort] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  const toggleSearch = useCallback((): void => {
+    setSearchOpen((open) => {
+      if (open) setQuery(""); // closing drops the filter (no stale hidden rows)
+      return !open;
+    });
+  }, []);
+
+  // Row order mirrors the library screen + the shell sidebar (naturalSort —
+  // "Playlist 2" before "Playlist 10"); the meta toggle re-sorts strictly
+  // alphabetical (localeCompare). Presentation-only over REAL store data —
+  // never a second data source.
+  const rows = useMemo(() => {
+    const named = playlists.map((playlist) => ({ id: playlist.id, label: playlist.title }));
+    const needle = query.trim().toLowerCase();
+    const filtered =
+      needle === "" ? named : named.filter((row) => row.label.toLowerCase().includes(needle));
+    return alphaSort
+      ? [...filtered].sort((a, b) => a.label.localeCompare(b.label))
+      : naturalSort(filtered, (row) => row.label);
+  }, [alphaSort, playlists, query]);
+
+  const tm = (key: keyof typeof i02Keys): string =>
+    (m(key as MessageKey) as string | undefined) ?? i02Keys[key];
+
   return (
     <aside
       data-region-id={region.id}
       data-chrome-part=""
       role="complementary"
-      aria-label={m(region.labelKey)}
+      aria-label={m("shell.sidebar.title")}
       className="lumen-player__sidebar"
     >
-      <PlaylistPanel />
+      {/* Header — frame: back chevron (active) · forward (disabled) ·
+          "Playlists" · "···" (disabled, the shell's honest call). */}
+      <header className="lumen-player__dock-head">
+        <IconButton
+          label={tm("player.dock.hide")}
+          size="sm"
+          className="lumen-player__dock-back"
+          onClick={onHide}
+        >
+          <Icon name="chevron-left" size={16} aria-hidden="true" />
+        </IconButton>
+        <IconButton
+          label={tm("player.dock.forward")}
+          title={tm("player.dock.forward.hint")}
+          size="sm"
+          disabled
+          className="lumen-player__dock-forward"
+        >
+          <Icon name="chevron-right" size={16} aria-hidden="true" />
+        </IconButton>
+        <h2 className="lumen-player__dock-title">{m("shell.sidebar.title")}</h2>
+        <IconButton
+          label={m("shell.sidebar.more")}
+          title={m("shell.sidebar.more.hint")}
+          size="sm"
+          disabled
+          className="lumen-player__dock-more"
+        >
+          <Icon name="more" size={16} aria-hidden="true" />
+        </IconButton>
+      </header>
+
+      {/* Revealed search field (frame grammar: quiet input on the deep
+          surface; the shell sidebar's own revealed-field pattern). */}
+      {searchOpen ? (
+        <div className="lumen-player__dock-search" id="lumen-player-dock-search">
+          <input
+            ref={searchInputRef}
+            type="search"
+            className="lumen-player__dock-search-input"
+            aria-label={m("shell.sidebar.search")}
+            placeholder={m("shell.sidebar.search.placeholder")}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      ) : null}
+
+      {/* Meta row — frame: "N items" left · sort/list/search right. The
+          view pair completes the family's verified mode cluster (the shell
+          sidebar's list/grid over the same rows); every glyph is real. */}
+      <div className="lumen-player__dock-meta">
+        <span className="lumen-player__dock-count">
+          {String(rows.length)}{" "}
+          {m("player.dock.count-suffix" as MessageKey) ?? i02Catalog["player.dock.count-suffix"]}
+        </span>
+        <div className="lumen-player__dock-modes">
+          <IconButton
+            label={m("shell.sidebar.sort")}
+            size="sm"
+            aria-pressed={alphaSort}
+            onClick={() => setAlphaSort((value) => !value)}
+          >
+            <Icon name="sort" size={16} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={m("shell.sidebar.view-list")}
+            size="sm"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+          >
+            <Icon name="list" size={16} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={m("shell.sidebar.view-grid")}
+            size="sm"
+            aria-pressed={view === "grid"}
+            onClick={() => setView("grid")}
+          >
+            <Icon name="grid" size={16} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={m("shell.sidebar.search")}
+            size="sm"
+            aria-expanded={searchOpen}
+            aria-controls={searchOpen ? "lumen-player-dock-search" : undefined}
+            onClick={toggleSearch}
+          >
+            <Icon name="search" size={16} aria-hidden="true" />
+          </IconButton>
+        </div>
+      </div>
+      <>
+        <button
+          type="button"
+          className="lumen-player__dock-create"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Icon name="add" size={14} aria-hidden="true" />
+          <span className="lumen-player__dock-create-label">
+            {m("shell.sidebar.create")}
+          </span>
+        </button>
+        <div className="lumen-player__dock-rows">
+          {rows.length === 0 ? (
+            <p className="lumen-player__dock-empty">
+              {query.trim() === "" ? m("shell.sidebar.empty") : m("shell.sidebar.search.empty")}
+            </p>
+          ) : view === "list" ? (
+            <ul className="lumen-player__dock-list" aria-label={m("shell.sidebar.list-label")}>
+              {rows.map((row) => (
+                <li key={row.id} className="lumen-player__dock-item">
+                  <button
+                    type="button"
+                    className="lumen-player__dock-row"
+                    title={row.label}
+                    onClick={() => onOpenPlaylist(row.id)}
+                  >
+                    <Icon name="playlist" size={14} aria-hidden="true" />
+                    <span className="lumen-player__dock-row-label">{row.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="lumen-player__dock-grid" role="list" aria-label={m("shell.sidebar.list-label")}>
+              {rows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  role="listitem"
+                  className="lumen-player__dock-card"
+                  title={row.label}
+                  onClick={() => onOpenPlaylist(row.id)}
+                >
+                  <span className="lumen-player__dock-card-thumb" aria-hidden="true">
+                    <Icon name="playlist" size={20} />
+                  </span>
+                  <span className="lumen-player__dock-card-label">{row.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </>
+      {createOpen ? (
+        <NewPlaylistDialog open onClose={() => setCreateOpen(false)} />
+      ) : null}
     </aside>
+  );
+}
+
+/** The canvas's real media surface (w26.i02, h03 #2) — the UI half of the
+ * 4.H1 render seam. A <video> element mounted while a session is up:
+ * url sources render REAL bytes through the browser's media stack; every
+ * other source (no addressable bytes yet — the engine is unwired) mounts
+ * with no src: an honest empty dark surface over the near-black canvas,
+ * never a fabricated poster or synthetic frames. The element FOLLOWS the
+ * session state (playing → play(), anything else → pause()); its own
+ * events never drive state — the engine truth (bridge view / controls
+ * context) is the only playback authority. */
+function MediaSurface({ source, playing }: { source: SourceSpec | null; playing: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const src = source !== null && source.kind === "url" ? source.url : null;
+  useEffect(() => {
+    const el = videoRef.current;
+    if (el === null) return;
+    if (playing) {
+      // Real browsers return a promise; test DOMs may return undefined —
+      // Promise.resolve normalizes both. Autoplay policy or an unloadable
+      // stream stays quiet: the engine state is the only truth, never the
+      // element's own.
+      void Promise.resolve(el.play()).catch(() => {});
+    } else if (src !== null) {
+      // Only a surface with real bytes needs holding; a src-less element
+      // has nothing to pause (and no browser media stack to invoke).
+      el.pause();
+    }
+  }, [playing, src]);
+  return (
+    <video
+      ref={videoRef}
+      className="lumen-player__media"
+      data-media-surface="video"
+      data-media-bytes={src === null ? "none" : "url"}
+      src={src ?? undefined}
+      /* Presentation only: the transport lives in ControlBar, the label on
+       * the canvas region — a second accessible name here would
+       * double-announce (doc 08 §4.5). */
+      aria-hidden="true"
+      /* No controls, no poster, no autoplay attribute — the effect follows
+       * the session state; nothing pretends before the engine says so. */
+      playsInline
+    />
   );
 }
 
