@@ -22,12 +22,17 @@ import type {
 } from "../../../client/transport";
 import type { CommandListing } from "../../../generated/commands";
 import { CustomizePanels } from "./CustomizePanels";
+import { CustomizeToolbarItems } from "./toolbarItems";
 import { tileVisible, useCommandCapabilities, visibleTiles } from "./capabilities";
-import { CUSTOMIZE_TILES, DEFAULT_TOOLBAR_LAYOUT, tileById } from "./panels";
+import { CUSTOMIZE_TILES, CUSTOMIZE_TILE_IDS, DEFAULT_TOOLBAR_LAYOUT, tileById } from "./panels";
+import { PlayerControlsProvider } from "../context";
+import { PlaylistProvider } from "../../playlist";
 import {
+  TOOLBAR_CHANGED_EVENT,
   TOOLBAR_STORAGE_KEY,
   clearPersistedToolbarLayout,
   parseToolbarLayout,
+  persistToolbarLayout,
   toolbarLayoutEqual,
 } from "./toolbarLayout";
 
@@ -123,11 +128,11 @@ beforeEach(() => {
 });
 
 describe("the frame catalog (Player - customize.svg rows 1–4)", () => {
-  it("renders the frames' 31-tile inventory in frame reading order", async () => {
-    const stub = new StubTransport(CUSTOMIZE_TILES.flatMap((tile) =>
-      tile.command === null ? [] : [listing(tile.command)],
-    ));
-    renderCustomize(stub);
+  it("renders the frames' 31-tile inventory in frame reading order (any listing)", async () => {
+    // w26.i05 (h07 defect 4): the box is the frame's STATIC catalog — all 31
+    // tiles render against ANY capability listing (9/9/9/4 at 9 columns);
+    // engine truth still governs dispatch/aria, never membership.
+    renderCustomize(new StubTransport([]));
     const box = await screen.findByRole("list", { name: "Toolbar items" });
     const labels = within(box)
       .getAllByRole("button")
@@ -145,6 +150,8 @@ describe("the frame catalog (Player - customize.svg rows 1–4)", () => {
       // Row 4 (frame y=674)
       "Favorite", "Bookmark", "Bookmarks", "Playlists",
     ]);
+    // The 4-row rhythm never collapses: the full 31 (rows 9/9/9/4).
+    expect(labels).toHaveLength(31);
   });
 
   it("carries the modal anatomy: title, verbatim instruction, footer pair", async () => {
@@ -169,34 +176,32 @@ describe("the frame catalog (Player - customize.svg rows 1–4)", () => {
   });
 });
 
-describe("capability gating (AC: available → rendered; not-exposed → hidden)", () => {
-  it("renders engine tiles whose commands the engine lists (demo listing)", async () => {
+describe("capability policy (w26.i05: the box is the catalog, not a report)", () => {
+  it("renders the full 31 against the demo listing — Record/Snapshot/PiP/HDR/Zoom included", async () => {
     const stub = new StubTransport(DEMO_COMMANDS.map(listing));
     renderCustomize(stub);
     const box = await screen.findByRole("list", { name: "Toolbar items" });
-    // 18 UI-owned + 8 engine-bound = 26 of the frame's 31 (Record,
-    // Snapshot, PiP, HDR, Zoom unlisted → honestly hidden).
+    // h07 defect 4: the demo listing used to hide 5 tiles (26/31, rows
+    // collapsed 9/9/8); the frame's inventory renders regardless — the
+    // honest no-change on dispatch stays the engine's answer.
     const labels = within(box).getAllByRole("button").map((button) => button.textContent);
-    expect(labels).toHaveLength(26);
-    expect(labels).toContain("Stop");
-    expect(labels).toContain("Repeat");
-    expect(labels).toContain("Playback speed");
-    expect(labels).not.toContain("Record");
-    expect(labels).not.toContain("Snapshot");
-    expect(labels).not.toContain("Picture in picture");
-    expect(labels).not.toContain("HDR");
-    expect(labels).not.toContain("Zoom");
+    expect(labels).toHaveLength(31);
+    expect(labels).toContain("Record");
+    expect(labels).toContain("Snapshot");
+    expect(labels).toContain("Picture in picture");
+    expect(labels).toContain("HDR");
+    expect(labels).toContain("Zoom");
   });
 
-  it("UI-owned toolbar items render against the empty scaffold listing too", async () => {
+  it("the same 31 render against the empty scaffold listing (MockTransport)", async () => {
     renderCustomize(new MockTransport());
     const box = await screen.findByRole("list", { name: "Toolbar items" });
     const labels = within(box).getAllByRole("button").map((button) => button.textContent);
-    expect(labels).toHaveLength(18);
+    expect(labels).toHaveLength(31);
     expect(labels).toContain("Spacer");
     expect(labels).toContain("Go home");
     expect(labels).toContain("Playlists");
-    expect(labels).not.toContain("Stop");
+    expect(labels).toContain("Stop");
   });
 
   it("pure helpers: tileVisible encodes the gating matrix (ui-owned always)", () => {
@@ -484,5 +489,315 @@ describe("toolbar layout persistence helpers", () => {
     expect(toolbarLayoutEqual(a, { order: ["a", "b"], band: ["a"] })).toBe(true);
     expect(toolbarLayoutEqual(a, { order: ["b", "a"], band: ["a"] })).toBe(false);
     expect(toolbarLayoutEqual(a, { order: ["a", "b"], band: [] })).toBe(false);
+  });
+
+  it("persistToolbarLayout broadcasts the lumen:toolbar-changed seam (w26.i05)", () => {
+    const heard = vi.fn();
+    window.addEventListener(TOOLBAR_CHANGED_EVENT, heard);
+    try {
+      persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["favorite"] });
+      expect(heard).toHaveBeenCalledTimes(1);
+      expect(globalThis.localStorage?.getItem(TOOLBAR_STORAGE_KEY)).toBeDefined();
+    } finally {
+      window.removeEventListener(TOOLBAR_CHANGED_EVENT, heard);
+    }
+  });
+});
+
+describe("the per-state band variants (w26.i05, h07 defect 3 — frames -1..-6)", () => {
+  it("f0 — clean: no seek row; the long slot carries the live preview + timecodes", async () => {
+    renderCustomize(new StubTransport([]));
+    const band = await screen.findByRole("group", { name: "Toolbar preview" });
+    // No promoted seek row while clean (frame 0 keeps the seek INSIDE the slot).
+    expect(band.querySelector(".lumen-customize-band__seekrow")).toBeNull();
+    const slot = band.querySelector(".lumen-customize-band__slot")!;
+    expect(slot).not.toBeNull();
+    // Frame 0's band timecodes (Current Time.svg / Duration.svg values).
+    expect(slot.textContent).toContain("00:02:10");
+    expect(slot.textContent).toContain("00:25:40");
+    expect(slot.querySelector(".lumen-customize-band__seek")).not.toBeNull();
+    // One slot, transport cluster at the left anchor.
+    expect(band.querySelectorAll(".lumen-customize-band__slot")).toHaveLength(1);
+    expect(band.querySelector(".lumen-customize-band__cluster")).not.toBeNull();
+  });
+
+  it("f1 — dirty reorder: the seek row promotes ABOVE; the slot is left EMPTY", async () => {
+    renderCustomize(new StubTransport([]));
+    const spacer = await screen.findByRole("button", { name: "Spacer" });
+    fireEvent.keyDown(spacer, { key: "ArrowRight", altKey: true });
+    await act(async () => {});
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    const seekrow = band.querySelector(".lumen-customize-band__seekrow");
+    expect(seekrow).not.toBeNull();
+    // The promoted row carries the frame's timecodes + track; the
+    // transport slot is empty (frame -1: 1431×35 @155.5).
+    expect(seekrow?.textContent).toContain("00:02:10");
+    expect(seekrow?.textContent).toContain("00:25:40");
+    const slot = band.querySelector(".lumen-customize-band__slot")!;
+    expect(slot.querySelector(".lumen-customize-band__seek")).toBeNull();
+    expect(band.querySelectorAll(".lumen-customize-band__slot")).toHaveLength(1);
+  });
+
+  it("f2 — one placed: transport centered between split slots", async () => {
+    renderCustomize(new StubTransport([]));
+    const favorite = await screen.findByRole("button", { name: "Favorite" });
+    const dt = dataTransfer();
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    expect(band.querySelectorAll(".lumen-customize-band__slot")).toHaveLength(2);
+    expect(band.querySelector(".lumen-customize-band__slot--left")).not.toBeNull();
+    expect(band.querySelector(".lumen-customize-band__slot--right")).not.toBeNull();
+    expect(band.querySelector(".lumen-customize-band__seekrow")).not.toBeNull();
+  });
+
+  it("f3 — two placed: the 130×26 well joins the left edge", async () => {
+    renderCustomize(new StubTransport([]));
+    for (const name of ["Favorite", "Bookmark"]) {
+      const tile = screen.getByRole("button", { name });
+      const dt = dataTransfer();
+      fireEvent.dragStart(tile, { dataTransfer: dt });
+      fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+      fireEvent.dragEnd(tile, { dataTransfer: dt });
+      await act(async () => {});
+    }
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    expect(band.querySelector(".lumen-customize-band__well--flat")).not.toBeNull();
+    expect(band.querySelector(".lumen-customize-band__well--flat")?.getAttribute("class")).toContain("lumen-customize-band__well--flat");
+  });
+
+  it("f4 — three placed: the topbar well run enters the band", async () => {
+    renderCustomize(new StubTransport([]));
+    for (const name of ["Favorite", "Bookmark", "Bookmarks"]) {
+      const tile = screen.getByRole("button", { name });
+      const dt = dataTransfer();
+      fireEvent.dragStart(tile, { dataTransfer: dt });
+      fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+      fireEvent.dragEnd(tile, { dataTransfer: dt });
+      await act(async () => {});
+    }
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    const run = band.querySelector(".lumen-customize-band__topbarrun");
+    expect(run).not.toBeNull();
+    // Frame -4's run: 27 / 27÷mark / 23 / 60 / 130×26.
+    expect(run?.querySelectorAll(".lumen-customize-band__well").length).toBe(5);
+    expect(run?.querySelector(".lumen-customize-band__well-mark")).not.toBeNull();
+  });
+
+  it("f5/f6 — dragging: the ghost pins band-left, the lifted box slot vacates, the cluster shifts", async () => {
+    renderCustomize(new StubTransport([]));
+    for (const name of ["Favorite", "Bookmark", "Bookmarks"]) {
+      const tile = screen.getByRole("button", { name });
+      const dt = dataTransfer();
+      fireEvent.dragStart(tile, { dataTransfer: dt });
+      fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+      fireEvent.dragEnd(tile, { dataTransfer: dt });
+      await act(async () => {});
+    }
+    // Lift the 4th (frame -5/-6's mid-drag).
+    const playlists = screen.getByRole("button", { name: "Playlists" });
+    fireEvent.dragStart(playlists, { dataTransfer: dataTransfer() });
+    await act(async () => {});
+    expect(playlists).toHaveAttribute("data-dragging");
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    // The styled ghost (icon-only, pinned before the left slot).
+    const ghost = band.querySelector(".lumen-customize-band__ghost");
+    expect(ghost).not.toBeNull();
+    expect(ghost?.querySelector(".lumen-icon")).not.toBeNull();
+    // The right cluster shifts (frame -5) + the far-right 35×23 well.
+    expect(band.querySelector(".lumen-customize-band__right")).toHaveAttribute("data-shifted");
+    expect(band.querySelector(".lumen-customize-band__well--low")).not.toBeNull();
+    fireEvent.dragEnd(playlists, { dataTransfer: dataTransfer() });
+    await act(async () => {});
+    expect(band.querySelector(".lumen-customize-band__ghost")).toBeNull();
+  });
+
+  it("a lifted band item vacates its well (drag back into the box)", async () => {
+    renderCustomize(new StubTransport([]));
+    const favorite = await screen.findByRole("button", { name: "Favorite" });
+    const dt = dataTransfer();
+    fireEvent.dragStart(favorite, { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+    fireEvent.dragEnd(favorite, { dataTransfer: dt });
+    await act(async () => {});
+    const well = screen.getByRole("button", { name: "Remove Favorite from the toolbar" });
+    fireEvent.dragStart(well, { dataTransfer: dataTransfer() });
+    await act(async () => {});
+    expect(well).toHaveAttribute("data-dragging");
+    // The ghost follows the lifted band item too.
+    const band = screen.getByRole("group", { name: "Toolbar preview" });
+    expect(band.querySelector(".lumen-customize-band__ghost")).not.toBeNull();
+    fireEvent.dragEnd(well, { dataTransfer: dataTransfer() });
+    await act(async () => {});
+    expect(well).not.toHaveAttribute("data-dragging");
+  });
+});
+
+describe("focus + Escape semantics (w26.i05, h07 defect 2)", () => {
+  it("Save keeps focus inside the dialog; Escape still closes (the lumen:close-panel seam)", async () => {
+    const heard = vi.fn();
+    window.addEventListener("lumen:close-panel", heard);
+    try {
+      renderCustomize(new StubTransport([]));
+      const favorite = await screen.findByRole("button", { name: "Favorite" });
+      const dt = dataTransfer();
+      fireEvent.dragStart(favorite, { dataTransfer: dt });
+      fireEvent.drop(screen.getByRole("group", { name: "Toolbar preview" }), { dataTransfer: dt });
+      fireEvent.dragEnd(favorite, { dataTransfer: dt });
+      await act(async () => {});
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await act(async () => {});
+      // Focus survived the Save disable — on the ✕, INSIDE the dialog
+      // (h07 measured active:BODY here; that killed Escape).
+      const dialog = document.querySelector(".lumen-customize__surface")!;
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("Close customize panel");
+      // Escape reaches the dialog node's listener → the seam fires.
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      await act(async () => {});
+      expect(heard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lumen:close-panel", heard);
+    }
+  });
+
+  it("the keeper pulls a dead BODY focus back onto the dialog", async () => {
+    renderCustomize(new StubTransport([]));
+    await screen.findByRole("dialog", { name: "Customize Player" });
+    // Simulate the disabled-blur stranding focus on BODY.
+    act(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    const dialog = document.querySelector(".lumen-customize__surface")!;
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+});
+
+describe("the real bar's customized items (w26.i05, h07 defect 1 — state 7)", () => {
+  // ControlBar.test.tsx's snapshotResult pattern: the snapshot object needs
+  // the wire union's literal kinds — the double cast carries them.
+  const snapshotAt = (time: number) => ({
+    completed: {
+      kind: "state-snapshot",
+      snapshot: {
+        audioDelayMs: 0,
+        devices: [],
+        duration: { kind: "known", time: 1540 },
+        muted: false,
+        playlist: {},
+        rate: 1,
+        selections: {},
+        state: "playing",
+        subtitle: {},
+        subtitleDelayMs: 0,
+        time,
+        tracks: [],
+        videoDelayMs: 0,
+        volume: 0.5,
+      },
+    },
+  } as unknown as CommandResponse["result"]);
+
+  const renderItems = (transport: CommandTransport) =>
+    render(
+      <ClientProvider transport={transport}>
+        <PlaylistProvider>
+          <PlayerControlsProvider>
+            <CustomizeToolbarItems />
+          </PlayerControlsProvider>
+        </PlaylistProvider>
+      </ClientProvider>,
+    );
+
+  class SnapTransport extends StubTransport implements CommandTransport {
+    constructor() {
+      super([]);
+    }
+    override async send(request: CommandRequest): Promise<CommandResponse> {
+      if (request.cmd === "system.get-state-snapshot") {
+        return { gen: 1, requestId: request.requestId, result: snapshotAt(130) };
+      }
+      return super.send(request);
+    }
+  }
+
+  it("renders the persisted band in the real bar (frame -7's payoff)", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["favorite", "bookmark", "playlists", "divider", "spacer"] });
+    const stub = new SnapTransport();
+    renderItems(stub);
+    const group = await screen.findByRole("group", { name: "Custom toolbar items" });
+    // data-field-id probes (the h07 state-7 probe grammar).
+    expect(group.querySelector('[data-field-id="favorite"]')).not.toBeNull();
+    expect(group.querySelector('[data-field-id="bookmark"]')).not.toBeNull();
+    expect(group.querySelector('[data-field-id="playlists"]')).not.toBeNull();
+    // Layout primitives ride as inert separators.
+    expect(group.querySelector(".lumen-toolbar-items__divider")).not.toBeNull();
+    expect(group.querySelector(".lumen-toolbar-items__spacer")).not.toBeNull();
+    // favorite has no surface in this shell → disabled with the honest reason.
+    const favorite = screen.getByRole("button", { name: /^Favorite — / }) as HTMLButtonElement;
+    expect(favorite).toBeDisabled();
+    clearPersistedToolbarLayout();
+  });
+
+  it("live re-reads across Save through the lumen:toolbar-changed seam", async () => {
+    const stub = new SnapTransport();
+    renderItems(stub);
+    // Empty band → nothing rendered.
+    await act(async () => {});
+    expect(screen.queryByRole("group", { name: "Custom toolbar items" })).toBeNull();
+    // Save from another surface (the seam broadcast).
+    act(() => {
+      persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["favorite"] });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Custom toolbar items" })).toBeInTheDocument(),
+    );
+    clearPersistedToolbarLayout();
+  });
+
+  it("bookmark drops a media.add-bookmark at the engine-reported position", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["bookmark"] });
+    const stub = new SnapTransport();
+    renderItems(stub);
+    const bookmark = await screen.findByRole("button", { name: "Bookmark" });
+    expect(bookmark).toBeEnabled();
+    fireEvent.click(bookmark);
+    await act(async () => {});
+    const add = stub.sent.filter((request) => request.cmd === "media.add-bookmark");
+    expect(add).toHaveLength(1);
+    expect((add[0]!.args as { time: number }).time).toBe(130);
+    clearPersistedToolbarLayout();
+  });
+
+  it("playlists fires the shell's lumen:toggle-sidebar seam", async () => {
+    const heard = vi.fn();
+    window.addEventListener("lumen:toggle-sidebar", heard);
+    try {
+      persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["playlists"] });
+      const stub = new SnapTransport();
+      renderItems(stub);
+      fireEvent.click(await screen.findByRole("button", { name: "Playlists" }));
+      expect(heard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("lumen:toggle-sidebar", heard);
+      clearPersistedToolbarLayout();
+    }
+  });
+
+  it("shuffle rides the playlist context's real state (never optimistic)", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["shuffle"] });
+    const stub = new SnapTransport();
+    renderItems(stub);
+    const shuffle = await screen.findByRole("button", { name: "Shuffle" });
+    fireEvent.click(shuffle);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "playlist.set-shuffle");
+    expect(sent.map((request) => (request.args as { enabled: boolean }).enabled)).toEqual([true]);
+    clearPersistedToolbarLayout();
   });
 });
