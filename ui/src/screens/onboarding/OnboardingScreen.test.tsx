@@ -183,6 +183,18 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
 
   // --- library step: the real open-path funnel ---
 
+  it("library step shows the frame's labeled field and Browse submit (w26.i01)", () => {
+    renderWizard();
+    goToStep(1);
+    // Frame: Onboarding.svg — the field label is VISIBLE (no hideLabel), and
+    // the submit is the 114×35 "Browse" (Frame 141), not the old "Open".
+    expect(screen.getByText("Choose media to get started with")).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-open-path")).toHaveAccessibleName(
+      "Choose media to get started with",
+    );
+    expect(screen.getByTestId("onboarding-open-submit")).toHaveTextContent("Browse");
+  });
+
   it("library step opens a pasted path through the one funnel (session.open)", async () => {
     const transport = new MockTransport();
     render(
@@ -355,13 +367,21 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
   it("shortcuts step shows the real keymap tour and the full-list note", () => {
     renderWizard();
     goToStep(6);
-    // Caps are keymap data: Space (play/pause), F (fullscreen), Shift+S
-    // (snapshot) renders as Shift + S caps.
-    expect(screen.getByText("Play Pause")).toBeInTheDocument();
+    // Row labels are the Onboarding-2.svg strings, verbatim (w26.i01: one
+    // casing convention, frame-parallel — the hotkey catalog's Title Case
+    // is settings-side copy). Caps stay keymap data: Space (play/pause),
+    // F (fullscreen), Shift+S (snapshot) renders as SHIFT + S caps.
+    expect(screen.getByText("Play / Pause")).toBeInTheDocument();
+    expect(screen.getByText("Show / Hide Queue")).toBeInTheDocument();
+    expect(screen.getByText("Take a Snapshot")).toBeInTheDocument();
     expect(screen.getByText("Space")).toBeInTheDocument();
     expect(screen.getByText("F")).toBeInTheDocument();
-    expect(screen.getAllByText("Shift")).toHaveLength(2); // Shift+S / Shift+R combos
-    expect(screen.getByText("Snapshot")).toBeInTheDocument();
+    expect(screen.getAllByText("SHIFT")).toHaveLength(2); // SHIFT+S / SHIFT+R combos
+    // Symbol caps (frame: tight 15px padding) vs letter/word caps (fatter).
+    expect(screen.getByText("Space")).toHaveClass("onboarding__key--text");
+    const shiftCaps = screen.getAllByText("SHIFT");
+    for (const cap of shiftCaps) expect(cap).toHaveClass("onboarding__key--text");
+    expect(screen.getByText("←").classList).not.toContain("onboarding__key--text");
     expect(screen.getByText("Find the full list in the menu.")).toBeInTheDocument();
   });
 
