@@ -4,7 +4,7 @@
 // Clear-history action row (g11-P1-1) and the telemetry rows relocated off the
 // screen (g11-P2-1: ui=false, CLI/config-only).
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ClientProvider } from "../../../client/ClientProvider";
@@ -31,22 +31,70 @@ const renderRouted = (area: string) =>
     </ClientProvider>,
   );
 
-describe("NetworkArea — honest empty surface (proxies are schema-absent)", () => {
-  it("renders the honest empty state and zero controls", () => {
+describe("NetworkArea — the staged §C10 rows (w26.i15)", () => {
+  it("renders the frame's rows STAGED inert — visible, full-strength, never dead-but-alive", () => {
     const { container } = render(<NetworkArea />);
     expect(container.querySelector('[data-settings-area="network"]')).not.toBeNull();
-    expect(screen.getByTestId("settings-area-empty")).toBeVisible();
+    // Buffering (§C10 y83): the dropdown + the four frame-disabled inputs.
+    // (The frame itself duplicates the word: section header + row label.)
+    expect(screen.getAllByText("Buffering")).toHaveLength(2);
+    for (const label of ["Local files", "Discs", "Network streams", "Live capture"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    // Proxy (§C10 y380) + Security (§C10 y535), frame-verbatim values.
+    expect(screen.getByText("HTTP proxy")).toBeInTheDocument();
+    expect(screen.getByText("HTTP proxy password")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("System proxy")).toBeInTheDocument(); // the staged input's frame value
+    expect(screen.getByText("Verify certificates against the system trust store")).toBeInTheDocument();
+    expect(screen.getByText("Balanced")).toBeInTheDocument();
+    // Every staged row: the honest tooltip + the seam marker.
+    const rows = container.querySelectorAll("[data-staged-row]");
+    expect(rows).toHaveLength(9);
+    for (const row of rows) {
+      expect(row.getAttribute("data-staged")).toBe("schema-seed");
+      expect(row.getAttribute("title")).toContain("Staged");
+    }
+    // The frame's four disabled groups (§C0 @0.3) carry the dim marker; the
+    // controls are DISABLED, never dead-but-alive.
+    expect(container.querySelectorAll('[data-staged-dimmed="true"]')).toHaveLength(4);
+    expect(screen.getByRole("switch", { name: "Verify certificates against the system trust store" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Local files" })).toBeDisabled();
+    expect(screen.getByText("Normal")).toBeInTheDocument(); // the Buffering dropdown's frame value
     expect(container.querySelectorAll("[data-setting], [data-setting-capability]")).toHaveLength(0);
+    expect(container.querySelector('[data-testid="settings-area-empty"]')).toBeNull();
   });
 
-  it("invents no proxy options the schema does not define", () => {
-    render(<NetworkArea />);
-    expect(screen.queryByText(/proxy|socks/i)).toBeNull();
+  it("carries the frame's ⓘ census (5/9 rows — never the dimmed group), operable", () => {
+    const { container } = render(<NetworkArea />);
+    // SVG circle census (Settings - network.svg): 5 r7.5 circles —
+    // buffer-size, both Proxy rows, both Security rows. The four @0.3
+    // buffering inputs carry NO ⓘ in the frame; the dim marker rows must not.
+    const dots = container.querySelectorAll(".settings-field__info");
+    expect(dots).toHaveLength(5);
+    for (const dot of dots) {
+      expect(dot.getAttribute("aria-label")).toContain("Staged");
+      expect(dot.closest(".settings-field")?.getAttribute("data-staged-dimmed")).toBeNull();
+    }
+    fireEvent.click(dots[0]!);
+    expect(dots[0]!.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".settings-field__hinttext")?.textContent).toContain(
+      "network settings schema",
+    );
+    fireEvent.click(dots[0]!);
+    expect(container.querySelector(".settings-field__hinttext")).toBeNull();
   });
 
-  it("is routed at /settings/network via the areas registry", () => {
+  it("invents no live proxy options the schema does not define", () => {
+    const { container } = render(<NetworkArea />);
+    // The Proxy rows render STAGED (never live bindings) — no SOCKS or
+    // per-protocol inventions beyond the frame's two rows.
+    expect(screen.queryByText(/socks/i)).toBeNull();
+    expect(container.querySelectorAll("[data-setting^=\"network.\"], [data-setting]")).toHaveLength(0);
+  });
+
+  it("is routed at /settings/network via the areas registry (one area root)", () => {
     renderRouted("network");
-    expect(document.querySelector('[data-settings-area="network"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-settings-area="network"]')).toHaveLength(1);
   });
 });
 
