@@ -33,15 +33,44 @@
 /* Trigger — frame: Settings - playback.svg "Dropdown" 320×36 rx6 #090909 +
  * inner 316×32 rx4 #191919. A 2px near-black ring around the panel fill
  * reproduces both rects (the r6 outer radius leaves an r4 inner edge,
- * exactly the frame's inner rx4). */
+ * exactly the frame's inner rx4). w26.i12 (h09 #3/#5): value inset 15px +
+ * 2px ring = 17px from the outer edge (frame x720.4–721.2 on x704) and the
+ * chevron column ends 21px + 2px ring = 23px from the right edge (frame
+ * Vector 27 path x991–1001 on the x1024 edge). */
 .settings-field__control .lumen-dropdown--compact .lumen-dropdown__trigger {
   height: 36px; /* frame: 320×36 trigger (compact default is ~40px) */
-  padding: 0 20px 0 16px; /* frame: value x721.6 on the x704 control ≈17px inset, chevron ~23px from the right */
+  padding: 0 21px 0 15px; /* frame: value ≈17px inset, chevron end ≈23px from the right */
   font-size: var(--font-size-section); /* frame: value ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   background: var(--color-surface-panel); /* frame: inner rect fill #191919 */
   border: 2px solid var(--color-surface); /* frame: outer ring #090909 */
   border-radius: var(--radius-control); /* frame: rx6 */
+}
+
+/* Chevron — w26.i12 (h09 defect 3, open since g11-P3-2): the shared menu
+ * glyph (a rotated "\203A" text char, ~5×17 tall) is replaced on settings
+ * rows by the frame's FLAT stroke glyph — Settings - playback.svg "Vector 27"
+ * `M991 130L996 135L1001 130`, 10×5 chevron-down, stroke #8F8F8F 1.5, round
+ * caps. Mask + token ink keeps the semantic-token rule; the geometry rides
+ * a data-URI path (no hex in CSS). The shared component glyph stays for
+ * non-settings surfaces (menu lane's call). Open state flips the glyph up
+ * (`Setting Preset.svg` open trigger, the menu.css house grammar). */
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__arrow {
+  width: 10px; /* frame: Vector 27 path 10px wide */
+  height: 5px; /* frame: 5px tall */
+  background-color: var(--color-stroke-icon); /* frame: #8F8F8F */
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 5'%3E%3Cpath d='M1 0.75L5 4.25L9 0.75' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; /* frame: Vector 27 (modern mask — the app's Chromium baseline) */
+}
+
+.settings-field__control .lumen-dropdown--compact .lumen-dropdown__arrow::before {
+  content: none; /* the shared "\203A" text glyph retires on settings rows */
+}
+
+.settings-field__control
+  .lumen-dropdown--compact
+  .lumen-dropdown__trigger[aria-expanded="true"]
+  .lumen-dropdown__arrow {
+  transform: rotate(180deg); /* open: chevron points up (Setting Preset.svg) */
 }
 
 .settings-field__control .lumen-dropdown--compact .lumen-dropdown__value {
@@ -76,9 +105,15 @@
 /* ------------------------------------------- text/number rows: the well */
 
 /* The settings input well — frame: 318×34 rx5 #090909 fill + 2px #191919
- * stroke, value #8F8F8F ≈15px (e06 F7: NOT the onboarding #2a2a2a r6 fill). */
+ * stroke, value #8F8F8F ≈15px @ 13.9px inset (x718.8 on the x705 rect;
+ * e06 F7: NOT the onboarding #2a2a2a r6 fill). w26.i12 (h09 #5): the well
+ * pins the frame's 318px on the 320px column (x705 on the dropdown's x704 —
+ * 1px inset each side) and the 12px + 2px-ring text inset (was 8px + ring). */
 .settings-field__control .lumen-field__control {
+  width: calc(100% - 2px); /* frame: 318px well (x705..1023 on the 320px column) */
   height: 34px; /* frame: 34px */
+  padding-inline: 12px; /* frame: value @ 13.9px inset (12px + the 2px stroke) */
+  margin-inline: auto; /* frame: 1px inset left AND right of the column */
   font-size: var(--font-size-section); /* frame: value ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F */
   background-color: var(--color-surface); /* frame: #090909 recessed well */
@@ -106,10 +141,12 @@
 /* Number rows fill the column (e08 F10: skip inputs were 199px shrink-to-fit
  * vs the frame's full-width 318×34 wells). The W26 settings frames carry no
  * stepper glyph — the pointer steppers retire here (keyboard arrows keep
- * stepping natively; NumberField keeps its steppers outside settings rows). */
+ * stepping natively; NumberField keeps its steppers outside settings rows).
+ * w26.i12: the wrapper carries the well's 318px frame geometry too. */
 .settings-field__control .lumen-number {
   display: flex;
-  width: 100%;
+  width: calc(100% - 2px); /* frame: 318px well on the 320px column */
+  margin-inline: auto;
 }
 
 .settings-field__control .lumen-number__control {
@@ -127,14 +164,18 @@
 /* ------------------------------------------------- ⓘ hint affordance */
 
 /* Frame §D2: ⓘ circle r7.5 stroke #404040 sw1.125 + i-glyph sw1.5, ~13px
- * after the label end — a quiet 18px hit around the 14px glyph. */
+ * after the label end. w26.i12: the 24px hit carries the 18px glyph (the
+ * shared "info" sheet at size 18 lands the circle at exactly r7.5 + 1.125px
+ * ring + sw1.5 i — see SettingField.tsx); the glyph's transparent margins
+ * put the circle ink ~13px after the label. */
 .settings-field__info {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 24px; /* 24px target (WCAG 2.5.8) around the 18px glyph */
+  height: 24px;
+  margin-left: 1px; /* frame: circle ink ≈13px after the label (8px lead gap + 4px glyph margin + 1px) */
   padding: 0;
   border: none;
   border-radius: 50%; /* circular hit over the r7.5 glyph */
@@ -199,8 +240,12 @@
   border-radius: var(--radius-inset); /* frame: rx4 */
 }
 
-/* Degree ticks (§C0: 6px #1A1611 sw2 — surface-muted, the subtitles-area
- * mapping; decorative, aria-hidden). */
+/* Degree ticks (§C0 + w26.i12/h09 #5: 2×6 sw2 marks — the frames pin WARM
+ * #1A1611, darker than the track: playback.svg Vector 48/55–60 @ y215–221,
+ * video.svg Vector 48/55–58 @ y522–528, audio/interface concur. Was
+ * --color-surface-muted #151515 — neutral and lighter-than-track. Token
+ * seam: --color-slider-tick pending (token lane; form.css --color-surface-input
+ * precedent); decorative, aria-hidden). */
 .settings-field__control .settings-slider__ticks {
   position: absolute;
   inset: 0;
@@ -212,7 +257,7 @@
   top: calc(50% - 3px); /* 6px mark centered on the track centerline */
   width: 2px;
   height: 6px;
-  background: var(--color-surface-muted);
+  background: var(--color-slider-tick, #1a1611); /* stylelint-disable-line color-no-hex -- frame: Settings - {playback,video,audio,interface}.svg tick marks #1A1611 (warm, sw2); token seam: --color-slider-tick pending (token lane) */
   border-radius: var(--radius-hairline);
   transform: translateX(-50%);
 }
@@ -347,17 +392,29 @@
 /* ------------------------------------------------- path rows (g10-P2-2) */
 
 /* 208×34 well + Browse 100×32 (§C0: input+Browse variant) — the input
- * yields the trailing 100px, the frame's 11px gap at the nearest token. */
+ * yields the trailing 100px; w26.i12: the gap pins the frame's 11px
+ * (playback.svg input end x913 → Browse x924; was the 8px token) and the
+ * well pins the frame's 208px (x705..913 on the x704 column) with its 1px
+ * lead inset — the shared well rule's 2px auto margins left the control at
+ * 207px and leaked the spare 1px into the gutter (measured 12px); this
+ * override restores 208 + 11 + 100 = 319 + the column's 1px lead. */
 .settings-field__control .settings-field__path {
   display: flex;
   align-items: center;
-  gap: var(--space-inset);
+  gap: 11px; /* frame: 11px input→Browse gutter */
   width: 100%;
 }
 
 .settings-field__control .settings-field__path .lumen-field {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* w26.i12: path-row well = the frame's 208×34 (the standalone well's 318px
+ * rule does not apply here — the Browse action owns the trailing 100px). */
+.settings-field__control .settings-field__path .lumen-field__control {
+  width: 208px; /* frame: well x705..913 (the base 318px rule fits full-width rows only) */
+  margin-inline: 1px 0; /* frame: 1px lead inset, 0 trailing — 11px gutter to Browse */
 }
 
 .settings-field__control .settings-field__path .settings-action {
