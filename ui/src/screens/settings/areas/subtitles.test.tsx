@@ -6,7 +6,7 @@
 // (playback.preferred-subtitle-languages / playback.subtitle-mode, doc 07
 // §5.2 D-rules).
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
 import { makeFixtureTransport } from "./audio-fixtures";
@@ -161,11 +161,20 @@ describe("SubtitlesArea — honest staged surface (config-never-invents)", () =>
     // (they pushed 3 rows below the 865px fold); the honesty lives in the 7
     // ⓘ titles (the staged note as their accessible name).
     expect(screen.queryAllByRole("note")).toHaveLength(0);
-    expect(
-      screen.getAllByRole("img", {
-        name: "Staged — controls activate when the subtitles settings seed lands",
-      }),
-    ).toHaveLength(7);
+    // w26.i14 (h10 defect #4): the honesty is keyboard-reachable — the 7 ⓘ
+    // are operable BUTTONS carrying the staged note (aria-expanded + reveal
+    // on activation), never mouse-only aria-hidden glyphs.
+    const infoButtons = screen.getAllByRole("button", {
+      name: "Staged — controls activate when the subtitles settings seed lands",
+    });
+    expect(infoButtons).toHaveLength(7);
+    for (const button of infoButtons) {
+      expect(button).toHaveAttribute("aria-expanded", "false");
+    }
+    // Activation reveals the honest note under the row (real behavior).
+    fireEvent.click(infoButtons[0]!);
+    expect(infoButtons[0]).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/controls activate when the subtitles settings seed lands/)).toBeInTheDocument();
   });
 
   it("never touches the transport (no engine seam exists for these rows)", () => {
