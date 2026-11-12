@@ -21,7 +21,7 @@
  *
  * Modes (2): dark (default), light.
  * Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
- * Tokens: 118 primitive / 80 alias / 80 semantic (source:
+ * Tokens: 122 primitive / 83 alias / 83 semantic (source:
  * themes/tokens.json).
  */
 
@@ -36,6 +36,7 @@
   --color-content-bright: #eaeaea;
   --color-content-on-accent: #090909;
   --color-content-primary: #c6c6c6;
+  --color-content-quiet: #6b6b6b;
   --color-content-secondary: #8f8f8f;
   --color-content-tertiary: #828282;
   --color-eq-1: #e15032;
@@ -45,12 +46,14 @@
   --color-eq-5: #185dd3;
   --color-eq-6: #8e42ff;
   --color-eq-7: #f052b3;
+  --color-focus-ring: #d37918;
   --color-record: #e15032;
   --color-stroke-border: #404040;
   --color-stroke-icon: #8f8f8f;
   --color-surface: #090909;
-  --color-surface-chrome: #161616;
+  --color-surface-chrome: #1b1b1b;
   --color-surface-deep: #0e0e0e;
+  --color-surface-elevated: #1b1b1b;
   --color-surface-hover: #262626;
   --color-surface-muted: #151515;
   --color-surface-panel: #191919;
@@ -61,7 +64,7 @@
   --font-size-body: 14px;
   --font-size-caption: 11px;
   --font-size-display: 32px;
-  --font-size-label: 16px;
+  --font-size-label: 15px;
   --font-size-micro: 6px;
   --font-size-section: 15px;
   --font-size-sidebar: 13px;
@@ -114,13 +117,16 @@
   --color-accent-tinted: #d8ba9a;
   --color-content-bright: #161616;
   --color-content-primary: #161616;
-  --color-content-secondary: #4e4e4e;
-  --color-content-tertiary: #5f5f5f;
-  --color-stroke-border: #acacac;
+  --color-content-quiet: #5f5f5f;
+  --color-content-secondary: #3a3a3a;
+  --color-content-tertiary: #474747;
+  --color-focus-ring: #824505;
+  --color-stroke-border: #9a9a9a;
   --color-stroke-icon: #6b6b6b;
   --color-surface: #c2c2c2;
   --color-surface-chrome: #ababab;
   --color-surface-deep: #bababa;
+  --color-surface-elevated: #c9c9c9;
   --color-surface-hover: #b4b4b4;
   --color-surface-muted: #c9c9c9;
   --color-surface-panel: #c6c6c6;
