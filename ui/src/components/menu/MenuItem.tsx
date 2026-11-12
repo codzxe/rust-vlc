@@ -13,6 +13,13 @@ import type { MenuEntryBase, ResolveLabel } from "./types";
  * right-aligned accelerator or submenu chevron. All visuals live in
  * menu.css and key off the popup's density class.
  *
+ * w26.i16: menu icons render their TWO-TONE face (every menu frame pins
+ * #8F8F8F base + #AB6314 details — h18 defect #3); `iconAccent` stays as the
+ * data flag it always was (row-class hook), the full-orange cascade is gone.
+ * `entry.selected` paints the resting selected face (Profiles.svg flyout:
+ * #1F1F1F fill + orange check in the icon slot) and carries aria-current
+ * (the active-profile marker is a "current" state, not a checkable one).
+ *
  * Roles per WAI-ARIA / doc 08 §4.5:
  * - plain item → `menuitem`
  * - checkbox / `checked` present → `menuitemcheckbox` + `aria-checked`
@@ -52,11 +59,13 @@ export function MenuItem<K extends string>({
       tabIndex={active ? 0 : -1}
       aria-disabled={entry.disabled || undefined}
       aria-checked={checkable ? Boolean(entry.checked) : undefined}
+      aria-current={entry.selected ? "true" : undefined}
       aria-haspopup={hasSubmenu ? "true" : undefined}
       aria-expanded={hasSubmenu ? submenuOpen : undefined}
       className={[
         "lumen-menu__item",
         entry.iconAccent ? "lumen-menu__item--icon-accent" : "",
+        entry.selected ? "lumen-menu__item--selected" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -64,7 +73,7 @@ export function MenuItem<K extends string>({
     >
       {entry.icon !== undefined && !checkable && (
         <span className="lumen-menu__icon" aria-hidden="true">
-          <Icon name={entry.icon} />
+          <Icon name={entry.icon} twoTone />
         </span>
       )}
       {(checkable || entry.icon === undefined) && <span className="lumen-menu__check" aria-hidden="true" />}
