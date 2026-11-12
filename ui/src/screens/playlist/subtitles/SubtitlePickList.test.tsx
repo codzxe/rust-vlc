@@ -1,7 +1,8 @@
 // w26.b11 — candidate picker tests (subtitle one.svg / subtitle multiple.svg
-// row + listbox): render anatomy, natural ordering, selection states and
-// the full keyboard model (roving arrows, Home/End, Enter/Space toggle,
-// single vs multi semantics).
+// row + listbox): render anatomy, HOST ordering (w26.gfix-E, g19 P3-4:
+// Folder-2.svg pins the given order), selection states and the full keyboard
+// model (roving arrows, Home/End, Enter/Space toggle, single vs multi
+// semantics).
 
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -17,12 +18,14 @@ const CANDIDATES = [
   "The_Wand_S01E01_Japanese.srt",
 ];
 
-/** The same candidates in NATURAL order (English < Japanese < Spanish) — the
- * listbox renders them sorted, so keyboard targets index into this. */
-const SORTED_CANDIDATES = [
+/** The same candidates in the GIVEN (host) order — w26.gfix-E (g19 P3-4):
+ * Folder-2.svg pins host order (English, Spanish, Japanese — NOT sorted),
+ * so the listbox renders candidates verbatim and keyboard targets index
+ * into the same order. Hosts wanting natural order sort at their seam. */
+const ORDERED_CANDIDATES = [
   "The_Wand_S01E01_English.srt",
-  "The_Wand_S01E01_Japanese.srt",
   "The_Wand_S01E01_Spanish.srt",
+  "The_Wand_S01E01_Japanese.srt",
 ];
 
 /** Stateful mount so controlled selection flows like the real host. */
@@ -86,7 +89,7 @@ describe("SubtitlePickRow — frame anatomy", () => {
 });
 
 describe("SubtitlePickList — render + ordering", () => {
-  it("renders candidates in NATURAL order (E2 before E10)", () => {
+  it("renders candidates in the GIVEN order (Folder-2 host order, g19 P3-4)", () => {
     render(
       <SubtitlePickList
         candidates={["Show_E10.srt", "Show_E2.srt"]}
@@ -95,7 +98,7 @@ describe("SubtitlePickList — render + ordering", () => {
       />,
     );
     const options = screen.getAllByRole("option");
-    expect(options.map((option) => option.textContent)).toEqual(["Show_E2.srt", "Show_E10.srt"]);
+    expect(options.map((option) => option.textContent)).toEqual(["Show_E10.srt", "Show_E2.srt"]);
   });
 
   it("exposes a labelled multi-select listbox with aria-activedescendant", () => {
@@ -230,7 +233,7 @@ describe("SubtitlePickList — keyboard model (APG listbox)", () => {
     // The user focuses row 2 first (click/tab), then presses the keys.
     fireEvent.focus(options[1]!);
     fireEvent.keyDown(options[1]!, { key: " " });
-    expect(onReport).toHaveBeenLastCalledWith([SORTED_CANDIDATES[1]]);
+    expect(onReport).toHaveBeenLastCalledWith([ORDERED_CANDIDATES[1]]);
     fireEvent.keyDown(options[1]!, { key: "Enter" });
     expect(onReport).toHaveBeenLastCalledWith([]);
   });
@@ -241,6 +244,6 @@ describe("SubtitlePickList — keyboard model (APG listbox)", () => {
     const options = screen.getAllByRole("option");
     fireEvent.keyDown(options[0]!, { key: "ArrowDown" });
     fireEvent.keyDown(options[1]!, { key: "Enter" });
-    expect(onReport).toHaveBeenLastCalledWith([SORTED_CANDIDATES[1]]);
+    expect(onReport).toHaveBeenLastCalledWith([ORDERED_CANDIDATES[1]]);
   });
 });

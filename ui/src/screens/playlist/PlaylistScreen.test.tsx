@@ -186,18 +186,93 @@ describe("PlaylistScreen — opened-playlist browse (w26.f06: thumbnail/media + 
     expect(containerHasCards()).toBe(false);
   });
 
-  it("saved media render as honest presentation — no play seam, no dead buttons (names only)", () => {
+  it("saved media render as honest presentation — no play seam, real ••• menu (w26.gfix-E)", () => {
     const { container } = render(<PlaylistScreen />);
     openBrowse("Anime to Watch");
-    // list view: rows carry the inert class and no ••• (no menu seam wired)
+    // list view: rows carry the inert class (no play seam) and the ••• opens
+    // the REAL file context menu (file context menu.svg — not a dead button)
     const inertRows = container.querySelectorAll(".lumen-plo-mrow--inert");
     expect(inertRows.length).toBe(4);
-    expect(container.querySelector(".lumen-plo-mrow__menu")).toBeNull();
+    expect(container.querySelector(".lumen-plo-mrow__menu")).not.toBeNull();
     // grid view: cards are presentation divs, never dead play buttons
     fireEvent.click(screen.getByRole("button", { name: "View options" }));
     fireEvent.click(within(screen.getByRole("menu", { name: "View options" })).getByText("Grid View"));
     expect(container.querySelectorAll("button.lumen-plo-card").length).toBe(0);
     expect(container.querySelectorAll("div.lumen-plo-card").length).toBe(4);
+  });
+
+  it("the media ••• opens the file context menu (file context menu.svg, 12 rows)", async () => {
+    render(<PlaylistScreen />);
+    openBrowse("Anime to Watch");
+    fireEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]!);
+    const menu = await screen.findByRole("menu", { name: "File actions" });
+    // Mark as Watched is a menuitemcheckbox — all 12 frame rows together,
+    // in DOM order (frame row order).
+    const items = [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
+    // 12 frame rows, frame order + frame copy.
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Play",
+      "Mark as Watched",
+      "Favorite",
+      "Stream",
+      "Convert",
+      "Add to Queue",
+      "Add to Playlist",
+      "Show in File Explorer",
+      "Go to Source",
+      "Add Subtitle Tracks",
+      "Add Audio Tracks",
+      "Properties & Metadata",
+    ]);
+    // Honest wiring: no-seam rows are disabled (Play has no catalog command).
+    expect(within(menu).getByRole("menuitem", { name: "Play" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("Mark as Watched toggles the row's watched state (media.svg watched state)", async () => {
+    const { container } = render(<PlaylistScreen />);
+    openBrowse("Anime to Watch");
+    expect(container.querySelectorAll(".lumen-plo-mrow--watched").length).toBe(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]!);
+    const menu = await screen.findByRole("menu", { name: "File actions" });
+    const item = within(menu).getByRole("menuitemcheckbox", { name: "Mark as Watched" });
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(item);
+    await waitFor(() => {
+      expect(container.querySelectorAll(".lumen-plo-mrow--watched").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("Add to Playlist appends the file to another saved playlist (local store)", async () => {
+    render(<PlaylistScreen />);
+    openBrowse("Anime to Watch");
+    fireEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]!);
+    const menu = await screen.findByRole("menu", { name: "File actions" });
+    // Other playlists exist (Cool Playlist / Cool Songs) → submenu targets.
+    const add = within(menu).getByRole("menuitem", { name: "Add to Playlist" });
+    expect(add.getAttribute("aria-disabled")).toBeNull();
+    fireEvent.click(add);
+    const target = await within(document.body).findByRole("menuitem", { name: "Cool Songs" });
+    fireEvent.click(target);
+    // The store commit is observable: Cool Songs now carries the episode.
+    fireEvent.click(screen.getByRole("button", { name: "All playlists" }));
+    openBrowse("Cool Songs");
+    expect(screen.getByText("The Wand_S01E01.mp4")).toBeTruthy();
+  });
+
+  it("Add Subtitle Tracks opens the dialog scoped to the one file (Folder-2)", async () => {
+    render(<PlaylistScreen />);
+    openBrowse("Anime to Watch");
+    fireEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]!);
+    const menu = await screen.findByRole("menu", { name: "File actions" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Add Subtitle Tracks" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Add Subtitles")).toBeTruthy();
+    // Folder-2's destination: "To This File"
+    expect(within(dialog).getByRole("button", { name: "Apply subtitles to" }).textContent).toContain(
+      "To This File",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("the row context menu's Open entry opens the browse view (same real seam as the click)", async () => {

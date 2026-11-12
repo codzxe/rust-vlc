@@ -28,12 +28,13 @@
 // onClose={…} mediaNames={playlist.entries.map(entryDisplayTitle)}
 // candidates={…} onSave={…} />` — see docs/waves/w26/logs/w26.b11.md.
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button, IconButton } from "../../../components/button";
 import { Icon } from "../../../components/icon";
 import { Dropdown } from "../../../components/menu";
 import { Dialog } from "../../../components/surface";
+import type { SurfaceCloseReason } from "../../../components/surface";
 import { naturalSort } from "../../../components/list";
 import {
   DEFAULT_MATCH_MODE,
@@ -97,6 +98,7 @@ export function AddSubtitlesDialog({
 }: AddSubtitlesDialogProps): ReactElement | null {
   const t = useSubtitlesMsg();
   const titleId = useId();
+  const windowRef = useRef<HTMLDivElement | null>(null);
   const [destination, setDestination] = useState<SubtitleDestination>(initialDestination);
   const [source, setSource] = useState<SubtitleSource>(initialSource);
   const [matchMode, setMatchMode] = useState<MatchMode>(initialMatchMode);
@@ -125,6 +127,29 @@ export function AddSubtitlesDialog({
 
   if (!open) return null;
 
+  // w26.gfix-E (g19 P1-2, scoped seam): the Dialog focus-trap listens for
+  // Escape with a NATIVE keydown listener on the dialog node — a bubble-phase
+  // ancestor of React's delegated root — so it fires BEFORE the shared
+  // Dropdown's React handler (the Lead's stopPropagation fix never runs
+  // inside a Dialog) and one Escape closed the dropdown AND the whole dialog.
+  // Guard: while any dropdown list is open in this window, an escape-dismiss
+  // is redirected to that dropdown (its trigger click IS the Dropdown's own
+  // close-and-restore path — list closes, focus returns to the trigger); the
+  // dialog closes only once no list is open. Root cause lives in the shared
+  // surface/menu primitives (logged for the Lead); this seam is scoped here.
+  const guardedClose = (reason: SurfaceCloseReason): void => {
+    const openList = windowRef.current?.querySelector(".lumen-dropdown__list") ?? null;
+    if (openList !== null) {
+      openList
+        .closest(".lumen-dropdown")
+        ?.querySelector<HTMLButtonElement>(".lumen-dropdown__trigger")
+        ?.click();
+      return;
+    }
+    void reason; // the host seam is reason-less (matches AddSubtitlesDialogProps)
+    onClose();
+  };
+
   const save = (): void => {
     // Commit in NATURAL order regardless of the click order (the v2 flow
     // brief's natural-sort fix extends to the committed selection).
@@ -139,8 +164,13 @@ export function AddSubtitlesDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} labelledBy={titleId} closeOnOutsideClick className="lumen-plsubs">
-      <div className="lumen-plsubs__window">
+    <Dialog open={open} onClose={guardedClose} labelledBy={titleId} closeOnOutsideClick className="lumen-plsubs">
+      <div
+        className="lumen-plsubs__window"
+        ref={(node) => {
+          windowRef.current = node;
+        }}
+      >
         {/* Header band — frame: #090909 path 0–96px with the panel's r14
          * top corners; title row then the control pills. */}
         <header className="lumen-plsubs__head">
@@ -183,14 +213,16 @@ export function AddSubtitlesDialog({
             {source === "computer" ? (
               <>
                 {/* Breadcrumb pill — frame Frame 122: folder glyph + the
-                 * path segments, #151515 h34 r6, slashes quieter. */}
+                 * path segments, #151515 h34 r6, slashes quieter. w26.gfix-E
+                 * (g19 P2-1): the pills row carries ONLY the frame's three
+                 * controls (200 + 200 + flex crumb = 1030px, exactly the
+                 * frame's budget) — the match dropdown moved to the footer. */}
                 <div className="lumen-plsubs__crumb" aria-label={t("playlist.subtitles.folder-path")}>
                   <Icon name="folder" size={18} />
                   <span className="lumen-plsubs__crumb-path">
                     {folderPath.length === 0 ? null : folderPath.join(" / ")}
                   </span>
                 </div>
-                <FilenameMatchControl value={matchMode} onChange={setMatchMode} />
               </>
             ) : (
               <>
@@ -236,11 +268,22 @@ export function AddSubtitlesDialog({
           )}
         </div>
 
-        {/* Footer — frame Frame 140/141: Cancel #1B1B1B left, Save
-         * (tinted) right, 100×32 r6 at 20px insets; Save is disabled until
-         * the flow has something to commit (b09 dialog precedent). */}
+        {/* Footer — frame Frame 140/141: Cancel #1B1B1B left, Save (tinted)
+         * right, 100×32 r6 at 20px insets; Save is disabled until the flow
+         * has something to commit (b09 dialog precedent). w26.gfix-E (g19
+         * P2-1): the filename-matching dropdown (sub filename.svg — a
+         * control no Folder frame pins) rides the footer's open middle
+         * span, between Cancel and Save. The header band stays the frame's
+         * exact three-control row and the 15-pair review keeps its static
+         * y118–718 budget (a body filter row would push rows 14–15 under
+         * the fold — the very defect this fixes). It only mounts in the
+         * pairs mode it drives; candidate/online states match their frames'
+         * two-button footers. */}
         <footer className="lumen-plsubs__foot">
-          <Button onClick={onClose}>{t("playlist.subtitles.cancel")}</Button>
+          <Button className="lumen-plsubs__cancel" onClick={onClose}>
+            {t("playlist.subtitles.cancel")}
+          </Button>
+          {pairsMode && <FilenameMatchControl value={matchMode} onChange={setMatchMode} />}
           <Button
             variant="tinted"
             disabled={pairsMode ? pairs.length === 0 : selected.length === 0}

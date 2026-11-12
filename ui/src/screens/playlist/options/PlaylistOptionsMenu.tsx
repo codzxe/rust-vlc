@@ -14,8 +14,8 @@
 // Escape closes and restores focus to the trigger, Tab wraps inside the
 // menu (focus trap), roving tabindex.
 
-import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, CSSProperties } from "react";
 import { IconButton } from "../../../components/button";
 import { Icon } from "../../../components/icon";
 import type { IconName } from "../../../components/icon/icons";
@@ -31,6 +31,16 @@ export interface OptionsMenuEntry<K extends string = string> {
   icon?: IconName;
   disabled?: boolean;
 }
+
+/**
+ * Viewport margin a clamped popup keeps from the window edge (w26.gfix-E,
+ * mirrors MenuPopup's w26.f07 constant) — structural, no token.
+ */
+const VIEWPORT_MARGIN_PX = 8;
+
+/** Menu chrome overhead for the natural-height estimate: 4px panel inset
+ * top + bottom + the 1px border twice (Sorting Options.svg = 8 + 48×16). */
+const MENU_CHROME_PX = 10;
 
 export interface PlaylistOptionsMenuProps<K extends string = string> {
   entries: readonly OptionsMenuEntry<K>[];
@@ -75,6 +85,14 @@ export function PlaylistOptionsMenu<K extends string>({
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  /* w26.gfix-E (g19 P1-1, playlist side of the Lead's Dropdown fix): the
+   * 16-row sorting panel is 778px tall — taller than the space under the
+   * toolbar trigger at 1440×900 and than the whole viewport at 1024×768.
+   * On open, measure the trigger and (a) FLIP above when that side has more
+   * room, (b) cap the panel with a scrollport when NEITHER side fits, so
+   * every row stays mouse- and keyboard-reachable (scrollIntoView below). */
+  const [direction, setDirection] = useState<"below" | "above">("below");
+  const [menuMaxHeight, setMenuMaxHeight] = useState<number | null>(null);
 
   // Outside pointer dismiss (focus is not stolen).
   useEffect(() => {
@@ -93,6 +111,9 @@ export function PlaylistOptionsMenu<K extends string>({
   const focusIndex = (index: number): void => {
     setActiveIndex(index);
     itemRefs.current[index]?.focus();
+    // Keep the roving row visible inside the scrollport (Dropdown precedent).
+    // Optional call: jsdom does not implement scrollIntoView.
+    itemRefs.current[index]?.scrollIntoView?.({ block: "nearest" });
   };
 
   const move = (delta: number): void => {
@@ -134,6 +155,38 @@ export function PlaylistOptionsMenu<K extends string>({
     // Open-transition only — later activeIndex changes focus themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Open-direction + scrollport measurement (w26.gfix-E, g19 P1-1): prefer
+  // the anchor `placement`; flip when the preferred side cannot fit and the
+  // other can; cap to the roomier side when neither fits (the 16-row
+  // sorting panel at 1440×900 / 1024×768). Zero-height triggers (jsdom,
+  // display:none hosts) keep the anchor side — nothing to measure.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    if (trigger === null || typeof window === "undefined") return;
+    const rect = trigger.getBoundingClientRect();
+    if (rect.height === 0) {
+      setDirection(placement);
+      setMenuMaxHeight(null);
+      return;
+    }
+    const gap = 4; /* --space-grid trigger gap */
+    const natural = entries.length * 48 + MENU_CHROME_PX;
+    const below = window.innerHeight - rect.bottom - gap - VIEWPORT_MARGIN_PX;
+    const above = rect.top - gap - VIEWPORT_MARGIN_PX;
+    if (natural <= (placement === "below" ? below : above)) {
+      setDirection(placement);
+      setMenuMaxHeight(null);
+    } else if (natural <= (placement === "below" ? above : below)) {
+      setDirection(placement === "below" ? "above" : "below");
+      setMenuMaxHeight(null);
+    } else {
+      const roomier = Math.max(below, above);
+      setDirection(below >= above ? "below" : "above");
+      setMenuMaxHeight(Math.max(160, roomier));
+    }
+  }, [open, entries.length, placement]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const { key } = event;
@@ -206,8 +259,9 @@ export function PlaylistOptionsMenu<K extends string>({
             "lumen-menu",
             "lumen-plo__menu",
             `lumen-plo__menu--${align}`,
-            `lumen-plo__menu--${placement}`,
+            `lumen-plo__menu--${direction}`,
           ].join(" ")}
+          style={(menuMaxHeight === null ? undefined : { maxHeight: `${menuMaxHeight}px` }) as CSSProperties | undefined}
           onKeyDown={handleKeyDown}
         >
           {entries.map((entry, index) => {

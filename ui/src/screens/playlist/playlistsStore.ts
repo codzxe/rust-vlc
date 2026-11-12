@@ -178,6 +178,23 @@ export function removePlaylist(id: string): void {
   commit({ playlists: state.playlists.filter((p) => p.id !== id) });
 }
 
+/**
+ * Append one file name to a saved playlist (the file context menu's
+ * "Add to Playlist", w26.gfix-E). Names are deduped; unknown id: no-op.
+ * Local store data only — no engine command exists.
+ */
+export function addItemToPlaylist(id: string, name: string): void {
+  const trimmed = name.trim();
+  if (trimmed === "") return;
+  commit({
+    playlists: state.playlists.map((p) =>
+      p.id === id && !p.itemNames.includes(trimmed)
+        ? { ...p, itemNames: [...p.itemNames, trimmed] }
+        : p,
+    ),
+  });
+}
+
 /** Test-only: swap the seam and rewind to the hydrated seed. */
 export function resetPlaylistsForTests(seam: PlaylistsPersistence = localStoragePlaylistsPersistence): void {
   persistence = seam;
