@@ -40,9 +40,13 @@ describe("w26.c5 vision harness (dev-only)", () => {
     }
   });
 
-  it("exports standalone HTML snapshots when W26C5_HARNESS_OUT is set", () => {
-    const out = process.env.W26C5_HARNESS_OUT;
-    if (out === undefined || out === "") return; // normal runs skip the export
+  // w26.k09 (j09 P3): skipIf makes the env-gated export EXPLICIT in the
+  // runner output instead of an always-passing no-op — the fs/inline-CSS
+  // path runs only when W26C5_HARNESS_OUT is set (dev-only tooling).
+  it.skipIf(
+    process.env.W26C5_HARNESS_OUT === undefined || process.env.W26C5_HARNESS_OUT === "",
+  )("exports standalone HTML snapshots when W26C5_HARNESS_OUT is set", () => {
+    const out = process.env.W26C5_HARNESS_OUT as string;
     const uiRoot = process.cwd(); // vitest runs from ui/ (npm run test -- …)
     const css = CSS_FILES.map((file) => {
       const path = resolve(uiRoot, file);
