@@ -91,19 +91,27 @@ export function FolderOnlineHarness(): ReactElement {
 
 /** sub filename.svg closeup — the strategy dropdown on a fragment stage:
  * closed state + open state stacked like the frame (the test opens the
- * SECOND instance before serializing). */
+ * SECOND instance before serializing). w26.i11 (h17 #5): the frame div
+ * carries the `lumen-plsubs` scope class so the control renders EXACTLY as
+ * it ships inside the dialog (two-layer #191919/#090909 trigger, 44px
+ * options, labels held at #8F8F8F) — the dialog-scoped rules in
+ * subtitles.css target `.lumen-plsubs .lumen-plsubs-match …`; without the
+ * scope the closeup fell back to the shared Dropdown chrome (#0E0E0E +
+ * hairline border, lifted labels) and validated a control that doesn't
+ * ship. The window-overlay rule needs `.lumen-dialog` too, so a bare scope
+ * class adds no dialog chrome. */
 export function SubFilenameHarness(): ReactElement {
   return (
     <div className="w26b11-stage w26b11-stage--filename">
       <div className="w26b11-cell">
         {/* eslint-disable-next-line local/i18n-no-literals -- dev-only harness caption: the figma frame name itself, not product copy */}
         <p className="w26b11-caption">sub filename — state=default</p>
-        <div className="w26b11-frame w26b11-frame--filename">
+        <div className="w26b11-frame w26b11-frame--filename lumen-plsubs">
           <FilenameMatchControl value={DEFAULT_MATCH_MODE} onChange={() => {}} />
         </div>
         {/* eslint-disable-next-line local/i18n-no-literals -- dev-only harness caption: the figma frame name itself, not product copy */}
         <p className="w26b11-caption">sub filename — state=open</p>
-        <div className="w26b11-frame w26b11-frame--filename">
+        <div className="w26b11-frame w26b11-frame--filename lumen-plsubs">
           <FilenameMatchControl value={DEFAULT_MATCH_MODE} onChange={() => {}} />
         </div>
       </div>
