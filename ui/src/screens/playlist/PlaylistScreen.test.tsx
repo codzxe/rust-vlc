@@ -325,6 +325,18 @@ describe("PlaylistScreen — create-playlist dialog (new playlist.svg)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  // w26.i10 (h16 dialog nit): initial focus belongs on the dialog's primary
+  // control — the title input — not the shared trap's first-focusable (✕).
+  // The refocus rides a macrotask (dev StrictMode re-runs the child trap
+  // effect after the parent's), so the assertion waits for it.
+  it("opening the dialog focuses the title input", async () => {
+    render(<PlaylistScreen />);
+    await openDialog();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByPlaceholderText("e.g., Favorite Videos")),
+    );
+  });
+
   it("closes on the ✕ affordance", async () => {
     render(<PlaylistScreen />);
     await openDialog();
@@ -388,5 +400,86 @@ describe("PlaylistScreen — honest empty state", () => {
     // the label; either one opens the dialog)
     fireEvent.click(screen.getAllByRole("button", { name: "New playlist" })[0]!);
     expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+});
+
+// w26.i10 (h16 a11y shame #2) — the role=grid lists carry the APG grid
+// keyboard model: focus stays on the grid container, aria-activedescendant +
+// data-active point at the active row, ArrowUp/Down/Home/End move it and
+// Enter/Space run the active row's real seam (library: open the playlist —
+// previously div+onClick rows were keyboard-unreachable; media: open the
+// row's file context menu).
+describe("PlaylistScreen — arrow-key grid navigation (w26.i10)", () => {
+  const libraryGrid = (container: HTMLElement): HTMLElement =>
+    container.querySelector<HTMLElement>(".lumen-plpage__list")!;
+
+  it("library grid: arrows/Home/End move aria-activedescendant over the rows", () => {
+    const { container } = render(<PlaylistScreen />);
+    const grid = libraryGrid(container);
+    expect(grid.getAttribute("role")).toBe("grid");
+    expect(grid.getAttribute("aria-activedescendant")).toBeNull(); // nothing active yet
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-0");
+    expect(container.querySelector('[data-active="true"] .lumen-lrow__title')?.textContent).toBe(
+      "Anime to Watch",
+    );
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-1");
+    fireEvent.keyDown(grid, { key: "ArrowUp" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-0");
+    fireEvent.keyDown(grid, { key: "End" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-2");
+    expect(container.querySelector('[data-active="true"] .lumen-lrow__title')?.textContent).toBe(
+      "Cool Songs",
+    );
+    fireEvent.keyDown(grid, { key: "Home" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-0");
+    // moves clamp at the ends (3 seeded playlists)
+    fireEvent.keyDown(grid, { key: "ArrowUp" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-0");
+  });
+
+  it("library grid: Enter and Space open the active playlist (the click seam, keyboard-reachable)", () => {
+    const first = render(<PlaylistScreen />);
+    const grid = libraryGrid(first.container);
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    fireEvent.keyDown(grid, { key: "ArrowDown" }); // row 1 = Cool Playlist
+    fireEvent.keyDown(grid, { key: "Enter" });
+    expect(screen.getAllByRole("heading", { name: "Cool Playlist" }).length).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "All playlists" }));
+    // the active row survives the round-trip (row 1 still pointed at);
+    // Home + Space activates row 0 on the re-mounted library grid
+    const gridAgain = libraryGrid(first.container);
+    expect(gridAgain.getAttribute("aria-activedescendant")).toContain("-row-1");
+    fireEvent.keyDown(gridAgain, { key: "Home" });
+    fireEvent.keyDown(gridAgain, { key: " " });
+    expect(screen.getAllByRole("heading", { name: "Anime to Watch" }).length).toBe(1);
+  });
+
+  it("library grid: Enter without an active row is a no-op; keys from a row's kebab keep their own behavior", () => {
+    const { container } = render(<PlaylistScreen />);
+    const grid = libraryGrid(container);
+    fireEvent.keyDown(grid, { key: "Enter" }); // nothing active — stays on the library
+    expect(screen.getByText("3 playlists")).toBeTruthy();
+    // the kebab's Enter opens the ROW MENU, never moves the active row
+    const kebab = screen.getAllByRole("button", { name: "Playlist actions" })[0]!;
+    fireEvent.keyDown(kebab, { key: "ArrowDown" });
+    expect(grid.getAttribute("aria-activedescendant")).toBeNull();
+  });
+
+  it("media grid: arrows move the active row; Enter opens its file context menu", async () => {
+    const { container } = render(<PlaylistScreen />);
+    openBrowse("Anime to Watch");
+    const grid = container.querySelector<HTMLElement>(".lumen-plo-media")!;
+    expect(grid.getAttribute("role")).toBe("grid");
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    expect(grid.getAttribute("aria-activedescendant")).toContain("-row-0");
+    expect(container.querySelector('[data-active="true"] .lumen-plo-mrow__title')?.textContent).toBe(
+      "The Wand_S01E01.mp4",
+    );
+    fireEvent.keyDown(grid, { key: "Enter" });
+    // the row's one real seam in the saved-playlist scope: the file menu
+    const menu = await screen.findByRole("menu", { name: "File actions" });
+    expect(within(menu).getAllByRole("menuitem", { name: "Play" }).length).toBe(1);
   });
 });
