@@ -3,9 +3,9 @@
 // Two contracts (w26.f10 F4): the LEGACY standalone machine (no provider —
 // `enabled` gates arming, `locked` locks as passed) and the PLAYER
 // COMPOSITION semantics (PlayerControlsProvider above): armed windowed AND
-// fullscreen, empty state included; `locked` honored only while the engine
-// reports media open (the screen's legacy call folds the retired no-media
-// gate into `locked`).
+// fullscreen, empty state included. w26.gfix-F (g06 P1-2) adds the
+// DOM-truth overlay lock on top of both: an open menu or modal dialog in
+// the document locks the chrome visible.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -244,5 +244,84 @@ describe("useChromeAutoHide — player composition (w26.f10 F4, e03 F4)", () => 
       vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS);
     });
     expect(result.current.visibility).toBe("hidden");
+  });
+});
+
+// ------------------------------------------- open-overlay lock (g06 P1-2) ---
+
+describe("useChromeAutoHide — open-overlay lock (w26.gfix-F, g06 P1-2)", () => {
+  /** Mounts an overlay node (present in DOM === open, the seam contract). */
+  const mountOverlay = (role: "menu" | "dialog"): HTMLDivElement => {
+    const node = document.createElement("div");
+    node.setAttribute("role", role);
+    document.body.appendChild(node);
+    return node;
+  };
+
+  it("locks visible while a menu is open in the document — the timer never fires", async () => {
+    const { result } = renderHook((props: Props) => useChromeAutoHide(props), {
+      initialProps: { enabled: true, locked: false },
+    });
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS);
+    });
+    expect(result.current.visibility).toBe("hidden");
+
+    // a menu opens (the writer lives in another lane — DOM truth only):
+    // the hidden chrome must reveal and lock, never re-fade under it.
+    let menu: HTMLDivElement | null = null;
+    await act(async () => {
+      menu = mountOverlay("menu");
+    });
+    expect(result.current.visibility).toBe("locked");
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS * 10);
+    });
+    expect(result.current.visibility).toBe("locked");
+
+    // closing it re-arms the idle timer
+    await act(async () => {
+      menu?.remove();
+    });
+    expect(result.current.visibility).toBe("visible");
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS);
+    });
+    expect(result.current.visibility).toBe("hidden");
+  });
+
+  it("locks for an open modal dialog too (the same stranding argument)", async () => {
+    const { result } = renderHook((props: Props) => useChromeAutoHide(props), {
+      initialProps: { enabled: true, locked: false },
+    });
+    let dialog: HTMLDivElement | null = null;
+    await act(async () => {
+      dialog = mountOverlay("dialog");
+    });
+    expect(result.current.visibility).toBe("locked");
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS * 5);
+    });
+    expect(result.current.visibility).toBe("locked");
+    await act(async () => {
+      dialog?.remove();
+    });
+    expect(result.current.visibility).toBe("visible");
+  });
+
+  it("an overlay opened while hidden reveals first, then locks", async () => {
+    const { result } = renderHook((props: Props) => useChromeAutoHide(props), {
+      initialProps: { enabled: true, locked: false },
+    });
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS);
+    });
+    expect(result.current.visibility).toBe("hidden");
+    await act(async () => {
+      mountOverlay("menu");
+    });
+    // revealed AND locked in one transition — a stale hidden never survives
+    expect(result.current.visibility).toBe("locked");
+    document.querySelector('[role="menu"]')?.remove();
   });
 });

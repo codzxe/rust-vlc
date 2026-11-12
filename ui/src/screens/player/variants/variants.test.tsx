@@ -6,6 +6,7 @@
 // (w26.f11, e03 F5/F6/F8) + honest art placeholder (Player - Music.svg).
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
 import { MockTransport } from "../../../client/transport";
@@ -22,6 +23,9 @@ import {
   persistVariant,
   resolveVariantLayout,
 } from "./index";
+
+const { dirname } = import.meta as ImportMeta & { dirname?: string };
+const variantsCss = readFileSync(`${dirname}/variants.css`, "utf8");
 
 const renderWithClient = (ui: React.ReactElement) =>
   render(<ClientProvider transport={new MockTransport()}>{ui}</ClientProvider>);
@@ -330,5 +334,74 @@ describe("keymap-driven switching (variantKeymap seam)", () => {
       "data-variant",
       "music",
     );
+  });
+});
+
+// ------------------------------------------------------- w26.gfix-F pins ---
+// The frame-pinned geometry this lane re-anchored (issue #62): CSS-rule
+// guards so the next refactor cannot silently drop a pin back to the
+// pre-fix state (the strip-portal dead-selector class of regression —
+// measured live in /tmp/cap-gfixF, w26.gfix-F log).
+describe("w26.gfix-F frame pins (variants.css)", () => {
+  /** Line-anchored single-rule extractor (the List.test cssRule pattern,
+   * anchored so prefixed selectors cannot shadow each other). */
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return variantsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+  };
+
+  it("music transport is the frame's frosted band, not the opaque chrome strip (g06 P2)", () => {
+    // Player - Music.svg Controls group: 1920×54 #191919@0.95 + 1px #222222
+    // hairline + 50px background blur (the g06 finding's "no band" reading
+    // was wrong — the SVG pins all three; the fix killed the OPAQUE #161616).
+    const band = rule('.app-shell__strip > .lumen-player__controls[data-variant="music"]');
+    expect(band).toContain("color-mix(in srgb, var(--color-surface-panel) 95%, transparent)");
+    expect(band).toContain("border-top: 1px solid var(--color-surface-raised)");
+    expect(band).toContain("backdrop-filter: blur(50px)");
+  });
+
+  it("the tick field anchors on the footer's own data-variant (alive under the strip portal)", () => {
+    // The Lead's AppShellStripContext portal hoists the band out from under
+    // .lumen-player[data-variant] — the old anchor was dead CSS in the app.
+    const track = rule(
+      '.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__track',
+    );
+    expect(track).toContain("repeating-linear-gradient");
+    const thumb = rule(
+      '.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__thumb',
+    );
+    expect(thumb).toContain("width: 4px");
+    expect(thumb).toContain("border-radius: 2px");
+  });
+
+  it("mini queue: 44px row pitch, body/head band inversion, quiet title (g07 P3-3/P3-4)", () => {
+    // Miniplayer.svg queue: rows 591/635/679/723 (44px), body #1B1B1B with a
+    // #151515 header band, "Queue" #8F8F8F.
+    expect(rule(".lumen-mini__queue .lumen-lrow--compact")).toContain("height: 44px");
+    const panel = variantsCss.match(/\.lumen-mini__queue \{([^}]*)\}/)?.[1] ?? "";
+    expect(panel).toContain("var(--color-surface-panel)");
+    expect(rule(".lumen-mini__queue-head")).toContain("var(--color-surface-muted)");
+    expect(
+      variantsCss.match(/\.lumen-mini__queue-title \{([^}]*)\}/)?.[1] ?? "",
+    ).toContain("var(--color-content-secondary)");
+  });
+
+  it("icon wrappers round rx4 (g07 P3-1); the play pill keeps its functional circle", () => {
+    // Icon Wrapper.svg hover chip rx4 — scoped to the compact card's hits so
+    // the shared control radius stays for other IconButtons.
+    expect(rule(".lumen-mini .lumen-icon-button")).toContain("var(--radius-inset)");
+    expect(rule(".lumen-mini__controls .lumen-mini__play")).toContain("border-radius: 50%");
+  });
+
+  it("Music-1 window-centers the artwork while the dock is open (g06 P1-3 residual)", () => {
+    // (rail 52 + dock 300) / 2 = 176px slide to the window midpoint, as a
+    // relative left (a negative margin only shifts the center half as far —
+    // flex centers the MARGIN box), clamped so the art never slides under
+    // the open dock on narrow windows.
+    const stage = rule(
+      '.lumen-player[data-variant="music"][data-sidebar="open"] .lumen-music__stage',
+    );
+    expect(stage).toContain("position: relative");
+    expect(stage).toContain("left: max(-176px, calc(436px - 50vw))");
   });
 });

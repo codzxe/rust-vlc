@@ -28,6 +28,17 @@
 
 /* ------------------------------------------------------------------ mini */
 
+/* w26.gfix-F (g07-P3-1): Icon Wrapper.svg's hover chip is rx4 — the compact
+ * card's icon hits (close/expand, queue toggle, queue tools) round at the
+ * wrapper radius, not the shared 6px control radius. button.css owns the
+ * component-wide fix (logged); scoped here so this lane's surfaces are
+ * frame-exact. The play pill rules below are later in the sheet at equal
+ * or higher specificity, so its functional circle is untouched. */
+.lumen-music .lumen-icon-button,
+.lumen-mini .lumen-icon-button {
+  border-radius: var(--radius-inset); /* frame: Icon Wrapper.svg rx4 */
+}
+
 .lumen-mini {
   display: flex;
   flex-direction: column;
@@ -254,7 +265,9 @@
 
 /* Collapsible Queue panel ABOVE the video (frame artboards 2/4: r10 inset
  * panel, centered "Queue" header, summary row, drag-handle rows with
- * tabular durations). */
+ * tabular durations). w26.gfix-F (g07-P3-3): the body is the frame's
+ * #1B1B1B panel tone and the header a #151515 band rounded into the top —
+ * the shared surface-muted-everywhere paint inverted the frame. */
 .lumen-mini__queue {
   display: flex;
   flex-direction: column;
@@ -262,22 +275,28 @@
   overflow: hidden;
   box-sizing: border-box;
   max-height: min(360px, 52vh); /* structural cap while host owns windows */
-  background: var(--color-surface-muted);
+  background: var(--color-surface-panel); /* frame: Miniplayer.svg queue body #1B1B1B (token #191919 — token-lane ask, g07-P3-5, logged) */
   border: 1px solid var(--color-stroke-border);
   border-radius: 10px; /* frame: queue panel rx10 */
 }
 
+/* w26.gfix-F (g07-P3-3): the frame's header band (Miniplayer.svg Frame 62:
+ * 58px of #151515 with the centered "Queue" line, rounded into the panel
+ * top). The frame paints it over the card's 8px inset too; that seam stays
+ * card-colored here (sub-frame delta, logged). */
 .lumen-mini__queue-head {
   display: flex;
   justify-content: center;
   padding: 8px 0 2px;
+  background: var(--color-surface-muted); /* frame: header band #151515 */
+  border-radius: 9px 9px 0 0; /* frame: the rx10 panel minus its 1px border */
 }
 
 .lumen-mini__queue-title {
   margin: 0;
   font-size: var(--font-size-sidebar); /* structural: frame header ~13px */
   font-weight: var(--font-weight-medium);
-  color: var(--color-content-primary);
+  color: var(--color-content-secondary); /* frame: "Queue" #8F8F8F (was primary #c6c6c6 — g07-P3-3) */
 }
 
 .lumen-mini__queue-meta {
@@ -291,9 +310,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-content-secondary);
+  color: var(--color-content-tertiary); /* frame #6B6B6B; tertiary stays #828282 per the w26 Lead ruling (g20-P2-1) — logged for the token lane */
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums; /* W25 §1: tabular timecodes */
+}
+
+/* w26.gfix-F (g07-P3-4): the mini queue's compact rows run at the frame's
+ * 44px pitch (Miniplayer.svg queue row tops 591/635/679/723), not the
+ * shared 40px compact default — list.css owns that pitch; scoped here so
+ * only this surface re-pins. */
+.lumen-mini__queue .lumen-lrow--compact {
+  height: 44px; /* frame: Miniplayer.svg queue rows */
+}
+
+/* w26.gfix-F (g07-P3-3): the drag handle reads at the frame's #8F8F8F
+ * (two 12px bars at 6px pitch — list.css paints tertiary #828282; the
+ * component lane owns the shared grammar, logged). */
+.lumen-mini__queue .lumen-lrow__handle {
+  color: var(--color-content-secondary); /* frame: Miniplayer.svg handle #8F8F8F */
 }
 
 .lumen-mini__queue-tools {
@@ -439,19 +473,25 @@
 
 /* -------------------------------------------- music seek: the tick field */
 
-/* w26.f11 (e03 F7): the frame's waveform seek treatment lives INSIDE the
+/* w26.gfix-F (g06 P2 + strip-portal re-anchor): the tick-field rules now
+ * anchor on the footer's OWN [data-variant="music"] (PlayerScreen writes
+ * it in BOTH compositions). The old .lumen-player[data-variant="music"]
+ * scoping was dead inside the app shell — the Lead's strip portal hoists
+ * the band out from under .lumen-player[data-variant], so the live app
+ * silently fell back to the plain controls.css bar (measured: track
+ * background-image none, thumb 8px r4 — pre-fix, /tmp/cap-gfixF).
+ *
+ * w26.f11 (e03 F7): the frame's waveform seek treatment lives INSIDE the
  * controls row — Player - Music.svg Controls group: the seek well
  * (1246×28 rx6 #090909) is a dense 2px-tick field, unplayed #404040, played
  * #AB6314 accent-strong, a 4×24 rx2 #D37918 playhead at the progress edge.
- * The old stage strip (a doubled seek surface above the bar) is gone; the
- * REAL C2 seek cluster is restyled in place under the shell's
- * data-variant="music" hook — exactly one seek surface, the interactive
- * one. Tick heights are pure TEXTURE (three detuned repeating-gradient
- * layers at a 5px pitch ≈ the frame's 2–14px height range): engine audio
- * levels do not exist yet, so nothing here claims to be audio data
- * (honesty rule, doc 05 §1 C4) — the fill width and playhead position are
- * the engine-truth parts. */
-.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__track {
+ * The REAL C2 seek cluster is restyled in place — exactly one seek surface,
+ * the interactive one. Tick heights are pure TEXTURE (three detuned
+ * repeating-gradient layers at a 5px pitch ≈ the frame's 2–14px height
+ * range): engine audio levels do not exist yet, so nothing here claims to
+ * be audio data (honesty rule, doc 05 §1 C4) — the fill width and playhead
+ * position are the engine-truth parts. */
+.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__track {
   /* well keeps its surface fill + rx6 (controls.css) — the tick texture is
    * layered on top; layer periods equal their tile widths so repeat-x
    * tiles seamlessly. */
@@ -480,7 +520,7 @@
  * #AB6314 ticks on the well, no solid band). left:0 keeps the tick grid
  * aligned with the unplayed field (the fill's usual 2px left inset would
  * shift the grid). */
-.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__fill {
+.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__fill {
   left: 0;
   width: calc(100% * var(--lumen-slider-fill, 0) / 100);
   background-color: transparent;
@@ -507,13 +547,26 @@
 
 /* The playhead — the frame's 4×24 rx2 marker (the C2 bar's 8×24 r4 thumb
  * re-weighted); position stays engine truth (the slider's own mapping). */
-.lumen-player[data-variant="music"] .lumen-controls__seek .lumen-slider__thumb {
+.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__thumb {
   width: 4px; /* frame: Player - Music.svg playhead 4×24 rx2 */
   border-radius: 2px; /* frame: rx2 */
   left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100);
 }
 
 /* ------------------------------------------------- music-mode chrome hooks */
+
+/* w26.gfix-F (g06 P2, re-pinned to the frame): Player - Music.svg's
+ * Controls group carries its OWN band — 1920×54 of #191919 at 95% opacity
+ * over the artwork backdrop, a 1px #222222 top hairline and a 50px
+ * background blur. NOT the opaque #161616 chrome strip the base band ships
+ * (player.css) — g06-P2's complaint was exactly that opaque band. Same
+ * dual-anchor as the seek rules (the strip portal, see above). */
+.lumen-player__controls[data-variant="music"],
+.app-shell__strip > .lumen-player__controls[data-variant="music"] {
+  background: color-mix(in srgb, var(--color-surface-panel) 95%, transparent); /* frame: Player - Music.svg Controls #191919 @0.95 */
+  border-top: 1px solid var(--color-surface-raised); /* frame: hairline #222222 */
+  backdrop-filter: blur(50px); /* frame: Controls data-figma-bg-blur-radius=50 */
+}
 
 /* w26.f11 (e03 F5): the playlist column is the player's LEFT dock in music
  * mode — Player - Music-1.svg docks the 377px column at x=50 (beside the
@@ -542,7 +595,29 @@
 }
 
 /* Music-mode timecode tone (doc 08 §1.4 "Music-mode seek"): the C2 bar is
- * reused; only tone shifts via the shell's data-variant="music" hook. */
-.lumen-player[data-variant="music"] .lumen-controls__time {
+ * reused; only tone shifts — same dual-anchor as the seek rules (the
+ * footer's own data-variant, alive under the strip portal). */
+.lumen-player__controls[data-variant="music"] .lumen-controls__time {
   color: var(--color-content-secondary);
+}
+
+/* w26.gfix-F (g06 P1-3 residual): Player - Music-1.svg window-centers the
+ * artwork — art 738 at x=591, center 960/1920 = the window's midpoint —
+ * even with the 377px column open; stage-centering (the flex default) left
+ * it (rail + dock)/2 = 176px right of that. The shift CANNOT ride a
+ * negative margin: flex centering centers the MARGIN box, so -176px moves
+ * the border-box center only 88px (measured art center 808 vs 720 @1440,
+ * /tmp/cap-gfixF) — a relative `left` offsets the painted box without
+ * re-entering the centering math. Clamped: below ~1224px window width the
+ * full 176px slide would push the art under the open dock (.lumen-music__art
+ * clips at its left edge) — the clamp trades the last pixels of centering
+ * for never clipping (rail 52 is the SHELL's pinned value, appshell lane —
+ * re-pin if the rail retunes; dock 300 is this sheet's). The closed state
+ * needs no shift: the rail folds (player.css :has rule) and the stage
+ * already spans the window. */
+.lumen-player[data-variant="music"][data-sidebar="open"] .lumen-music__stage {
+  position: relative;
+
+  /* frame: (rail 52 + dock 300) / 2 — Music-1 art center 960/1920; clamp: art left edge ≥ dock right edge */
+  left: max(-176px, calc(436px - 50vw));
 }

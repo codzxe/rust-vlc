@@ -342,7 +342,11 @@ function MiniQueue({
               density="compact"
               selected={entry.id === playlist.currentId}
               title={entry.title ?? m("playlist.entry.unknown-title")}
-              duration={formatDuration(entry.durationSeconds) ?? m("playlist.entry.unknown-duration")}
+              /* w26.gfix-F (g07-P3-4): the frame's queue rows carry handle +
+               * filename only — the duration slot renders when the entry has
+               * one, never a printed "Unknown" placeholder (ListRow drops the
+               * slot entirely on null). */
+              duration={formatDuration(entry.durationSeconds) ?? undefined}
               draggable
               onDragStart={(event) => {
                 event.dataTransfer.setData("text/plain", String(index));
