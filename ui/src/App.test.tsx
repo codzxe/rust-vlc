@@ -20,13 +20,27 @@ function renderAt(path: string): void {
 }
 
 // Route smoke over the doc 08 §1.6 inventory — every route renders a real
-// screen (app-shell workstream, 2026-11-08). On a fresh run the first-run
-// gate owns / and the player routes until the wizard completes/skips
-// (card 4.F1); ?onboarding=1 is the per-navigation test bypass of that gate.
+// screen (app-shell workstream, 2026-11-08). w26.i20 (h20 top-5 #3): the
+// first-run gate wraps EVERY AppShell route (the whole product, contract
+// §1) — seeded profiles (lumen.onboarding.v1 complete, the e2e/dev-shots
+// shape) render real screens; ?onboarding=1 is the per-navigation bypass.
 const ONBOARDING_DONE = JSON.stringify({
   complete: true,
   choices: { telemetry: false, updateChecks: false, onlineSuggestions: false },
 });
+
+/** Seed a completed wizard (the e2e a11y/dev-shots shape) + re-hydrate the
+ * module store, so the test exercises its screen — not the first-run gate. */
+function seedOnboardingDone(): void {
+  window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
+  resetOnboardingForTests(); // re-hydrate the module store from localStorage
+}
+
+/** Drop the seed + re-hydrate so later tests start on a fresh run again. */
+function clearOnboardingSeed(): void {
+  window.localStorage.clear();
+  resetOnboardingForTests();
+}
 
 describe("App routing skeleton (doc 08 §1.6)", () => {
   it("first run: / redirects through /player into the onboarding gate", () => {
@@ -44,10 +58,61 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     resetOnboardingForTests(); // leave a fresh run for the later route tests
   });
 
+  it("w26.i20 (h20 #3): first run, the gate guards the WHOLE app — every shell route redirects into the wizard", () => {
+    // Fresh profile (no onboarding store): pre-onboarding, the product IS the
+    // wizard — settings, playlists, dialogs, working screens and the 404 are
+    // no longer reachable by typing a URL (h20 walked them live; the gate
+    // used to wrap PlayerRoute only).
+    for (const path of [
+      "/player",
+      "/player/music",
+      "/miniplayer",
+      "/playlist",
+      "/media-info",
+      "/settings",
+      "/settings/global",
+      "/settings/not-a-real-area",
+      "/discovery",
+      "/convert",
+      "/keyboard-shortcuts",
+      "/open-network-stream",
+      "/definitely-not-a-route",
+    ]) {
+      cleanup();
+      renderAt(path);
+      expect(screen.getByRole("heading", { level: 1 }), `fresh run at ${path}`).toHaveTextContent(
+        "Welcome to Lumen",
+      );
+    }
+    // /onboarding itself renders the wizard directly (no gate loop).
+    cleanup();
+    renderAt("/onboarding");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
+    // The ungated dev fixture keeps rendering (full-bleed route by design).
+    // TokenSandbox reads the theme context — mount the same provider stack
+    // main.tsx uses (ThemeProvider), per the theme-hydration cases below.
+    cleanup();
+    render(
+      <ThemeProvider>
+        <ClientProvider transport={new MockTransport()}>
+          <MemoryRouter initialEntries={["/dev/tokens"]}>
+            <App />
+          </MemoryRouter>
+        </ClientProvider>
+      </ThemeProvider>,
+    );
+    expect(document.querySelector(".ts-sandbox")).not.toBeNull();
+  });
+
   it("renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area", async () => {
+    // w26.i20: settings sits behind the app-wide first-run gate now — seed
+    // the completed wizard (e2e/dev-shots shape) so this test exercises the
+    // area redirect, not the gate.
+    seedOnboardingDone();
     renderAt("/settings/not-a-real-area"); // genuinely unknown slug (audio is real since w26.b02)
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Settings");
     expect(screen.getByRole("button", { name: "General" })).toHaveAttribute("aria-current", "page");
+    clearOnboardingSeed();
   });
 
   it("renders the onboarding route (real 4.F1 wizard)", () => {
@@ -56,8 +121,12 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
   });
 
   it("renders unknown paths as the not-found screen", () => {
+    // w26.i20: the 404 lives inside the gated shell — seed the completed
+    // wizard so the catch-all renders its real screen, not the wizard.
+    seedOnboardingDone();
     renderAt("/definitely-not-a-route");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
+    clearOnboardingSeed();
   });
 
   it("completed profile: / lands on the player home — the wizard never shows again", () => {
@@ -73,10 +142,21 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     // Fresh run (no persisted store): the param satisfies the gate…
     renderAt("/player?onboarding=1");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
+    // …on ANY shell route now (w26.i20 moved the gate to the shell layout,
+    // so the bypass covers the whole product, not just the player family).
+    cleanup();
+    renderAt("/settings/global?onboarding=1");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+    cleanup();
+    renderAt("/definitely-not-a-route?onboarding=1");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
     // …and writes nothing to the onboarding store: the next param-less
-    // navigation is gated again.
+    // navigation is gated again — player family AND the rest of the app.
     cleanup();
     renderAt("/player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
+    cleanup();
+    renderAt("/playlist");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
   });
 });
