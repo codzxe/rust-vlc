@@ -100,16 +100,22 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     ).toContain("Club");
   });
 
-  it("carries the frame's ⓘ affordances on all six marked rows (F7 + w26.i14)", () => {
+  it("carries the frame's ⓘ affordances on all six marked rows (F7 + w26.i14 + w26.k13, j13 P2-3)", () => {
     renderArea();
     // The frame's 6 circles (y118.5/163.5/707.5/749.5/793.5/837.5): the
-    // Equalizer + preset rows AND the four rows below the EQ panel that
-    // carried dead `note` props before w26.i14 (h10 defect #3).
-    const infoDots = document.querySelectorAll(".effects-info");
+    // Equalizer + preset rows AND the four rows below the EQ panel.
+    // w26.k13 (j13 P2-3): ONE ⓘ grammar — the shared SettingInfoDot button
+    // (the local role="img" span is gone), operable: aria-expanded + the
+    // reveal caption carries the staged reason, so keyboard/AT users reach
+    // it without a hover.
+    const infoDots = document.querySelectorAll(".settings-field__info");
     expect(infoDots).toHaveLength(6);
-    // Accessible (role img, never aria-hidden) on every marked row.
-    const infos = screen.getAllByRole("img", { name: /Engine stage ready/ });
-    expect(infos).toHaveLength(6);
+    const infoButtons = screen.getAllByRole("button", { name: /Engine stage ready/ });
+    expect(infoButtons).toHaveLength(6);
+    for (const button of infoButtons) {
+      expect(button).toHaveAttribute("aria-expanded", "false");
+      expect(button.getAttribute("title")).toContain("Engine stage ready");
+    }
     // One on the Equalizer row, one on the Equalizer preset row.
     const eqRow = screen.getByRole("switch", { name: "Equalizer" }).closest(
       ".settings-field",
@@ -117,28 +123,40 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     const presetRow = screen
       .getByRole("button", { name: "Equalizer preset" })
       .closest(".settings-field");
-    expect(eqRow?.querySelector(".effects-info")).not.toBeNull();
-    expect(presetRow?.querySelector(".effects-info")).not.toBeNull();
+    expect(eqRow?.querySelector(".settings-field__info")).not.toBeNull();
+    expect(presetRow?.querySelector(".settings-field__info")).not.toBeNull();
     // The four rows below the panel: Two-pass / Spatial audio / Spatial
     // audio mode / Stereo widening (h10 defect #3 — the frame's ⓘ now
-    // renders where the note prop used to be dead).
+    // renders where the note prop used to be dead). Every staged row also
+    // carries the shared data-staged-row marker (w26.k13, j13 ruling 1).
     for (const label of ["Two-pass", "Spatial audio", "Spatial audio mode", "Stereo widening"]) {
       const row = screen.getByRole(
         label === "Spatial audio mode" ? "button" : "switch",
         { name: label },
       ).closest(".settings-field");
-      expect(row?.querySelector(".effects-info"), `${label} carries the frame's ⓘ`).not.toBeNull();
-      expect(row?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+      expect(row?.querySelector(".settings-field__info"), `${label} carries the frame's ⓘ`).not.toBeNull();
+      expect(row?.querySelector(".settings-field__info")?.getAttribute("title")).toContain(
         "Engine stage ready",
       );
+      expect(row?.getAttribute("data-staged-row")).toMatch(/^effects\./);
     }
     // g12-P3-8: the staged note rides the ⓘ tooltips (no in-row note lines).
-    expect(eqRow?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+    expect(eqRow?.querySelector(".settings-field__info")?.getAttribute("title")).toContain(
       "Engine stage ready",
     );
-    expect(presetRow?.querySelector(".effects-info")?.getAttribute("title")).toContain(
+    expect(presetRow?.querySelector(".settings-field__info")?.getAttribute("title")).toContain(
       "Engine stage ready",
     );
+    // Operable (the subtitles/staged pattern): activation reveals the honest
+    // reason under the row.
+    const dot = eqRow?.querySelector(".settings-field__info") as HTMLButtonElement;
+    fireEvent.click(dot);
+    expect(dot).toHaveAttribute("aria-expanded", "true");
+    expect(
+      eqRow?.querySelector(".settings-field__hinttext")?.textContent,
+    ).toContain("Engine stage ready");
+    fireEvent.click(dot);
+    expect(eqRow?.querySelector(".settings-field__hinttext")).toBeNull();
   });
 });
 
