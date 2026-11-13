@@ -27,6 +27,11 @@ export interface MediaInfoState {
   /** True once `media.get-info` answered `feature-not-exposed` — panel then
    * shows the honest not-connected note instead of pretending. */
   readonly notExposed: boolean;
+  /** True once the transport REJECTED (host unreachable) — w26.k17 (j17
+   * P3-8): a dead transport is a different verdict from feature-not-exposed
+   * (the command layer may expose the command while the host is down);
+   * the panel renders its own note, never the false not-exposed one. */
+  readonly unreachable: boolean;
 }
 
 const MediaInfoContext = createContext<MediaInfoState | null>(null);
@@ -36,6 +41,7 @@ export function MediaInfoProvider({ children }: { children: ReactNode }) {
   const nextRequestId = useRef(0);
   const [info, setInfo] = useState<MediaInfo | null>(null);
   const [notExposed, setNotExposed] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
 
   // Seed from the session's current media via the command seam
   // (`media.get-info` is session-scoped — no args, doc 05 §2.9).
@@ -58,8 +64,10 @@ export function MediaInfoProvider({ children }: { children: ReactNode }) {
           // keep `info: null` — the honest empty state.
         }
       } catch {
-        // Host unreachable — treat as not-exposed honest note.
-        setNotExposed(true);
+        // Host unreachable (w26.k17, j17 P3-8) — its OWN honest verdict, not
+        // the not-exposed one: the command layer may expose the command
+        // while the transport is dead.
+        setUnreachable(true);
       }
     })();
     return () => {
@@ -75,7 +83,7 @@ export function MediaInfoProvider({ children }: { children: ReactNode }) {
   }, [transport]);
 
   return (
-    <MediaInfoContext.Provider value={{ info, notExposed }}>
+    <MediaInfoContext.Provider value={{ info, notExposed, unreachable }}>
       {children}
     </MediaInfoContext.Provider>
   );
