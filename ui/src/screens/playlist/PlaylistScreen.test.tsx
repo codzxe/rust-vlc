@@ -19,6 +19,7 @@
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { NewPlaylistDialog } from "./NewPlaylistDialog";
 import { PlaylistScreen } from "./PlaylistScreen";
 import {
   resetPlaylistsForTests,
@@ -403,6 +404,35 @@ describe("PlaylistScreen — honest empty state", () => {
   });
 });
 
+// w26.k14 (j14 #7): the dialog's state reset no longer rides close() alone —
+// a parent flipping open=false WITHOUT onClose (route change) must leave a
+// clean sheet for the next open (no stale title, no stale file names).
+describe("NewPlaylistDialog — close-without-onClose resets state (w26.k14)", () => {
+  it("a parent dropping open without onClose leaves no stale title/files for the next open", async () => {
+    const view = render(<NewPlaylistDialog open onClose={() => undefined} />);
+    await screen.findByRole("dialog");
+    fireEvent.change(screen.getByPlaceholderText("e.g., Favorite Videos"), {
+      target: { value: "Road movies" },
+    });
+    fireEvent.change(screen.getByLabelText("Select files", { selector: "input" }), {
+      target: { files: [new File([], "a.mkv")] },
+    });
+    expect(screen.getByText("1 items")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+
+    // the route-change shape: open drops, onClose never fires
+    view.rerender(<NewPlaylistDialog open={false} onClose={() => undefined} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // the next open starts clean
+    view.rerender(<NewPlaylistDialog open onClose={() => undefined} />);
+    await screen.findByRole("dialog");
+    expect((screen.getByPlaceholderText("e.g., Favorite Videos") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByText("1 items")).toBeNull();
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 // w26.i10 (h16 a11y shame #2) — the role=grid lists carry the APG grid
 // keyboard model: focus stays on the grid container, aria-activedescendant +
 // data-active point at the active row, ArrowUp/Down/Home/End move it and
@@ -481,5 +511,22 @@ describe("PlaylistScreen — arrow-key grid navigation (w26.i10)", () => {
     // the row's one real seam in the saved-playlist scope: the file menu
     const menu = await screen.findByRole("menu", { name: "File actions" });
     expect(within(menu).getAllByRole("menuitem", { name: "Play" }).length).toBe(1);
+  });
+
+  // w26.k14 (j14 #6): the contract's "container owns the tab stop" half,
+  // driven through REAL focus (the suite's other key tests fire keyDown on
+  // the element directly). The grid container takes focus, the arrow moves
+  // aria-activedescendant, and the pointed-at row carries data-active.
+  it("library grid: real focus + arrows — the pointed-at row exists and is marked active", () => {
+    const { container } = render(<PlaylistScreen />);
+    const grid = libraryGrid(container);
+    grid.focus(); // the keyboard path (the container is the tab stop)
+    expect(document.activeElement).toBe(grid);
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    const pointedId = grid.getAttribute("aria-activedescendant")!;
+    expect(pointedId).toContain("-row-0");
+    const pointed = document.getElementById(pointedId);
+    expect(pointed?.getAttribute("data-active")).toBe("true");
+    expect(pointed?.textContent).toContain("Anime to Watch");
   });
 });
