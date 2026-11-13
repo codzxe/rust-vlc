@@ -47,12 +47,16 @@ export const HARNESS_ONLINE_CANDIDATES: readonly string[] = [
 
 export const HARNESS_PATH: readonly string[] = ["Videos", "Shows", "The Wand", "S01"];
 
-/** State 1/2 — the matched-pairs review (Folder.svg / Folder-1.svg). */
+/** State 1/2 — the matched-pairs review (Folder.svg / Folder-1.svg).
+ * w26.k15: the mounts pass `onSave` (the documented recipe shape) so the
+ * harness exercises the fully-wired dialog — Save gates on the commit seam
+ * (j15 P2-3) and would render honest-disabled without it. */
 export function FolderPairsHarness(): ReactElement {
   return (
     <AddSubtitlesDialog
       open
       onClose={() => {}}
+      onSave={() => {}}
       mediaNames={HARNESS_EPISODES}
       candidates={HARNESS_FOLDER_CANDIDATES}
       folderPath={HARNESS_PATH}
@@ -67,6 +71,7 @@ export function FolderMultiHarness(): ReactElement {
     <AddSubtitlesDialog
       open
       onClose={() => {}}
+      onSave={() => {}}
       initialDestination="file"
       mediaNames={["The_Wand_S01E01.mp4"]}
       candidates={HARNESS_MULTI_CANDIDATES}
@@ -81,6 +86,7 @@ export function FolderOnlineHarness(): ReactElement {
     <AddSubtitlesDialog
       open
       onClose={() => {}}
+      onSave={() => {}}
       initialDestination="file"
       initialSource="online"
       mediaNames={["The_Wand_S01E01.mp4"]}
