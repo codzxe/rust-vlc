@@ -6,7 +6,7 @@ exports[`BrowseField (settings path combo, wave 26) > DOM snapshot 1`] = `
 >
   <label
     class="lumen-field__label"
-    for="_r_5_"
+    for="_r_6_"
   >
     Skin file
   </label>
@@ -15,7 +15,7 @@ exports[`BrowseField (settings path combo, wave 26) > DOM snapshot 1`] = `
   >
     <input
       class="lumen-field__control lumen-browse__control"
-      id="_r_5_"
+      id="_r_6_"
       type="text"
     />
     <button
