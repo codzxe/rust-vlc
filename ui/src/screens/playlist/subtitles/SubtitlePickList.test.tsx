@@ -101,7 +101,7 @@ describe("SubtitlePickList — render + ordering", () => {
     expect(options.map((option) => option.textContent)).toEqual(["Show_E10.srt", "Show_E2.srt"]);
   });
 
-  it("exposes a labelled multi-select listbox with aria-activedescendant", () => {
+  it("exposes a labelled multi-select listbox (roving tabindex model)", () => {
     render(
       <SubtitlePickList
         candidates={CANDIDATES}
@@ -113,7 +113,9 @@ describe("SubtitlePickList — render + ordering", () => {
     );
     const listbox = screen.getByRole("listbox", { name: "Subtitle files" });
     expect(listbox).toHaveAttribute("aria-multiselectable", "true");
-    expect(listbox.getAttribute("aria-activedescendant")).toMatch(/-opt-0$/);
+    // w26.k15 (j15 P3-10): NO aria-activedescendant — the APG prescribes one
+    // listbox pattern; this widget is roving-tabindex only.
+    expect(listbox).not.toHaveAttribute("aria-activedescendant");
   });
 
   it("renders the honest empty state when no candidates exist", () => {
@@ -195,15 +197,14 @@ describe("SubtitlePickList — keyboard model (APG listbox)", () => {
   };
 
   it("starts focused on the first row (roving tabindex)", () => {
-    const { listbox } = mount();
+    mount();
     const options = screen.getAllByRole("option");
     expect(options[0]).toHaveFocus();
     expect(options[0]).toHaveAttribute("tabindex", "0");
     expect(options[1]).toHaveAttribute("tabindex", "-1");
-    expect(listbox.getAttribute("aria-activedescendant")).toBe(options[0]!.id);
   });
 
-  it("ArrowDown/ArrowUp move the roving focus and aria-activedescendant", () => {
+  it("ArrowDown/ArrowUp move the roving focus (wraps at both ends)", () => {
     mount();
     const options = screen.getAllByRole("option");
     fireEvent.keyDown(options[0]!, { key: "ArrowDown" });
@@ -245,5 +246,88 @@ describe("SubtitlePickList — keyboard model (APG listbox)", () => {
     fireEvent.keyDown(options[0]!, { key: "ArrowDown" });
     fireEvent.keyDown(options[1]!, { key: "Enter" });
     expect(onReport).toHaveBeenLastCalledWith([ORDERED_CANDIDATES[1]]);
+  });
+});
+
+describe("SubtitlePickList — candidate changes (w26.k15, j15 P2-1)", () => {
+  /** Folder-3 host shape: a search field whose query filters the candidates
+   * (a NEW array identity + content on every keystroke). */
+  function SearchFilterHost() {
+    const [query, setQuery] = useState("");
+    const visible = CANDIDATES.filter((name) => name.toLowerCase().includes(query.toLowerCase()));
+    return (
+      <div>
+        <input
+          aria-label="Search subtitles"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <SubtitlePickList candidates={visible} selected={[]} onSelectedChange={() => {}} multiple />
+      </div>
+    );
+  }
+
+  it("filtering while the search field holds focus never steals the caret (repro A)", () => {
+    render(<SearchFilterHost />);
+    const input = screen.getByLabelText("Search subtitles");
+    // Roving focus moves down two rows, then the user clicks into the search
+    // field and types one character — the filtered list is a NEW array, and
+    // the old identity-keyed reset yanked focus to row 0 (keystroke lost).
+    fireEvent.keyDown(screen.getAllByRole("option")[0]!, { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getAllByRole("option")[1]!, { key: "ArrowDown" });
+    input.focus();
+    fireEvent.change(input, { target: { value: "spanish" } });
+    expect(input).toHaveFocus(); // the caret stays in the search field
+    const filtered = screen.getAllByRole("option");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toHaveAttribute("tabindex", "0"); // the reset landed on row 0
+    expect(filtered[0]!.textContent).toContain("Spanish");
+  });
+
+  it("a non-memoized candidates array (same content) never resets roving focus (repro B)", () => {
+    const onSelectedChange = vi.fn();
+    const { rerender } = render(
+      <SubtitlePickList
+        candidates={[...CANDIDATES]}
+        selected={[]}
+        onSelectedChange={onSelectedChange}
+        multiple
+      />,
+    );
+    const options = screen.getAllByRole("option");
+    fireEvent.keyDown(options[0]!, { key: "ArrowDown" });
+    expect(options[1]).toHaveFocus();
+    // The documented mount-recipe shape (subtitles/index.ts): a fresh array
+    // identity per host render — content identical, so NO reset may fire.
+    rerender(
+      <SubtitlePickList
+        candidates={[...CANDIDATES]}
+        selected={[]}
+        onSelectedChange={onSelectedChange}
+        multiple
+      />,
+    );
+    expect(options[1]).toHaveFocus();
+    expect(options[1]).toHaveAttribute("tabindex", "0");
+  });
+
+  it("a CONTENT change while focus sits inside the listbox resets roving to row 0", () => {
+    const { rerender } = render(
+      <SubtitlePickList candidates={CANDIDATES} selected={[]} onSelectedChange={() => {}} multiple />,
+    );
+    // Focus a row that SURVIVES the refresh (keyed by name) so focus stays
+    // inside the listbox — the legit reset path.
+    screen.getAllByRole("option")[1]!.focus();
+    rerender(
+      <SubtitlePickList
+        candidates={[...CANDIDATES, "The_Wand_S01E01_German.srt"]}
+        selected={[]}
+        onSelectedChange={() => {}}
+        multiple
+      />,
+    );
+    const next = screen.getAllByRole("option");
+    expect(next).toHaveLength(4);
+    expect(next[0]).toHaveFocus(); // reset to row 0, focus held in the listbox
   });
 });
