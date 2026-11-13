@@ -100,6 +100,28 @@ describe("MenuBar", () => {
     expect(open).toHaveAttribute("tabindex", "0");
   });
 
+  it("w26.k02 (j02 J02-9, APG menubar): ArrowUp opens the menu and focuses its LAST item; menu switches reset to first-item focus", () => {
+    render(<MenuBar menus={menus} resolveLabel={resolve} />);
+    const file = screen.getByRole("menuitem", { name: "File" });
+    fireEvent.keyDown(file, { key: "ArrowUp" });
+    const menu = screen.getByRole("menu", { name: "File" });
+    expect(menu).toBeInTheDocument();
+    // Last non-separator entry of the File menu (the disabled row is still
+    // focusable-but-inert — the family's roving model).
+    const last = screen.getByRole("menuitem", { name: "Convert" });
+    expect(last).toHaveFocus();
+    expect(last).toHaveAttribute("tabindex", "0");
+    // Escape restores the trigger; ArrowRight switching while open lands the
+    // next menu on its FIRST item (not last).
+    fireEvent.keyDown(last, { key: "Escape" });
+    expect(file).toHaveFocus();
+    fireEvent.keyDown(file, { key: "ArrowDown" });
+    fireEvent.keyDown(openItem(), { key: "ArrowRight" });
+    const playback = screen.getByRole("menu", { name: "Playback" });
+    expect(playback).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Shuffle" })).toHaveFocus();
+  });
+
   it("navigates with ArrowDown/ArrowUp and skips separators", () => {
     render(<MenuBar menus={menus} resolveLabel={resolve} />);
     openFileMenu();
