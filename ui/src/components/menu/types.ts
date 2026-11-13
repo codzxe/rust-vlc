@@ -15,6 +15,13 @@
  *   accent flag (`iconAccent`) for the orange-detail icons the frames pin
  *   (profile, wand). Both are optional and additive — existing data keeps
  *   rendering icon-less rows.
+ * - w26.k02 (j02 J02-12) — documented data-shape interaction: a CHECKABLE
+ *   entry (`checked` present or `kind` checkbox/radio) that ALSO carries an
+ *   `icon` renders the check slot ONLY — the icon is dropped (check slot
+ *   wins). This is the frame grammar, not an accident: no radio/checkbox row
+ *   in any menu frame carries a leading icon, and the selected-profile row
+ *   REPLACES its icon with the check (Profiles.svg §A10). Pair `icon` with
+ *   `checked` only if you want the icon ignored.
  */
 
 import type { IconName } from "../icon/icons";
@@ -32,7 +39,8 @@ export interface MenuEntryBase<K extends string = string> {
   id: string;
   /** i18n message key — resolved via `resolveLabel` (doc 05 §8.3: keys only). */
   labelKey: K;
-  /** Leading line icon from the shared icon catalog (frame: 22–24px slot). */
+  /** Leading line icon from the shared icon catalog (frame: 22–24px slot).
+   * Ignored on checkable rows (see the w26.k02 J02-12 note above). */
   icon?: IconName;
   /** Selective orange icon accent (frame: profile/wand icons in `Profiles.svg`). */
   iconAccent?: boolean;
@@ -42,7 +50,8 @@ export interface MenuEntryBase<K extends string = string> {
   submenu?: MenuEntry<K>[];
   /** Disabled from data (e.g. command outside the feature set — doc 05 §6.4). */
   disabled?: boolean;
-  /** Checked state for checkable items (renders `menuitemcheckbox`). */
+  /** Checked state for checkable items (renders `menuitemcheckbox`; a
+   *  leading `icon` is dropped on checkable rows — check slot wins, J02-12). */
   checked?: boolean;
   /**
    * w26.i16 — resting selected face (Profiles.svg flyout row 1: #1F1F1F fill
