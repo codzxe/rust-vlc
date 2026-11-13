@@ -3,7 +3,12 @@
 - **Status:** accepted (2026-10-22 — formalized by card 3.DOC-1; the exception
   itself has been brief policy since Phase 0, recorded as "accepted-by-brief"
   in D-008, and the engine-side seam landed with card 2.D3 and was verified at
-  the 2.E2-V gate). **Per-OS webview verdicts: PENDING** — no desktop webview
+  the 2.E2-V gate). **Per-OS webview verdicts (updated 2026-11-13): CI
+  half proven on Linux; macOS/Windows best-effort, human confirmation
+  owed** — the admission is now BUILT and LAUNCHED on all three OSes
+  (all three launch jobs green on run 43457753166; see the verdicts
+  table below for the per-OS split). Historical state at acceptance:
+  no desktop webview
   runtime exists in the sandbox and no tauri binary has ever been built or
   launched on any OS; the seams the wrapper drives are landed and tested
   (`ShellRuntime` delegation, `apps/desktop` 63/0, merge `8a56f0b` — close
@@ -144,9 +149,9 @@ instead of a crash face.
 
 | OS | lane job | verdict | evidence | date |
 |---|---|---|---|---|
-| Linux (WebKitGTK 4.1, xvfb) | `linux-launch` | PENDING-CI (lane designed; first run pending) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
-| macOS (WKWebView, arm64) | `macos-launch` | PENDING-CI (best-effort lane; human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
-| Windows (WebView2, x86_64) | `windows-launch` | PENDING-CI (best-effort lane; human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+| Linux (WebKitGTK 4.1, xvfb) | `linux-launch` | **CI half proven** (green on run 43457753166 / 08727513: survival + zero failure receipts + harness-TERM exit; the GUI half — a human or GUI driver observing the launched app — still owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+| macOS (WKWebView, arm64) | `macos-launch` | BEST-EFFORT-PENDING (green on run 43457753166, but a runner session is not a real desktop — human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+| Windows (WebView2, x86_64) | `windows-launch` | BEST-EFFORT-PENDING (green on run 43457753166, but a runner session is not a real desktop — human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
 
 Rows flip only on evidence, never on intent: a green `linux-launch` run
 moves Linux to "CI half proven" (the GUI half — a human or GUI driver

@@ -1927,3 +1927,34 @@ Stage Summary:
   the release dry-run's windows job green through install ->
   replace -> uninstall-clean, which unblocks the release job and the
   first tagged release (#66).
+---
+Task ID: w26.lead-round17
+Agent: Lead (orchestrator)
+Task: ADR-004 verdict rows flip on evidence + the first tagged
+  release (v0.1.0, issue #66).
+
+Work Log:
+- The round-16 dispatched release dry-run (43461062527) is GREEN end
+  to end: all five OS jobs + the release job; the upgrade test PASSED
+  all four asserts on its first complete live run -- predecessor
+  install (1 ProductCode, files present), current install REPLACES
+  (ProductCode FF3F9614... -> 30E6F8AD..., replaced not co-installed),
+  uninstall clean (0 codes, dir gone), zero cleanup warnings (the
+  involution unsquish worked). The 1619 class is closed: the
+  ProviderPath resolution carried it.
+- Flipped the ADR-004 launch-verdict rows on the green evidence
+  (run 43457753166, all three jobs green): Linux -> CI half proven
+  (GUI half still owed); macOS/Windows -> BEST-EFFORT-PENDING even
+  when green, per the table's own rule (a runner session is not a
+  real desktop). Status header updated to match.
+- Tag v0.1.0 cut on this tree (the full green set: CI, Rust, UI,
+  CodeQL, clippy, Release dry-run, Launch Verdicts). Matches the
+  numeric MSI form (0.1.0) per the cross-check step's own rule;
+  PRODUCT_VERSION stays 0.1.0-dev until the Lead bumps identity.
+
+Stage Summary:
+- Tag pushed; release.yml's tag path fires for the first time --
+  gh release create with all artifacts + checksums. Next: verify the
+  published Release + assets, update docs/RELEASE.md + release-
+  checklist.md with the first real run evidence, then close #67,
+  #66, verify #65's acceptance, write the phase8-exit record (#59).
