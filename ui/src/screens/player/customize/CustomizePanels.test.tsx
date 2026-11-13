@@ -1,10 +1,10 @@
 // w26.gfixA (issue #62) — the customize MODAL tests. The rail-era contracts
 // that survive the frame rebuild, re-pinned to the new anatomy:
-//  * capability gating: engine-bound tiles render only when listed;
-//    UI-owned toolbar items ALWAYS render (the frame's box is the 31-tile
-//    catalog, not a capability report — w26.g07-P1-2's split);
+//  * the frame catalog: the STATIC 31-tile inventory renders against ANY
+//    listing (h07 defect 4 — the box is a catalog, not a capability report;
+//    engine truth governs dispatch, never membership — w26.g07-P1-2's
+//    split, updated w26.k08 to match the shipped policy);
 //  * tile-command bindings (dispatch spies on the transport);
-//  * the frame catalog: the frames' 31-tile inventory + reading order;
 //  * the edit model: in-box reorder, drop-on-band places (frames -6/-7),
 //    band-item click/drop-into-box removes, Delete key removes;
 //  * Save persists the arrangement (localStorage, the variant-seam
@@ -23,8 +23,8 @@ import type {
 import type { CommandListing } from "../../../generated/commands";
 import { CustomizePanels } from "./CustomizePanels";
 import { CustomizeToolbarItems } from "./toolbarItems";
-import { tileVisible, useCommandCapabilities, visibleTiles } from "./capabilities";
-import { CUSTOMIZE_TILES, CUSTOMIZE_TILE_IDS, DEFAULT_TOOLBAR_LAYOUT, tileById } from "./panels";
+import { useCommandCapabilities } from "./capabilities";
+import { CUSTOMIZE_TILES, CUSTOMIZE_TILE_IDS, DEFAULT_TOOLBAR_LAYOUT } from "./panels";
 import { PlayerControlsProvider } from "../context";
 import { PlaylistProvider } from "../../playlist";
 import {
@@ -202,17 +202,6 @@ describe("capability policy (w26.i05: the box is the catalog, not a report)", ()
     expect(labels).toContain("Go home");
     expect(labels).toContain("Playlists");
     expect(labels).toContain("Stop");
-  });
-
-  it("pure helpers: tileVisible encodes the gating matrix (ui-owned always)", () => {
-    const caps = { available: new Set<string>(["playback.stop"]), resolved: true };
-    const stop = tileById("stop")!;
-    const seek = tileById("seek-fwd-10")!;
-    const spacer = tileById("spacer")!;
-    expect(tileVisible(stop, caps)).toBe(true);
-    expect(tileVisible(seek, caps)).toBe(false);
-    expect(tileVisible(spacer, caps)).toBe(true); // UI-owned: no gate
-    expect(visibleTiles(CUSTOMIZE_TILES, caps)).toHaveLength(19);
   });
 
   it("useCommandCapabilities resolves ids from system.list-commands", async () => {
@@ -564,8 +553,17 @@ describe("the per-state band variants (w26.i05, h07 defect 3 — frames -1..-6)"
       await act(async () => {});
     }
     const band = screen.getByRole("group", { name: "Toolbar preview" });
-    expect(band.querySelector(".lumen-customize-band__well--flat")).not.toBeNull();
-    expect(band.querySelector(".lumen-customize-band__well--flat")?.getAttribute("class")).toContain("lumen-customize-band__well--flat");
+    // Frame -3: the 130×26 flat well joins at the band's LEFT EDGE, before
+    // the narrowed (729) left slot — DOM order pins the composition (the
+    // old assertion here only checked a class against itself; j08 noted it
+    // as mild theater — this is the real structural pin).
+    const flat = band.querySelector(".lumen-customize-band__well--flat");
+    expect(flat).not.toBeNull();
+    const leftSlot = band.querySelector(".lumen-customize-band__slot--left");
+    expect(leftSlot).not.toBeNull();
+    expect(
+      Boolean(flat!.compareDocumentPosition(leftSlot!) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
   });
 
   it("f4 — three placed: the topbar well run enters the band", async () => {
@@ -798,6 +796,68 @@ describe("the real bar's customized items (w26.i05, h07 defect 1 — state 7)", 
     await act(async () => {});
     const sent = stub.sent.filter((request) => request.cmd === "playlist.set-shuffle");
     expect(sent.map((request) => (request.args as { enabled: boolean }).enabled)).toEqual([true]);
+    clearPersistedToolbarLayout();
+  });
+
+  // ---- w26.k08 (j08 P2-3): the real bar's cycle tiles subscribe to engine
+  // truth (completions + events) instead of re-dispatching default-based
+  // args forever — the regression pins the tile actually ADVANCING.
+  it("playback-speed advances through engine-confirmed completions (j08 P2-3)", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["playback-speed"] });
+    const stub = new StubTransport(
+      [listing("playback.set-rate")],
+      (request) =>
+        request.cmd === "playback.set-rate"
+          ? { kind: "applied-rate", rate: (request.args as { rate: number }).rate }
+          : null,
+    );
+    renderItems(stub);
+    const speed = await screen.findByRole("button", { name: "Playback speed" });
+    // Default 1 → first click 1.25; the completion confirms 1.25 → next 1.5
+    // (the pre-k08 behavior re-dispatched 1.25 forever).
+    fireEvent.click(speed);
+    await act(async () => {});
+    fireEvent.click(speed);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "playback.set-rate");
+    expect(sent.map((request) => (request.args as { rate: number }).rate)).toEqual([1.25, 1.5]);
+    clearPersistedToolbarLayout();
+  });
+
+  it("the real bar follows engine rate events (the box's subscription parity)", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["playback-speed"] });
+    const stub = new StubTransport([listing("playback.set-rate")]);
+    renderItems(stub);
+    const speed = await screen.findByRole("button", { name: "Playback speed" });
+    // Engine truth arrives by event: rate 1.5 → the next click dispatches 2
+    // (the pre-k08 bar never subscribed, so this stayed 1.25).
+    act(() => {
+      stub.emit({ seq: 1, kind: "playback.rate-changed", rate: 1.5 });
+    });
+    fireEvent.click(speed);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "playback.set-rate");
+    expect(sent.map((request) => (request.args as { rate: number }).rate)).toEqual([2]);
+    clearPersistedToolbarLayout();
+  });
+
+  it("zoom advances through applied-zoom completions (j08 P2-3)", async () => {
+    persistToolbarLayout({ order: CUSTOMIZE_TILE_IDS, band: ["zoom"] });
+    const stub = new StubTransport(
+      [listing("video.set-zoom")],
+      (request) =>
+        request.cmd === "video.set-zoom"
+          ? { kind: "applied-zoom", factor: (request.args as { factor: number }).factor }
+          : null,
+    );
+    renderItems(stub);
+    const zoom = await screen.findByRole("button", { name: "Zoom" });
+    fireEvent.click(zoom);
+    await act(async () => {});
+    fireEvent.click(zoom);
+    await act(async () => {});
+    const sent = stub.sent.filter((request) => request.cmd === "video.set-zoom");
+    expect(sent.map((request) => (request.args as { factor: number }).factor)).toEqual([1.5, 2]);
     clearPersistedToolbarLayout();
   });
 });
