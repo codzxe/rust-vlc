@@ -1596,3 +1596,22 @@ Work Log:
 
 Stage Summary:
 - Wave K closed (issue #64 → closed). 13/13 P1s closed with regression evidence; P2/P3 triaged per acceptance. Next: wave L — final verification + polish + visual baseline re-seed + green CI line (issue #65); then wave M releases (issue #66).
+
+---
+Task ID: w26.lead-wave-l-ci-green
+Agent: Lead (wave-26 orchestration)
+Task: Wave L open — CI green line on the first real runner execution (issues #65/#68)
+
+Work Log:
+- First real CI execution after the billing unblock (run set on 89544eb → 507e69c). Root causes isolated and fixed one level deep:
+  1. BOTH playwright lanes died at `config.webServer` (60s timeout, zero tests run): vite 8's default host `localhost` resolves to ::1 on this toolchain — server unreachable on IPv4 127.0.0.1 while every harness polls IPv4. Fixed at the owner: `vite.config.ts` pins `server.host: "127.0.0.1"` (makes contract §9 true); both playwright configs get `timeout: 240_000` headroom for cold runners. Pushed as 507e69c; CI then passed the whole `ui` job (typecheck/lint/l10n/vitest 1662/e2e smoke 88) — only the visual lane stayed red (stale pins).
+  2. `demux` asf differential died at the wma_wmav2_mono8k.wma sha pin: ubuntu-latest ships ffmpeg 6.1.x, the pins were measured under 7.1.5 — lossy encoder bytes differ across ffmpeg versions. Fixed by landing ASF-d as planned in the tests header: the §1.2 eleven-fixture family (10 FIXTURES + asf_stream_broadcast.wmv) committed at src/asf/fixtures/; fixture_dir() prefers the in-tree set, temp-dir regeneration is the stripped-tree fallback. sha pins now pin the committed bytes — byte-stable on every machine. Local: 454/454 demux green.
+  3. fmt drift in generated tokens.rs: the wrap heuristic used a placeholder prefix (`pub const X:` 23 chars) — under-estimated FONT_FAMILY declarations by 15+. Fixed in the generator: continuation-aware budgets (Family/Shadow arms judge the indented rhs), new const_declaration() emits exactly rustfmt's shapes; regenerated output is fmt-stable (fmt ≠ generator no longer possible). Stale pipeline.rs pin updated to the wrapped form; theme-tokens 14/14 green incl. committed_outputs_match_regeneration.
+  4. schema-gen output drift: k12's settings.toml interface.theme +auto enumeration never propagated to the generated docs. Regenerated (settings-help.txt/settings-docs.md 2-line drift).
+  5. lint-literals: 3 violations in testkit (LUMEN_REQUIRE_ORACLE env-var name + two diagnostics quoting it) — allowlisted with honest test-harness-knob reasons. lint-literals + check-identity PASS (0 violations).
+- Visual baselines re-seeded (third full re-pin; MATRIX-20261113.md): nightly 216/216 --update (8.2m), PR-lite 50 compare-verified (1.6m), 142 files changed / 0 orphans; the committed set was a patchwork (PR subset @ w26.gfix, nightly grid still w24-era — light-mode whole-surface drift ratio 1.0 from the wave-i token supply).
+- Local battery at this close: fmt --check green; clippy --workspace -D warnings green (1m13s); xtask checks green (lint-literals, check-identity, schema-gen --check, codegen, fixtures, architecture, fuzz-registry, rebrand no-op + byte-identical surfaces, localization); demux 454/454; theme-tokens 14/14; UI vitest 1662/1663 (1 intentional skip); e2e 88/88 (2.7m); visual:pr 50/50; tokens/settings/l10n checks green. The full `cargo test --workspace --all-features` link could not complete in the Lead sandbox (disk: linker SIGBUS at 93% full; CI runners have the headroom) — CI is the authoritative verifier on push.
+- Sandbox toolchain note: RUSTUP_HOME/CARGO_HOME relocated to a durable path after a /tmp recycle scare; dead-key + battery line unchanged.
+
+Stage Summary:
+- Wave L green line submitted (issues #65/#68 work). Next: watch the 507e69c+1 CI set; then wave M releases (issue #66) + Tauri admission (#67).

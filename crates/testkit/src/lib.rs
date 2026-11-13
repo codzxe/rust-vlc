@@ -122,9 +122,11 @@ pub fn assert_err<T, E>(result: Result<T, E>, context: &str) -> E {
 /// presence checks then FAIL the test instead of skipping, so a
 /// developer who believes the oracle is installed finds out loudly.
 pub fn oracle_available() -> bool {
+    // lumen-allow-literal: env-var name — test-harness strictness knob (doc 04), not product config
     if std::env::var_os("LUMEN_REQUIRE_ORACLE").is_some_and(|v| v == "1") {
         assert!(
             on_path("ffmpeg") && on_path("ffprobe"),
+            // lumen-allow-literal: diagnostic quoting the harness knob’s own name — user-facing text, not config
             "LUMEN_REQUIRE_ORACLE=1 but ffmpeg/ffprobe are not on PATH"
         );
     }
@@ -142,6 +144,7 @@ pub fn oracle_available() -> bool {
 /// ```
 pub fn skip_no_oracle(what: &str) {
     eprintln!(
+        // lumen-allow-literal: skip diagnostic quoting the harness knob’s name — user-facing text, not config
         "oracle: ffmpeg/ffprobe not on PATH — skipping {what} \
          (install ffmpeg, or set LUMEN_REQUIRE_ORACLE=1 to make absence a failure)"
     );

@@ -140,7 +140,7 @@ global
   --global-language <en-US>  [restart required]
       settings.global.interface-language
       default: -> product.toml defaults.locale
-  --interface-theme <dark|light>
+  --interface-theme <dark|light|auto>
       settings.interface.theme
       default: -> product.toml defaults.theme
   --global-accent-color <orange|red|yellow|green|cyan|blue|violet|pink|gray>

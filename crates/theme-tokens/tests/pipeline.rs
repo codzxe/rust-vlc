@@ -311,7 +311,10 @@ fn emitted_documents_have_the_documented_structure() -> Result<(), Box<dyn std::
         "pub const RADIUS_CONTROL: f32 = 6.0;",
         "pub const SPACE_INSET: f32 = 8.0;",
         "pub const OPACITY_SWATCH_REST: f32 = 0.7;",
-        "pub const FONT_FAMILY_SANS: &[&str] = &[\"Inter\", \"-apple-system\", \"Segoe UI\", \"Roboto\", \"sans-serif\"];",
+        // Wrapped form (fmt-drift fix, 2026-11-13): the single-line
+        // declaration was 101 columns — over rustfmt's 100 — so the
+        // generator now breaks after `=` (const_declaration rule 2).
+        "pub const FONT_FAMILY_SANS: &[&str] =\n    &[\"Inter\", \"-apple-system\", \"Segoe UI\", \"Roboto\", \"sans-serif\"];",
         "pub const FONT_WEIGHT_BOLD: f32 = 700.0;",
         "pub const MOTION_DURATION_FAST: f32 = 120.0;",
         "pub const MOTION_DURATION_STEP: f32 = 280.0;",

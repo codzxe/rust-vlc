@@ -15,9 +15,10 @@
 //!    ffprobe where ffprobe itself can read the file (stream count,
 //!    codec names, rates, dimensions). **Skips loudly** when ffmpeg
 //!    is absent (the `mkv_editions_tags` generated-lane precedent).
-//!    The fixtures are ASF-d's to commit in-tree; regenerating here
-//!    keeps this unit's assertions pinned to real muxer output
-//!    without touching the shared fixture tree.
+//!    The fixtures are committed in-tree at `src/asf/fixtures/`
+//!    (ASF-d, 2026-11-13: byte-stability across ffmpeg versions — the
+//!    §4.4 sha pins pin the COMMITTED bytes); temp-dir regeneration
+//!    is the stripped-tree fallback only.
 //! 3. **The ASF-b/c vectors** — synthesized Data Object packets
 //!    (built by the local packet builder: EC flags, padding, send
 //!    time, duration, multi-payload headers, replicated data,
@@ -1063,9 +1064,30 @@ const FIXTURES: &[FixtureTruth] = &[
     },
 ];
 
-/// Regenerate (once per session) the §1.2 fixture family into the
-/// system temp dir; `None` when ffmpeg is absent (loud skip).
+/// Resolve the fixture family's home directory. **In-tree first
+/// (ASF-d, 2026-11-13)**: the §1.2 family — all ten FIXTURES members
+/// plus `asf_stream_broadcast.wmv` — is committed at `src/asf/fixtures/`,
+/// so the differential walks byte-stable fixtures on every machine and
+/// ffmpeg version. The §4.4 sha256 pins now pin the COMMITTED bytes.
+///
+/// Why in-tree became necessary: the pins were measured under ffmpeg
+/// 7.1.5, and CI's ubuntu-latest runners ship ffmpeg 6.1.x, whose
+/// lossy encoders (wmav2 here) emit different bytes — run 43373340224
+/// (2026-11-13) died at the `wma_wmav2_mono8k.wma` sha assert before a
+/// single walk executed. Byte-stability cannot be delegated to a
+/// system dependency that the repo does not control.
+///
+/// Fallback (stripped tree only): the pre-ASF-d path — regenerate once
+/// per session into the system temp dir; `None` when ffmpeg is absent
+/// (loud skip) so a stripped tree without ffmpeg skips honestly.
 fn fixture_dir() -> Option<std::path::PathBuf> {
+    let in_tree = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("asf")
+        .join("fixtures"); // ASF-d: committed §1.2 family, byte-stable
+    if in_tree.is_dir() {
+        return Some(in_tree);
+    }
     if Command::new("ffmpeg").arg("-version").output().is_err() {
         eprintln!("SKIP: ffmpeg absent (asf fixture differential)");
         return None;

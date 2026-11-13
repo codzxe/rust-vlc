@@ -429,7 +429,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     for token in tokens.semantic() {
         match &token.values {
             ModeValues::Single(value) => {
-                let (ty, expr) = rust_const(value)?;
+                let (ty, expr) = rust_const(&token.rust_name, value)?;
                 semantic_consts.push(Const {
                     name: token.rust_name.clone(),
                     ty,
@@ -438,12 +438,9 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
             }
             ModeValues::PerMode(pairs) => {
                 for (mode, value) in pairs {
-                    let (ty, expr) = rust_const(value)?;
-                    semantic_consts.push(Const {
-                        name: format!("{}_{}", token.rust_name, screaming(mode)),
-                        ty,
-                        expr,
-                    });
+                    let name = format!("{}_{}", token.rust_name, screaming(mode));
+                    let (ty, expr) = rust_const(&name, value)?;
+                    semantic_consts.push(Const { name, ty, expr });
                 }
             }
         }
@@ -494,7 +491,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     document.push_str("use crate::color::{Rgb8, Shadow};\n\n");
     document.push_str(&format!(
         "/// Registered modes, in declaration order (doc 08 §3.3).\npub const MODES: &[&str] = &{};\n",
-        rust_array(&tokens.modes().iter().map(|m| rust_str_lit(m)).collect::<Vec<_>>())
+        rust_array(&tokens.modes().iter().map(|m| rust_str_lit(m)).collect::<Vec<_>>(), "pub const MODES: &[&str] = &".len())
     ));
     document.push_str(&format!(
         "/// The default mode.\npub const DEFAULT_MODE: &str = \"{}\";\n",
@@ -502,7 +499,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     ));
     document.push_str(&format!(
         "/// Registered accent ids, in `data-accent` order (doc 08 §3.3).\n#[rustfmt::skip]\npub const ACCENTS: &[&str] = &{};\n",
-        rust_array(&tokens.accents().iter().map(|a| rust_str_lit(a)).collect::<Vec<_>>())
+        rust_array(&tokens.accents().iter().map(|a| rust_str_lit(a)).collect::<Vec<_>>(), "pub const ACCENTS: &[&str] = &".len())
     ));
     document.push_str(&format!(
         "/// The default accent.\npub const DEFAULT_ACCENT: &str = \"{}\";\n",
@@ -512,19 +509,56 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
         "\n// -- semantic tokens (sorted by constant name) -----------------------------\n\n",
     );
     for c in &semantic_consts {
-        document.push_str(&format!("pub const {}: {} = {};\n", c.name, c.ty, c.expr));
+        document.push_str(&const_declaration(c));
     }
     document.push_str(
         "\n// -- accent ramps (declared accent order; doc 08 §3.3) ----------------------\n\n",
     );
     for c in &ramp_consts {
-        document.push_str(&format!("pub const {}: {} = {};\n", c.name, c.ty, c.expr));
+        document.push_str(&const_declaration(c));
     }
     Ok(document)
 }
 
-/// The `f32`/literal pair for one value.
-fn rust_const(value: &ResolvedValue) -> Result<(&'static str, String), TokenError> {
+/// One `pub const` declaration, emitted in exactly the form rustfmt
+/// keeps stable (the 2026-11-13 fmt drift, CI run 43373340074):
+///   1. the whole line fits → single line;
+///   2. it doesn't, but `    <expr>;` fits on a continuation line →
+///      break after `=` (rustfmt's choice for FONT_FAMILY_*: the array
+///      stays inline on the indented rhs);
+///   3. neither → the expression itself must already carry its own
+///      multi-line layout (Family/Shadow arms in `rust_const`), so the
+///      break-after-`=` form is still the right shape.
+fn const_declaration(c: &Const) -> String {
+    let single = format!("pub const {}: {} = {};", c.name, c.ty, c.expr);
+    if single.len() <= LINE_WIDTH {
+        return format!("{single}\n");
+    }
+    // Overflow: rustfmt keeps the expression's FIRST line on the
+    // declaration line (`pub const X: Shadow = Shadow {`, `… = &[`) and
+    // leaves the remaining lines at their own indentation; only a
+    // short single-line expression takes the bare break-after-`=` form.
+    match c.expr.find('\n') {
+        Some(i) => {
+            let head = &c.expr[..i];
+            let rest = &c.expr[i + 1..];
+            format!("pub const {}: {} = {}\n{};\n", c.name, c.ty, head, rest)
+        }
+        None => format!("pub const {}: {} =\n    {};\n", c.name, c.ty, c.expr),
+    }
+}
+
+/// The `f32`/literal pair for one value. The historical fmt drift
+/// (2026-11-13, CI run 43373340074): the wrap decisions used the
+/// placeholder prefix `pub const X: &[&str] = &` (23 chars), which
+/// under-estimated the real `FONT_FAMILY_SANS` declaration by 15 —
+/// the generator emitted a 104-column line and `cargo fmt --check`
+/// rejected the committed output. The decisions now live where they
+/// belong: the FAMILY/SHADOW arms judge only the INDENTED continuation
+/// line (`    <expr>;`, 4-space indent), and the outer `const_declaration`
+/// breaks after `=` when the single-line declaration overflows — the
+/// exact shapes rustfmt keeps stable.
+fn rust_const(_name: &str, value: &ResolvedValue) -> Result<(&'static str, String), TokenError> {
     match value {
         ResolvedValue::Color(c) => Ok(("Rgb8", rgb_expr(*c))),
         ResolvedValue::Dimension { value, .. } => Ok(("f32", rust_f32(*value))),
@@ -534,7 +568,12 @@ fn rust_const(value: &ResolvedValue) -> Result<(&'static str, String), TokenErro
                 return Err(TokenError::emit("fontFamily stack must not be empty"));
             }
             let items: Vec<String> = names.iter().map(|n| rust_str_lit(n)).collect();
-            let array = rust_array(&items);
+            // Continuation-line budget: the outer `const_declaration` breaks
+            // after `=` when the single-line declaration overflows, so the
+            // ARRAY's own wrap decision must be made against the INDENTED
+            // rhs line (`    &[…];`), not the single-line declaration —
+            // 5 = 4-space indent + the `&` that precedes the array.
+            let array = rust_array(&items, 5);
             Ok(("&[&str]", format!("&{array}")))
         }
         ResolvedValue::Shadow(s) => {
@@ -547,7 +586,11 @@ fn rust_const(value: &ResolvedValue) -> Result<(&'static str, String), TokenErro
                 rgb_expr(s.color),
                 rust_f32_lit(s.alpha),
             );
-            if "pub const X: Shadow = ".len() + single.len() < LINE_WIDTH {
+            // Same continuation rule as the Family arm: keep the single-line
+            // struct literal when it fits on the INDENTED rhs line
+            // (`    <literal>;` = 4 + literal + 1), not the single-line
+            // declaration — the outer `const_declaration` breaks after `=`.
+            if single.len() + 5 <= LINE_WIDTH {
                 return Ok(("Shadow", single));
             }
             Ok((
@@ -615,9 +658,9 @@ fn rust_str_lit(s: &str) -> String {
 /// Array literal over pre-quoted item literals, single-line when the whole
 /// `pub const` line fits, one item per line otherwise (mirrors what
 /// rustfmt keeps stable).
-fn rust_array(items: &[String]) -> String {
+fn rust_array(items: &[String], prefix_len: usize) -> String {
     let single = format!("[{}]", items.join(", "));
-    if "pub const X: &[&str] = &".len() + single.len() + 2 <= LINE_WIDTH {
+    if prefix_len + single.len() + ";".len() <= LINE_WIDTH {
         single
     } else {
         let mut out = String::from("[\n");
@@ -736,7 +779,7 @@ mod tests {
             color: Rgb8::new(0, 0, 0),
             alpha: 0.38,
         };
-        let (_, expr) = rust_const(&ResolvedValue::Shadow(shadow))?;
+        let (_, expr) = rust_const("SHADOW_TEST", &ResolvedValue::Shadow(shadow))?;
         assert!(expr.starts_with("Shadow {\n    offset_x: 0.0,\n"));
         assert!(expr.ends_with("alpha: 0.38,\n}"));
         Ok(())
@@ -745,14 +788,14 @@ mod tests {
     #[test]
     fn rust_array_wraps_only_past_the_line_width() {
         let two: Vec<String> = ["dark", "light"].iter().map(|s| rust_str_lit(s)).collect();
-        assert_eq!(rust_array(&two), "[\"dark\", \"light\"]");
+        assert_eq!(rust_array(&two, 23), "[\"dark\", \"light\"]");
         let nine: Vec<String> = [
             "orange", "red", "yellow", "green", "cyan", "blue", "violet", "pink", "gray",
         ]
         .iter()
         .map(|s| rust_str_lit(s))
         .collect();
-        let wrapped = rust_array(&nine);
+        let wrapped = rust_array(&nine, 23);
         assert!(wrapped.starts_with("[\n    \"orange\",\n"));
         assert!(wrapped.ends_with("\"gray\",\n]"));
     }

@@ -78,8 +78,7 @@ fn panic_wrapper(message: &str) -> ! {
 }
 
 #[test]
-fn committed_outputs_match_regeneration(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn committed_outputs_match_regeneration() -> Result<(), Box<dyn std::error::Error>> {
     let set = parse(&committed_source()?)?;
     let mut css = Vec::new();
     let mut rust = Vec::new();
@@ -88,13 +87,9 @@ fn committed_outputs_match_regeneration(
     let css = String::from_utf8(css)?;
     let rust = String::from_utf8(rust)?;
 
+    assert_matches(&workspace_root().join("themes/generated/tokens.css"), &css)?;
     assert_matches(
-        &workspace_root().join("themes/generated/tokens.css"),
-        &css,
-    )?;
-    assert_matches(
-        &workspace_root()
-            .join("crates/theme-tokens/src/generated/tokens.rs"),
+        &workspace_root().join("crates/theme-tokens/src/generated/tokens.rs"),
         &rust,
     )?;
     // The UI-side bridge copy is a VERBATIM copy of the crate CSS output
@@ -114,7 +109,8 @@ fn the_comparison_detects_drift() -> Result<(), Box<dyn std::error::Error>> {
     // primitive value in the committed source (gray.700 #191919 — a unique
     // `$value`, unlike bare hex which also occurs in descriptions), re-emit,
     // and assert the committed output now differs from the mutated emission.
-    let mutated = committed_source()?.replacen("\"$value\": \"#191919\"", "\"$value\": \"#1a1a1a\"", 1);
+    let mutated =
+        committed_source()?.replacen("\"$value\": \"#191919\"", "\"$value\": \"#1a1a1a\"", 1);
     assert_ne!(mutated, committed_source()?, "mutation must apply");
     let set = parse(&mutated)?;
     let mut css = Vec::new();

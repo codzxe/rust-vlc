@@ -101,8 +101,10 @@ pub const COLOR_SURFACE_RAISED_DARK: Rgb8 = Rgb8::new(0x22, 0x22, 0x22);
 pub const COLOR_SURFACE_RAISED_LIGHT: Rgb8 = Rgb8::new(0xde, 0xde, 0xde);
 pub const COLOR_SURFACE_SELECTED_DARK: Rgb8 = Rgb8::new(0x1f, 0x1f, 0x1f);
 pub const COLOR_SURFACE_SELECTED_LIGHT: Rgb8 = Rgb8::new(0xae, 0xae, 0xae);
-pub const FONT_FAMILY_SANS: &[&str] = &["Inter", "-apple-system", "Segoe UI", "Roboto", "sans-serif"];
-pub const FONT_FAMILY_TIME: &[&str] = &["Inter", "-apple-system", "Segoe UI", "Roboto", "sans-serif"];
+pub const FONT_FAMILY_SANS: &[&str] =
+    &["Inter", "-apple-system", "Segoe UI", "Roboto", "sans-serif"];
+pub const FONT_FAMILY_TIME: &[&str] =
+    &["Inter", "-apple-system", "Segoe UI", "Roboto", "sans-serif"];
 pub const FONT_SIZE_BODY: f32 = 14.0;
 pub const FONT_SIZE_CAPTION: f32 = 11.0;
 pub const FONT_SIZE_DISPLAY: f32 = 32.0;

@@ -96,7 +96,7 @@ docs and validation only).
 | Key | Type | Default | Domain | Since | Restart | CLI flag | Gate |
 |---|---|---|---|---|---|---|---|
 | `global.language` | `enum` | `-> product.toml defaults.locale` | en-US | 0.1.0 | yes | `--global-language` | — |
-| `interface.theme` | `enum` | `-> product.toml defaults.theme` | dark, light | 0.1.0 | — | `--interface-theme` | — |
+| `interface.theme` | `enum` | `-> product.toml defaults.theme` | dark, light, auto | 0.1.0 | — | `--interface-theme` | — |
 | `global.accent-color` | `enum` | `"orange"` | orange, red, yellow, green, cyan, blue, violet, pink, gray | 0.1.0 | — | `--global-accent-color` | — |
 
 ### global — diagnostics
