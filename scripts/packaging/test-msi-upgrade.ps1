@@ -72,18 +72,26 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 function Get-SquishedGuid([string]$Guid) {
     # The Installer registry layout keys UpgradeCode lookups by the GUID
     # in "squished" form: braces/dashes removed, the first three groups
-    # (DWORD, WORD, WORD) byte-reversed, the rest verbatim.
+    # (DWORD, WORD, WORD) BYTE-reversed, the rest verbatim. The first
+    # three rounds of this test probed a key that can never exist: the
+    # helper STRING-reversed each group ("7c1f6a52" -> "25a6f1c7") while
+    # the byte-wise reversal is "526a1f7c" (bytes 7c 1f 6a 52 reversed)
+    # - the round-8 hive diagnostics (exists=False on every path, with
+    # the install exit 0) named it. Verified example:
+    # {7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701} ->
+    # 526a1f7c3e9da84ba0013f9c2d64e701.
     $g = $Guid.Trim('{}').Replace('-', '').ToLowerInvariant()
     if ($g.Length -ne 32) { Fail "not a GUID: $Guid" }
-    $rev = {
-        param([string]$s)
-        $chars = $s.ToCharArray()
-        [array]::Reverse($chars)
-        -join $chars
+    function Reverse-HexByteWise([string]$s) {
+        $bytes = @()
+        for ($i = $s.Length - 2; $i -ge 0; $i -= 2) {
+            $bytes += $s.Substring($i, 2)
+        }
+        return ($bytes -join '')
     }
-    $p1 = & $rev $g.Substring(0, 8)
-    $p2 = & $rev $g.Substring(8, 4)
-    $p3 = & $rev $g.Substring(12, 4)
+    $p1 = Reverse-HexByteWise $g.Substring(0, 8)
+    $p2 = Reverse-HexByteWise $g.Substring(8, 4)
+    $p3 = Reverse-HexByteWise $g.Substring(12, 4)
     return ($p1 + $p2 + $p3 + $g.Substring(16))
 }
 
