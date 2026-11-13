@@ -1757,3 +1757,50 @@ Stage Summary:
   outcome: the full CI set green on main for the first time with the
   admission lane in it. Then, per ROADMAP Status: first tagged
   release (#66), wave-L/#65 closure, phase8-exit record + #59.
+---
+Task ID: w26.lead-round13
+Agent: Lead (orchestrator)
+Task: The next-variable round on 28fb38fa — the admission lane's
+  unmaintained advisory + the control-server e2e fixed-path flake.
+
+Work Log:
+- Watched the round-12 run set (28fb38fa, runs 43451838662 CI /
+  43451838615 Rust): licenses now PASS (the two classes were the
+  whole of the license story); the next variables surfaced exactly
+  per the MATRIX Addendum-2 protocol:
+  1. tauri-check, cargo-deny step, ONE error left:
+     error[unmaintained] RUSTSEC-2024-0370 — proc-macro-error 1.0.4
+     (glib-macros 0.18.5 -> glib/gtk -> muda -> tauri 2.12.5; the
+     admission lock only, never the main workspace). Added the
+     documented advisory ignore beside the paste/RUSTSEC-2024-0436
+     entry: informational unmaintained, no vulnerability, removal
+     plan = the gtk-rs stack past 0.18 regenerating
+     apps/desktop-tauri/Cargo.lock. The G3/G4 workspace job now
+     carries the unused-ignore warning for it — the honest ledger.
+  2. Rust lane regression vs round 11 (same code, 0 code delta in
+     28fb38fa): control-server e2e
+     e2e_full_session_through_the_app_stack refused hello with
+     Unauthenticated "token rejected" (e2e.rs:293). Root cause: the
+     sibling test operator_toml_parses_into_the_strict_shape and the
+     e2e test both write_config("strict") — ONE fixed temp path
+     shared by two parallel test threads; the e2e side read the
+     sibling's truncate window, the load resolved token-less, hello
+     was refused. The exact flake class flipped_product's doc
+     comment names (run 43409155006) and round 4c fixed for the
+     PRODUCT file — write_config never got the same per-call
+     counter. Fixed: write_config now carries pid + per-CALL counter
+     in the filename (same static-counter pattern), making the
+     two-caller collision impossible; the fixed name was the only
+     shared-path writer in the repo (grepped).
+- Also re-run the Rust lane on 28fb38fa (API rerun, in flight) as a
+  second data point on the un-fixed tree; the code fix lands
+  regardless — the class is real, the run only dates it.
+- Verification: deny.toml parses; e2e.rs structural check (two
+  per-call counters, unique name format); no other writers of the
+  prefix anywhere in the repo.
+
+Stage Summary:
+- Round 13 pushed: deny.toml (advisory ignore) + e2e.rs (write_config
+  per-call uniqueness). Expected: tauri-check green through to the
+  smoke step (0|86 exit), Rust lane back to green on a real fix, not
+  a rerun.

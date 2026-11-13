@@ -95,8 +95,23 @@ fn load_product(path: &Path) -> product_config::ProductConfig {
 }
 
 /// Write a temp operator config; returns its path.
+///
+/// The name carries the per-CALL counter (same contract as
+/// [`flipped_product`]): parallel tests in this binary share the pid, and
+/// the two `strict_config()` call sites (the strict-shape test and the
+/// e2e session test) raced write/truncate/read on the ONE fixed path —
+/// run 43451838615 (Rust lane, 28fb38fa) caught the e2e side reading the
+/// sibling's truncate window: the load went through empty, the resolve
+/// came out token-less, and hello was refused `Unauthenticated
+/// "token rejected"`. Per-call uniqueness makes the collision impossible.
 fn write_config(name: &str, body: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!("lumen-control-server-e2e-{name}.toml"));
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static CALL: AtomicU32 = AtomicU32::new(0);
+    let call = CALL.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "lumen-control-server-e2e-{name}-{}-{call}.toml",
+        std::process::id()
+    ));
     if let Err(err) = std::fs::write(&path, body) {
         unreachable!("cannot write {}: {err}", path.display());
     }

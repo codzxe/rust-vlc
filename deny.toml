@@ -57,6 +57,16 @@ ignore = [
     # is available". Drop this entry when a paste-free rav1d release
     # lands and Cargo.lock is bumped to it.
     { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 via rav1d 1.1.0: unmaintained-but-functional macro helper, no fixed upstream release; drop with the next rav1d upgrade" },
+    # RUSTSEC-2024-0370: `proc-macro-error` 1.0.4, entering ONLY through
+    # the ADR-004 admission subcrate's lock (apps/desktop-tauri: glib-
+    # macros 0.18.5 -> glib/gtk -> muda -> tauri 2.12.5) — the main
+    # workspace tree never sees it, so the G3/G4 job surfaces this as
+    # an unused-ignore warning, which is the honest ledger. Informational
+    # unmaintained advisory — no vulnerability; the crate is frozen
+    # upstream and the gtk-rs 0.19+ line drops the dependency. First
+    # surfaced as the next-variable rejection after the license classes
+    # landed (CI run 43451838662, tauri-check job, 28fb38fa).
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4 via glib-macros 0.18.5 (tauri admission tree only): unmaintained-but-functional, no fixed upstream release; drop when the gtk-rs stack past 0.18 regenerates apps/desktop-tauri/Cargo.lock" },
 ]
 
 [licenses]
