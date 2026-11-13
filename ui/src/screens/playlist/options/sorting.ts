@@ -82,7 +82,10 @@ export function formatDurationClock(seconds: number | null): string | null {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/** True when the sort key needs the metadata seam (menu hint / tests). */
+/** True when the sort key needs the metadata seam. w26.k15 (j15 P3-11): the
+ * sorting menu renders its "Needs media metadata" hint on these rows while
+ * the seam cannot influence the order (PlaylistOptionsProvider.
+ * metaSeamWired === false) — the hint is real, not aspirational. */
 export const sortUsesMeta = (key: PlaylistSortKey): boolean =>
   key.startsWith("artist-") ||
   key.startsWith("album-") ||
