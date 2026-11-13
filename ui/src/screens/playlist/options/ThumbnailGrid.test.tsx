@@ -29,6 +29,17 @@ describe("ThumbnailGrid — frame anatomy (thumbnail.svg)", () => {
     const cards = [...view.container.querySelectorAll<HTMLButtonElement>(".lumen-plo-card")];
     expect(cards.every((card) => card.title.includes("The Wand_S01E"))).toBe(true);
   });
+
+  it("w26.k15 (j15 P3-4): play cards are named by their TITLE, not the duration text", () => {
+    mountOptions(<ThumbnailGrid />);
+    // Name-from-content used to beat the `title` attr — every card announced
+    // "00:02:10, button". aria-label wins over content; the duration stays
+    // visible text.
+    expect(screen.getByRole("button", { name: "The Wand_S01E10.mp4" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "The Wand_S01E01.mp4" })).toBeTruthy();
+    const named = screen.getAllByRole("button").map((card) => card.getAttribute("aria-label"));
+    expect(named.every((name) => !/^\d\d:\d\d:\d\d$/.test(name ?? ""))).toBe(true);
+  });
 });
 
 describe("ThumbnailGrid — interaction", () => {
@@ -70,5 +81,17 @@ describe("ThumbnailGrid — local scope (w26.f06: saved-playlist browse)", () =>
     );
     expect(container.querySelectorAll("button.lumen-plo-card")).toHaveLength(0);
     expect(container.querySelectorAll("div.lumen-plo-card--inert")).toHaveLength(2);
+  });
+
+  it("w26.k15 (j15 P3-4/P3-8): inert cards still carry an accessible name (the media title)", () => {
+    render(
+      <PlaylistOptionsProvider entries={LOCAL}>
+        <ThumbnailGrid />
+      </PlaylistOptionsProvider>,
+    );
+    // role="img" + aria-label — a bare div's aria-label would be ignored and
+    // the card would announce its duration text (or nothing at all).
+    expect(screen.getByRole("img", { name: "The Wand_S01E01.mp4" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "The Wand_S01E02.mp4" })).toBeTruthy();
   });
 });
