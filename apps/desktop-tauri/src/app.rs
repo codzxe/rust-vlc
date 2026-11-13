@@ -169,8 +169,19 @@ fn apply_window_spec(app: &AppHandle) -> tauri::Result<()> {
         .expect("product.toml [window]: honest-parse rule — config drift never invents a window");
     let spec = config.build_spec();
     if let Some(window) = app.get_webview_window("main") {
-        window.set_inner_size(f64::from(spec.inner_size.0), f64::from(spec.inner_size.1))?;
-        window.set_min_inner_size(f64::from(spec.min_inner_size.0), f64::from(spec.min_inner_size.1))?;
+        // Tauri 2 sizing API: `set_size`/`set_min_size` take a `Size`
+        // (Logical pixels here — the conf's width/height are logical and
+        // the product spec is logical by definition, 4.H1). The Tauri-1
+        // (w,h) tuple methods died on the first real compile (CI
+        // tauri-check, run 43384519598).
+        window.set_size(tauri::LogicalSize::new(
+            f64::from(spec.inner_size.0),
+            f64::from(spec.inner_size.1),
+        ))?;
+        window.set_min_size(Some(tauri::LogicalSize::new(
+            f64::from(spec.min_inner_size.0),
+            f64::from(spec.min_inner_size.1),
+        )))?;
         if spec.maximized {
             window.maximize()?;
         }
@@ -203,9 +214,14 @@ pub fn run() -> tauri::Result<()> {
         ))))
         .invoke_handler(tauri::generate_handler![lumen_dispatch])
         .setup(|app| {
-            apply_window_spec(app)?;
+            // The setup closure receives `&mut App`; the helpers speak in
+            // `&AppHandle` (they are also called from the drag-drop
+            // handler, which only has a handle) — `app.handle()` is the
+            // bridge. Passing `app` itself died on the first real compile
+            // (CI tauri-check, run 43384519598, two E0308s).
+            apply_window_spec(app.handle())?;
             spawn_event_pump(app.handle().clone());
-            open_argv_files(app);
+            open_argv_files(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

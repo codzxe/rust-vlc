@@ -43,6 +43,21 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     headless: true,
+    // Host-parity determinism (wave-L round 3, CI visual run 43384519508):
+    // the committed Inter face removed the FONT-FILE variable (every host
+    // loads the same woff2), but glyph RASTERIZATION still drifted between
+    // the pinning host's FreeType and the hosted runner's (ubuntu-latest
+    // ships a different build; 19/30 PR cases failed at ~0.18% differing
+    // pixels — text-edge AA jitter, vs the 0.1% bar). Chromium honors
+    // fontconfig hinting from the host, which is the cross-host variance
+    // source; `--font-render-hinting=none` disables it at the browser
+    // level so glyph outlines rasterize from the font file alone — same
+    // font bytes + same chromium build + no hinting = same pixels on any
+    // Linux host. Baselines are pinned under this exact flag (the 5th
+    // re-pin; MATRIX-20261113.md records the diagnosis).
+    launchOptions: {
+      args: ["--font-render-hinting=none"],
+    },
     // 127.0.0.1, not localhost — contract §9 (the dev server binds 127.0.0.1
     // explicitly; w26.k20, j20 P3-13).
     baseURL: "http://127.0.0.1:5173",

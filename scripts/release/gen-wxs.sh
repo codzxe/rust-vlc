@@ -169,9 +169,9 @@ ${docs_xml}        </Component>
       </Directory>
     </StandardDirectory>
     <Feature Id="Main" Level="1" Title="${esc_name}">
-      <ComponentRef RefId="BinCli" />
-      <ComponentRef RefId="BinDesktop" />
-      <ComponentRef RefId="Docs" />
+      <ComponentRef Id="BinCli" />
+      <ComponentRef Id="BinDesktop" />
+      <ComponentRef Id="Docs" />
     </Feature>
   </Package>
 </Wix>

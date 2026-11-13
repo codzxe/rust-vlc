@@ -141,7 +141,14 @@ composition-root binary) install under /${PACKAGING_LINUX_BINDIR}; this
 package ships files only, no scriptlets.
 
 %prep
-%setup -q
+# The tarball's top-level dir is ${PRODUCT_LOWER}-${PRODUCT_VERSION}
+# (raw version WITH its dash — see the tar -C stage line below), while
+# %setup's default dir derives from %{name}-%{version} where the version
+# carries the ~ pre-release marker (0.1.0~dev). CI's rpmbuild actually
+# extracts and cd's — the dash/tilde mismatch made %prep die with
+# "can't cd to lumen-0.1.0~dev" (release lane, first real run). -n pins
+# the dir to the tarball's real layout; %install already uses it.
+%setup -q -n ${PRODUCT_LOWER}-${PRODUCT_VERSION}
 
 %build
 # Binary package: the payload is built by cargo (rust toolchain), not

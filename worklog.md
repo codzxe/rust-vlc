@@ -1633,3 +1633,68 @@ Work Log:
   - CI lane tauri-check (ci.yml): webkit2gtk dev packages + ui/dist build + cargo test --locked --all-targets + clippy -D warnings + cargo-deny (bans/licenses/advisories) on the subcrate lock + a link/exit smoke (0|86 ok).
   - deny.toml: scoped libloading wrapper (tray-icon→libappindicator-sys, the INACTIVE optional edge — never blanket); records/tauri-wry-2.x.md verdict flipped to "imported in the excluded subcrate" with the R1/R2/R3/R7/R8/R9 refreshes; allowlist §3a (the subcrate's own rows); INFRA-BLOCKED.md rewritten as the admission close package (§B: the launch half — bundling in release.yml, 3-OS launch verdicts, the tauri-transport [VERIFY] clears only on a proven event round-trip, icons, dialog plugin, TB3 security review).
 - Next: watch the CI set on this push (visual parity with bundled Inter is the proof), then the release-lane integration for desktop-tauri (BIN_TAURI through product-env.py + the packaging payload lists), then the launch-verdict lane.
+
+---
+Task ID: w26.lead-wave-l-round3
+Agent: Lead (wave-26 orchestration)
+Task: the four remaining red lanes from the first full CI triage (issues #65/#66/#67 evidence; runs 43384519508/519598/519442)
+
+Work Log:
+- CI triage of the 92311eb2 run set — all four red lanes reproduced,
+  root-caused one level deep, fixed, and locally re-proven:
+  1. Rust lane (regression vs 8572a8e5): both rebrand_skeleton tests died
+     "cannot read surface apps/desktop/tauri/tauri.conf.json" — the
+     ADR-004 admission renamed the installer-identity config file to
+     apps/desktop-tauri/tauri.conf.json and the xtask SURFACES const
+     still carried the pre-move path. SURFACES + 4 test references +
+     release-checklist row updated; battery **4474 passed / 0 failed
+     (309 suites)** — pushed separately as 30a3a195 (round 3, item 1).
+  2. CI gate lane: first-vertical's wire-session scenario still died
+     "lumen binary is not built at target/debug/lumen" even with the
+     build-before-test order. Root cause: ci.yml exports the RELATIVE
+     CARGO_TARGET_DIR=target (the runner override for the deleted
+     sandbox-path config), and lumen_binary_path() resolved it against
+     the TEST PROCESS cwd (cargo runs test binaries from the package
+     dir) → probed <pkg>/target. Fix: relative values now anchor at
+     workspace_root() (absolute passes through; unset falls back).
+     Reproduced green locally under the EXACT CI condition
+     (CARGO_TARGET_DIR=target from the package dir).
+  3. tauri-check lane: the admission crate had never truly compiled
+     (the sandbox lacks webkit2gtk; "local simulation" covered the
+     anti-bypass audit only). Five errors against tauri 2.12.5: (a)
+     generate_context! needed the default icon —
+     apps/desktop-tauri/icons/icon.png now committed (gen-icon.py,
+     512x512 RGBA fill #4f8cff, deterministic — byte-identical to the
+     AppImage lane's icon) and wired into bundle.icon; (b) Tauri-1-era
+     set_inner_size/set_min_inner_size → set_size/set_min_size with
+     LogicalSize (signatures verified against the downloaded tauri
+     2.12.5 source; From<LogicalSize<P>> for Size at dpi-0.1.2:733);
+     (c) two E0308s in setup — app vs app.handle() bridged.
+  4. Release lane: (a) rpm %prep died "can't cd to lumen-0.1.0~dev" —
+     the tarball dir carries the raw dash version while %setup derives
+     Name-Version from the ~-mapped Version; %setup -n now pins the
+     real dir (the lane skipped locally — no rpmbuild — so the first
+     real run fired it); (b) windows MSI died WIX0004/0010 — the ONE
+     .wxs generator emitted ComponentRef RefId= (WiX requires Id=) in
+     both scripts/release/gen-wxs.sh and build-msi.ps1.
+  5. UI visual lane: 19/30 PR cases failed at ~0.18% differing pixels
+     (bar 0.1%) WITH the bundled Inter — the residue is glyph
+     RASTERIZATION (host fontconfig hinting), not font identity. Fix:
+     --font-render-hinting=none on the visual lane's Chromium launch;
+     5th re-pin under the flag — PR 50/50 + nightly 216/216,
+     compare-verified twice (MATRIX-20261113.md Addendum 2 records the
+     diagnosis and the next-variable protocol: chromium build pinning,
+     never tolerance).
+- Sandbox notes: ui/node_modules and the playwright browser cache were
+  reclaimed mid-run by disk pressure (reinstalled; re-pin run atomic
+  with the browser install). Lean battery profile (dev/test debug=0)
+  after the 6.8G debuginfo target forced a linker SIGBUS on the 10G
+  rootfs; results unaffected.
+
+Stage Summary:
+- All four red lanes' fixes are local-green (Rust 4474/0; first-vertical
+  green under CI env; visual 50+216 compare-verified ×2; packaging
+  scripts fixed at the generator level). Wave L round 3 submitted for
+  the CI proof; next: watch this run set, then the release-lane
+  integration for desktop-tauri (BIN_TAURI) and the launch-verdict lane,
+  then wave M releases (#66).

@@ -1338,10 +1338,22 @@ fn wire_session_run() -> Result<(String, String, i32), String> {
 /// `CARGO_TARGET_DIR` (the wave-24 disk emergency moved the shared
 /// cache off the repo root — the same hermetic-rooting rule the
 /// rebrand reverse-control test follows, gate finding OF-4).
+///
+/// A RELATIVE `CARGO_TARGET_DIR` (ci.yml exports the per-runner default
+/// `target` to override a stale sandbox path in committed config) must
+/// anchor at the WORKSPACE ROOT — the same anchor cargo used when the
+/// gate's `cargo build --workspace` emitted the binary — never at this
+/// test process's cwd: cargo runs test binaries with cwd = the package
+/// dir, and `<pkg>/target/debug/lumen` does not exist (CI gate step 3,
+/// run 43384519598, died exactly there while the binary sat at
+/// `<root>/target/debug/lumen`). Absolute values pass through; unset
+/// falls back to the workspace default.
 fn lumen_binary_path() -> Result<PathBuf, String> {
-    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| crate::harness::workspace_root().join("target"));
+    let target_dir = match std::env::var_os("CARGO_TARGET_DIR") {
+        Some(value) if std::path::Path::new(&value).is_absolute() => PathBuf::from(value),
+        Some(value) => crate::harness::workspace_root().join(value),
+        None => crate::harness::workspace_root().join("target"),
+    };
     Ok(target_dir
         .join("debug")
         .join(format!("lumen{}", std::env::consts::EXE_SUFFIX)))
