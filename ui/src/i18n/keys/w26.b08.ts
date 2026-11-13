@@ -17,13 +17,9 @@
 // Extensions keys only. Copy is sentence case per CONTRACT §2 (the frames'
 // title-case export styling is normalized; frame provenance per key).
 export const keys = {
-  // Add-on list empty state (§C13: the frame's 782×192 list well exports no
-  // rows — the empty state is composed from the design language's quiet
-  // ListEmpty grammar; honest copy: the list data source does not exist yet,
-  // wasm-extensions is Phase 7 / rule F2).
-  "settings.extensions.empty-title": "No add-ons installed",
-  "settings.extensions.empty-body":
-    "Add-ons appear here once the extensions feature ships in this build.",
+  // w26.k18 (j18 F4): settings.extensions.empty-title/empty-body pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   // Toolbar (§C13 y311): the search input's placeholder + accessible label
   // (frame-verbatim "Search"), then the three frame actions.
   "settings.extensions.search": "Search",
