@@ -49,6 +49,7 @@
 //!   with the production [`PathDragDrop`] handler;
 //! * argv files at startup (the `lumen-tauri file.mkv` form) →
 //!   [`ShellRuntime::open_path`].
+//!
 //! The drop/argv receipts are observed here for honesty; the UI's truth
 //! source is the event stream (playlist.changed etc. via the pump) — a
 //! bare `WireResponse` is never emitted on the event channel (it is not

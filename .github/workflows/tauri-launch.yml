@@ -254,7 +254,7 @@ jobs:
             # app's exit code still arrives via `wait`.
             trap '' TERM
             kill -TERM -- "-$pgid" 2>/dev/null || true
-            for i in $(seq 1 20); do
+            for _ in $(seq 1 20); do
               kill -0 "$pgid" 2>/dev/null || break
               sleep 0.5
             done
@@ -402,7 +402,7 @@ jobs:
           #    self-exit in the race window; else a crash face.
           if [ "$survived" = "yes" ]; then
             kill -TERM "$pid" 2>/dev/null || true
-            for i in $(seq 1 20); do
+            for _ in $(seq 1 20); do
               kill -0 "$pid" 2>/dev/null || break
               sleep 0.5
             done
