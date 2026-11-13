@@ -27,7 +27,11 @@
 //     (demo clips + the transport's remembered openings — real transport
 //     data, never fabricated), each enqueueing through the playlist
 //     context's playLater (`playlist.enqueue`), plus the shell's ONE
-//     open-media funnel as the footer row.
+//     open-media funnel as the footer row. w26.k08 (j08 P2-1): the popup's
+//     sources/entries now come from the SHARED seam (playlist/
+//     enqueueSources.ts, the i16 generalization of this very code) — the
+//     ~45-line inline copy is gone and the full panel's "+" and this
+//     popup can no longer drift apart.
 //
 // Transport is NOT duplicated: the compact cluster reuses card 4.C2's
 // control logic (controls/state-mapping.ts mapTransportControls /
@@ -38,20 +42,20 @@
 // for frame-measured structural dimensions (marked `frame:`).
 
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent } from "react";
+import type { DragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Icon, IconButton, ListEmpty, ListRow, Seekbar } from "../../../components";
 import { MenuPopup } from "../../../components/menu/MenuPopup";
 import { identityResolveLabel } from "../../../components/menu/types";
-import type { MenuEntry } from "../../../components";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as laneKeys } from "../../../i18n/keys/w26.a16";
 import { keys as i04Keys } from "../../../i18n/keys/w26.i04";
-import { useClient } from "../../../client/ClientProvider";
-import { DEMO_CLIPS, isDemoTransport } from "../../../client/demo-transport";
-import { isDesktopShell } from "../../../client/app-transport";
-import type { SourceSpec } from "../../../client/transport";
 import { OPEN_MEDIA_EVENT } from "../../open-media";
+// w26.k08 (j08 P2-1): the shared enqueue seam (the i16 generalization of
+// this surface's original inline copy) — direct module import, the
+// PlaylistPanel/ThumbnailGrid pattern (the playlist barrel does not
+// re-export it yet; that re-export is a cross-lane nicety, not a need).
+import { enqueueEntries, useEnqueueSources } from "../../playlist/enqueueSources";
 import { formatDuration, dragToMoveIndex, usePlaylist } from "../../playlist";
 import type { PlaylistEntry } from "../../playlist";
 import { usePlayerControls } from "../context";
@@ -308,24 +312,6 @@ export function MiniPlayer({
   );
 }
 
-/** One pickable enqueue source (real transport data — the same clips and
- * remembered openings the open-media dialog lists; never fabricated). */
-interface AddSource {
-  readonly id: string;
-  readonly label: string;
-  readonly source: SourceSpec;
-  readonly title: string | null;
-}
-
-/** Human location string for a source spec (data, not UI copy — the
- * open-media dialog's sourceLocation grammar). */
-const sourceLocationOf = (source: SourceSpec): string =>
-  source.kind === "file" ? source.path : source.url;
-
-/** Source-kind affordance glyph (the open-media dialog's sourceIcon mapping). */
-const sourceIconOf = (source: SourceSpec): "open-file" | "network-stream" =>
-  source.kind === "file" ? "open-file" : "network-stream";
-
 /**
  * The collapsible queue panel (Miniplayer.svg "Queue" artboard): centered
  * header, "N items · total" summary row with collapse/add affordances, and
@@ -339,6 +325,14 @@ const sourceIconOf = (source: SourceSpec): "open-file" | "network-stream" =>
  * remembered openings, deduplicated), each appended through the playlist
  * context's `playLater` (`playlist.enqueue`). The shell's ONE open-media
  * funnel rides as the popup's footer row, so the panel is self-sufficient.
+ * w26.k08 (j08 P2-1): the source list + MenuEntry building moved to the
+ * shared playlist/enqueueSources.ts (useEnqueueSources/enqueueEntries) —
+ * the panel's explicit closeAdd()-on-select semantics became the shared
+ * behavior (the mini copy used to rely on MenuPopup's onDismissAll only).
+ * w26.k08 (j08 P2-2): the queue listbox is keyboard-operable — the
+ * container owns focus (VirtualList's viewport tabIndex=0 grammar),
+ * arrows roam aria-activedescendant, Enter/Space play the active row and
+ * Alt+Up/Down reorder it (the customize box's keyboard-safe path parity).
  */
 function MiniQueue({
   id,
@@ -354,9 +348,15 @@ function MiniQueue({
 }) {
   const m = useMsg();
   const t = useLaneMsg();
-  const client = useClient();
   const playlist = usePlaylist();
+  // The shared seam's source list (hooks first — the popup closes without
+  // it ever being read, but the call is unconditional either way).
+  const enqueueSources = useEnqueueSources();
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // w26.k08 (j08 P2-2): roving focus index over the queue rows. null = the
+  // honest default (the current entry, else the first row); stale values
+  // clamp to the live count at render.
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addAnchor, setAddAnchor] = useState<{ left: number; top: number } | null>(null);
   const addTriggerRef = useRef<HTMLButtonElement>(null);
@@ -382,54 +382,23 @@ function MiniQueue({
     addTriggerRef.current?.focus();
   };
 
-  // Pickable sources: the demo clips (hidden in the desktop shell, the same
-  // rule as the open-media dialog) + the transport's remembered openings,
-  // deduplicated by location (an opening of a listed clip is one row).
-  const sources: AddSource[] = [];
-  const seenLocations = new Set<string>();
-  for (const row of [
-    ...(isDesktopShell()
-      ? []
-      : DEMO_CLIPS.map((clip) => ({
-          id: `clip-${clip.id}`,
-          label: m(clip.titleKey),
-          source: clip.source,
-          title: m(clip.titleKey) as string | null,
-        }))),
-    ...(isDemoTransport(client)
-      ? client.recentOpenings.map((entry, index) => ({
-          id: `recent-${index}`,
-          label: entry.title ?? sourceLocationOf(entry.source),
-          source: entry.source,
-          title: entry.title,
-        }))
-      : []),
-  ]) {
-    const location = sourceLocationOf(row.source);
-    if (seenLocations.has(location)) continue;
-    seenLocations.add(location);
-    sources.push(row);
-  }
-
-  const addEntries: MenuEntry<string>[] =
-    sources.length === 0
-      ? // Honest inert row — never a fabricated source (doc 05 §1 C4).
-        [{ id: "add-empty", labelKey: t("player.mini.queue.add-empty"), disabled: true }]
-      : [
-          ...sources.map((row): MenuEntry<string> => ({
-            id: row.id,
-            labelKey: row.label,
-            icon: sourceIconOf(row.source),
-            onSelect: () => playlist.playLater(row.source, row.title),
-          })),
-          { id: "add-sep", kind: "separator" },
-          {
-            id: "add-open-media",
-            labelKey: m("player.empty.open"),
-            icon: "open-file",
-            onSelect: onAdd,
-          },
-        ];
+  // The shared seam's entry list — same rows the full panel's "+" builds
+  // (j08 P2-1: one source of truth, no inline copy). The mini-scoped keys
+  // are the honest namespace for THIS surface (registered in the catalog;
+  // the panel reusing them is the cross-lane P3-10 note, not mine to fix).
+  const addEntries = enqueueEntries(
+    enqueueSources,
+    (source, title) => {
+      playlist.playLater(source, title);
+      closeAdd();
+    },
+    t("player.mini.queue.add-empty"),
+    m("player.empty.open"),
+    () => {
+      closeAdd();
+      onAdd();
+    },
+  );
 
   const knownDurations = playlist.entries
     .map((entry) => entry.durationSeconds)
@@ -438,12 +407,75 @@ function MiniQueue({
 
   const onRowDrop = (event: DragEvent<HTMLDivElement>, beforeIndex: number): void => {
     event.preventDefault();
-    const from = dragFrom ?? Number(event.dataTransfer.getData("text/plain"));
+    // w26.k08 (j08 P3-7): an EMPTY dataTransfer payload must never read as
+    // index 0 — guard the raw string BEFORE Number (Number("") === 0 used
+    // to slip past the isInteger check and reorder from 0).
+    const raw = dragFrom !== null ? dragFrom : event.dataTransfer.getData("text/plain");
+    const from = raw === "" ? null : Number(raw);
     setDragFrom(null);
-    if (!Number.isInteger(from) || from === beforeIndex) return;
+    if (from === null || !Number.isInteger(from) || from < 0 || from === beforeIndex) return;
     const entry = playlist.entries[from];
     if (!entry) return;
     playlist.move(entry.id, dragToMoveIndex(beforeIndex, from, playlist.entries.length));
+  };
+
+  // ---- keyboard path (w26.k08, j08 P2-2) --------------------------------
+  // The listbox container owns focus; arrows roam (clamped, no wrap),
+  // Home/End jump, Enter/Space play the active row, Alt+Up/Down reorder
+  // it through the SAME playlist.move command the drag path issues
+  // (dragToMoveIndex insert-before semantics). Honest no-change at the
+  // edges; nothing is optimistic — reorder follows the engine's answer.
+  const count = playlist.entries.length;
+  const currentIndex =
+    playlist.currentId === null
+      ? -1
+      : playlist.entries.findIndex((entry) => entry.id === playlist.currentId);
+  const activeRow = Math.max(0, Math.min(activeIndex ?? Math.max(currentIndex, 0), count - 1));
+
+  const onListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (count === 0) return;
+    const entry = playlist.entries[activeRow];
+    if (entry === undefined) return;
+    if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      if (event.key === "ArrowUp") {
+        if (activeRow === 0) return; // first row: honest no-change
+        event.preventDefault();
+        playlist.move(entry.id, dragToMoveIndex(activeRow - 1, activeRow, count));
+        setActiveIndex(activeRow - 1);
+      } else {
+        if (activeRow === count - 1) return; // last row: honest no-change
+        event.preventDefault();
+        playlist.move(entry.id, dragToMoveIndex(activeRow + 2, activeRow, count));
+        setActiveIndex(activeRow + 1);
+      }
+      return;
+    }
+    if (event.altKey) return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        setActiveIndex(Math.min(activeRow + 1, count - 1));
+        return;
+      case "ArrowUp":
+        event.preventDefault();
+        setActiveIndex(Math.max(activeRow - 1, 0));
+        return;
+      case "Home":
+        event.preventDefault();
+        setActiveIndex(0);
+        return;
+      case "End":
+        event.preventDefault();
+        setActiveIndex(count - 1);
+        return;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        playlist.playItem(entry.id);
+        return;
+      default:
+        return;
+    }
   };
 
   return (
@@ -525,10 +557,17 @@ function MiniQueue({
           className="lumen-mini__queue-list"
           role="listbox"
           aria-label={t("player.mini.queue.label")}
+          /* w26.k08 (j08 P2-2): the container owns focus (VirtualList's
+           * viewport tabIndex=0 grammar); aria-activedescendant roves with
+           * the active row so AT follow the keyboard path. */
+          tabIndex={0}
+          aria-activedescendant={`lumen-mini-row-${activeRow}`}
+          onKeyDown={onListKeyDown}
         >
           {playlist.entries.map((entry, index) => (
             <ListRow
               key={entry.id}
+              id={`lumen-mini-row-${index}`}
               role="option"
               aria-selected={entry.id === playlist.currentId}
               density="compact"
