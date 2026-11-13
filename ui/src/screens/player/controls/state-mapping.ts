@@ -125,7 +125,9 @@ export function mapTransportControls(input: TransportMappingInputs): TransportCo
     busy: playback === "buffering",
   };
 
-  return { playback: playback as PlaybackState, play, stop, seek };
+  // w26.k07 (j07 P3-16): the input is already typed TransportMappingInputs —
+  // the old `playback as PlaybackState` cast was pointless.
+  return { playback, play, stop, seek };
 }
 
 /** i18n key for the disabled-with-reason hint (§5.3 honest reasons). */
