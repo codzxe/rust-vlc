@@ -43,20 +43,23 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     headless: true,
-    // Host-parity determinism (wave-L round 3, CI visual run 43384519508):
-    // the committed Inter face removed the FONT-FILE variable (every host
-    // loads the same woff2), but glyph RASTERIZATION still drifted between
-    // the pinning host's FreeType and the hosted runner's (ubuntu-latest
-    // ships a different build; 19/30 PR cases failed at ~0.18% differing
-    // pixels — text-edge AA jitter, vs the 0.1% bar). Chromium honors
-    // fontconfig hinting from the host, which is the cross-host variance
-    // source; `--font-render-hinting=none` disables it at the browser
-    // level so glyph outlines rasterize from the font file alone — same
-    // font bytes + same chromium build + no hinting = same pixels on any
-    // Linux host. Baselines are pinned under this exact flag (the 5th
-    // re-pin; MATRIX-20261113.md records the diagnosis).
+    // Host-parity determinism, wave-L rounds 3-4 (CI runs 43384519508,
+    // 43400611004 — the diff-image evidence lane pinned the second one):
+    //
+    // Round 3 — the committed Inter face removed the FONT-FILE variable
+    // (every host loads the same woff2), but glyph RASTERIZATION still
+    // drifted: Chromium honors fontconfig hinting from the host.
+    // `--font-render-hinting=none` disables it at the browser level.
+    //
+    // Round 4 — the first CI diff images (uploaded via the new
+    // test-results artifact) showed the COLOR-PROFILE signature: solid
+    // fills light up as whole rects (swatch cards) AND text AA edges
+    // ghost per-glyph, layout identical — a framebuffer color-space
+    // shift between the pin host and the runner, not a font or layout
+    // difference. `--force-color-profile=srgb` pins the rendering color
+    // space on every host (headless default can follow the platform).
     launchOptions: {
-      args: ["--font-render-hinting=none"],
+      args: ["--font-render-hinting=none", "--force-color-profile=srgb"],
     },
     // 127.0.0.1, not localhost — contract §9 (the dev server binds 127.0.0.1
     // explicitly; w26.k20, j20 P3-13).
