@@ -57,26 +57,40 @@ subtree is reached by remapping `--color-stroke-icon` locally). Hit areas
 Carries `lumen-icon-host` so nested `.lumen-icon` glyphs pick up icon.css
 state tints. `aria-label` mandatory (§4.5).
 
-## Toggle
+## Toggle (w26.k01: the shared switch core)
 
 | State | Visual | Mechanism |
 |---|---|---|
 | off | knob 26x26 rx3 `--color-stroke-border` (#404040) left + 33x26 rx3 `--color-surface-panel` segment (#191919) with "OFF" micro label | `aria-checked="false"` |
 | on | fill 33x26 rx3 `--color-accent-tinted` (#371F06) with "ON" micro label (`--color-accent`) + knob 26x26 rx3 `--color-accent-strong` (#AB6314) right | `aria-checked="true"` |
-| hover | track `--color-surface-hover` | `:hover` |
+| hover | track `--color-surface-hover`; the knob walks too (accent-bright when on, stroke-border mix when off — the w26.a06 form-port hover, shared by both grammars since w26.k01) | `:hover` |
 | focus-visible | 2px accent ring, 2px offset | `:focus-visible` |
 | disabled | `--opacity-disabled`, inert, state still rendered truthfully | `:disabled` |
 
 Track: 68x32 rx6 `--color-surface` (#090909 per Toggle.svg — was surface-deep
 pre-W26), 3px padding/radius/pitch (frame-measured structural px, no token).
 
+**j01-3 (w26.k01, Lead ruling):** ONE core implementation —
+`switchCore.tsx` — now backs BOTH exported names: this `Toggle`
+(`.lumen-toggle*` grammar, control-parts lane) and the form family's
+`Switch` (`.lumen-switch*` grammar, settings rows — screens keep CSS hooks on
+that set, so both class grammars ship). `button.css` styles the two through
+shared selector lists (one rule, both sets), which is what closed j01-9:
+the form copy's OFF label had drifted to tertiary (4.57:1) while this one
+kept the 4.F4 secondary fix; both are secondary now, in ONE rule.
+
 Micro labels (doc 08 §1.3 row 4.4 + §1.5 Toggle.svg): `--font-size-caption`
 (11px; frame-measured ON/OFF cap-height 9.0px ⇒ ~12px type — the doc-08
 "micro" 6px was half-size, fixed in the w26.a03 relaunch), ON =
 `--color-accent` (#D37918), OFF = `--color-content-secondary` — the frame's
 #6B6B6B tertiary is 3.4:1 on the #191919 segment; secondary clears 4.5:1
-(4.F4 a11y deviation, kept). Decorative (`aria-hidden`): the switch conveys
-state via `aria-checked` alone; label text is not translated.
+(4.F4 a11y deviation, kept; ported to the form grammar in w26.k01).
+Decorative (`aria-hidden`): the switch conveys state via `aria-checked`
+alone. **j01-4 (w26.k01): the label TEXT is localized** — `useSwitchLabels()`
+resolves the `switch.on` / `switch.off` msgids (lane file
+`ui/src/i18n/keys/w26.k01.ts` until the Lead registers them); the old
+"decorative artwork, not translated" allowlist entries are removed, so a
+regression to literals now fails `local/i18n-no-literals` (probe-verified).
 
 ARIA note: the task card mentioned `aria-pressed`, but doc 08 §4.5 mandates
 `toggles → switch`; implemented as `role="switch"` + `aria-checked` (a switch
@@ -100,11 +114,19 @@ command-dispatching components).
   now resolve to the W25 values; button labels measure ~14px in the dialog
   frames (cap-height 10.5px), matching `--font-size-body` — the "12–13px"
   task-card figure is approximated by the frame at ~14px, kept on the token.
-- `form/Switch.tsx` (separate component, form lane) re-implements the same
-  Toggle.svg anatomy for settings rows (`.lumen-switch`, 68×32 too); both
-  stay until the form lane unifies on one primitive. The task card's
-  "32×16 settings toggle" does not exist in the frames — every settings
-  toggle measures 68×32 (Settings - global.svg / playback.svg).
+- `form/Switch.tsx` is UNIFIED with this family since w26.k01 (j01-3): it is
+  the same `switchCore.tsx` in the `.lumen-switch*` class grammar; the skin
+  is the shared selector-list block in this sheet (one rule styles both
+  grammars — the j01-9 OFF-ink divergence is structurally impossible now).
+  The task card's "32×16 settings toggle" does not exist in the frames —
+  every settings toggle measures 68×32 (Settings - global.svg /
+  playback.svg).
+- IconButton `loading` (w26.k01 j01-12): the pending cue is REAL now — a
+  14px currentcolor spinner ring (`::before`) replaces the glyph
+  (visibility-hidden, no chip resize), motion off under
+  prefers-reduced-motion; CSS-source-tested in IconButton.test.tsx (no route
+  renders a loading IconButton yet, so the proof is the CSS-source
+  assertion, not a screenshot).
 - Frame residue, documented (not local fixes): dialog-frame secondary button
   fill is #1B1B1B with no border (this lane ships raised #222222 + 1px
   stroke-border per the task card); `Button.svg`'s 360×32 bars are rx4 with
