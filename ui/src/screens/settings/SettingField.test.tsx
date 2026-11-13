@@ -136,8 +136,23 @@ describe("SettingField — ⓘ hint affordance (e06 F11)", () => {
     expect(info).toHaveAttribute("aria-expanded", "false");
     expect(info).toHaveAttribute("title", "More info");
     expect(screen.queryByText("More info", { selector: ".settings-field__hinttext" })).toBeNull();
+    // w26.k12 (j12 P2-3): the note is SR-perceivable — the k02 Tooltip
+    // pattern. aria-label used to win over `title` in the name computation,
+    // so the note was never announced; it now rides as the accessible
+    // DESCRIPTION via a visually hidden twin the trigger points at.
+    const describedBy = info.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toBe("More info");
+    expect(document.getElementById(describedBy ?? "")).toHaveClass("settings-vh");
     fireEvent.click(info);
     expect(info).toHaveAttribute("aria-expanded", "true");
+    // The revealed caption is aria-ASSOCIATED: the button's aria-controls
+    // points at it and it carries role="note".
+    const captionId = info.getAttribute("aria-controls");
+    expect(captionId).toBe("privacy.crash-reports-hinttext");
+    const caption = document.getElementById(captionId ?? "");
+    expect(caption).toHaveAttribute("role", "note");
+    expect(caption?.textContent).toBe("More info");
     expect(
       screen.getByText("More info", { selector: ".settings-field__hinttext" }),
     ).toBeInTheDocument();
