@@ -140,6 +140,38 @@ describe("PlaylistOptionsProvider — Mark as Watched override (w26.gfix-E)", ()
   });
 });
 
+describe("PlaylistOptionsProvider — metaSeamWired + effective resolveMeta (w26.k15, j15 P3-3/P3-11)", () => {
+  it("metaSeamWired is false without the engine seam or watched marks (menu hints render)", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), { wrapper: OptionsProviders });
+    expect(result.current.metaSeamWired).toBe(false);
+  });
+
+  it("metaSeamWired is true when the engine seam is wired", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), {
+      wrapper: ({ children }) => <OptionsProviders resolveMeta={() => ({})}>{children}</OptionsProviders>,
+    });
+    expect(result.current.metaSeamWired).toBe(true);
+  });
+
+  it("a Mark-as-Watched override flips metaSeamWired (watched sorts become real)", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), { wrapper: OptionsProviders });
+    expect(result.current.metaSeamWired).toBe(false);
+    act(() => result.current.setWatched(OPTION_ENTRIES[0]!, true));
+    expect(result.current.metaSeamWired).toBe(true);
+  });
+
+  it("ctx.resolveMeta is the EFFECTIVE resolver — the watched override is merged in", () => {
+    const { result } = renderHook(() => usePlaylistOptions(), {
+      wrapper: ({ children }) => <OptionsProviders resolveMeta={(e) => OPTION_META[e.id]}>{children}</OptionsProviders>,
+    });
+    // Entry 1: the seam reports nothing; the override must show through the
+    // CONTEXT field (previously it published the raw prop — un-merged).
+    expect(result.current.resolveMeta?.(OPTION_ENTRIES[0]!)?.watched).toBeUndefined();
+    act(() => result.current.setWatched(OPTION_ENTRIES[0]!, true));
+    expect(result.current.resolveMeta?.(OPTION_ENTRIES[0]!)?.watched).toBe(true);
+  });
+});
+
 describe("PlaylistOptionsProvider — context guard", () => {
   it("usePlaylistOptions outside a provider throws the honest error", () => {
     // Silence the expected React error boundary noise in the test output.
