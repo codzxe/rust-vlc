@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Icon, iconNames, IconWrapper } from "./index";
+import { hasTwoToneVariant } from "./icons";
 import type { IconName } from "./icons";
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
@@ -71,14 +72,12 @@ describe("Icon (1.5-stroke set, doc 08 §1.4/§1.5)", () => {
         "chevron-left",
         "chevron-right",
         "folder",
-        "person",
         "profile",
         "queue",
         "equalizer",
         "audio",
         "subtitles",
         "info",
-        "wand",
         "favorite",
         "record",
         "snapshot",
@@ -89,8 +88,9 @@ describe("Icon (1.5-stroke set, doc 08 §1.4/§1.5)", () => {
         "settings",
       ]),
     );
-    // 32 frozen (wave-1) + 53 frame-mined w26.a07 additions (see lane log)
-    expect(iconNames.length).toBe(85);
+    // 32 frozen (wave-1) + 44 frame-mined w26.a07 additions = 76; the 9 dead
+    // names (j04-4) were pruned in w26.k04 after an exhaustive usage grep.
+    expect(iconNames.length).toBe(76);
     expect(new Set(iconNames).size).toBe(iconNames.length);
   });
 
@@ -123,7 +123,10 @@ describe("Icon (1.5-stroke set, doc 08 §1.4/§1.5)", () => {
 
     expect(cssRule(".lumen-icon")).toContain("var(--color-stroke-icon)");
     expect(cssRule(".lumen-icon-host:hover .lumen-icon")).toContain("var(--color-content-bright)");
-    expect(cssRule(".lumen-icon-host--selected .lumen-icon")).toContain("var(--color-accent-icon)");
+    // w26.k04 (j04-6): --selected/--disabled HOST variants were dead (zero
+    // producers) and were pruned; --open is the live producer (ControlBar) and
+    // .lumen-icon--disabled stays (public `disabled` prop).
+    expect(cssRule(".lumen-icon-host--open .lumen-icon")).toContain("var(--color-accent-icon)");
     expect(cssRule(".lumen-icon--disabled")).toContain("var(--opacity-disabled)");
   });
 });
@@ -246,7 +249,7 @@ describe("Icon mined glyph geometry (issue #35, design/figma/Icon.svg)", () => {
     expect(d("chevron-up", 0)).toBe("M7 14.5L12 9.5L17 14.5");
   });
 
-  it("registry aliases render the identical mined glyph (folder/person/info/wand)", () => {
+  it("registry aliases render the identical mined glyph (folder/info)", () => {
     const geometry = (name: IconName): string => {
       const { unmount } = render(<Icon name={name} />);
       const svg = document.querySelector("svg.lumen-icon")!;
@@ -255,9 +258,7 @@ describe("Icon mined glyph geometry (issue #35, design/figma/Icon.svg)", () => {
       return serial;
     };
     expect(geometry("folder")).toBe(geometry("open-folder"));
-    expect(geometry("person")).toBe(geometry("profile"));
     expect(geometry("info")).toBe(geometry("about"));
-    expect(geometry("wand")).toBe(geometry("customize-player"));
   });
 });
 
@@ -294,6 +295,105 @@ describe("Icon emphasis variants (issue #35, doc 08 §1.4 emphasis strokes)", ()
     render(<Icon name="stop" variant="strong" title="Stop" />);
     expect(document.querySelector("svg.lumen-icon")!.getAttribute("role")).toBe("img");
     unmount();
+  });
+});
+
+describe("Icon two-tone mode (w26.i16, j04-2 — menu iconography)", () => {
+  const ttPaths = (name: IconName): Element[] => {
+    const { unmount } = render(<Icon name={name} twoTone />);
+    const svg = document.querySelector("svg.lumen-icon")!;
+    const paths = [...svg.querySelectorAll("path")];
+    unmount();
+    return paths;
+  };
+
+  it("twoTone adds the mode class and swaps in the two-tone face", () => {
+    const { unmount } = render(<Icon name="open-file" twoTone />);
+    const svg = document.querySelector("svg.lumen-icon")!;
+    expect(svg.getAttribute("class")).toContain("lumen-icon--two-tone");
+    unmount();
+
+    // Mono (default) never carries the class — detail markers stay unpainted.
+    const mono = render(<Icon name="open-file" />);
+    expect(document.querySelector("svg.lumen-icon")!.getAttribute("class")).not.toContain("lumen-icon--two-tone");
+    mono.unmount();
+  });
+
+  it("dedicated two-tone variants carry the frame's ADDED geometry (fingerprints)", () => {
+    // open-file: page outline (base) + folded-corner fill (accent) — mono is
+    // the page alone, so the two-tone face has one path MORE.
+    const openFile = ttPaths("open-file");
+    expect(openFile).toHaveLength(2);
+    expect(openFile[1]!.getAttribute("class")).toContain("lumen-icon__detail");
+    expect(openFile[1]!.getAttribute("fill")).toBe("currentColor");
+    expect(openFile[1]!.getAttribute("stroke")).toBe("none");
+    expect(openFile[1]!.getAttribute("d")!.startsWith("M10 8V5.0526")).toBe(true);
+
+    // open-folder: folder-with-tab (accent) + front pocket (base).
+    const openFolder = ttPaths("open-folder");
+    expect(openFolder).toHaveLength(2);
+    expect(openFolder[0]!.getAttribute("class")).toContain("lumen-icon__detail");
+    expect(openFolder[0]!.getAttribute("d")!.startsWith("M21 9.541V17C21 18.657 19.657 20 18 20H6")).toBe(true);
+    expect(openFolder[1]!.getAttribute("d")).toBe(
+      "M21 9V17C21 18.657 19.657 20 18 20H6C4.343 20 3 18.657 3 17V9C3 7.895 3.895 7 5 7H12H19C20.105 7 21 7.895 21 9Z",
+    );
+    expect(openFolder[1]!.getAttribute("class") ?? "").not.toContain("lumen-icon__detail");
+
+    // playback: screen rect (base) + play triangle (accent).
+    const playback = ttPaths("playback");
+    expect(playback).toHaveLength(2);
+    expect(playback[1]!.getAttribute("class")).toContain("lumen-icon__detail");
+    expect(playback[1]!.getAttribute("d")).toBe("M9 6.25V16.25L15.5 11.25L9 6.25Z");
+
+    // check: open box (base) + check (accent).
+    const check = ttPaths("check");
+    expect(check).toHaveLength(2);
+    expect(check[1]!.getAttribute("class")).toContain("lumen-icon__detail");
+    expect(check[1]!.getAttribute("d")).toBe("M8.5 9.5L12.5 14.5L20.5 4.5");
+  });
+
+  it("the folder alias shares the open-folder two-tone face (same glyph)", () => {
+    const face = (name: IconName): string => {
+      const { unmount } = render(<Icon name={name} twoTone />);
+      const serial = document.querySelector("svg.lumen-icon")!.innerHTML;
+      unmount();
+      return serial;
+    };
+    expect(face("folder")).toBe(face("open-folder"));
+  });
+
+  it("getTwoToneGlyph falls back to the shared glyph when no dedicated variant exists", () => {
+    // settings has NO dedicated twoToneGlyphs entry — the two-tone face is the
+    // shared registry entry (its detail markers are tone-split by CSS).
+    const face = (twoTone: boolean): string => {
+      const { unmount } = render(twoTone ? <Icon name="settings" twoTone /> : <Icon name="settings" />);
+      const serial = document.querySelector("svg.lumen-icon")!.innerHTML;
+      unmount();
+      return serial;
+    };
+    expect(face(true)).toBe(face(false));
+    expect(hasTwoToneVariant("settings")).toBe(false);
+  });
+
+  it("hasTwoToneVariant reports exactly the dedicated set (j04-7 test hook)", () => {
+    const dedicated = iconNames.filter((name) => hasTwoToneVariant(name));
+    // Sorted: registry order is insert-order and must not leak into the contract.
+    expect(dedicated.slice().sort()).toEqual(["check", "folder", "open-file", "open-folder", "playback"]);
+    expect(hasTwoToneVariant("profile")).toBe(false);
+  });
+
+  it("detail markers are inert in mono + the cascade is token-driven (CSS-source)", () => {
+    // Dark: details paint --color-accent-strong; bright + light-theme details
+    // paint --color-accent-icon.
+    expect(cssRule(".lumen-icon--two-tone .lumen-icon__detail")).toContain("var(--color-accent-strong)");
+    expect(cssRule(':root[data-theme="light"] .lumen-icon--two-tone .lumen-icon__detail')).toContain(
+      "var(--color-accent-icon)",
+    );
+    expect(cssRule(".lumen-icon--two-tone .lumen-icon__detail--bright")).toContain("var(--color-accent-icon)");
+    // Inertness: NO bare .lumen-icon__detail rule exists — without the
+    // --two-tone class the markers never repaint (mono is byte-identical).
+    const declarationsOnly = iconCss.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(declarationsOnly).not.toMatch(/(^|\n)\s*\.lumen-icon__detail\s*\{/);
   });
 });
 
