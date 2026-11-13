@@ -6,9 +6,10 @@
  * player-dialogs lane (w26.a18) and the network-stream lane (w26.b15)
  * extracted from Open network stream.svg / Keyboard Shortcuts.svg:
  *   * header — 50px #090909 strip, 15px semibold #8F8F8F title, ✕ right;
- *   * body — label + well input + Open row, quiet hint, full-bleed
- *     hairline, section titles + two-line source rows with kind glyphs;
- *   * footer — Cancel left, Open right (100×32 r6 button API).
+ *   * body — label + well input, quiet hint, full-bleed hairline,
+ *     section titles + two-line source rows with kind glyphs;
+ *   * footer — Cancel left, Open right (100×32 r6 button API; the confirm
+ *     is the paste-a-path form's submit button — w26.k16/j16 P3-17).
  * Semantic tokens only (contract §4); raw px appears solely for
  * frame-measured structural dimensions with no token — each carries a
  * `frame:` comment. The Solstice warm-glass card, :has() scrim override
@@ -82,8 +83,11 @@
   scrollbar-color: var(--color-stroke-border) transparent;
 }
 
-/* The paste-a-path form — Onboarding.svg "input + Browse" row grammar:
- * label above, input + action in one row. */
+/* The paste-a-path form — label above the well input; Enter submits, and
+ * the footer Open is this form's submit button (form association), so the
+ * input takes the full row width (w26.k16/j16 P3-17: the inline Open
+ * button is gone — the dialog family confirms from the footer, like the
+ * netstream frame's textarea). */
 .open-media__path {
   display: flex;
   align-items: flex-end;
@@ -93,11 +97,6 @@
 .open-media__path .lumen-field {
   flex: 1;
   min-width: 0;
-}
-
-.open-media__path-open {
-  flex: none;
-  min-width: 100px; /* frame: dialog actions measure 100×32 r6 */
 }
 
 /* Quiet helper copy (frame: helper lines are the #6B6B6B class). */
@@ -138,7 +137,9 @@
 
 /* Two-line rows: title + the FULL source location (audit: ellipses hid the
  * one piece of data that distinguishes entries). Kind glyph leads (the
- * file/folder/stream affordance — the honest file/stream subset). */
+ * file/folder/stream affordance — the honest file/stream subset). Rows are
+ * plain activation buttons (w26.k16/j16 P3-17) — no aria-pressed state,
+ * no focus-as-selection. */
 .open-media__item {
   display: flex;
   align-items: flex-start;
@@ -163,20 +164,12 @@
   outline-offset: 2px;
 }
 
-.open-media__item[aria-pressed="true"] {
-  background: var(--color-surface-selected);
-}
-
 .open-media__item-icon {
   display: flex;
   align-items: center;
   flex: none;
   margin-block-start: 1px; /* optically aligns with the title line */
   color: var(--color-content-secondary);
-}
-
-.open-media__item[aria-pressed="true"] .open-media__item-icon {
-  color: var(--color-accent); /* the selected row claims the ONE accent */
 }
 
 .open-media__item-text {
