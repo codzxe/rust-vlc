@@ -2,23 +2,19 @@
 // The tool = the collapsible tool-card grammar (w26.a20 §D1) hosting the
 // "Audio Visualizer.svg" mode dropdown (§A7) plus a levels-driven display:
 //
-//   * mode selector — the a19 A9 Dropdown grammar the A7 frame reuses
-//     verbatim (362×48 rx6 #090909 trigger + 358×44 rx4 #191919 field,
-//     open list rx6 #191919 + shadow, 44px rows @ 46 pitch, selected
-//     #1F1F1F + orange check) with the frame's five options and their
-//     two-tone 20px leading icons;
+//   * mode selector — the SHARED Dropdown primitive (w26.k10, j10 P2-4:
+//     the lane-scoped re-implementation is gone) with the frame's five
+//     options and their two-tone 20px leading icons riding the primitive's
+//     additive `iconNode` field (landed in Dropdown.tsx by this lane — the
+//     ask pending since w26.c1's log), A7 tool-scale grammar scoped in
+//     visualizer.css. The primitive carries the whole interaction model
+//     (listbox, roving tabindex, arrows/Home/End, Enter/Space, Escape/Tab,
+//     outside-click dismiss, typeahead, scrollport cap, measured flip);
 //   * display — renders the selected mode from a `levels` array (one entry
 //     per bar, normalized 0..1). HONEST RENDERING: no FFT/levels source
 //     exists yet, so absent levels render the frame's RESTING depiction of
 //     the mode (static, never animated, never simulated — no idle shimmer:
 //     the frame carries none).
-//
-// Lane-scoped selector rationale: the shared Dropdown's `icon?: IconName`
-// API cannot carry the frame's two-tone mode previews (custom nodes); the
-// w26.c1 log flagged the additive ReactNode ask to the menu lane. Until it
-// lands, the selector lives here with the primitive's exact grammar +
-// interaction model (listbox, roving tabindex, arrows/Home/End,
-// Enter/Space, Escape/Tab, outside-click dismiss).
 
 import type { ReactElement } from "react";
 import type { MessageKey } from "../../../../i18n/messages";
