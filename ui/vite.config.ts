@@ -16,6 +16,19 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  // Contract §9 (w26.k20, j20 P3-13): the dev server binds 127.0.0.1
+  // explicitly — every harness (Playwright webServer poll, visual-run.mjs,
+  // dev-shots.mjs) probes the IPv4 loopback. Vite's DEFAULT host is
+  // `localhost`, which lets the OS resolver pick a stack; on this toolchain
+  // (node 24 / vite 8) `localhost` resolves to ::1 only, so the server ends
+  // up listening on IPv6 loopback and is UNREACHABLE at 127.0.0.1 — the
+  // e2e smoke and visual lanes then die at "Timed out waiting from
+  // config.webServer" (CI run 43370495290, 2026-11-13: both lanes failed
+  // at exactly this point with zero tests executed). Pinning the bind
+  // makes the documented contract true on every OS and stack.
+  server: {
+    host: "127.0.0.1",
+  },
   define: {
     __UI_PACKAGE_NAME__: JSON.stringify(pkg.name),
     __UI_PACKAGE_VERSION__: JSON.stringify(pkg.version),

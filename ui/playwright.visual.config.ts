@@ -55,5 +55,9 @@ export default defineConfig({
     // be silently reused (Playwright's documented !process.env.CI pattern;
     // w26.k20, j20 P3-13).
     reuseExistingServer: !process.env.CI,
+    // 240s budget — same rationale as playwright.config.ts (run 43370495290:
+    // the 60s webServer default killed the visual PR-lite lane on cold CI
+    // runners before a single case executed).
+    timeout: 240_000,
   },
 });

@@ -45,5 +45,12 @@ export default defineConfig({
     // box), but NEVER in CI — there a stale server must not be silently
     // reused. `!process.env.CI` is the documented pattern.
     reuseExistingServer: !process.env.CI,
+    // 240s budget: the 60s default was proven too tight on cold 2-core CI
+    // runners (run 43370495290, 2026-11-13: vite dev cold start + npm
+    // launch overhead crossed 60s and both the e2e smoke and the visual
+    // PR-lite lane died at "Timed out waiting 60000ms from
+    // config.webServer" before a single test ran). Local warm starts are
+    // ~3s; CI cold starts need the headroom.
+    timeout: 240_000,
   },
 });
