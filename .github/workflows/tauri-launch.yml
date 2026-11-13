@@ -261,8 +261,14 @@ jobs:
             kill -KILL -- "-$pgid" 2>/dev/null || true
             trap - TERM
           fi
-          wait "$pgid" 2>/dev/null
-          exit_code=$?
+          # errexit guard: the app's harness-TERM exit (143) arrives as
+          # wait's OWN status — under `set -e` that killed the harness
+          # before the case statement could classify it (rounds 1-2 of
+          # run 43410313414/43412067856: the step died 143 right after
+          # receipts-PASS, which is exactly `wait` returning the app's
+          # terminated status to a set-e shell). Capture, don't trip.
+          exit_code=0
+          wait "$pgid" 2>/dev/null || exit_code=$?
           echo "launch exit code: ${exit_code}"
 
           if [ "$survived" != "yes" ]; then
@@ -402,8 +408,10 @@ jobs:
             done
             kill -KILL "$pid" 2>/dev/null || true
           fi
-          wait "$pid" 2>/dev/null
-          exit_code=$?
+          # Same errexit guard as the Linux lane (wait returns the
+          # app's terminated status to a set-e shell).
+          exit_code=0
+          wait "$pid" 2>/dev/null || exit_code=$?
           echo "launch exit code: ${exit_code}"
 
           if [ "$survived" != "yes" ]; then
