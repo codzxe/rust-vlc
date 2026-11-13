@@ -16,6 +16,10 @@ import "./icon.css";
  * `active` renders the orange accent state (W25 spec: active nav icons are
  * the ONE accent) via the same token chain as selected menu rows.
  *
+ * w26.k04 (j04-12): sm/md are catalog-reserved hit-area presets — production
+ * currently mounts only lg (AppShell rail); sm/md stay as frozen-compatible
+ * additive API (pinned by tests) for dense-row hosts.
+ *
  * The wrapper is presentational: wrap it in the interactive element (or use
  * IconButton) and give that element the accessible name.
  */
