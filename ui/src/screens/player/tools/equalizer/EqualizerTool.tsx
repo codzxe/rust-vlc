@@ -14,6 +14,14 @@
 //   * all state LOCAL to the tool (preamp, band gains, preset, open) with
 //     the unchanged `onChange` seam — the frozen w26.c1 contract.
 //
+// HONEST STAGING (w26.k10, j10 P3-4): the tool carries its own
+// `data-staged-tool`/`data-pending-command` markers + in-body note (the
+// sibling dynamics/visualizer/video pattern) — it stands alone; no host
+// needs to re-stage it. The tools dialog's transitional wrapper
+// (ToolsDialog.tsx + dialogs.css `:has(.eq-tool--open)` note) is now
+// redundant — equalizer.css suppresses THIS note inside that wrapper until
+// its owner deletes it (see the w26.k10 lane log).
+//
 // The value chip is the form lane's <ValueChip/> COMPOSED (mission item 3:
 // "compose, don't duplicate") — equalizer.css scopes the frame-measured
 // anatomy onto it (60×32 rx6 #090909, #8F8F8F ≈12px value, EQ.svg chips)
@@ -33,6 +41,12 @@ import { GraphicEQ } from "./GraphicEQ";
 import { useEqMsg } from "./useEqMsg";
 import type { EqMessageKey } from "./useEqMsg";
 import "./equalizer.css";
+
+/**
+ * Forward-declared command the tool's controls await (the honest-staging
+ * marker, the sibling tools' pattern — no `audio.set-eq` command exists yet).
+ */
+const PENDING_COMMAND = "audio.set-eq";
 
 /** The tool's full local state (also the `onChange` payload). */
 export interface EqualizerState {
@@ -64,9 +78,9 @@ export interface EqualizerToolProps {
 /**
  * EqualizerTool — the tools-dialog Equalizer surface: preset selector +
  * the A2 vertical-fader GraphicEQ panel (the w26.f05 Lead ruling). The
- * tool root carries the `eq-tool`/`eq-tool--open` classes the tools
- * dialog's staged-note rules key on (dialogs.css); the GraphicEQ inside
- * is the named "Equalizer" region.
+ * tool root self-stages (`data-staged-tool`/`data-pending-command` + the
+ * in-body note, w26.k10) exactly like its four sibling audio tools; the
+ * GraphicEQ inside is the named "Equalizer" region.
  */
 export function EqualizerTool({
   defaultOpen = false,
@@ -98,7 +112,13 @@ export function EqualizerTool({
   };
 
   const presetOptions: DropdownOption<EqMessageKey>[] = EQ_PRESETS.map(
-    (spec) => ({ value: spec.id, labelKey: spec.labelKey }),
+    (spec) => ({
+      value: spec.id,
+      labelKey: spec.labelKey,
+      // w26.k10 (j10 P3-6): structural per-option marker — equalizer.css
+      // keys the preset curve glyphs on `data-preset`, never DOM position.
+      data: { preset: spec.id },
+    }),
   );
 
   return (
@@ -107,6 +127,8 @@ export function EqualizerTool({
         .filter(Boolean)
         .join(" ")}
       data-tool="equalizer"
+      data-staged-tool="equalizer"
+      data-pending-command={PENDING_COMMAND}
     >
       {/* The preset panel (EQ presets.svg) — visible with the expanded
        * surface; the frames place the preset control OUTSIDE the fader
@@ -127,6 +149,16 @@ export function EqualizerTool({
         state={state}
         onChange={commitFader}
       />
+      {/* The honest-unbound note (the sibling tools' in-body pattern): it
+       * renders with the EXPANDED tool only — collapsed frames show no
+       * staging line. Inside the tools dialog's transitional wrapper the
+       * wrapper's own note wins (equalizer.css) — delete both with the
+       * wrapper (see module header). */}
+      {open ? (
+        <p className="eq-tool__staged" role="note">
+          {eq("player.tools.equalizer.staged")}
+        </p>
+      ) : null}
     </div>
   );
 }
