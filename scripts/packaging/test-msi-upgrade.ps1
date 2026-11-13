@@ -114,8 +114,14 @@ function Get-InstalledProductCodes() {
 function Invoke-MsiExec([string]$Verb, [string]$MsiPath, [string]$LogFile) {
     # 0 = success; 3010 = success, reboot required (both are installs
     # that took effect -- 3010 is normal for per-machine files-in-use).
+    # ALLUSERS=1: the install must be PER-MACHINE (the generated MSI's
+    # UpgradeCode registration lands under HKLM) - without it a
+    # non-elevated context installs per-user and the UpgradeCodes key
+    # the assertions read never appears (rounds 5-6 found 0 with the
+    # install exit code 0: it succeeded, just not in the hive the
+    # test reads). The runner's shell is elevated, so this is legal.
     $proc = Start-Process -FilePath 'msiexec.exe' `
-        -ArgumentList @("/$Verb", "`"$MsiPath`"", '/qn', "/L*v", "`"$LogFile`"") `
+        -ArgumentList @("/$Verb", "`"$MsiPath`"", 'ALLUSERS=1', '/qn', "/L*v", "`"$LogFile`"") `
         -Wait -PassThru
     if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
         Fail "msiexec /$Verb exited $($proc.ExitCode) (log: $LogFile)"
@@ -164,6 +170,20 @@ try {
     $null = Invoke-MsiExec 'i' $prevMsi (Join-Path $work 'prev-install.log')
     $codes = Get-InstalledProductCodes
     if ($codes.Count -ne 1) {
+        # Honest diagnostics: WHERE the registration landed (or didn't).
+        # The registry contract is HKLM UpgradeCodes\<squished-upgrade>;
+        # a per-user install (ALLUSERS lost), a different hive view, or a
+        # failed-but-zero-exit install all end here - the next run must
+        # say which, not just "found 0".
+        $squished = Get-SquishedGuid $env:PRODUCT_MSI_UPGRADE_CODE
+        foreach ($hive in @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes",
+                            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes",
+                            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes")) {
+            $exists = Test-Path (Join-Path $hive $squished)
+            Write-Output "  diagnostics: $hive\$squished exists=$exists"
+        }
+        Write-Output "  diagnostics: prev-install.log tail:"
+        Get-Content (Join-Path $work 'prev-install.log') -Tail 12 | ForEach-Object { Write-Output "    $_" }
         Fail "after predecessor install: expected exactly 1 ProductCode under the UpgradeCode, found $($codes.Count): $($codes -join ', ')"
     }
     $prevCode = $codes[0]

@@ -208,7 +208,7 @@ jobs:
           survived=no
           died_at=""
           t0=$(date +%s)
-          for i in $(seq 1 $((SURVIVE * 2))); do
+          for _ in $(seq 1 $((SURVIVE * 2))); do
             sleep 0.5
             if ! kill -0 "$pgid" 2>/dev/null; then
               died_at="$(( $(date +%s) - t0 ))s"
@@ -377,7 +377,7 @@ jobs:
           survived=no
           died_at=""
           t0=$(date +%s)
-          for i in $(seq 1 $((SURVIVE * 2))); do
+          for _ in $(seq 1 $((SURVIVE * 2))); do
             sleep 0.5
             if ! kill -0 "$pid" 2>/dev/null; then
               died_at="$(( $(date +%s) - t0 ))s"

@@ -39,15 +39,15 @@ fn registration_source() -> String {
 fn the_shell_registers_exactly_one_command_and_it_is_lumen_dispatch() {
     let source = registration_source();
 
-    let handler = source
-        .find("generate_handler!")
-        .unwrap_or_else(|| panic!("src/app.rs must register commands via generate_handler![…]"));
+    let handler = source.find("generate_handler!").unwrap_or_else(|| {
+        unreachable!("src/app.rs must register commands via generate_handler![…]")
+    });
     let array_open = source[handler..]
         .find('[')
-        .unwrap_or_else(|| panic!("generate_handler![…] array form (doc 05 §5.1 verbatim)"));
+        .unwrap_or_else(|| unreachable!("generate_handler![…] array form (doc 05 §5.1 verbatim)"));
     let array_close = source[handler + array_open..]
         .find(']')
-        .unwrap_or_else(|| panic!("generate_handler![…] closes its array"));
+        .unwrap_or_else(|| unreachable!("generate_handler![…] closes its array"));
     let body = &source[handler + array_open + 1..handler + array_open + array_close];
 
     let registered: Vec<&str> = body

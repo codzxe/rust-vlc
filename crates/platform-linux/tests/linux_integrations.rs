@@ -32,6 +32,37 @@ use testkit::assert_err;
 // Fixture scaffolding (std-only temp trees; no dev-dependencies by C5).
 // ---------------------------------------------------------------------------
 
+/// Open a file dialog, retrying the ETXTBSY face of the overlayfs
+/// exec-after-write race. History (CI, 2026-11-13): the zenity stub
+/// died "Text file busy" twice across two DIFFERENT tests (runs
+/// 43400611226 and 43415927075, zenity then kdialog) even after the
+/// staging+rename mitigation in `write_script` — on an overlay-backed
+/// /tmp the freshly-written INODE keeps a pending-write state past
+/// close() and rename(), so the exec races it regardless of how the
+/// path is published. The production error face is
+/// `PlatformError::SpawnFailed` whose detail carries the errno string;
+/// the test retries exactly that face (a missing binary or a real
+/// backend failure never contains it) with a bounded backoff, so the
+/// flake is absorbed without masking any other failure.
+fn open_file_retrying_etxtbsy(
+    dialogs: &mut XdgDialogs,
+    request: &FileDialogRequest,
+) -> FilePick {
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        match dialogs.open_file(request) {
+            Ok(pick) => return pick,
+            Err(PlatformError::SpawnFailed { detail, .. })
+                if detail.contains("Text file busy") && attempt < 4 =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(150 * attempt));
+            }
+            Err(err) => unreachable!("testkit must(): {err}"),
+        }
+    }
+}
+
 /// A per-test temp directory under the system temp root, tagged to
 /// keep parallel tests apart.
 fn temp_root(tag: &str) -> PathBuf {
@@ -196,7 +227,7 @@ fn xdg_dialogs_run_the_zenity_fallback() {
         default_dir: Some(PathBuf::from("/media")),
         multiple: true,
     };
-    let pick = dialogs.open_file(&request).must();
+    let pick = open_file_retrying_etxtbsy(&mut dialogs, &request);
     let FilePick::Paths(paths) = pick else {
         unreachable!("the fake zenity prints two paths");
     };
@@ -219,7 +250,7 @@ fn xdg_dialogs_cancel_is_not_an_error() {
     // zenity exits 1 with no output for a user cancel.
     write_script(&bin.join("zenity"), "exit 1");
     let mut dialogs = XdgDialogs::with_config(vec![bin], None);
-    let pick = dialogs.open_file(&FileDialogRequest::default()).must();
+    let pick = open_file_retrying_etxtbsy(&mut dialogs, &FileDialogRequest::default());
     assert_eq!(pick, FilePick::Cancelled);
     // A save round through kdialog behaves the same.
     let root2 = temp_root("xdg-cancel-k");
@@ -245,7 +276,7 @@ fn xdg_dialogs_kdialog_fallback_parses_output() {
     );
     let mut dialogs = XdgDialogs::with_config(vec![bin], None);
     assert!(dialogs.kdialog().is_some());
-    let pick = dialogs.open_file(&FileDialogRequest::default()).must();
+    let pick = open_file_retrying_etxtbsy(&mut dialogs, &FileDialogRequest::default());
     assert_eq!(
         pick,
         FilePick::Paths(vec![PathBuf::from("/home/user/clip.mp4")])
