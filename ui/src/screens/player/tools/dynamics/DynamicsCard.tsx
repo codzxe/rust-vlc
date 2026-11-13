@@ -20,16 +20,45 @@
 // forward-declared command they await — never a dead control that looks
 // engine-bound.
 
-import { useId, useState } from "react";
+import { memo, useCallback, useId, useState } from "react";
 import type { ReactElement } from "react";
 import { Icon } from "../../../../components/icon/Icon";
 import { useDynamicsMsg } from "./copy";
 import { ToolSliderRow } from "./ToolSliderRow";
 import type {
   DynamicsCardProps,
+  DynamicsRowDef,
   DynamicsRowState,
 } from "./types";
 import "./dynamics.css";
+
+/**
+ * Memoized row adapter (w26.k10, j10 P3-5): the card re-renders on every
+ * drag-move (`setValues` per `onChangeLive`), and the map's per-row
+ * `onChange` closures were fresh every render — memo(ToolSliderRow) alone
+ * could never bail out. This adapter takes the STABLE module-level row def
+ * + the card-level `onRowChange` sink, so only the row whose `value`
+ * changed re-renders (its i18n hook + tick math stay idle for the rest).
+ */
+const DynamicsRow = memo(function DynamicsRow({
+  row,
+  value,
+  onRowChange,
+}: {
+  row: DynamicsRowDef;
+  value: number;
+  onRowChange: (rowId: string, next: number) => void;
+}): ReactElement {
+  return (
+    <ToolSliderRow
+      row={row}
+      value={value}
+      onChange={(next) => {
+        onRowChange(row.id, next);
+      }}
+    />
+  );
+});
 
 /** Renders a tool card (see module header for the grammar). */
 export function DynamicsCard({
@@ -49,9 +78,9 @@ export function DynamicsCard({
   const id = idProp ?? `${tool}-${generatedId}`;
   const bodyId = `${id}-body`;
 
-  const setRowValue = (rowId: string, next: number): void => {
+  const setRowValue = useCallback((rowId: string, next: number): void => {
     setValues((prev) => ({ ...prev, [rowId]: next }));
-  };
+  }, []);
 
   return (
     <section
@@ -98,13 +127,11 @@ export function DynamicsCard({
       >
         <div className="dynamics-tool__rows">
           {rows.map((row) => (
-            <ToolSliderRow
+            <DynamicsRow
               key={row.id}
               row={row}
               value={values[row.id] ?? row.initial}
-              onChange={(next) => {
-                setRowValue(row.id, next);
-              }}
+              onRowChange={setRowValue}
             />
           ))}
         </div>
