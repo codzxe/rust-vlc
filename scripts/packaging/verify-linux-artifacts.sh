@@ -10,8 +10,9 @@
 # inputs are the release binaries and the pinned AppImage tools.
 #
 # Steps:
-#   1. build-targz.sh    — the flat archive (both binaries + the
-#                         [shipped] docs list) — content cross-checked.
+#   1. build-targz.sh    — the flat archive (all three shipped binaries
+#                         + the [shipped] docs list) — content
+#                         cross-checked.
 #   2. build-deb.sh       — REAL .deb (native dpkg-deb) from the shared
 #                         FHS payload (config-driven: dirs, docs,
 #                         desktop entry, section).
@@ -27,12 +28,24 @@
 #        <bindir>/<cli> decode-bench <fx>  exit 0 + one BENCH line
 #        <bindir>/<desktop>                exit = the documented
 #                                            skeleton code (config)
+#        <bindir>/<tauri> PRESENT          exec bit + path (no launch:
+#                                            the admission shell needs
+#                                            the host's WebKitGTK, which
+#                                            the deb declares in
+#                                            Depends — launching it here
+#                                            would test this sandbox's
+#                                            display stack, not the
+#                                            package)
+#        Depends carries the webkit pair   libgtk-3-0 +
+#                                            libwebkit2gtk-4.1-0
 #        dpkg-deb -f Package/Version/Architecture == config values
 #        shipped docs present per packaging.toml [shipped] docs
 #   6. AppImage launch test: APPIMAGE_EXTRACT_AND_RUN=1 <image> exits
 #      with the desktop skeleton code (no FUSE needed — same mechanism
-#      as the build step).
-#   7. tar.gz member check against the same [shipped] list.
+#      as the build step); then --appimage-extract (the type2 runtime's
+#      own extraction, still no FUSE) proves the tauri payload row.
+#   7. tar.gz member check against the same [shipped] list + the three
+#      binary names.
 #   8. Per-artifact-set SBOM: gen-sboms.sh (the ONE writer — wraps
 #      `cargo run -p xtask --locked -- sbom`, CycloneDX per config,
 #      lockfile-derived; content identical per set, generated per
@@ -58,6 +71,7 @@ set -eu
 : "${PRODUCT_NAME:?verify-linux-artifacts.sh: PRODUCT_NAME not set}"
 : "${BIN_CLI:?verify-linux-artifacts.sh: BIN_CLI not set}"
 : "${BIN_DESKTOP:?verify-linux-artifacts.sh: BIN_DESKTOP not set}"
+: "${BIN_TAURI:?verify-linux-artifacts.sh: BIN_TAURI not set}"
 : "${OS_ID:?verify-linux-artifacts.sh: OS_ID not set}"
 : "${ARCH_ID:?verify-linux-artifacts.sh: ARCH_ID not set}"
 : "${PACKAGING_LINUX_BINDIR:?verify-linux-artifacts.sh: PACKAGING_LINUX_BINDIR not set}"
@@ -118,12 +132,32 @@ if command -v rpmbuild >/dev/null 2>&1; then
             die "rpm header field $want_field is '$got_val', config says '$want_val'"
         echo "  rpm header: $want_field=$got_val"
     done
+    # Payload rows: every shipped binary must be listed by the package
+    # (rpm -qlp needs no root). The tauri row joins the other two — a
+    # missing row means build-rpm.sh's %files list drifted from the
+    # stager.
+    rpm_qlp=$(rpm -qlp "$rpm_path") || die "rpm -qlp failed on $rpm_path"
+    for bin_row in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI"; do
+        printf '%s\n' "$rpm_qlp" | grep -qx "/$PACKAGING_LINUX_BINDIR/$bin_row" ||
+            die "rpm payload is missing /$PACKAGING_LINUX_BINDIR/$bin_row"
+        echo "  rpm payload: /$PACKAGING_LINUX_BINDIR/$bin_row"
+    done
 else
     # Honest local half: spec generation + structural validation only.
     echo "  rpmbuild absent on this host -- spec-only (the binary .rpm"
     echo "  build runs in the CI lane where rpm is installed; labeled,"
     echo "  never faked)"
     scripts/packaging/build-rpm.sh --spec-only "$dist_abs/${base}.spec"
+    # Spec-only half: the %files rows are the payload contract — the
+    # tauri row must be present exactly like the other two.
+    # build-rpm.sh's validate_spec already proved every row exists in
+    # the staged tree AND that the Requires pair is intact; this greps
+    # the same contract back from the consumer side.
+    for bin_row in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI"; do
+        grep -Fxq "/$PACKAGING_LINUX_BINDIR/$bin_row" "$dist_abs/${base}.spec" ||
+            die "rpm spec %files is missing the /$PACKAGING_LINUX_BINDIR/$bin_row row"
+        echo "  rpm spec row: /$PACKAGING_LINUX_BINDIR/$bin_row"
+    done
 fi
 
 targz="$dist_abs/${base}.tar.gz"
@@ -135,13 +169,22 @@ appimage="$dist_abs/${base}.AppImage"
 
 echo "=== 5. deb launch tests (extraction — no root) ==="
 deb_root=$(mktemp -d)
-trap 'rm -rf "$deb_root"' EXIT INT TERM
+appimage_extract_dir=$(mktemp -d)
+trap 'rm -rf "$deb_root" "$appimage_extract_dir"' EXIT INT TERM
 dpkg-deb -x "$deb" "$deb_root" || die "dpkg-deb -x failed on $deb"
 
 cli="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_CLI"
 desktop="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP"
+tauri="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_TAURI"
 [ -x "$cli" ] || die "packaged CLI not present in the deb: $PACKAGING_LINUX_BINDIR/$BIN_CLI"
 [ -x "$desktop" ] || die "packaged desktop binary not present in the deb"
+# The tauri admission shell rides in the same bindir. Presence + exec
+# bit is the honest row here: it is a GUI binary that needs WebKitGTK
+# 4.1 + GTK3 from the HOST (the pair below asserts the deb DECLARES
+# them) — launching it in this sandbox would test the sandbox's display
+# stack, not the package. That boundary is stated, not silently
+# skipped.
+[ -x "$tauri" ] || die "packaged tauri binary not present in the deb: $PACKAGING_LINUX_BINDIR/$BIN_TAURI"
 
 # 4a. version flag — the packaged engine binary launches.
 cli_out=$("$cli" "$PACKAGING_LAUNCH_VERSION_FLAG") ||
@@ -190,6 +233,17 @@ for doc in $PACKAGING_DOCS; do
 done
 echo "  deb payload docs: $PACKAGING_DOCS"
 
+# 4f. the webview runtime rows the tauri shell needs (the Depends pair
+# build-deb.sh declares, script-local like the rows themselves): a
+# dropped row would install cleanly and break BIN_TAURI at launch time
+# on a clean host.
+deb_depends=$(dpkg-deb -f "$deb" Depends)
+printf '%s\n' "$deb_depends" | grep -q "libgtk-3-0" ||
+    die "deb Depends is missing libgtk-3-0 (the tauri shell's GTK runtime), got: '$deb_depends'"
+printf '%s\n' "$deb_depends" | grep -q "libwebkit2gtk-4.1-0" ||
+    die "deb Depends is missing libwebkit2gtk-4.1-0 (the tauri shell's webview), got: '$deb_depends'"
+echo "  deb Depends: $deb_depends"
+
 echo "=== 6. AppImage launch test (extract-and-run; no FUSE) ==="
 appimage_out=$(APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" 2>&1) && app_rc=0 || app_rc=$?
 [ "$app_rc" -eq "$PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT" ] ||
@@ -197,9 +251,22 @@ appimage_out=$(APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" 2>&1) && app_rc=0 || app_r
 $appimage_out"
 echo "  AppImage skeleton: exit $app_rc (as documented)"
 
+# 6b. tauri payload row: extract the image (the type2 runtime's own
+# --appimage-extract works without FUSE and needs no env; the arg is
+# consumed by the runtime, not the app) and require the tauri binary
+# beside the desktop one in the bindir. PAYLOAD PRESENCE only — the
+# launch contract above stays the desktop binary's, and the tauri
+# shell's webkit runtime comes from the host (see build-appimage.sh's
+# bundling boundary).
+(cd "$appimage_extract_dir" && "$appimage" --appimage-extract) >/dev/null ||
+    die "AppImage --appimage-extract failed on $appimage"
+[ -x "$appimage_extract_dir/squashfs-root/$PACKAGING_LINUX_BINDIR/$BIN_TAURI" ] ||
+    die "tauri binary missing from the AppImage payload: $PACKAGING_LINUX_BINDIR/$BIN_TAURI"
+echo "  AppImage payload: $PACKAGING_LINUX_BINDIR/$BIN_TAURI present"
+
 echo "=== 7. tar.gz content check (the shipped list, cross-checked) ==="
 tar_list=$(tar -tzf "$targz")
-for member in "$BIN_CLI" "$BIN_DESKTOP" $PACKAGING_DOCS; do
+for member in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI" $PACKAGING_DOCS; do
     printf '%s\n' "$tar_list" | grep -qx "$member" ||
         die "tar.gz member missing: $member (expected: binaries + packaging.toml [shipped] docs)"
 done
@@ -233,4 +300,4 @@ done
 echo "  manifest: $manifest"
 cat "$manifest"
 
-echo "verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, packaged binaries launch-tested, SBOMs + checksums written"
+echo "verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, all three shipped binaries verified per format (tauri row: presence + webkit runtime deps), packaged launch-tested binaries, SBOMs + checksums written"
