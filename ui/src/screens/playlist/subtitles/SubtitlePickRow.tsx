@@ -28,7 +28,9 @@ export interface SubtitlePickRowProps {
   selected: boolean;
   /** The subtitle multiple.svg variant — hover reveals the cycle glyph. */
   multiple?: boolean;
-  /** Row id (listbox option id — wires aria-activedescendant). */
+  /** Row id (stable listbox option id — DOM/test addressing; w26.k15: no
+   * longer wires aria-activedescendant — the listbox is roving-tabindex
+   * only, j15 P3-10). */
   id: string;
   /** Behavior spread from SubtitlePickList (role/aria/tabIndex/handlers). */
   optionProps?: HTMLAttributes<HTMLDivElement>;
