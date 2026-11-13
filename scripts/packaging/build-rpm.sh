@@ -158,22 +158,26 @@ composition-root binary and the tauri admission shell) install under
 scriptlets.
 
 %prep
-# The tarball's top-level dir is ${PRODUCT_LOWER}-${PRODUCT_VERSION}
-# (raw version WITH its dash — see the tar -C stage line below), while
-# %setup's default dir derives from %{name}-%{version} where the version
-# carries the ~ pre-release marker (0.1.0~dev). CI's rpmbuild actually
-# extracts and cd's — the dash/tilde mismatch made %prep die with
-# "can't cd to lumen-0.1.0~dev" (release lane, first real run). -n pins
-# the dir to the tarball's real layout; %install already uses it.
-%setup -q -n ${PRODUCT_LOWER}-${PRODUCT_VERSION}
+# The tarball's top-level dir is made to MATCH %{name}-%{version} (the
+# ~-mapped rpm_version) via tar --transform below — %setup's default cd
+# then lands on the real payload dir. History: round 3 tried %setup -n
+# (pinning the dash dir), but the hosted runner's rpm 4.2x ignored -n
+# for the cd (run 43406493996: `cd lumen-0.1.0~dev` still fired, line
+# 41) — the robust contract is the tarball layout, not macro options.
+%setup -q
 
 %build
 # Binary package: the payload is built by cargo (rust toolchain), not
 # by rpmbuild. Nothing to compile here.
 
 %install
-mkdir -p "%{buildroot}"
-cp -a "${PRODUCT_LOWER}-${PRODUCT_VERSION}/." "%{buildroot}/"
+# %setup left cwd INSIDE the extracted top-dir (= the payload root:
+# usr/, share/...); `cp -a .` copies the CONTENTS into the buildroot
+# (verified locally: `cp -a . dest/` copies children, not the dir
+# itself). The old `${name}-${version}/.` path was written for a
+# buildroot-relative cwd and died "cannot stat" the moment %prep's cwd
+# changed (aarch64, run 43406493996).
+cp -a . "%{buildroot}/"
 
 %files
 EOF
@@ -243,7 +247,13 @@ case "$ARCH_ID" in
 esac
 
 tarball="$stage/${PRODUCT_LOWER}-${PRODUCT_VERSION}.tar.gz"
-tar -czf "$tarball" -C "$stage" "${PRODUCT_LOWER}-${PRODUCT_VERSION}"
+# --transform renames the archive's top-level dir to the ~-mapped
+# rpm_version so %setup's default `cd %{name}-%{version}` finds the
+# payload (see the %prep comment; on-disk staging keeps the dash name
+# the deb/AppImage lanes share).
+tar -czf "$tarball" -C "$stage" \
+    --transform "s,^${PRODUCT_LOWER}-${PRODUCT_VERSION},${PRODUCT_LOWER}-${rpm_version}," \
+    "${PRODUCT_LOWER}-${PRODUCT_VERSION}"
 
 mkdir -p "$stage/SOURCES" "$stage/RPMS" "$stage/BUILD" "$stage/SRPMS" "$stage/SPECS"
 cp "$tarball" "$stage/SOURCES/"
