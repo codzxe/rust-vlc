@@ -81,6 +81,39 @@ describe("EssentialTool — frame rows", () => {
     }
   });
 
+  it("paints degree ticks on the 2px-inset fill domain (j11 P2-1 regression)", () => {
+    // w26.k11: the rows compose tools/shared/SliderRow, whose tick left is
+    // `calc(2px + (100% - 4px) * p / 100)` — the w26.i07 fill-domain paint
+    // every video frame measures ("Video - Essential.svg" gamma: x = 38 +
+    // 324·(i+1)/10 on the x36–364 track). The pre-fix full-width percent
+    // drifted tick 1 to x68.8 vs frame 70.4 (−1.6px on the 328px track).
+    // NOTE: jsdom re-serializes calc to its canonical form
+    // `calc(2px + <fraction> * (100% - 4px))` — gamma tick i sits at (i+1)/10
+    // of the inset span, so tick 1 = 0.1, tick 9 = 0.9, Hue's single tick
+    // at the center = 0.5.
+    const { container } = render(<EssentialTool defaultOpen />);
+    const gammaTicks = container.querySelectorAll(
+      '[data-row="gamma"] .dynamics-slider__tick',
+    );
+    expect(gammaTicks).toHaveLength(9);
+    expect(gammaTicks[0]?.getAttribute("style")).toBe(
+      "left: calc(2px + 0.1 * (100% - 4px));",
+    );
+    expect(gammaTicks[8]?.getAttribute("style")).toBe(
+      "left: calc(2px + 0.9 * (100% - 4px));",
+    );
+    // The drifted pre-fix paint was a raw track percent (`left: 10.000%`).
+    expect(gammaTicks[0]?.getAttribute("style") ?? "").not.toMatch(
+      /^left: [\d.]+%;$/,
+    );
+    // 1-tick rows sit at the domain center (50%) — unaffected by the fix.
+    expect(
+      container
+        .querySelector('[data-row="hue"] .dynamics-slider__tick')
+        ?.getAttribute("style"),
+    ).toBe("left: calc(2px + 0.5 * (100% - 4px));");
+  });
+
   it("sliders carry the staged display ranges and valuetext", () => {
     render(<EssentialTool defaultOpen />);
     const hue = screen.getByRole("slider", { name: "Hue" });
