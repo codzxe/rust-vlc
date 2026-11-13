@@ -1804,3 +1804,41 @@ Stage Summary:
   per-call uniqueness). Expected: tauri-check green through to the
   smoke step (0|86 exit), Rust lane back to green on a real fix, not
   a rerun.
+---
+Task ID: w26.lead-round14
+Agent: Lead (orchestrator)
+Task: The smoke step's binary path — the CARGO_TARGET_DIR lesson,
+  applied on the workflow side.
+
+Work Log:
+- Watched the round-13 CI set (43453921560): cargo-deny PASSED (the
+  license classes + the advisory ignore carried the admission check
+  through); the next variable was the FIRST live run of the smoke
+  step, and it died before loading the binary: exit 127, "timeout:
+  failed to execute process: No such file or directory". The step
+  probed ./apps/desktop-tauri/target/debug/lumen-tauri (the subcrate
+  DEFAULT target layout), but ci.yml's workflow-level
+  CARGO_TARGET_DIR=target is RELATIVE — cargo resolved it against
+  the invoking CWD (the repo root) even for --manifest-path subcrate
+  builds (the admission test step's own output confirms: binaries at
+  target/debug/deps/...), so the binary actually lands in
+  <repo>/target/debug/lumen-tauri. Exactly the first-vertical
+  lumen_binary_path lesson (w26 CI-triage item 2), this time on the
+  workflow side.
+- Fix: the smoke step now execs ./target/debug/lumen-tauri and
+  ls -l's it first (loud, visible failure if the layout ever shifts
+  again — under bash -e the missing file aborts the step at the ls).
+  Verified: YAML parses; bash -n clean. The admission bin name
+  lumen-tauri confirmed against the [[bin]] table (Cargo.toml:31).
+- Rust lane on 34f032b7 still in flight at poll time; the 28fb38fa
+  rerun (attempt 2) is the un-fixed-tree data point for the e2e
+  flake — outcome recorded in the next round regardless of which
+  way it goes (a pass dates the flake, a fail re-confirms the
+  class; the write_config fix stands either way).
+
+Stage Summary:
+- Round 14 pushed: one-line-class fix in ci.yml's smoke step (path
+  + loud-fail ls). All other tauri-check steps now pass; the lane's
+  last untested behavior is the binary's no-DISPLAY exit posture
+  (0|86 expected — the launch-verdict lane already proves the
+  binary launches under xvfb).

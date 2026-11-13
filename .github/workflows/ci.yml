@@ -747,8 +747,19 @@ jobs:
           # launch-verdict lane does, with xvfb). What IS provable now:
           # the binary links, loads, and exits with the honest pending
           # state rather than crashing on the webview path.
+          #
+          # Binary path: the workflow-level CARGO_TARGET_DIR=target is
+          # RELATIVE, so cargo resolves it against the invoking CWD (the
+          # repo root) even with --manifest-path subcrates — first-
+          # vertical's lumen_binary_path lesson (w26 CI-triage item 2),
+          # applied this time on the workflow side: the admission binary
+          # lands in <repo>/target/debug, NOT apps/desktop-tauri/target/
+          # debug. Run 43453921560 (tauri-check, 34f032b7) exec'd the
+          # subcrate-default path and died 127 "No such file or
+          # directory" before ever loading the binary.
+          ls -l target/debug/lumen-tauri
           set +e
-          timeout 30s ./apps/desktop-tauri/target/debug/lumen-tauri 2>&1 | head -3
+          timeout 30s ./target/debug/lumen-tauri 2>&1 | head -3
           code=${PIPESTATUS[0]}
           set -e
           echo "exit code: ${code} (0 = window served; 86 = webview-pending; anything else = a real failure)"
