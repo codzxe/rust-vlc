@@ -50,7 +50,19 @@ fn root_schema() -> product_config::Schema {
 /// flipped to `true` (exactly once — never silently test a wrong
 /// file). The repo's own flag stays `false` until the Lead ratifies
 /// (rule F2); this copy is what ratification looks like.
+///
+/// The temp path carries a per-CALL counter, not just the pid: parallel
+/// tests in this binary share the pid, and two of them writing the SAME
+/// pid-anchored path raced write/truncate/read on CI (run 43409155006 —
+/// one test's loader read the other's half-written file and died
+/// "required key is missing" for every top-level key, i.e. an empty
+/// moment of the sibling's write). Same flake class as the
+/// platform-linux ETXTBSY stub (wave-L round 4): per-call uniqueness is
+/// the contract for shared-/tmp test artifacts.
 fn flipped_product() -> PathBuf {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static CALL: AtomicU32 = AtomicU32::new(0);
+    let call = CALL.fetch_add(1, Ordering::Relaxed);
     let source = repo_root().join("product.toml");
     let text = match std::fs::read_to_string(&source) {
         Ok(text) => text,
@@ -64,7 +76,7 @@ fn flipped_product() -> PathBuf {
         "the flip must land exactly once"
     );
     let path = std::env::temp_dir().join(format!(
-        "lumen-control-server-e2e-product-{}.toml",
+        "lumen-control-server-e2e-product-{}-{call}.toml",
         std::process::id()
     ));
     if let Err(err) = std::fs::write(&path, flipped) {
