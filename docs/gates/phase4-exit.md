@@ -249,3 +249,19 @@ fill comparable rows as decoders land).
   (§7) is the operative output — it already folds wave-7's honest
   handoffs (silent-skip bugs, 103-unsupported container coverage) into
   the format cards that own them.
+
+---
+
+## Lead sign-off (the owed square-up, 2026-11-13)
+
+**Verdict: PASS (Lead-signed 2026-11-13).** Same administrative
+ratification as Phase 3's sign-off the same day: the evidence above stood
+verdict-PENDING from 2026-10-24 while Phases 5–6 (and the wave-23/24/26
+programs) proceeded on it, and Phase 5's Lead sign-off reviewed the chain
+explicitly. The gate's named follow-ups — 3-OS scenario matrix breadth and
+the CI-nightly escalation path — are discharged by the now-running hosted
+CI (first full real execution 2026-11-13, wave-L) and the compat-matrix
+workflow; the rebrand blockers it pinned IN-TEST are green (rebrand
+skeleton + reverse-control suites pass; wave-L round 3 closed the last
+surface-path drift). Signed: Lead (wave-26 orchestration), issue #59
+square-up.

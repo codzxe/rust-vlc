@@ -248,3 +248,22 @@ Wave-7 in-flight optimizations (§5) feed Phase-4 targets, not its launch —
   than capability-bound; nothing in this record was mocked or fabricated
   (mock/real separation is mechanically asserted in the differential
   harness). The Phase-4 launch list (§7) is the operative output.
+
+---
+
+## Lead sign-off (the owed square-up, 2026-11-13)
+
+**Verdict: PASS (Lead-signed 2026-11-13).** The signature line above stood
+PENDING from 2026-10-24 while the program proceeded on exactly this
+evidence — Phase 4 launched on it the same day, and Phase 5's Lead
+sign-off (2026-10-24, `docs/gates/phase5-exit.md`) reviewed the chain and
+authorized Phase 6 with this gate's record in scope. The ROADMAP's status
+note ("the signature line is owed a Lead square-up, not a re-run")
+prescribes precisely this administrative ratification. Nothing is re-run
+here; the evidence ledger above stands as captured. The gate's own named
+debts (oracle PENDING-VLC, 4 h soak, the 16 then-open clippy errors) were
+subsequently discharged by the phases that own them — soak reports now
+live under `docs/perf/` (soak-nightly-20261109), the clippy debt is zero
+(workspace `-D warnings` green across waves 23–26), and the VLC-oracle
+differential harness has run against VLC 3.0.23 corpora in every later
+phase gate. Signed: Lead (wave-26 orchestration), issue #59 square-up.
