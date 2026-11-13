@@ -1030,11 +1030,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # `gh` is preinstalled on GitHub-hosted runners [VERIFY at
-          # first live run]. All assets ride along (packages, SBOMs,
-          # per-set manifests, the .wxs audit source, signing sidecars);
-          # the global manifest is regenerated above from exactly these
-          # bytes.
+          # `gh` is preinstalled on GitHub-hosted runners [VERIFIED on
+          # the first live tag run 43464162696 -- the failure was the
+          # payload, not the tool]. All assets ride along (packages,
+          # SBOMs, per-set manifests, the .wxs audit source, signing
+          # sidecars); the global manifest is regenerated above from
+          # exactly these bytes.
+          #
+          # GitHub caps release bodies at 125,000 characters (HTTP 422
+          # "body is too long" -- first live tag run 43464162696, step
+          # died on it). The notes carry the full git-log range since
+          # the previous tag (backup-2026-10-20..v0.1.0: three weeks of
+          # dense history); bound the body with an honest pointer
+          # instead of shipping a 422. The bound sits HERE, at the only
+          # consumer with the limit -- release-notes.sh stays complete
+          # for every other use.
+          NOTES_MAX=120000
+          if [ "$(wc -m < notes.md)" -gt "$NOTES_MAX" ]; then
+            head -c "$NOTES_MAX" notes.md > notes.tmp.md
+            printf '\n\n--\nRelease body truncated at %s characters (GitHub caps it at 125000); the complete range is in the repository history (git log, previous tag..%s).\n' \
+              "$NOTES_MAX" "$GITHUB_REF_NAME" >> notes.tmp.md
+            mv notes.tmp.md notes.md
+            echo "notes.md truncated to $(wc -m < notes.md) characters"
+          fi
           gh release create "$GITHUB_REF_NAME" \
             --title "${PRODUCT_NAME} ${PRODUCT_VERSION}" \
             --notes-file notes.md \

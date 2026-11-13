@@ -1958,3 +1958,33 @@ Stage Summary:
   published Release + assets, update docs/RELEASE.md + release-
   checklist.md with the first real run evidence, then close #67,
   #66, verify #65's acceptance, write the phase8-exit record (#59).
+---
+Task ID: w26.lead-round18
+Agent: Lead (orchestrator)
+Task: The first tag run's last step -- the 422 body-length cap on
+  gh release create.
+
+Work Log:
+- The v0.1.0 tag run (43464162696): all five OS jobs green (windows
+  upgrade test green AGAIN on the tag tree), the release job green
+  through checksums + notes + tag cross-check, then the FINAL step
+  died: gh release create -> HTTP 422 "body is too long (maximum is
+  125000 characters)". The notes carry the full git-log range since
+  the previous tag (backup-2026-10-20..v0.1.0 = three weeks of dense
+  history); the [VERIFY at first live run] on gh itself is now
+  VERIFIED (the tool ran; the payload was the failure).
+- Fix: the gh step bounds notes.md at 120,000 characters with an
+  honest truncation footer pointing at the repository history; the
+  bound sits at the only consumer with the limit (release-notes.sh
+  stays complete for every other use). Simulated on a 200k body:
+  120,158 chars after truncation -- under the cap. YAML + bash -n
+  clean.
+- Tag moved to the fixed commit (the 422 left no draft behind --
+  verified via the releases API: only backup-2026-10-20 exists).
+  Moving a five-minute-old tag with no consumers and no created
+  release is the honest path to a green first run.
+
+Stage Summary:
+- Round 18 pushed; tag v0.1.0 re-cut on it. The re-run is expected
+  green end to end: OS jobs unchanged-and-green, the release job now
+  bounded under the cap.
