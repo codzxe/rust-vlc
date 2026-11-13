@@ -103,7 +103,18 @@ function Get-InstalledProductCodes() {
     # run (release round 5, 2026-11-13) read the DATA and found 0 codes
     # on a perfectly registered install - read the names.
     $squished = Get-SquishedGuid $env:PRODUCT_MSI_UPGRADE_CODE
+    # The Installer registry TABLES live under Classes, not
+    # CurrentVersion: per-machine =
+    # HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\<squished>,
+    # per-user = HKCU\Software\Microsoft\Installer\UpgradeCodes
+    # \<squished>. Rounds 5-9 probed
+    # CurrentVersion\Installer\UpgradeCodes - a path where the
+    # per-machine tables are NOT written - and found 0 on a healthy
+    # install (exit 0, files present). The CurrentVersion roots stay
+    # as belt-and-braces fallbacks.
     $paths = @(
+        "HKLM:\SOFTWARE\Classes\Installer\UpgradeCodes\$squished",
+        "HKCU:\Software\Microsoft\Installer\UpgradeCodes\$squished",
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes\$squished",
         "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes\$squished"
     )
@@ -184,9 +195,10 @@ try {
         # failed-but-zero-exit install all end here - the next run must
         # say which, not just "found 0".
         $squished = Get-SquishedGuid $env:PRODUCT_MSI_UPGRADE_CODE
-        foreach ($hive in @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes",
-                            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes",
-                            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes")) {
+        foreach ($hive in @("HKLM:\SOFTWARE\Classes\Installer\UpgradeCodes",
+                            "HKCU:\Software\Microsoft\Installer\UpgradeCodes",
+                            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes",
+                            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes")) {
             $exists = Test-Path (Join-Path $hive $squished)
             Write-Output "  diagnostics: $hive\$squished exists=$exists"
         }
