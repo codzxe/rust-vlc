@@ -22,7 +22,11 @@ afterEach(() => {
 
 describe("en-US reference catalog (doc 07 §6.3)", () => {
   it("every entry is a non-empty string (no missing/empty slots)", () => {
-    expect(keys.length).toBeGreaterThan(400);
+    // Exact pin (j18 F10, w26.k18): a `> 400` floor could never fail
+    // meaningfully against a 1401-key catalog. Repin deliberately per wave —
+    // the count moves when the Lead merges lane keys (up) or prunes the
+    // dead-key grandfather list (down, ui/i18n-dead-keys.json).
+    expect(keys.length).toBe(1401);
     for (const key of keys) {
       expect(typeof messages[key], key).toBe("string");
       expect(messages[key].length, key).toBeGreaterThan(0);
