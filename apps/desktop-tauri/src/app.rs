@@ -109,7 +109,10 @@ impl std::fmt::Display for ShellError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ShellError::StatePoisoned => {
-                write!(f, "shell state poisoned (a handler panicked; restart the app)")
+                write!(
+                    f,
+                    "shell state poisoned (a handler panicked; restart the app)"
+                )
             }
         }
     }
@@ -151,13 +154,15 @@ fn forward_pending(app: &AppHandle, runtime: &mut ShellRuntime) {
 /// 40 ms ticker: keeps engine-originated events flowing between invokes.
 /// Stops silently when the state is poisoned (the app is dying anyway).
 fn spawn_event_pump(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(PUMP_INTERVAL);
-        let state = app.state::<ShellState>();
-        let Ok(mut runtime) = state.0.lock() else {
-            return;
-        };
-        forward_pending(&app, &mut runtime);
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(PUMP_INTERVAL);
+            let state = app.state::<ShellState>();
+            let Ok(mut runtime) = state.0.lock() else {
+                return;
+            };
+            forward_pending(&app, &mut runtime);
+        }
     });
 }
 
@@ -165,8 +170,16 @@ fn spawn_event_pump(app: AppHandle) {
 /// conf's windows[0] is the first-paint fallback, not a second source of
 /// truth (4.H1 design note): sizes + maximize are re-asserted here.
 fn apply_window_spec(app: &AppHandle) -> tauri::Result<()> {
-    let config = parse_window_table(include_str!("../../../product.toml"))
-        .expect("product.toml [window]: honest-parse rule — config drift never invents a window");
+    // The honest-parse rule: config drift never invents a window — a
+    // malformed [window] table is a hard startup failure carrying the
+    // parser's own message. `expect_used` is denied crate-wide (the
+    // workspace lint posture), so the old `.expect("…")` face becomes a
+    // returned `tauri::Error` (Io variant wraps any custom message).
+    let config = parse_window_table(include_str!("../../../product.toml")).map_err(|error| {
+        tauri::Error::Io(std::io::Error::other(format!(
+            "product.toml [window]: honest-parse rule — config drift never invents a window: {error}"
+        )))
+    })?;
     let spec = config.build_spec();
     if let Some(window) = app.get_webview_window("main") {
         // Tauri 2 sizing API: `set_size`/`set_min_size` take a `Size`
