@@ -34,17 +34,17 @@
 //     states.md) — the task brief's "32×16" figure does not exist in the
 //     frames, so the frame-measured form Switch is used.
 
+import { useId } from "react";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Switch } from "../../../components/form/Switch";
 import { TextField } from "../../../components/form/TextField";
 import { ListRow } from "../../../components/list/Row";
-import { useMsg } from "../../../i18n/messages";
-import type { MessageKey } from "../../../i18n/messages";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b08";
 import { GENERATED_SCREENS } from "../generated/Screens";
 import { SETTING_EXTENSIONS_LOAD_ON_STARTUP } from "../generated/schema";
+import { makeAreaMsg } from "./shared";
 import { useStagedMsg } from "./staged";
 import "./extensions.css";
 
@@ -73,18 +73,10 @@ export interface ExtensionInfo {
  */
 const INSTALLED_EXTENSIONS: readonly ExtensionInfo[] = [];
 
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
 /** Pre-registration seam: registry (b02) + this lane's keys — identical
- * output once the Lead registers them post-wave (b19). */
-const laneCatalog: Readonly<Record<string, string>> = { ...registryKeys, ...laneKeys };
-
-/** useAreaMsg — useMsg + the settings lanes' pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | RegistryKey | LaneKey): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
+ * output once the Lead registers them post-wave (b19); w26.k13: the shared
+ * makeAreaMsg factory (the j13 ruling 1 dedup). */
+const useAreaMsg = makeAreaMsg(registryKeys, laneKeys);
 
 /**
  * One add-on row — name + version left, enable Switch right (the settings
@@ -141,6 +133,12 @@ export function ExtensionsArea(): ReactElement {
             info.version.toLowerCase().includes(needle),
         );
   const actionsDisabled = !ADDONS_GATE.featureExposed;
+  // w26.k13 (j13 P2-2): the staged reason is keyboard-reachable — the
+  // disabled toolbar buttons carry an sr-only describedby twin (a disabled
+  // button is not focusable, so the title tooltip alone was unreachable for
+  // keyboard/AT users). One id serves the three sibling actions (one reason,
+  // one line — the SettingField Browse-companion precedent).
+  const reasonNoteId = useId();
 
   return (
     <div
@@ -184,11 +182,17 @@ export function ExtensionsArea(): ReactElement {
             onChange={(event) => setQuery(event.target.value)}
           />
           <div className="settings-extensions-toolbar__actions">
+            {/* w26.k13 (j13 P2-2): the sr-only reason twin — read by AT in
+             * browse mode and wired to each button's aria-describedby. */}
+            <span id={reasonNoteId} className="settings-vh">
+              {staged}
+            </span>
             <button
               type="button"
               className="settings-action settings-extensions-toolbar__find"
               disabled={actionsDisabled}
               data-staged="wasm-extensions"
+              aria-describedby={reasonNoteId}
               title={staged}
               onClick={() => {
                 /* inert by design: no discovery surface exists yet */
@@ -201,6 +205,7 @@ export function ExtensionsArea(): ReactElement {
               className="settings-action"
               disabled={actionsDisabled}
               data-staged="wasm-extensions"
+              aria-describedby={reasonNoteId}
               title={staged}
               onClick={() => {
                 /* inert by design: no install command exists yet */
@@ -213,6 +218,7 @@ export function ExtensionsArea(): ReactElement {
               className="settings-action"
               disabled={actionsDisabled}
               data-staged="wasm-extensions"
+              aria-describedby={reasonNoteId}
               title={staged}
               onClick={() => {
                 /* inert by design: no removal command exists yet */
