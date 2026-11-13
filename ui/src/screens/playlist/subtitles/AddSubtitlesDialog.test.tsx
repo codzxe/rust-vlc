@@ -2,6 +2,9 @@
 // subtitle_one/subtitle_multiple bodies + the sub filename seam): chrome,
 // the three body modes, the control-row state machine, selection → Save
 // payloads, honest disabled states and dismissal (Escape/✕/Cancel/scrim).
+// w26.k15 — adds: close→reopen state reset + mixed-mode payload (j15 P3-1),
+// the onSave-gated Save (j15 P2-3), the online-source gating (j15 P3-9) and
+// the k04 first-Escape regression for the POPULATED Folder-2/3 states.
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -226,5 +229,120 @@ describe("AddSubtitlesDialog — Folder-3 online pick", () => {
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(1);
     expect(options[0]!.textContent).toContain("The_Wand_S01E01_Spanish.srt");
+  });
+});
+
+describe("AddSubtitlesDialog — state lifecycle (w26.k15, j15 P3-1)", () => {
+  const REMOUNT_PROPS = {
+    initialDestination: "file" as const,
+    initialSource: "online" as const,
+    mediaNames: MEDIA,
+    candidates: CANDIDATES,
+    folderPath: PATH,
+  };
+
+  it("close→reopen resets the selection and the search (no stale state leaks)", () => {
+    const onSave = vi.fn();
+    const view = mount({ ...REMOUNT_PROPS, onSave });
+    fireEvent.change(screen.getByLabelText("Search subtitles"), { target: { value: "english" } });
+    fireEvent.click(screen.getByText("The_Wand_S01E01_English.srt"));
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    // Close (the component stays mounted, open=false → renders null)…
+    view.rerender(<AddSubtitlesDialog open={false} onClose={() => {}} onSave={onSave} {...REMOUNT_PROPS} />);
+    // …and reopen: a fresh flow, not the previous session's leftovers.
+    view.rerender(<AddSubtitlesDialog open onClose={() => {}} onSave={onSave} {...REMOUNT_PROPS} />);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect((screen.getByLabelText("Search subtitles") as HTMLInputElement).value).toBe("");
+    expect(screen.getAllByRole("option").every((option) => option.getAttribute("aria-selected") !== "true")).toBe(true);
+  });
+
+  it("pairs-mode Save commits the PAIRS with an empty selected (no stale picker payload)", () => {
+    const onSave = vi.fn();
+    mount({ initialDestination: "file", onSave });
+    // Folder-2: pick two candidates, then switch the destination to the
+    // playlist-wide pairs review — the candidate picker never ran there.
+    fireEvent.click(screen.getByText("The_Wand_S01E01_Spanish.srt"));
+    fireEvent.click(screen.getByText("The_Wand_S01E01_English.srt"));
+    // The candidate picker's listbox is still mounted — scope to the
+    // destination dropdown's own list (aria-label = its trigger name).
+    fireEvent.click(screen.getByRole("button", { name: "Apply subtitles to" }));
+    fireEvent.click(
+      within(screen.getByRole("listbox", { name: "Apply subtitles to" })).getByText("To This Playlist"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destination: "playlist",
+        selected: [], // the stale multi-pick must NOT ride along
+        pairs: [
+          { mediaName: "The_Wand_S01E01.mp4", subtitleName: "The_Wand_S01E01_Dutch.srt" },
+          { mediaName: "The_Wand_S01E02.mp4", subtitleName: "The_Wand_S01E02.srt" },
+          { mediaName: "The_Wand_S01E10.mp4", subtitleName: "The_Wand_S01E10.srt" },
+        ],
+      }),
+    );
+  });
+
+  it("w26.k15 (j15 P2-3): without the onSave commit seam Save stays honest-disabled", () => {
+    mount({ initialDestination: "file" }); // no onSave — nothing can commit
+    fireEvent.click(screen.getByText("The_Wand_S01E01_English.srt"));
+    fireEvent.click(screen.getByText("The_Wand_S01E01_Spanish.srt"));
+    // A selection exists, but a clickable Save that silently discards it
+    // would fake success — honest-disabled (b09/MediaList precedent).
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+});
+
+describe("AddSubtitlesDialog — source gating (w26.k15, j15 P3-9)", () => {
+  it('"From OpenSubtitles" composes only with "To This File": gated for playlist/folder destinations', () => {
+    mount(); // default destination: folder
+    fireEvent.click(screen.getByRole("button", { name: "Subtitle source" }));
+    const online = within(screen.getByRole("listbox")).getByText("From OpenSubtitles");
+    expect(online.closest('[role="option"]')).toHaveAttribute("aria-disabled", "true");
+    const computer = within(screen.getByRole("listbox")).getByText("From Computer");
+    expect(computer.closest('[role="option"]')).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("switching the destination away from File coerces the online source back to From Computer", () => {
+    mount({ initialDestination: "file", initialSource: "online" });
+    // The online candidate listbox is mounted alongside — scope to the
+    // destination dropdown's own list (aria-label = its trigger name).
+    fireEvent.click(screen.getByRole("button", { name: "Apply subtitles to" }));
+    fireEvent.click(
+      within(screen.getByRole("listbox", { name: "Apply subtitles to" })).getByText("To This Playlist"),
+    );
+    expect(screen.getByRole("button", { name: "Subtitle source" }).textContent).toContain("From Computer");
+    // The body swapped to the pairs review — no frame-unsupported online
+    // search + single-pick for a whole playlist.
+    expect(screen.queryByLabelText("Search subtitles")).toBeNull();
+  });
+
+  it("an invalid host mount (online + playlist) coerces to the computer source", () => {
+    mount({ initialDestination: "playlist", initialSource: "online" });
+    expect(screen.getByRole("button", { name: "Subtitle source" }).textContent).toContain("From Computer");
+  });
+});
+
+describe("AddSubtitlesDialog — Escape closes the populated Folder-2/3 states (w26.k15, k04 regression)", () => {
+  it("Folder-2 (in-flow candidate listbox mounted, focus inside it): first Escape closes the dialog", () => {
+    const onClose = vi.fn();
+    mount({ initialDestination: "file", onClose });
+    // Focus sits INSIDE the in-flow listbox — k04's popupOwnsFirstEscape
+    // must not mistake it for an open popup (the j04-1 selector wedge that
+    // kept the populated Folder-2/3 states shut).
+    const option = screen.getAllByRole("option")[0]!;
+    option.focus();
+    fireEvent.keyDown(option, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Folder-3 (online search + filtered list, focus inside the listbox): Escape closes the dialog", () => {
+    const onClose = vi.fn();
+    mount({ initialDestination: "file", initialSource: "online", onClose });
+    fireEvent.change(screen.getByLabelText("Search subtitles"), { target: { value: "e" } });
+    const option = screen.getAllByRole("option")[0]!;
+    option.focus();
+    fireEvent.keyDown(option, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
