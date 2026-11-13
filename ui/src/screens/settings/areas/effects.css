@@ -1,50 +1,16 @@
 /* effects.css (w26.f05) — the Settings → Audio Effects section's own
- * styles: the ⓘ info affordance and the "Equalizer preset" row's compact
- * two-layer dropdown (the section's shared row grammar lives in
- * settings.css, the f03 lane's sheet — only these two scoped additions
- * live here).
+ * styles: the "Equalizer preset" row's compact two-layer dropdown (the
+ * section's shared row grammar lives in settings.css, the f03 lane's
+ * sheet — only this scoped addition lives here).
+ *
+ * w26.k13 (j13 P2-3 + P3-7): the local .effects-info ⓘ rules are GONE —
+ * all six ⓘ ride the shared SettingInfoDot grammar (setting-field.css
+ * .settings-field__info: the 18px shared "info" glyph whose circle ink is
+ * the frame's r7.5 #404040 sw1.125 ring), now operable buttons with the
+ * reveal caption; the old span was role="img" and non-focusable.
  *
  * Semantic tokens only; raw px below are frame-measured structural
  * dimensions with no token and each carries its frame citation. */
-
-/* ------------------------------------------------------------ ⓘ affordance
- * (frame: Settings - audio-1.svg Ellipse 9_5 / 9_6 — r7.5 circle, stroke
- * #404040 1.125, "i" stem 4.5 + dot; on the Equalizer and Equalizer preset
- * rows only). Graphical, aria-hidden in the DOM (effects.tsx InfoDot). */
-.effects-info {
-  position: relative;
-  flex: none;
-  box-sizing: border-box;
-  width: 15px; /* frame: circle d15 (r7.5) */
-  height: 15px;
-  border: 1.125px solid var(--color-stroke-border); /* frame: #404040 1.125 */
-  border-radius: 50%;
-}
-
-/* The "i" stem — 1.5×4.5 at the circle's center, top-biased (frame: Vector
- * 98 y162.75–167.25 on the cy163.5 circle → 6.75–11.25 from the top). */
-.effects-info::before {
-  content: "";
-  position: absolute;
-  top: 6.75px; /* frame: Vector 98 */
-  left: calc(50% - 0.75px);
-  width: 1.5px;
-  height: 4.5px;
-  background: var(--color-stroke-border); /* frame: #404040 */
-  border-radius: 1px;
-}
-
-/* The "i" dot — 1.5px round above the stem (frame: Vector 99 y159.75). */
-.effects-info::after {
-  content: "";
-  position: absolute;
-  top: 3px; /* frame: Vector 99 (center 3.75 from the circle top) */
-  left: calc(50% - 0.75px);
-  width: 1.5px;
-  height: 1.5px;
-  background: var(--color-stroke-border); /* frame: #404040 */
-  border-radius: 50%;
-}
 
 /* ------------------------------------------------- the Equalizer preset row
  * (frame: Settings - audio-1.svg group EQ_2 — the settings-scale preset
