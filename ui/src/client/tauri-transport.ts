@@ -93,6 +93,8 @@ function internalsBackend(internals: TauriInternals): TauriBackend {
           // [VERIFY at the ADR-004 admission build] the frame shape and the
           // "Any" default target are per Tauri 2.x api/event; unverifiable
           // without a webview here (INFRA-BLOCKED.md §unblock step 3).
+          // (CI half: tauri-launch.yml — clears when its no-emit-failure +
+          // clean-exit proof lands on a real run; the GUI half stays human.)
           target: { kind: "Any" },
           handler: internals.transformCallback((frame) =>
             handler(frame as TauriEventFrame),

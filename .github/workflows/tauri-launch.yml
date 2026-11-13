@@ -1,0 +1,545 @@
+# Lumen Tauri launch verdicts — the ADR-004 launch half (issue #67;
+# apps/desktop-tauri/INFRA-BLOCKED.md §B.2; lane w26.m.t5).
+#
+# WHAT THIS LANE IS (and is not): a VERDICT lane — it builds the
+# admission crate, LAUNCHES the real binary, and records what the app's
+# own receipts prove. workflow_dispatch ONLY: manual by design, honest —
+# a verdict lane, not a merge gate (the merge-blocking compile/audit
+# half stays ci.yml's tauri-check; its comment already points here for
+# the "launch verdicts need a DISPLAY" half).
+#
+# THE EVENT ROUND-TRIP PROOF — honesty over theater (§B.2):
+# The automation available is the app's OWN log receipts:
+#   * app.rs forward_pending prints `event emit failed on the shell
+#     channel: …` to stderr for every lumen://event emit that errors;
+#   * main.rs prints `lumen-tauri: admission shell failed: …` and exits
+#     1 when the shell cannot start.
+# The Linux lane launches `lumen-tauri <fixture>` under xvfb — the
+# fixture rides argv (the app's file-open seam), so the shell dispatches
+# a real open and the 40 ms pump emits real engine events on
+# lumen://event — and asserts:
+#   1. the process starts and SURVIVES 12 s (no early exit);
+#   2. NO `event emit failed` / `admission shell failed` receipt in the
+#      captured stderr across the run;
+#   3. the exit is harness-initiated (TERM → 143) or a clean 0 — never
+#      a crash face (1 = admission shell failed, 101 = panic).
+# What THAT proves on a real run: GTK/tao/tauri bootstrap succeeded; the
+# `main` webview window exists (apply_window_spec errors out without
+# it); the argv-open dispatch ran through the single command path; and
+# every emit the dispatch + pump made on lumen://event returned success.
+# What it does NOT prove: that the JS side received any frame, or that
+# the received frame matches TauriEventFrame (no JS observer in this
+# loop); that the UI rendered; that a user-initiated window close exits
+# 0 (no window manager under xvfb — the harness TERMs the process
+# group). Those are the human/GUI-driver half of the verdict. Known
+# blind spot: a silent web-process crash AFTER the event traffic ends
+# would not produce a receipt (no pending events → no failing emits);
+# the burst at open plus playback events are the guaranteed traffic.
+#
+# THE [VERIFY] MARKER CLEARING PROCEDURE (ui/src/client/tauri-transport.ts,
+# the plugin:event|listen frame shape + "Any" default target): the
+# marker clears ONLY on a proven event frame round-trip on a launched
+# app — never from this lane's asserts alone. Procedure:
+#   (a) this lane runs GREEN on a real run (the CI half);
+#   (b) a human or GUI driver observes the round-trip on the launched
+#       app — playlist/session events arriving in the running UI while
+#       this lane's artifacts identify the same source tree;
+#   (c) the marker is deleted in the SAME commit that flips the ADR-004
+#       verdict-table row, with the run link as evidence.
+# Until (c) the marker stands. Its comment names this lane as the CI
+# half; ADR-004 §"Launch verdicts" records the same rule.
+#
+# macOS/Windows: build-only + a native launch attempt with the SAME
+# assert shape (start → survive 10 s → zero failure receipts → harness
+# kill). WebView2 ships on windows runners; macos-latest has an Aqua
+# session so WKWebView can initialize. Verdicts stay BEST-EFFORT-PENDING
+# even when green: a runner session is not a real desktop (WebView2
+# runtime versioning, GPU paths, window-server context differ), and the
+# per-OS verdict needs a human on real hardware.
+#
+# BUILD ORDER (the lane's whole ordering rule, ci.yml tauri-check
+# verbatim): webkit2gtk dev packages → ui/dist build (tauri-codegen
+# embeds frontendDist at COMPILE time) → cargo build. NO
+# CARGO_TARGET_DIR override: the subcrate is its own workspace root, so
+# artifacts land in apps/desktop-tauri/target (INFRA-BLOCKED §C's
+# ./apps/desktop-tauri/target/... path convention; rust-cache's
+# apps/desktop-tauri workspace entry covers it).
+#
+# SMOKE PATTERN PROVENANCE: numbered checks + honest fail counter +
+# preflight `need()` from scripts/rc-smoke.sh; bounded-run exit-code
+# case analysis from ci.yml's link/exit smoke (which accepts the
+# apps/desktop skeleton's 86 WEBVIEW_PENDING code on a display-less
+# host — this lane is the one that launches for real, under xvfb, and
+# asserts survival instead). No scripts/ file is added or touched:
+# this lane is self-contained, scripts/** are other lanes' property.
+
+name: Tauri Launch Verdicts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_INCREMENTAL: "0" # leaner target dir + cache on 2-core runners
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ------------------------------------------------------------------------
+  # Linux — the only OS this lane can verify end-to-end in CI: xvfb gives
+  # WebKitGTK a real (software) X server, so the binary runs FOR REAL here.
+  # A green run earns "CI half proven" in ADR-004's verdict table; the GUI
+  # half still needs a human/GUI driver before the row flips (see header).
+  # ------------------------------------------------------------------------
+  linux-launch:
+    name: linux (WebKitGTK 4.1 — xvfb launch verdict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/tauri-launch.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      # The ci.yml-proven apt line, byte-for-byte (tauri-check has run
+      # it green on every compile attempt — the webkit2gtk-4.1 set).
+      - name: Install webkit2gtk + GTK dev packages (the admission build deps — ci.yml-proven line)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev libsoup-3.0-dev librsvg2-dev libxdo-dev \
+            libssl-dev build-essential
+          pkg-config --exists webkit2gtk-4.1 \
+            || { echo "::error::webkit2gtk-4.1 still absent after install"; exit 1; }
+      # Launch-environment packages — NOT build deps (ci.yml's lane does
+      # not need them). Xvfb = the software X server; fonts so WebKit
+      # never dies on a fontless fontconfig; the UI's Inter rides the
+      # embed, but GTK needs a fallback face present.
+      - name: Install the launch environment (xvfb + fonts — launch-verdict only)
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb fonts-liberation fontconfig
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      # frontendDist is embedded at COMPILE time — the UI build must land
+      # before cargo touches the crate (the lane's whole ordering rule).
+      - name: Build the embedded UI (ui/dist for tauri-codegen)
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            .
+            apps/desktop-tauri
+      - name: Build the admission binary (release, locked — the subcrate's own lockfile)
+        run: cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
+      - name: "Launch verdict — start under xvfb, survive 12 s, zero failure receipts, harness-terminated exit"
+        run: |
+          # The launch-verdict smoke — this lane's whole point. Shape
+          # follows the repo's established patterns: rc-smoke.sh's
+          # numbered checks + honest fail counter (`set -uo pipefail`,
+          # no -e: every assert reports, not just the first) and
+          # ci.yml's link/exit smoke's exit-code case analysis. The
+          # difference: under xvfb the binary REALLY lives for the
+          # survival window — no 86-pending exit, no headless dodge.
+          set -uo pipefail
+          status=0
+          SURVIVE=12
+          BIN=apps/desktop-tauri/target/release/lumen-tauri
+          FIXTURE=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+          LOGDIR=launch-logs/linux
+          need() { command -v "$1" >/dev/null 2>&1 || { echo "tauri-launch: preflight: '$1' not found in PATH" >&2; exit 2; }; }
+          need xvfb-run
+          mkdir -p "$LOGDIR"
+          touch "$LOGDIR/stdout.log" "$LOGDIR/stderr.log"
+          test -x "$BIN" || { echo "::error::release binary missing after cargo build (${BIN})"; exit 1; }
+          test -f "$FIXTURE" || { echo "::error::fixture missing: ${FIXTURE}"; exit 1; }
+
+          {
+            echo "head: $(git rev-parse --short HEAD)"
+            echo "host: $(uname -smr)"
+            echo "survival window: ${SURVIVE}s"
+            echo "fixture: ${FIXTURE} (argv file-open seam)"
+          } >"$LOGDIR/context.txt"
+
+          echo "=== tauri launch verdict (linux / WebKitGTK / xvfb) ==="
+
+          # 1. launch — REAL X server (xvfb-run), the fixture on argv so
+          #    the shell dispatches a real open and the 40 ms pump emits
+          #    real engine events on lumen://event. setsid gives the
+          #    whole tree (xvfb-run + Xvfb + app) one process group so
+          #    the harness can TERM it as a unit.
+          #
+          #    WEBKIT_DISABLE_DMABUF_RENDERER / WEBKIT_DISABLE_COMPOSITING_MODE:
+          #    WebKitGTK's GPU-accelerated paths need a GPU; xvfb has
+          #    none. Both force the software rendering path — this is
+          #    launch-HARNESS environment, NOT app code; the human half
+          #    of the verdict runs on a real desktop without them.
+          export WEBKIT_DISABLE_DMABUF_RENDERER=1
+          export WEBKIT_DISABLE_COMPOSITING_MODE=1
+          setsid xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            "$BIN" "$FIXTURE" >"$LOGDIR/stdout.log" 2>"$LOGDIR/stderr.log" &
+          pgid=$!
+
+          # 2. survival poll (assert 1): 0.5 s ticks for the whole
+          #    window. An early death fails the verdict regardless of
+          #    exit code.
+          survived=no
+          died_at=""
+          t0=$(date +%s)
+          for i in $(seq 1 $((SURVIVE * 2))); do
+            sleep 0.5
+            if ! kill -0 "$pgid" 2>/dev/null; then
+              died_at="$(( $(date +%s) - t0 ))s"
+              break
+            fi
+          done
+          kill -0 "$pgid" 2>/dev/null && survived=yes
+          echo "survival window (${SURVIVE}s): ${survived}${died_at:+ (died at ≈${died_at})}"
+
+          # 3. receipts (assert 2): the app's own stderr is the truth
+          #    source here — forward_pending's emit-failure line and
+          #    main.rs's admission-failed line (see the header). Their
+          #    ABSENCE across a run WITH real event traffic (the
+          #    argv-open burst + playback events) is the CI half of the
+          #    event round-trip proof; it is NOT the JS-side proof.
+          if grep -q "event emit failed" "$LOGDIR/stderr.log" \
+             || grep -q "admission shell failed" "$LOGDIR/stderr.log"; then
+            echo "receipts: FAILED — failure receipts present:"
+            grep -n "event emit failed\|admission shell failed" "$LOGDIR/stderr.log" | head -5
+            status=1
+          else
+            echo "receipts: PASS (no 'event emit failed' / 'admission shell failed' in stderr)"
+          fi
+
+          # 4. termination (assert 3): the harness owns the exit — TERM
+          #    the process group (xvfb-run, Xvfb and the app die as one;
+          #    xvfb-run does not forward signals, so a bare TERM to the
+          #    script pid would orphan the app), bounded KILL fallback.
+          #    143 = harness-TERM (expected); 0 = clean self-exit in the
+          #    race window; 1/101 = the crash faces; anything else is
+          #    unexplained. A user-initiated clean exit (window close →
+          #    0) has no driver under xvfb — that half stays with the
+          #    human/GUI verdict.
+          if [ "$survived" = "yes" ]; then
+            kill -TERM -- "-$pgid" 2>/dev/null || true
+            for i in $(seq 1 20); do
+              kill -0 "$pgid" 2>/dev/null || break
+              sleep 0.5
+            done
+            kill -KILL -- "-$pgid" 2>/dev/null || true
+          fi
+          wait "$pgid" 2>/dev/null
+          exit_code=$?
+          echo "launch exit code: ${exit_code}"
+
+          if [ "$survived" != "yes" ]; then
+            echo "survival: FAILED (early exit; stderr tail below)"
+            tail -5 "$LOGDIR/stderr.log" | sed 's/^/  /'
+            status=1
+          else
+            echo "survival: PASS (${SURVIVE}s under xvfb)"
+            case "$exit_code" in
+              143) echo "termination: PASS (143 = harness-TERM, the expected shape)" ;;
+              0)   echo "termination: PASS (0 = clean self-exit in the race window)" ;;
+              *)   echo "termination: FAILED (unexpected exit ${exit_code})"; status=1 ;;
+            esac
+          fi
+
+          echo "=== tauri launch verdict (linux): $([ "$status" -eq 0 ] && echo PASS || echo FAIL) ==="
+          exit "$status"
+      # if: always() — a FAILED launch's stderr is the most valuable
+      # evidence the lane can produce; the logs upload even then.
+      - name: Upload launch logs as artifacts (evidence-<lane>-<os>-<run_id>)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-tauri-launch-linux-${{ github.run_id }}
+          path: launch-logs/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # macOS — build-only + a native launch attempt. macos-latest is arm64
+  # with an Aqua session, so WKWebView can initialize from a bare exec
+  # (NOT `open`: that needs an .app bundle — the admission build ships a
+  # bare binary until the bundling half lands). HONESTY: this lane is
+  # BEST-EFFORT-PENDING even when green — the verdict row flips only on
+  # human confirmation on real hardware.
+  # ------------------------------------------------------------------------
+  macos-launch:
+    name: macos (WKWebView — best-effort launch attempt)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/tauri-launch.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build the embedded UI (ui/dist for tauri-codegen)
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            .
+            apps/desktop-tauri
+      - name: Build the admission binary (release, locked — the subcrate's own lockfile)
+        run: cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
+      - name: "Launch attempt — direct exec, survive 10 s, zero failure receipts, harness TERM (BEST-EFFORT-PENDING)"
+        run: |
+          # Same assert shape as the Linux lane, native session, no X
+          # server. Same receipt strings (app.rs / main.rs literals).
+          set -uo pipefail
+          status=0
+          SURVIVE=10
+          BIN=apps/desktop-tauri/target/release/lumen-tauri
+          FIXTURE=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+          LOGDIR=launch-logs/macos
+          mkdir -p "$LOGDIR"
+          touch "$LOGDIR/stdout.log" "$LOGDIR/stderr.log"
+          test -x "$BIN" || { echo "::error::release binary missing after cargo build (${BIN})"; exit 1; }
+          test -f "$FIXTURE" || { echo "::error::fixture missing: ${FIXTURE}"; exit 1; }
+
+          {
+            echo "head: $(git rev-parse --short HEAD)"
+            echo "host: $(uname -smr)"
+            echo "survival window: ${SURVIVE}s"
+            echo "fixture: ${FIXTURE} (argv file-open seam)"
+          } >"$LOGDIR/context.txt"
+
+          echo "=== tauri launch attempt (macos / WKWebView, best-effort) ==="
+
+          # 1. launch — direct exec with captured output. The runner's
+          #    Aqua session is what makes this PLAUSIBLE, not PROVEN:
+          #    that honesty is the whole verdict posture of this job.
+          "$BIN" "$FIXTURE" >"$LOGDIR/stdout.log" 2>"$LOGDIR/stderr.log" &
+          pid=$!
+
+          # 2. survival poll (assert 1)
+          survived=no
+          died_at=""
+          t0=$(date +%s)
+          for i in $(seq 1 $((SURVIVE * 2))); do
+            sleep 0.5
+            if ! kill -0 "$pid" 2>/dev/null; then
+              died_at="$(( $(date +%s) - t0 ))s"
+              break
+            fi
+          done
+          kill -0 "$pid" 2>/dev/null && survived=yes
+          echo "survival window (${SURVIVE}s): ${survived}${died_at:+ (died at ≈${died_at})}"
+
+          # 3. receipts (assert 2)
+          if grep -q "event emit failed" "$LOGDIR/stderr.log" \
+             || grep -q "admission shell failed" "$LOGDIR/stderr.log"; then
+            echo "receipts: FAILED — failure receipts present:"
+            grep -n "event emit failed\|admission shell failed" "$LOGDIR/stderr.log" | head -5
+            status=1
+          else
+            echo "receipts: PASS (no 'event emit failed' / 'admission shell failed' in stderr)"
+          fi
+
+          # 4. termination (assert 3): TERM the app directly (no wrapper
+          #    tree here), bounded KILL fallback. 143 expected; 0 = clean
+          #    self-exit in the race window; else a crash face.
+          if [ "$survived" = "yes" ]; then
+            kill -TERM "$pid" 2>/dev/null || true
+            for i in $(seq 1 20); do
+              kill -0 "$pid" 2>/dev/null || break
+              sleep 0.5
+            done
+            kill -KILL "$pid" 2>/dev/null || true
+          fi
+          wait "$pid" 2>/dev/null
+          exit_code=$?
+          echo "launch exit code: ${exit_code}"
+
+          if [ "$survived" != "yes" ]; then
+            echo "survival: FAILED (early exit; stderr tail below)"
+            tail -5 "$LOGDIR/stderr.log" | sed 's/^/  /'
+            status=1
+          else
+            echo "survival: PASS (${SURVIVE}s, native session)"
+            case "$exit_code" in
+              143) echo "termination: PASS (143 = harness-TERM, the expected shape)" ;;
+              0)   echo "termination: PASS (0 = clean self-exit in the race window)" ;;
+              *)   echo "termination: FAILED (unexpected exit ${exit_code})"; status=1 ;;
+            esac
+          fi
+
+          echo "=== tauri launch attempt (macos): $([ "$status" -eq 0 ] && echo 'BEST-EFFORT PASS' || echo FAIL) ==="
+          echo "VERDICT: BEST-EFFORT-PENDING — a green attempt is NOT a per-OS verdict; human confirmation on real hardware owed (ADR-004 verdict table)."
+          exit "$status"
+      - name: Upload launch logs as artifacts (evidence-<lane>-<os>-<run_id>)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-tauri-launch-macos-${{ github.run_id }}
+          path: launch-logs/**
+          retention-days: 90
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # Windows — build-only + a native launch attempt. WebView2 ships on
+  # windows runners; the admission binary is a CONSOLE-subsystem exe (no
+  # windows_subsystem attribute in apps/desktop-tauri — the honest stderr
+  # face), so Start-Process redirects work. HONESTY: same posture as the
+  # macOS lane — BEST-EFFORT-PENDING even when green.
+  # ------------------------------------------------------------------------
+  windows-launch:
+    name: windows (WebView2 — best-effort launch attempt)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/tauri-launch.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build the embedded UI (ui/dist for tauri-codegen)
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            .
+            apps/desktop-tauri
+      - name: Build the admission binary (release, locked — the subcrate's own lockfile)
+        run: cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
+      - name: "Launch attempt — start the exe, survive 10 s, zero failure receipts, harness kill (BEST-EFFORT-PENDING)"
+        shell: pwsh
+        run: |
+          # Same assert shape as the Linux lane (pwsh for real process
+          # control — Start-Process/Stop-Process; git-bash cannot reliably
+          # redirect+kill a spawned GUI-session exe). pwsh 7 is
+          # preinstalled on windows-latest [VERIFY at first run — the
+          # release.yml MSI lane already relies on it].
+          $ErrorActionPreference = "Stop"
+          $surviveTicks = 20   # 0.5 s ticks = 10 s survival window
+          $bin = "apps/desktop-tauri/target/release/lumen-tauri.exe"
+          $fixture = "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi"
+          $logdir = "launch-logs/windows"
+          New-Item -ItemType Directory -Force -Path $logdir | Out-Null
+          $stdout = Join-Path $logdir "stdout.log"
+          $stderr = Join-Path $logdir "stderr.log"
+          if (-not (Test-Path $bin)) { Write-Host "::error::release binary missing after cargo build ($bin)"; exit 1 }
+          if (-not (Test-Path $fixture)) { Write-Host "::error::fixture missing: $fixture"; exit 1 }
+          "head: $(git rev-parse --short HEAD)`nhost: windows-latest`nsurvival window: 10s`nfixture: $fixture (argv file-open seam)" |
+            Set-Content -Path (Join-Path $logdir "context.txt")
+
+          Write-Host "=== tauri launch attempt (windows / WebView2, best-effort) ==="
+
+          # 1. launch — the bare exe, output redirected to the evidence
+          #    files. WebView2 runtime ships on the runner image.
+          $p = Start-Process -FilePath $bin -ArgumentList $fixture `
+                 -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+
+          # 2. survival poll (assert 1)
+          $survived = $true
+          for ($i = 0; $i -lt $surviveTicks; $i++) {
+            Start-Sleep -Milliseconds 500
+            if ($p.HasExited) { $survived = $false; break }
+          }
+          Write-Host "survival window (10s): $(if ($survived) { 'yes' } else { 'no' })"
+
+          # 3. receipts (assert 2) — the app's own stderr truth (same
+          #    strings as the other lanes: forward_pending + main.rs).
+          $status = 0
+          $receipts = @(Select-String -Path $stderr -Pattern "event emit failed|admission shell failed" -ErrorAction SilentlyContinue)
+          if ($receipts.Count -gt 0) {
+            Write-Host "receipts: FAILED — failure receipts present:"
+            $receipts | Select-Object -First 5 | ForEach-Object { Write-Host "  $($_.Line)" }
+            $status = 1
+          } else {
+            Write-Host "receipts: PASS (no 'event emit failed' / 'admission shell failed' in stderr)"
+          }
+
+          # 4. termination (assert 3): the harness Force-kills the whole
+          #    tree (parent + any WebView2 child processes). A Force-killed
+          #    exit code is NOT a signal face — it is recorded, not
+          #    asserted; the user-initiated clean exit (code 0) needs the
+          #    human half of the verdict.
+          if ($survived) {
+            Write-Host "survival: PASS (10 s, no early exit)"
+            Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" |
+              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            $p.WaitForExit(10000) | Out-Null
+            $code = if ($p.HasExited) { $p.ExitCode } else { "did-not-exit" }
+            Write-Host "termination: harness Force-kill done (exit code ${code} — recorded, not asserted)"
+          } else {
+            Write-Host "survival: FAILED (exited early; stderr tail below)"
+            Get-Content $stderr -Tail 5 | ForEach-Object { Write-Host "  $_" }
+            $status = 1
+          }
+
+          Write-Host "=== tauri launch attempt (windows): $(if ($status -eq 0) { 'BEST-EFFORT PASS' } else { 'FAIL' }) ==="
+          Write-Host "VERDICT: BEST-EFFORT-PENDING — a green attempt is NOT a per-OS verdict; human confirmation on real hardware owed (ADR-004 verdict table)."
+          exit $status
+      - name: Upload launch logs as artifacts (evidence-<lane>-<os>-<run_id>)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-tauri-launch-windows-${{ github.run_id }}
+          path: launch-logs/**
+          retention-days: 90
+          if-no-files-found: error
