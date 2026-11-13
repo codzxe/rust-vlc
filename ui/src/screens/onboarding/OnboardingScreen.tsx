@@ -41,6 +41,7 @@ import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.a12";
 import { keys as laneKeysI01 } from "../../i18n/keys/w26.i01";
+import { keys as laneKeysK16 } from "../../i18n/keys/w26.k16";
 import { HOTKEY_BINDINGS } from "../settings/areas/hotkeys/generated/bindings";
 import type { HotkeyBinding } from "../settings/areas/hotkeys/generated/bindings";
 import {
@@ -68,9 +69,17 @@ import "./onboarding.css";
 
 /** Keys owned by this lane (registered into messages.ts by the Lead) —
  * w26.a12's original onboarding set + w26.i01's frame-parallel additions
- * (shortcut row labels, the library field label, Browse). */
-type LaneKey = keyof typeof laneKeys | keyof typeof laneKeysI01;
-const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...laneKeysI01 };
+ * (shortcut row labels, the library field label, Browse) + w26.k16's fixer
+ * additions (languages placeholder, the progress template). */
+type LaneKey =
+  | keyof typeof laneKeys
+  | keyof typeof laneKeysI01
+  | keyof typeof laneKeysK16;
+const laneCatalog: Readonly<Record<string, string>> = {
+  ...laneKeys,
+  ...laneKeysI01,
+  ...laneKeysK16,
+};
 
 /**
  * useOnboardingMsg — `useMsg` extended with this lane's pre-registration
@@ -277,8 +286,12 @@ const SHORTCUT_ROWS: ReadonlyArray<{
   { labelKey: "onboarding.shortcuts.row.record", bindingIds: ["video.record"] },
 ];
 
-/** Frame grammar: six rows per column, read down the left column first. */
+/** Frame grammar: six rows per column, read down the left column first.
+ * The column count DERIVES from the row census (j16 P3-8): a 13th
+ * SHORTCUT_ROWS entry adds a third column instead of silently rendering
+ * nowhere. */
 const SHORTCUT_COLUMN_LENGTH = 6;
+const SHORTCUT_COLUMN_COUNT = Math.ceil(SHORTCUT_ROWS.length / SHORTCUT_COLUMN_LENGTH);
 
 // ---------------------------------------------------------------------------
 // The cone mark (frame: Onboarding.svg "Icon/Frame 4" — hero logo)
@@ -354,6 +367,25 @@ function SettingsRow({
   );
 }
 
+/** Clamp a numeric commit into the schema range (the same guard the
+ * settings screen's float rows apply — SettingField.tsx `clampToSchema`). */
+const clampToSchema = (next: number, min: number | undefined, max: number | undefined): number =>
+  Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min ?? Number.NEGATIVE_INFINITY, next));
+
+/** Parse the subtitle-languages field's raw text into the store's string
+ * list (split on commas, trim, drop empties — "en, spa," → ["en", "spa"]). */
+const parseLanguageList = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+
+/** Fill the step-progress template ("Onboarding step {current} of {total}")
+ * — j16 P3-14: one localizable string instead of a concatenation across
+ * two keys that cannot survive word-order-different locales. */
+const formatStepLabel = (template: string, current: number, total: number): string =>
+  template.replace("{current}", String(current)).replace("{total}", String(total));
+
 /** Playback step controls (schema: playback.start-paused, default-rate).
  * The NumberField renders its own (accessible) label; onboarding.css lays
  * the field out in the row grammar. */
@@ -362,6 +394,17 @@ function PlaybackControls(): ReactElement {
   const settings = useSettings();
   const startPaused = settings.value(SETTING_PLAYBACK_START_PAUSED.key) === true;
   const rate = settings.value(SETTING_PLAYBACK_DEFAULT_RATE.key);
+  const rateValue = typeof rate === "number" ? rate : Number(SETTING_PLAYBACK_DEFAULT_RATE.defaultValue);
+  // w26.j16 P2-2: the free-text path used to `Number(value) → setValue`
+  // with only an isFinite guard — clearing persisted 0 (schema min 0.25),
+  // typing 9 persisted 9 (max 4), and the controlled value re-derived from
+  // the store on every keystroke ate in-progress decimals ("0." → "0").
+  // Same shape as the settings screen's float rows (SettingField.tsx):
+  // raw text held in local state while editing, commits CLAMPED to the
+  // schema range, onBlur snaps back to the store value. Stepper/native-arrow
+  // changes ride the same onChange and commit immediately (their values are
+  // already in range).
+  const [rateDraft, setRateDraft] = useState<string | null>(null);
   return (
     <div className="onboarding__settings">
       <SettingsRow label={m("settings.playback.start-paused")} htmlFor="onboarding-start-paused">
@@ -378,11 +421,18 @@ function PlaybackControls(): ReactElement {
         min={SETTING_PLAYBACK_DEFAULT_RATE.min}
         max={SETTING_PLAYBACK_DEFAULT_RATE.max}
         step={0.05}
-        value={typeof rate === "number" ? rate : Number(SETTING_PLAYBACK_DEFAULT_RATE.defaultValue)}
+        value={rateDraft ?? rateValue}
         onChange={(event) => {
+          setRateDraft(event.target.value);
           const next = Number(event.target.value);
-          if (Number.isFinite(next)) settings.setValue(SETTING_PLAYBACK_DEFAULT_RATE.key, next);
+          if (Number.isFinite(next) && event.target.value.trim() !== "") {
+            settings.setValue(
+              SETTING_PLAYBACK_DEFAULT_RATE.key,
+              clampToSchema(next, SETTING_PLAYBACK_DEFAULT_RATE.min, SETTING_PLAYBACK_DEFAULT_RATE.max),
+            );
+          }
         }}
+        onBlur={() => setRateDraft(null)}
         data-testid="onboarding-setting-default-rate"
       />
     </div>
@@ -398,6 +448,23 @@ function SubtitleControls(): ReactElement {
   const mode = String(settings.value(SETTING_PLAYBACK_SUBTITLE_MODE.key));
   const languages = settings.value(SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES.key);
   const languageList = Array.isArray(languages) ? languages : [];
+  // w26.j16 P1: the field used to re-derive its controlled value from the
+  // PARSED settings list (`value={languageList.join(", ")}`) — typing "en,"
+  // re-rendered as "en" and React's controlled-input sync ate the separator
+  // the user had just typed, so multi-language entry by typing was
+  // impossible (only pasting a complete "en, de" string survived the
+  // round-trip). The raw text now lives in local state while the field is
+  // edited (hydrated from the store whenever idle) and is parsed + committed
+  // on blur — the store stays the single source of truth at rest.
+  const [languageDraft, setLanguageDraft] = useState<string | null>(null);
+  const commitLanguageDraft = (): void => {
+    if (languageDraft === null) return;
+    settings.setValue(
+      SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES.key,
+      parseLanguageList(languageDraft),
+    );
+    setLanguageDraft(null);
+  };
   return (
     <div className="onboarding__settings">
       <SettingsRow
@@ -418,17 +485,10 @@ function SubtitleControls(): ReactElement {
       <TextField
         className="onboarding__setting-field"
         label={m("settings.playback.preferred-subtitle-languages")}
-        value={languageList.join(", ")}
-        placeholder="en, de"
-        onChange={(event) =>
-          settings.setValue(
-            SETTING_PLAYBACK_PREFERRED_SUBTITLE_LANGUAGES.key,
-            event.target.value
-              .split(",")
-              .map((part) => part.trim())
-              .filter((part) => part !== ""),
-          )
-        }
+        value={languageDraft ?? languageList.join(", ")}
+        placeholder={m("onboarding.subtitles.languages.placeholder")}
+        onChange={(event) => setLanguageDraft(event.target.value)}
+        onBlur={commitLanguageDraft}
         data-testid="onboarding-setting-subtitle-languages"
       />
     </div>
@@ -580,6 +640,9 @@ function LibraryStep(): ReactElement {
 
   const openMediaPath = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    // One open in flight — a second submit (Enter while the request is
+    // pending) must not double-send (j16 P3-9).
+    if (openNotice === "opening") return;
     const source = parseSourceInput(pathValue);
     if (source === null) {
       setPathInvalid(true);
@@ -589,12 +652,17 @@ function LibraryStep(): ReactElement {
     setPathInvalid(false);
     setOpenNotice("opening");
     nextRequestId.current += 1;
+    const requestId = nextRequestId.current;
     void client
-      .send(openPathRequest(source, nextRequestId.current))
+      .send(openPathRequest(source, requestId))
       .then((response) => {
+        // A newer submission superseded this one — its notice owns the line
+        // (j16 P3-9: the counter used to increment without anyone checking).
+        if (requestId !== nextRequestId.current) return;
         setOpenNotice("error" in response.result ? "failed" : "opened");
       })
       .catch(() => {
+        if (requestId !== nextRequestId.current) return;
         setOpenNotice("failed");
       });
   };
@@ -673,18 +741,19 @@ export function OnboardingScreen(): ReactElement {
   const back = (): void => setStepIndex((i) => Math.max(i - 1, 0));
   // Skip = jump to done with the defaults UNCHANGED. It completes the
   // wizard (so first-run gating opens) but never touches a privacy flag.
-  const skip = (): void => {
-    complete();
-    navigate("/player");
-  };
-  const finish = (): void => {
+  // Get started completes the same way — the bodies were byte-identical
+  // (j16 P3-7), so ONE handler serves both buttons; the honesty rule is
+  // about defaults, and it is tested per button.
+  const completeAndExit = (): void => {
     complete();
     navigate("/player");
   };
 
-  const stepLabel = `${msg("onboarding.progress.label")} ${stepIndex + 1} ${msg(
-    "onboarding.progress.of",
-  )} ${STEPS.length}`;
+  const stepLabel = formatStepLabel(
+    msg("onboarding.progress.template"),
+    stepIndex + 1,
+    STEPS.length,
+  );
 
   const bodyKey = STEP_BODIES[step];
 
@@ -726,6 +795,14 @@ export function OnboardingScreen(): ReactElement {
                 </li>
               ))}
             </ol>
+
+            {/* j16 P3-16: step transitions were silent for screen readers
+             * (the progress list relabels, but nothing announced the
+             * CHANGE). A polite live region carrying the step label covers
+             * every transition; visually hidden (css .visually-hidden). */}
+            <p className="visually-hidden" aria-live="polite" data-testid="onboarding-step-announcer">
+              {stepLabel}
+            </p>
 
             <div
               key={stepIndex}
@@ -780,7 +857,7 @@ export function OnboardingScreen(): ReactElement {
 
               {step === "shortcuts" && (
                 <div className="onboarding__shortcut-grid">
-                  {[0, 1].map((column) => (
+                  {Array.from({ length: SHORTCUT_COLUMN_COUNT }, (_, column) => (
                     <ul className="onboarding__shortcut-column" key={column}>
                       {SHORTCUT_ROWS.slice(
                         column * SHORTCUT_COLUMN_LENGTH,
@@ -842,7 +919,7 @@ export function OnboardingScreen(): ReactElement {
                 {!isDone && (
                   <Button
                     variant="ghost"
-                    onClick={skip}
+                    onClick={completeAndExit}
                     data-testid="onboarding-skip"
                   >
                     {msg("onboarding.action.skip")}
@@ -851,7 +928,7 @@ export function OnboardingScreen(): ReactElement {
                 {isDone ? (
                   <Button
                     variant="primary"
-                    onClick={finish}
+                    onClick={completeAndExit}
                     data-testid="onboarding-get-started"
                   >
                     {msg("onboarding.action.get-started")}
