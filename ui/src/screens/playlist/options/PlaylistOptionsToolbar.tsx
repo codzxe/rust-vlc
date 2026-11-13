@@ -35,7 +35,15 @@ export function PlaylistOptionsToolbar({ align = "start" }: PlaylistOptionsToolb
   );
 }
 
-/** Body switch: `View Options.svg` grid mode → ThumbnailGrid, else MediaList. */
+/** Body switch: `View Options.svg` grid mode → ThumbnailGrid, else MediaList.
+ *
+ * w26.k15 (j15 P3-5, documented at the switch): the MediaListProps seam
+ * (entryMenu / onEntryMenu / resolvers) applies to the LIST view only —
+ * `thumbnail.svg` cards carry no kebab, so switching to Grid view drops the
+ * per-entry file context menu (Mark as Watched / Add Subtitles / Convert /
+ * Properties) by design. A grid-card context menu is a next-wave surface
+ * (needs its own frame); hosts that need the seam in both views should keep
+ * the list view until then. */
 export function PlaylistOptionsViews(props: MediaListProps = {}): ReactElement {
   const { viewMode } = usePlaylistOptions();
   return viewMode === "grid" ? <ThumbnailGrid /> : <MediaList {...props} />;
