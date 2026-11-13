@@ -115,6 +115,17 @@
   color: var(--color-accent-icon);
 }
 
+/* w26.k15 (j15 P3-11) — quiet honest-degradation suffix after the label
+ * ("Needs media metadata" on no-op sort rows): tertiary ink, label scale,
+ * no layout weight of its own. Not frame-pinned — it renders only in the
+ * unwired state (frame/harness mounts wire a metadata resolver). */
+.lumen-plo .lumen-plo__hint {
+  flex: none;
+  margin-left: 8px; /* structural: separates the hint from the frame label */
+  font-size: var(--font-size-label);
+  color: var(--color-content-tertiary);
+}
+
 .lumen-plo .lumen-plo__check::before {
   content: "\2713"; /* check glyph — graphical, not an i18n string */
 }
@@ -234,6 +245,26 @@
   cursor: pointer;
 }
 
+/* w26.k15 (j15 P2-2) — the stretched play target: a transparent native
+ * button spanning the row behind the content. Positioned (inset 0) it
+ * paints above the in-flow tile/title, so real-browser clicks land on it;
+ * its focus is :focus-within on the row, which reveals the ••• (below) and
+ * makes the row keyboard-livable (Enter/Space activate natively). */
+.lumen-plo-mrow__play {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer; /* UA buttons default to the arrow cursor */
+}
+
+.lumen-plo-mrow__play:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .lumen-plo-mrow:hover,
 .lumen-plo-mrow:focus-within {
   color: var(--color-content-primary); /* frame hover #C6C6C6 */
@@ -300,8 +331,12 @@
 }
 
 /* "•••" actions (media.svg hover states: Vector 36–38, Ø3 dots, 6px pitch,
- * #8F8F8F) — hover/focus surface only (PlaylistPanel __actions precedent). */
+ * #8F8F8F) — hover/focus surface only (PlaylistPanel __actions precedent).
+ * w26.k15 (j15 P2-2): positioned + z-index 1 so the kebab sits ABOVE the
+ * stretched play target and stays clickable/tab-reachable. */
 .lumen-plo-mrow__menu {
+  position: relative;
+  z-index: 1;
   display: none;
   flex: none;
   align-self: center;
