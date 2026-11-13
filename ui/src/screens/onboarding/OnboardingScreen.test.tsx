@@ -162,9 +162,15 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
     fireEvent.click(screen.getByTestId("onboarding-next"));
     const progress = screen.getByTestId("onboarding-progress");
     expect(progress).toHaveAttribute("aria-label", "Onboarding step 2 of 8");
+    // j16 P3-16: the step change is ANNOUNCED — a polite live region carries
+    // the new step label (the dots relabel silently on their own).
+    const announcer = screen.getByTestId("onboarding-step-announcer");
+    expect(announcer).toHaveAttribute("aria-live", "polite");
+    expect(announcer).toHaveTextContent("Onboarding step 2 of 8");
     expect(screen.getByRole("heading", { name: "Media library" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Welcome to Lumen" })).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-step-announcer")).toHaveTextContent("Onboarding step 1 of 8");
   });
 
   it("Back is hidden on the welcome step (geometry kept, no dead control)", () => {
@@ -360,6 +366,67 @@ describe("OnboardingScreen (card 4.F1, W26 flow)", () => {
     goToStep(4);
     fireEvent.click(screen.getByRole("radio", { name: "Off" }));
     await waitFor(() => expect(readSettings()).toMatchObject({ "playback.subtitle-mode": "off" }));
+  });
+
+  // --- w26.j16 P1: the subtitle-languages field ate its own separator ---
+
+  it("subtitle-languages typing keeps separators (\"en, spa,\") and commits the parsed list on blur (w26.j16 P1)", async () => {
+    renderWizard();
+    goToStep(4); // welcome→library→appearance→playback→subtitles
+    const field = screen.getByTestId("onboarding-setting-subtitle-languages");
+    // Per-keystroke change events, each carrying the full accumulated value.
+    // The old controlled-input loop re-derived value from the PARSED store
+    // list (["en"]) — React's sync then ate the separator the user typed
+    // ("en," re-rendered as "en"), so a second language could never be typed.
+    for (const typed of ["e", "en", "en,", "en, ", "en, s", "en, sp", "en, spa", "en, spa,"]) {
+      fireEvent.change(field, { target: { value: typed } });
+      expect(field).toHaveValue(typed); // the separator survives every keystroke
+    }
+    // The store is untouched while the field is being edited (commit on blur).
+    expect(readSettings()).not.toHaveProperty("playback.preferred-subtitle-languages");
+    fireEvent.blur(field);
+    await waitFor(() =>
+      expect(readSettings()).toMatchObject({
+        "playback.preferred-subtitle-languages": ["en", "spa"],
+      }),
+    );
+    // Idle display re-derives from the store — normalized, no trailing comma.
+    expect(field).toHaveValue("en, spa");
+  });
+
+  it("subtitle-languages placeholder flows through the catalog (no raw literal, j16 P3-13)", () => {
+    renderWizard();
+    goToStep(4);
+    expect(screen.getByPlaceholderText("en, de")).toBeInTheDocument();
+  });
+
+  // --- w26.j16 P2: unclamped default-rate writes ---
+
+  it("default-rate commits clamp inside the schema range (0.25–4) and never writes out-of-schema (w26.j16 P2)", async () => {
+    renderWizard();
+    goToStep(3); // playback
+    const field = screen.getByTestId("onboarding-setting-default-rate");
+    // 9 > max 4 — the old onChange persisted it verbatim; now it clamps.
+    fireEvent.change(field, { target: { value: "9" } });
+    await waitFor(() => expect(readSettings()).toMatchObject({ "playback.default-rate": 4 }));
+    fireEvent.blur(field);
+    expect(field).toHaveValue(4); // snaps to the clamped committed value
+    // Clearing commits NOTHING (the old bug persisted 0, under min 0.25) —
+    // the store keeps the last in-range value and blur restores it.
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.blur(field);
+    expect(readSettings()).toMatchObject({ "playback.default-rate": 4 });
+    expect(field).toHaveValue(4);
+  });
+
+  it("skip leaves the settings overrides store untouched (only the onboarding store is written)", () => {
+    // The j16 review's coverage gap: "skip never flips a flag" was proven for
+    // the onboarding store only — the settings overrides store must stay
+    // equally untouched by a skip.
+    renderWizard();
+    fireEvent.click(screen.getByTestId("onboarding-skip"));
+    expect(readStore()).toMatchObject({ complete: true });
+    expect(readSettings()).toEqual({});
   });
 
   // --- shortcuts step: the real keymap tour ---
