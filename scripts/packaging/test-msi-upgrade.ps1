@@ -70,29 +70,39 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 # --- Helpers ------------------------------------------------------------------
 function Get-SquishedGuid([string]$Guid) {
-    # The Installer registry layout keys UpgradeCode lookups by the GUID
-    # in "squished" form: braces/dashes removed, the first three groups
-    # (DWORD, WORD, WORD) BYTE-reversed, the rest verbatim. The first
-    # three rounds of this test probed a key that can never exist: the
-    # helper STRING-reversed each group ("7c1f6a52" -> "25a6f1c7") while
-    # the byte-wise reversal is "526a1f7c" (bytes 7c 1f 6a 52 reversed);
-    # - the round-8 hive diagnostics (exists=False on every path, with
-    # the install exit 0) named it. Verified example:
-    # {7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701} ->
-    # 526a1f7c3e9d8a4ba0013f9c2d64e701.
+    # The Installer registry keys UpgradeCode lookups by the GUID in
+    # "squished" (compressed) form: braces/dashes removed, then the 32
+    # hex characters rearranged by the canonical MSI index map --
+    #   chars 0-7   (group 1, the DWORD)  string-reversed,
+    #   chars 8-11  (group 2)             string-reversed,
+    #   chars 12-15 (group 3)             string-reversed,
+    #   chars 16-31 (the two WORDs):      each byte's two hex digits
+    #                                     swapped, byte order kept.
+    # Verified worked example (the canonical field algorithm):
+    #   {01C5A10F-AD9B-405B-853A-6659841A1242}
+    #     -> F01A5C10 B9DA B504 58 A3 66 95 48 A1 21 24
+    # i.e. output index order 7,6,5,4,3,2,1,0, 11,10,9,8, 15,14,13,12,
+    # 17,16,19,18,21,20,23,22,25,24,27,26,29,28,31,30.
+    # Rounds 10-11 implemented this as BYTE-ORDER reversal of the first
+    # three groups with the tail VERBATIM -- a key Windows never writes.
+    # The round-11 run (release run 43422434204, windows job) proved it
+    # end to end: predecessor install exit 0 with a healthy verbose
+    # log, and exists=False on all four hive paths -- the registration
+    # was there, under the correctly-squished key this helper failed to
+    # compute. For this repo's frozen UpgradeCode the correct key is
+    #   7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701
+    #     -> 25a6f1c7e3d9a8b40a10f3c9d2467e10
+    # (derived by the python cross-check, not by hand: group 3 "4b8a"
+    # string-reverses to "a8b4" -- the round-10b "8a4b" and the first
+    # draft of this comment's "a84b" were both hand-derivation typos).
     $g = $Guid.Trim('{}').Replace('-', '').ToLowerInvariant()
     if ($g.Length -ne 32) { Fail "not a GUID: $Guid" }
-    function Reverse-HexByteWise([string]$s) {
-        $bytes = @()
-        for ($i = $s.Length - 2; $i -ge 0; $i -= 2) {
-            $bytes += $s.Substring($i, 2)
-        }
-        return ($bytes -join '')
-    }
-    $p1 = Reverse-HexByteWise $g.Substring(0, 8)
-    $p2 = Reverse-HexByteWise $g.Substring(8, 4)
-    $p3 = Reverse-HexByteWise $g.Substring(12, 4)
-    return ($p1 + $p2 + $p3 + $g.Substring(16))
+    $chars = $g.ToCharArray()
+    $order = 7, 6, 5, 4, 3, 2, 1, 0, 11, 10, 9, 8, 15, 14, 13, 12,
+        17, 16, 19, 18, 21, 20, 23, 22, 25, 24, 27, 26, 29, 28, 31, 30
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($i in $order) { [void]$sb.Append($chars[$i]) }
+    return $sb.ToString()
 }
 
 function Get-InstalledProductCodes() {

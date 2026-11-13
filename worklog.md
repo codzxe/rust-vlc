@@ -1698,3 +1698,62 @@ Stage Summary:
   the CI proof; next: watch this run set, then the release-lane
   integration for desktop-tauri (BIN_TAURI) and the launch-verdict lane,
   then wave M releases (#66).
+---
+Task ID: w26.lead-round12
+Agent: Lead (orchestrator)
+Task: Close the last two red lanes on main — tauri-check license
+  rejections and the MSI upgrade-path registry probe.
+
+Work Log:
+- Worklog debt note (honest bookkeeping): rounds 4d-11 (commits
+  162d352d..0a8ea17c: wave-M T1-T5 integration, launch-verdict lane,
+  rpm/deb payload rounds, ETXTBSY + hive-diagnostics + squished-GUID
+  rounds) are on main but were never appended here — their evidence
+  lives in the commit messages and the run set logs. Recorded as a
+  process gap, not re-derived.
+- Watched the round-11 run set on main (0a8ea17c): Rust/UI/CodeQL/
+  clippy/Tauri-Launch-Verdicts green; two lanes still red.
+  1. CI lane, tauri-check job, cargo-deny step: two license
+     rejections (error[rejected], run 43422427483) — foldhash 0.2.0
+     "Zlib" (dom_query -> tauri-utils -> tauri 2.12.5) and
+     target-lexicon 0.12.16 "Apache-2.0 WITH LLVM-exception", both
+     locked in apps/desktop-tauri/Cargo.lock. The admission check
+     (`cargo deny --manifest-path apps/desktop-tauri/Cargo.toml
+     --exclude-dev check`) reuses the root deny.toml as config, so
+     the classes belong in the shared allow-list. Added "Zlib" and
+     "Apache-2.0 WITH LLVM-exception" to [licenses] allow in the
+     established comment style (admission-tree provenance; the
+     workspace-tree check now carries unused-allowed warnings for
+     the pair — warnings, not errors, per the minimal-set posture).
+     The smoke step after cargo-deny ("admission binary reports its
+     typed launch posture", accepts 0|86) runs for the first time
+     this round — the launch-verdict lane already proves the binary
+     launches under xvfb, so no-DISPLAY exit 86 is the expected path.
+  2. Release lane, windows job, MSI upgrade-path step: predecessor
+     install healthy (exit 0, clean verbose log tail) yet
+     exists=False on all four hive paths (run 43422434204) — the
+     squish in Get-SquishedGuid was still wrong. Root cause, third
+     and final cut: the canonical MSI compressed GUID is NOT
+     byte-order reversal with the tail verbatim (rounds 10-11) —
+     it is STRING reversal of the first three groups plus per-byte
+     digit swap of the last 16 chars, output index order
+     7,6,5,4,3,2,1,0, 11,10,9,8, 15,14,13,12,
+     17,16,19,18,21,20,23,22,25,24,27,26,29,28,31,30
+     (verified worked example {01C5A10F-AD9B-405B-853A-6659841A1242}
+     -> f01a5c10b9dab50458a3669548a12124). Rewrote the helper on
+     that index map; the frozen UpgradeCode now squishes to
+     25a6f1c7e3d9a8b40a10f3c9d2467e10 (python cross-check; it also
+     caught that this very comment's first draft hand-typo'd group 3
+     "a84b" — correct is "a8b4", the third consecutive hand-derivation
+     typo after round-10b's "8a4b": the python cross-check is
+     load-bearing, the hand derivation is not).
+- Local verification: ps1-sanity PASS (ASCII-only, delimiters
+  balanced); deny.toml parses; both changes are config/script-only,
+  no Rust code touched, so no local battery re-run — the run set on
+  this push is the prover.
+
+Stage Summary:
+- deny.toml + test-msi-upgrade.ps1 pushed as round 12. Expected
+  outcome: the full CI set green on main for the first time with the
+  admission lane in it. Then, per ROADMAP Status: first tagged
+  release (#66), wave-L/#65 closure, phase8-exit record + #59.

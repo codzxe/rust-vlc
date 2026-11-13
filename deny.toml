@@ -107,6 +107,28 @@ allow = [
     "MPL-2.0",
     "BSD-2-Clause",
     "CC0-1.0",
+    # ---- added by the wave-26 Lead (ADR-004 admission license classes,
+    # 2026-11-13) ------------------------------------------------------
+    # License classes of the desktop-tauri admission tree (tauri 2.12.5
+    # + wry 0.57.2), required by the tauri-check lane's
+    # `cargo deny --manifest-path apps/desktop-tauri/Cargo.toml
+    # --exclude-dev check` run, which reuses this file as its config.
+    # First surfaced as the two license rejections of CI run 43422427483
+    # (tauri-check job, cargo-deny 0.20.2; both crates are locked in
+    # apps/desktop-tauri/Cargo.lock):
+    #   Zlib — foldhash 0.2.0 (dom_query -> tauri-utils -> tauri
+    #          2.12.5); OSI-approved permissive, same posture as
+    #          MIT/BSD (the doc 11 §3.2 sketch's wider list already
+    #          included Zlib).
+    #   Apache-2.0 WITH LLVM-exception — target-lexicon 0.12.16 (the
+    #          wry/tauri tree); the LLVM exception grant, permissive
+    #          exactly where Apache-2.0 already is.
+    # The workspace-tree check does not encounter these classes (they
+    # enter only through the admission subcrate), so it now carries
+    # unused-allowed warnings for the pair — warnings, not errors,
+    # under the minimal-set posture above.
+    "Zlib",
+    "Apache-2.0 WITH LLVM-exception",
 ]
 
 [licenses.private]
