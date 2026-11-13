@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, Ref } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, ReactNode, Ref } from "react";
 import { Icon } from "../icon/Icon";
 import type { IconName } from "../icon/icons";
 import { identityResolveLabel } from "./types";
@@ -8,7 +8,10 @@ import { TYPEAHEAD_RESET_MS } from "./timings";
 import "./menu.css";
 
 /** Scrollport cap for long option lists (w26.g17): ~6-7 rows visible, the
- * rest scroll — a popup must never run past the viewport edge. */
+ * rest scroll — a popup must never run past the viewport edge. w26.k02
+ * (j02 J02-5): keep in sync with the CSS cap `.lumen-dropdown__list {
+ * max-height: 320px }` (menu.css) — one grammar, two files, cross-linked
+ * here and there. */
 const DROPDOWN_LIST_MAX_HEIGHT = 320;
 
 /**
@@ -89,8 +92,28 @@ export interface DropdownOption<K extends string = string> {
   labelKey: K;
   /** Leading line icon (W26 `Setting Preset.svg` options). */
   icon?: IconName;
+  /**
+   * w26.k10 (j10 P2-4, additive): leading custom icon NODE — the two-tone
+   * svg previews the `icon` name union cannot carry (the Audio Visualizer
+   * mode glyphs). Renders in the option row, and the trigger mirrors the
+   * SELECTED option's node before its label; takes precedence over `icon`.
+   * Hosts that pass neither render exactly as before.
+   */
+  iconNode?: ReactNode;
+  /**
+   * w26.k10 (j10 P3-6, additive): per-option `data-*` attributes
+   * (`{ preset: "dance" }` → `data-preset="dance"`) — structural markers
+   * hosts can key CSS on instead of `:nth-child` DOM position.
+   */
+  data?: Record<string, string>;
   disabled?: boolean;
 }
+
+/** Spreads an option's `data` map as DOM `data-*` attributes (w26.k10). */
+const optionDataAttributes = (option: DropdownOption): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(option.data ?? {}).map(([key, value]) => [`data-${key}`, value]),
+  );
 
 export function Dropdown<K extends string>({
   options,
@@ -117,8 +140,11 @@ export function Dropdown<K extends string>({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [typed, setTyped] = useState("");
   /* w26.g17/g19 P1 Lead fix: flip-up when the viewport has more room above
-   * the trigger than below, so lists never clip under the viewport edge
-   * (HDR dropdown inside the tools dialog, sorting menu at 1024×768). */
+   * the trigger than below, so lists open on the side with room. Residual
+   * case (j02 J02-7, deferred — see lane log w26.k02): when NEITHER side
+   * fits the full 320px scrollport, the measured fallback still clips the
+   * list (no dynamic max-height yet); the scrollport cap keeps that window
+   * narrow. */
   const [direction, setDirection] = useState<"down" | "up">("down");
 
   useEffect(
@@ -184,9 +210,21 @@ export function Dropdown<K extends string>({
     setActiveIndex(initial);
   };
 
-  // Focus the initial option when the list opens (WAI-ARIA listbox).
+  // Focus the initial option when the list opens (WAI-ARIA listbox) —
+  // and reveal the WHOLE list first: inside a scrolling host (the tools
+  // dialog's overflow-y body) the absolutely-positioned list can open with
+  // its tail below the fold, invisible to pointer users even though the
+  // focused option scrolled itself into view. `block: "nearest"` scrolls
+  // the minimum needed and is a no-op when the list already fits (jsdom has
+  // no scrollIntoView — guarded so tests keep running). w26.k10 (j10 P2-4
+  // migration): the h14 defect-4 fold-reveal the visualizer's local selector
+  // carried now lives here for every host.
   useEffect(() => {
     if (!open) return;
+    const list = listRef.current;
+    if (list !== null && typeof list.scrollIntoView === "function") {
+      list.scrollIntoView({ block: "nearest" });
+    }
     if (activeIndex >= 0) optionRefs.current[activeIndex]?.focus();
     // Open-transition only — later activeIndex changes focus themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,10 +323,23 @@ export function Dropdown<K extends string>({
     }
   };
 
-  const selectedLabel = (): string => {
-    const option = options.find((candidate) => candidate.value === value);
-    return option === undefined ? "" : resolveLabel(option.labelKey);
-  };
+  const selectedOption = options.find((candidate) => candidate.value === value);
+
+  const selectedLabel = (): string =>
+    selectedOption === undefined ? "" : resolveLabel(selectedOption.labelKey);
+
+  /* w26.k02 (j02 J02-2): the trigger's accessible NAME stays the `label`
+   * prop (aria-label overrides the button's subtree, so the visible value
+   * alone would leave the control unnamed). The selected VALUE is exposed
+   * to SRs through aria-describedby → the visible value span: screen
+   * readers announce "<label>, button, <selected value>" on focus. (The
+   * name-restructured form — `aria-label={`${label}: ${value}`}` — is the
+   * review's preferred shape, but it changes the trigger's accessible name,
+   * which ~60 exact-name role queries across 15 host test files owned by
+   * five other wave-K lanes pin; that rename needs Lead coordination —
+   * see the w26.k02 lane log for the mechanical diff list.) */
+  const valueId = `${rootId}-value`;
+  const listId = `${rootId}-list`;
 
   return (
     <div
@@ -316,16 +367,27 @@ export function Dropdown<K extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}
+        aria-describedby={valueId}
+        aria-controls={open ? listId : undefined}
         aria-invalid={invalid || undefined}
         disabled={disabled}
         onClick={() => (open ? closeAndRestore() : openList())}
       >
-        <span className="lumen-dropdown__value">{selectedLabel()}</span>
+        {/* w26.k10 (j10 P2-4, additive): the selected option's custom icon
+         * node leads the trigger value (the visualizer's two-tone mode
+         * preview) — absent for every host that passes none. */}
+        {selectedOption?.iconNode !== undefined && (
+          <span className="lumen-dropdown__option-icon" aria-hidden="true">
+            {selectedOption.iconNode}
+          </span>
+        )}
+        <span id={valueId} className="lumen-dropdown__value">{selectedLabel()}</span>
         <span className="lumen-dropdown__arrow" aria-hidden="true" />
       </button>
       {open && (
         <div
           ref={listRef}
+          id={listId}
           role="listbox"
           aria-label={label}
           data-direction={direction}
@@ -343,10 +405,18 @@ export function Dropdown<K extends string>({
               aria-selected={option.value === value}
               aria-disabled={option.disabled || undefined}
               className="lumen-dropdown__option"
+              {...optionDataAttributes(option)}
               onFocus={() => setActiveIndex(index)}
               onClick={() => select(index)}
             >
-              {option.icon !== undefined && (
+              {/* w26.k10 (j10 P2-4, additive): custom icon node takes
+               * precedence over the named `icon`. */}
+              {option.iconNode !== undefined && (
+                <span className="lumen-dropdown__option-icon" aria-hidden="true">
+                  {option.iconNode}
+                </span>
+              )}
+              {option.iconNode === undefined && option.icon !== undefined && (
                 <span className="lumen-dropdown__option-icon" aria-hidden="true">
                   <Icon name={option.icon} />
                 </span>
