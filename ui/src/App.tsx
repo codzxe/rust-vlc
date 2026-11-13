@@ -1,27 +1,74 @@
-import { Navigate, Outlet, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
 import { AppShell } from "./components/appshell/AppShell";
 import { PlayerScreen } from "./screens/player";
 import type { PlayerVariant } from "./screens/player";
-import { PlaylistScreen } from "./screens/playlist";
 // Card 4.F1 first-run gate: /onboarding is the landing until the wizard is
-// finished or skipped; after that, normal routing.
+// finished or skipped; after that, normal routing. The onboarding MODULE
+// stays eager (not lazy): RequireOnboarding is the app-wide first-run gate —
+// it must render without any chunk load, and it lives in the same module as
+// OnboardingEntry (w26.k20 code-splitting decision).
 import { OnboardingEntry, RequireOnboarding } from "./screens/onboarding/OnboardingScreen";
-import { MediaInfoScreen } from "./screens/media-info";
-import { SettingsScreen } from "./screens/settings/SettingsScreen";
+import { isDesktopShell } from "./client/app-transport";
+import { useMsg, type MessageKey } from "./i18n/messages";
+// w26.k19 (CONTRACT §4.5): the document-title template — resolved
+// seam-first (registered catalog value once the Lead merges the key, lane
+// copy until then; same pattern as k17's unreachable note).
+import { keys as k19Keys } from "./i18n/keys/w26.k19";
+
+// w26.k20 (j20 P2-3) — route-level code splitting. The whole app previously
+// shipped as ONE 853 kB chunk (Vite's >500 kB warning fired on every build).
+// Split: every non-player route becomes a lazy chunk via React.lazy; the
+// player stays EAGER by design — it is the home screen (contract §1), the
+// first thing a completed profile sees, and by a wide margin the largest
+// screen, so making it lazy would just move the wait to app start. The
+// onboarding module stays eager for the gate (above). Shared modules
+// (components, i18n catalog, tokens) stay in the entry chunk — only screen
+// code moves. The lazy() indirection maps each module's NAMED export onto
+// the default export React.lazy expects (no change to the screens' public
+// APIs — contract §4.3). Suspense boundaries: one inside GatedShell (the
+// app chrome persists while a screen chunk loads) and one around <Routes>
+// (covers the ungated /dev/tokens). fallback is null — no i18n copy needed
+// for a sub-100 ms local chunk fetch, and the desktop shell loads from disk.
+const PlaylistScreen = lazy(() =>
+  import("./screens/playlist").then((m) => ({ default: m.PlaylistScreen })),
+);
+const MediaInfoScreen = lazy(() =>
+  import("./screens/media-info").then((m) => ({ default: m.MediaInfoScreen })),
+);
+const SettingsScreen = lazy(() =>
+  import("./screens/settings/SettingsScreen").then((m) => ({ default: m.SettingsScreen })),
+);
 // App-shell workstream (2026-11-08): real screens for the former placeholder
 // routes + persistent navigation (AppShell).
-import { NetworkStreamScreen } from "./screens/network-stream/NetworkStreamScreen";
+const NetworkStreamScreen = lazy(() =>
+  import("./screens/network-stream/NetworkStreamScreen").then((m) => ({
+    default: m.NetworkStreamScreen,
+  })),
+);
 // Discovery panel (card 7.D1, issue #42): the device-discovery surface —
 // live devices.volume-* events + the honest network-lane verdict.
-import { DiscoveryScreen } from "./screens/discovery/DiscoveryScreen";
+const DiscoveryScreen = lazy(() =>
+  import("./screens/discovery/DiscoveryScreen").then((m) => ({
+    default: m.DiscoveryScreen,
+  })),
+);
 // Card 7.E3 (issue #44): the conversion screen — target picker limited to
 // the engine's real capability (WAV record / MP4-remux), job queue wired
 // to the command-catalog capability probe.
-import { ConvertScreen } from "./screens/convert/ConvertScreen";
-import { ShortcutsScreen } from "./screens/shortcuts/ShortcutsScreen";
-import { NotFoundScreen } from "./screens/not-found/NotFoundScreen";
-import { TokenSandbox } from "./tokens/TokenSandbox";
-import { isDesktopShell } from "./client/app-transport";
+const ConvertScreen = lazy(() =>
+  import("./screens/convert/ConvertScreen").then((m) => ({ default: m.ConvertScreen })),
+);
+const ShortcutsScreen = lazy(() =>
+  import("./screens/shortcuts/ShortcutsScreen").then((m) => ({ default: m.ShortcutsScreen })),
+);
+const NotFoundScreen = lazy(() =>
+  import("./screens/not-found/NotFoundScreen").then((m) => ({ default: m.NotFoundScreen })),
+);
+const TokenSandbox = lazy(() =>
+  import("./tokens/TokenSandbox").then((m) => ({ default: m.TokenSandbox })),
+);
 
 // Product flow (contract §1 — ONE flow; doc 08 §1.6 screen inventory — every
 // route is a real screen; the placeholder routes are gone since the
@@ -69,7 +116,9 @@ import { isDesktopShell } from "./client/app-transport";
 //     whole shell). Per-navigation only — nothing is written to the
 //     onboarding store, so the very next param-less navigation is gated
 //     again. dev-shots does NOT need it (it seeds the store); player shots
-//     that used it keep working.
+//     that used it keep working. w26.k19 (j19 J19-8): DEV BUILDS ONLY —
+//     the bypass is a dev/test affordance and no longer ships in
+//     production bundles (see useOnboardingBypass).
 //
 //   provideMain (single main landmark per route, kept aligned with
 //     e2e/a11y.spec.ts): the shell renders the <main> landmark ONLY for
@@ -98,11 +147,16 @@ function playerVariantPath(variant: PlayerVariant): string {
  * satisfied for this navigation (see the flow map above). Read per render —
  * the override never touches the persisted onboarding store. w26.i20:
  * honored by the shell layout gate, so it now bypasses on every route, not
- * just the player family.
+ * just the player family. w26.k19 (j19 J19-8): the bypass is DEV-ONLY — a
+ * test/screenshot affordance must not ship as product surface. The dev
+ * server, vitest and dev-shots all run DEV builds (import.meta.env.DEV is
+ * true there — Surface.tsx gates its dev-only warning the same way), so no
+ * committed test or harness changes behavior; production builds ignore the
+ * param.
  */
 function useOnboardingBypass(): boolean {
   const [searchParams] = useSearchParams();
-  return searchParams.get("onboarding") === "1";
+  return import.meta.env.DEV && searchParams.get("onboarding") === "1";
 }
 
 /**
@@ -119,9 +173,14 @@ function useOnboardingBypass(): boolean {
  */
 function GatedShell({ provideMain = true }: { provideMain?: boolean }) {
   const bypassGate = useOnboardingBypass();
+  // The Suspense boundary sits INSIDE the shell so lazy route chunks load
+  // under the persistent app chrome (rail/topbar stay painted; only the
+  // screen region is briefly empty) — w26.k20 code splitting.
   const shell = (
     <AppShell demo={DEMO_SHELL} provideMain={provideMain}>
-      <Outlet />
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
     </AppShell>
   );
   return bypassGate ? shell : <RequireOnboarding>{shell}</RequireOnboarding>;
@@ -149,41 +208,122 @@ function PlayerRoute({ variant }: { variant: PlayerVariant }) {
   );
 }
 
+/** Route → document.title (w26.k19, j19 J19-7 — WCAG 2.4.2 Page Titled in
+ * spirit for an SPA): before this, NOTHING in ui/src wrote document.title,
+ * so every route's tab and history entry read "Lumen" (index.html) — a
+ * screen-reader user with two windows could not tell /player from
+ * /settings/privacy. Titles compose EXISTING screen msgids (nav labels,
+ * screen headings, the b01 settings window-title family) through the
+ * document-title template — no per-screen copy was invented. The player
+ * variants (music/miniplayer) share "Player": one product screen, three
+ * routes. Unknown paths render the 404 screen, so they get the 404 title. */
+const ROUTE_TITLES: Readonly<Record<string, MessageKey>> = {
+  "/player": "nav.player",
+  "/player/music": "nav.player",
+  "/miniplayer": "nav.player",
+  "/playlist": "nav.playlist",
+  "/media-info": "nav.media-info",
+  "/keyboard-shortcuts": "shortcuts.title",
+  "/open-network-stream": "stream.title",
+  "/discovery": "discovery.title",
+  "/convert": "convert.title",
+  "/onboarding": "onboarding.welcome.title",
+};
+
+/** /settings/:area → the b01 window-title family ("Global Settings",
+ * "Audio Defaults", …). Unknown areas fall back to plain "Settings" — the
+ * same grammar as SettingsScreen, which never 404s an area. */
+const SETTINGS_AREA_TITLES: Readonly<Record<string, MessageKey>> = {
+  global: "settings.window-title.global",
+  interface: "settings.window-title.interface",
+  privacy: "settings.window-title.privacy",
+  playback: "settings.window-title.playback",
+  video: "settings.window-title.video",
+  audio: "settings.window-title.audio",
+  subtitles: "settings.window-title.subtitles",
+  controls: "settings.window-title.controls",
+  library: "settings.window-title.library",
+  network: "settings.window-title.network",
+  performance: "settings.window-title.performance",
+  recording: "settings.window-title.recording",
+  extensions: "settings.window-title.extensions",
+};
+
+/** The title key for a pathname: the exact map, the settings-area family,
+ * the dev fixture (bare app name), or the 404 heading for anything unknown.
+ * Redirect-only paths (/, /settings) never render — their destination
+ * re-resolves on the navigation they perform. */
+function routeTitleKey(pathname: string): MessageKey {
+  const exact = ROUTE_TITLES[pathname];
+  if (exact !== undefined) return exact;
+  if (pathname.startsWith("/settings/")) {
+    return SETTINGS_AREA_TITLES[pathname.slice("/settings/".length)] ?? "nav.settings";
+  }
+  if (pathname === "/dev/tokens") return "app.name"; // dev fixture — bare name
+  return "not-found.heading"; // the * route: unknown paths 404
+}
+
+/** Keeps document.title in sync with the route (see ROUTE_TITLES). Runs on
+ * every location change (and re-render — msg identity changes with the
+ * active catalog, so a locale switch re-titles too). Returns null; it is
+ * render-order-independent chrome, not layout. */
+function DocumentTitle(): null {
+  const msg = useMsg();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const screen = msg(routeTitleKey(pathname));
+    // The wizard's title already names the product ("Welcome to Lumen") —
+    // suffixing the app name would read "Welcome to Lumen — Lumen".
+    const bare = pathname === "/onboarding";
+    const template =
+      msg("app.document-title.template" as MessageKey) ?? k19Keys["app.document-title.template"];
+    document.title = bare ? screen : template.replace("{screen}", screen);
+  }, [pathname, msg]);
+  return null;
+}
+
 export function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/player" replace />} />
+    <>
+      <DocumentTitle />
+      {/* Routes-level boundary: catches the ungated /dev/tokens lazy fixture
+          (and any future ungated lazy route) that renders outside GatedShell. */}
+      <Suspense fallback={null}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/player" replace />} />
 
-      {/* Full-bleed routes (no app chrome): the onboarding hero and the
-          token dev fixture. */}
-      <Route path="/onboarding" element={<OnboardingEntry />} />
-      <Route path="/dev/tokens" element={<TokenSandbox />} />
+        {/* Full-bleed routes (no app chrome): the onboarding hero and the
+            token dev fixture. */}
+        <Route path="/onboarding" element={<OnboardingEntry />} />
+        <Route path="/dev/tokens" element={<TokenSandbox />} />
 
-      {/* AppShell routes whose screens do NOT render their own <main> —
-          the shell provides the single main landmark. w26.i20: the whole
-          group sits inside GatedShell — first-run gate for the product. */}
-      <Route element={<GatedShell />}>
-        <Route path="/player" element={<PlayerRoute variant="full" />} />
-        <Route path="/player/music" element={<PlayerRoute variant="music" />} />
-        <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
-        <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
-        <Route path="/open-network-stream" element={<NetworkStreamScreen />} />
-        <Route path="/discovery" element={<DiscoveryScreen />} />
-        <Route path="/convert" element={<ConvertScreen />} />
-        <Route path="*" element={<NotFoundScreen />} />
-      </Route>
+        {/* AppShell routes whose screens do NOT render their own <main> —
+            the shell provides the single main landmark. w26.i20: the whole
+            group sits inside GatedShell — first-run gate for the product. */}
+        <Route element={<GatedShell />}>
+          <Route path="/player" element={<PlayerRoute variant="full" />} />
+          <Route path="/player/music" element={<PlayerRoute variant="music" />} />
+          <Route path="/miniplayer" element={<PlayerRoute variant="miniplayer" />} />
+          <Route path="/keyboard-shortcuts" element={<ShortcutsScreen />} />
+          <Route path="/open-network-stream" element={<NetworkStreamScreen />} />
+          <Route path="/discovery" element={<DiscoveryScreen />} />
+          <Route path="/convert" element={<ConvertScreen />} />
+          <Route path="*" element={<NotFoundScreen />} />
+        </Route>
 
-      {/* AppShell routes whose screens render their own <main> (playlist,
-          settings, media-info) — provideMain=false keeps exactly one main
-          landmark per page; a nested <main> would be invalid HTML. w26.i20:
-          the same first-run gate wraps this group — settings, playlists and
-          media-info are no longer reachable pre-onboarding (h20 #3). */}
-      <Route element={<GatedShell provideMain={false} />}>
-        <Route path="/playlist" element={<PlaylistScreen />} />
-        <Route path="/media-info" element={<MediaInfoScreen />} />
-        <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
-        <Route path="/settings/:area" element={<SettingsScreen />} />
-      </Route>
-    </Routes>
+        {/* AppShell routes whose screens render their own <main> (playlist,
+            settings, media-info) — provideMain=false keeps exactly one main
+            landmark per page; a nested <main> would be invalid HTML. w26.i20:
+            the same first-run gate wraps this group — settings, playlists and
+            media-info are no longer reachable pre-onboarding (h20 #3). */}
+        <Route element={<GatedShell provideMain={false} />}>
+          <Route path="/playlist" element={<PlaylistScreen />} />
+          <Route path="/media-info" element={<MediaInfoScreen />} />
+          <Route path="/settings" element={<Navigate to="/settings/global" replace />} />
+          <Route path="/settings/:area" element={<SettingsScreen />} />
+        </Route>
+      </Routes>
+      </Suspense>
+    </>
   );
 }
