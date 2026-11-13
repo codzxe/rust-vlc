@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { ClientProvider } from "./client/ClientProvider";
 import { MockTransport } from "./client/transport";
 import { MemoryRouter } from "react-router-dom";
@@ -58,7 +58,11 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     resetOnboardingForTests(); // leave a fresh run for the later route tests
   });
 
-  it("w26.i20 (h20 #3): first run, the gate guards the WHOLE app — every shell route redirects into the wizard", () => {
+  // w26.k20 (j20 P2-3): non-player routes are React.lazy chunks, so their
+  // first paint suspends for a microtask — assertions on lazy screens await
+  // findBy*/waitFor (same matchers, same strength); player + onboarding stay
+  // eager (home screen + first-run gate) and keep synchronous getbys.
+  it("w26.i20 (h20 #3): first run, the gate guards the WHOLE app — every shell route redirects into the wizard", async () => {
     // Fresh profile (no onboarding store): pre-onboarding, the product IS the
     // wizard — settings, playlists, dialogs, working screens and the 404 are
     // no longer reachable by typing a URL (h20 walked them live; the gate
@@ -91,6 +95,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     // The ungated dev fixture keeps rendering (full-bleed route by design).
     // TokenSandbox reads the theme context — mount the same provider stack
     // main.tsx uses (ThemeProvider), per the theme-hydration cases below.
+    // (w26.k20: /dev/tokens is a lazy chunk — await its first paint.)
     cleanup();
     render(
       <ThemeProvider>
@@ -101,7 +106,7 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
         </ClientProvider>
       </ThemeProvider>,
     );
-    expect(document.querySelector(".ts-sandbox")).not.toBeNull();
+    await waitFor(() => expect(document.querySelector(".ts-sandbox")).not.toBeNull());
   });
 
   it("renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area", async () => {
@@ -120,12 +125,13 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome to Lumen");
   });
 
-  it("renders unknown paths as the not-found screen", () => {
+  it("renders unknown paths as the not-found screen", async () => {
     // w26.i20: the 404 lives inside the gated shell — seed the completed
     // wizard so the catch-all renders its real screen, not the wizard.
+    // w26.k20: the not-found screen is a lazy chunk → findBy.
     seedOnboardingDone();
     renderAt("/definitely-not-a-route");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
     clearOnboardingSeed();
   });
 
@@ -138,18 +144,19 @@ describe("App routing skeleton (doc 08 §1.6)", () => {
     resetOnboardingForTests(); // leave a fresh run for the later route tests
   });
 
-  it("?onboarding=1 bypasses the first-run gate for tests/screenshots, per navigation only", () => {
+  it("?onboarding=1 bypasses the first-run gate for tests/screenshots, per navigation only", async () => {
     // Fresh run (no persisted store): the param satisfies the gate…
     renderAt("/player?onboarding=1");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Player");
     // …on ANY shell route now (w26.i20 moved the gate to the shell layout,
     // so the bypass covers the whole product, not just the player family).
+    // (w26.k20: settings + not-found are lazy chunks → findBy.)
     cleanup();
     renderAt("/settings/global?onboarding=1");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Settings");
     cleanup();
     renderAt("/definitely-not-a-route?onboarding=1");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
     // …and writes nothing to the onboarding store: the next param-less
     // navigation is gated again — player family AND the rest of the app.
     cleanup();
@@ -200,12 +207,14 @@ describe("App — persisted theme + accent hydration (w26.f08, e03-F1/e19-F1)", 
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
-  it("a fresh load of /discovery (non-settings, non-player) boots LIGHT too — every route hydrates (e19-F1)", () => {
+  it("a fresh load of /discovery (non-settings, non-player) boots LIGHT too — every route hydrates (e19-F1)", async () => {
+    // (w26.k20: discovery is a lazy chunk → findBy; hydration is asserted
+    // after the screen paints, which is the honest seam anyway.)
     window.localStorage.setItem("lumen.onboarding.v1", ONBOARDING_DONE);
     seedLightTheme();
     resetOnboardingForTests();
     renderApp("/discovery");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Discovery");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Discovery");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
