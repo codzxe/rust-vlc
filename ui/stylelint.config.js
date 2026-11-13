@@ -12,22 +12,24 @@
 //   * `color-named`             — no named color keywords (transparent is
 //     exempt by the rule itself).
 //
-// Known exceptions are NARROW, INLINE and carry a reason at the use site
-// (art-direction values with no semantic token yet — veil gradients, tape
-// shadows, white highlight blends). [PROPOSAL] the stricter form — zero raw
-// colors, no exceptions — becomes enforceable once the Rust-owned token
-// pipeline (themes/tokens.json → cargo xtask tokens) grows semantic tokens
-// for the veil/scrim ink, the tape shadow and the white highlight; then the
-// inline disables below come off.
+// Exception policy (W25 reality, w26.k20 refresh of a Solstice-era note that
+// still pitched "veil gradients, tape shadows" — exemptions that no longer
+// exist): the ONLY exemption is the scoped tokens.css override below, and
+// it exists because that file is emitter output. Hand-written CSS carries
+// ZERO inline disables — every raw color in src/**/*.css is a lint error,
+// and `npm run lint:css` (scripts/lint-css.mjs → local stylelint 18.0.0)
+// is the gate. New genuinely-unexpressible values do NOT get inline
+// disables: they get semantic tokens in themes/tokens.json (the token
+// lane's surface).
 //
 // Resolving stylelint-config-standard: the canonical location is
-// ui/node_modules (real installs, CI). As a fallback for npx-style
-// invocations (where stylelint + this config standard share an npx package
-// set and ui/node_modules — a shared symlink without stylelint — cannot see
-// them), it is resolved as a sibling of the RUNNING stylelint CLI. The
-// resolved entry FILE is what `extends` receives (absolute paths are
-// supported) so the config standard's own nested extends resolve from ITS
-// directory, not ours.
+// ui/node_modules (real installs, CI, and the current sandbox —
+// scripts/lint-css.mjs runs the local binary when present). As a fallback
+// for npx-style invocations (where stylelint + this config standard share
+// an npx package set), it is resolved as a sibling of the RUNNING stylelint
+// CLI. The resolved entry FILE is what `extends` receives (absolute paths
+// are supported) so the config standard's own nested extends resolve from
+// ITS directory, not ours.
 
 import { createRequire } from "node:module";
 import process from "node:process";
