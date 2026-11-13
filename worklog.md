@@ -1842,3 +1842,42 @@ Stage Summary:
   last untested behavior is the binary's no-DISPLAY exit posture
   (0|86 expected — the launch-verdict lane already proves the
   binary launches under xvfb).
+---
+Task ID: w26.lead-round15
+Agent: Lead (orchestrator)
+Task: The smoke step's honest boundary — no typed 86 exists in the
+  admission binary; the no-DISPLAY lane proves the link set, the
+  launch lane owns the exec half.
+
+Work Log:
+- Watched the round-14 set (43455796103): the path fix worked (the
+  binary was found and EXECUTED — 261 MB ELF) and the smoke died at
+  the real boundary: tao 0.37.2's event-loop init panics
+  "Failed to initialize GTK" (exit 101) before any of our code runs.
+  The step's premise was fiction: there IS no typed 86
+  "webview-pending" state in THIS binary — exit 86 belongs to the
+  pre-tauri skeleton (apps/desktop, its README documents 86 as the
+  honest webview-pending status). The smoke's author (wave-M rounds)
+  conflated the two binaries; two live rounds (127, then 101) were
+  spent proving a state that cannot exist.
+- Fix (the lane-split restored, per tauri-launch.yml's own header):
+  the tauri-check smoke now proves exactly what a no-DISPLAY lane
+  CAN: binary at the env-derived path + ldd with zero "not found"
+  (the only load-time class compile/test/clippy cannot see), and
+  prints the resolved webview stack (webkit2gtk/libgtk-3/libglib-2).
+  The exec half stays with the dispatch-only launch lane (xvfb,
+  12s survival + zero failure receipts + harness-TERM 143/0 —
+  already GREEN on round 11). No fake green: the step name now says
+  what it proves ("runtime link set resolves").
+- YAML parses; bash -n clean; the round-14 run id attribution
+  corrected in the comment (43455796103 is 98c842b6's set).
+- Rust on 34f032b7: GREEN with the write_config fix. The 28fb38fa
+  rerun (attempt 2, un-fixed tree) also GREEN — the flake dated
+  itself (as with 43409155006 before it); the class-closure stands
+  on the mechanism, not the rerun.
+
+Stage Summary:
+- Round 15 pushed: ci.yml smoke rewritten to the honest boundary.
+  Next watch: the full CI set; then dispatch the release dry-run
+  (proves the canonical-squish fix in the windows upgrade test) and
+  the tauri-launch lane (the exec half on the current tree).

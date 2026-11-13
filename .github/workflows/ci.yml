@@ -741,29 +741,35 @@ jobs:
           # reuses the same download; see that job's pin block.
           "${DENY_BIN:-cargo-deny}" --version >/dev/null 2>&1 || cargo install cargo-deny --version 0.20.2 --locked
           cargo deny --manifest-path apps/desktop-tauri/Cargo.toml --exclude-dev check bans licenses advisories
-      - name: "Smoke — the admission binary reports its typed launch posture"
+      - name: "Smoke — the admission binary's runtime link set resolves (no-DISPLAY lane)"
         run: |
-          # No DISPLAY on this lane: the binary is not launched here (the
-          # launch-verdict lane does, with xvfb). What IS provable now:
-          # the binary links, loads, and exits with the honest pending
-          # state rather than crashing on the webview path.
-          #
-          # Binary path: the workflow-level CARGO_TARGET_DIR=target is
-          # RELATIVE, so cargo resolves it against the invoking CWD (the
-          # repo root) even with --manifest-path subcrates — first-
-          # vertical's lumen_binary_path lesson (w26 CI-triage item 2),
-          # applied this time on the workflow side: the admission binary
-          # lands in <repo>/target/debug, NOT apps/desktop-tauri/target/
-          # debug. Run 43453921560 (tauri-check, 34f032b7) exec'd the
-          # subcrate-default path and died 127 "No such file or
-          # directory" before ever loading the binary.
+          # What IS provable on a lane without a DISPLAY, and nothing
+          # more (the honest boundary after two live rounds):
+          #   * the binary exists as a valid executable at the env-derived
+          #     path (workflow-level CARGO_TARGET_DIR=target resolves at
+          #     the repo root even for --manifest-path subcrates —
+          #     first-vertical's lumen_binary_path lesson, workflow side;
+          #     run 43453921560 exec'd the subcrate-default path and
+          #     died 127),
+          #   * every dynamic dependency resolves on the runner at load
+          #     time (ldd: no "not found") — the compile/test/clippy steps
+          #     above prove the code; THIS is the only load-time class
+          #     they cannot see.
+          # What is NOT provable here and never was: exec'ing the binary
+          # headless. The round-14 live run (43455796103, 98c842b6) proved it dies at
+          # tao's gtk::rt::init (panic 101, "Failed to initialize GTK")
+          # BEFORE any of our code runs — there is no typed 86
+          # "webview-pending" state in THIS binary; that exit code
+          # belongs to the pre-tauri skeleton (apps/desktop, exit 86).
+          # The launch half is the dispatch-only lane's by design
+          # (tauri-launch.yml, xvfb; its header records the split).
           ls -l target/debug/lumen-tauri
-          set +e
-          timeout 30s ./target/debug/lumen-tauri 2>&1 | head -3
-          code=${PIPESTATUS[0]}
-          set -e
-          echo "exit code: ${code} (0 = window served; 86 = webview-pending; anything else = a real failure)"
-          case "${code}" in
-            0|86) exit 0 ;;
-            *) echo "::error::unexpected exit ${code}"; exit 1 ;;
-          esac
+          missing=$(ldd target/debug/lumen-tauri | grep "not found" || true)
+          if [ -n "$missing" ]; then
+            echo "::error::unresolved dynamic dependencies:"
+            echo "$missing"
+            exit 1
+          fi
+          echo "ldd: all dynamic dependencies resolve"
+          echo "--- the webview stack the admission binary links at runtime:"
+          ldd target/debug/lumen-tauri | grep -E "webkit2gtk|libgtk-3|libglib-2" | head -4
