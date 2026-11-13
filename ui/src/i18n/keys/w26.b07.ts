@@ -20,7 +20,9 @@ export const keys = {
   "settings.section.controls.keyboard-shortcuts": "Keyboard shortcuts",
   "settings.controls.defaults": "Defaults",
   "settings.controls.reset-all-shortcuts": "Reset all shortcuts",
-  // Full-width action labels (frame: "Edit Keyboard Shortcuts" / "Reset").
-  "settings.controls.edit-shortcuts": "Edit keyboard shortcuts",
+  // Full-width action label (frame: "Reset").
   "settings.controls.reset-shortcuts": "Reset",
+  // w26.k18 (j18 F4): settings.controls.edit-shortcuts pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
 } as const;
