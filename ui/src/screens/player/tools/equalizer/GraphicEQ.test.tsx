@@ -129,8 +129,17 @@ describe("GraphicEQ — fader columns (frame: 11 columns, pitch 68)", () => {
 
   it("monochrome columns — NO band accent dots anywhere (w26.e07 F8)", () => {
     const { container } = render(<GraphicEQ defaultOpen />);
-    expect(container.querySelector(".eq-tool__accent")).toBeNull();
+    // w26.k10 (j10 P3-2): the old `.eq-tool__accent` null-check guarded a
+    // class that exists NOWHERE in src — vacuous. Real pins: the accent
+    // marker namespace is empty AND every column renders exactly its three
+    // frame children (fader, label, chip) — a resurrected accent-dot
+    // element would make four.
     expect(container.querySelector("[data-accent]")).toBeNull();
+    const columns = container.querySelectorAll(".eq-panel__col");
+    expect(columns).toHaveLength(11);
+    for (const column of [...columns]) {
+      expect(column.children).toHaveLength(3);
+    }
   });
 });
 
@@ -163,10 +172,11 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
     fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
       key: "ArrowUp",
     });
-    expect(screen.getAllByText("1.0 dB")).toHaveLength(1);
+    // w26.k10 (j10 P2-1): 0.1 dB lattice — +0.1, clean double.
+    expect(screen.getAllByText("0.1 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_EQUALIZER_STATE,
-      gains: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      gains: [0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     });
   });
 
@@ -176,10 +186,49 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
     fireEvent.keyDown(screen.getByRole("slider", { name: "Preamp" }), {
       key: "ArrowDown",
     });
-    expect(screen.getAllByText("11.0 dB")).toHaveLength(1);
+    expect(screen.getAllByText("11.9 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_EQUALIZER_STATE,
-      preamp: 11,
+      preamp: 11.9,
     });
+  });
+
+  it("controlled mounts never shadow-write internal state (P3-3)", () => {
+    // w26.k10 (j10 P3-3): a fully controlled panel (the tools-dialog mount)
+    // used to write openInternal/stateInternal on every commit anyway —
+    // a divergent shadow state + a wasted render. After a commit the
+    // internal state must still read the DEFAULTS (never written), while
+    // the host's controlled value drives the faders.
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <GraphicEQ
+        defaultOpen={false}
+        open
+        state={{ preamp: 12, gains: [5.6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: "none" }}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
+      key: "ArrowUp",
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      preamp: 12,
+      gains: [5.7, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      preset: "none",
+    });
+    // Host does NOT echo back — the panel must keep showing the host's
+    // value (no optimistic jump from a shadow write).
+    rerender(
+      <GraphicEQ
+        defaultOpen={false}
+        open
+        state={{ preamp: 12, gains: [5.6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: "none" }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole("slider", { name: "60 Hz" })).toHaveAttribute(
+      "aria-valuenow",
+      "5.6",
+    );
   });
 });
