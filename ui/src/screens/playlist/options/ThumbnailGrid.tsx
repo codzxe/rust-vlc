@@ -49,12 +49,20 @@ export function ThumbnailGrid(): ReactElement {
                 type="button"
                 className="lumen-plo-card"
                 onClick={() => playlist.playItem(entry.id)}
+                /* w26.k15 (j15 P3-4): name the card by its TITLE — name-from-
+                 * content made every card announce its duration text
+                 * ("00:02:10, button"); the visible duration stays a child,
+                 * `title` keeps the pointer tooltip. */
+                aria-label={title}
                 title={title}
               >
                 {cardBody}
               </button>
             ) : (
-              <div className="lumen-plo-card lumen-plo-card--inert" title={title}>
+              /* Local scope (w26.f06): presentation card — role="img" + the
+               * title gives the inert card an accessible name (a bare div's
+               * aria-label is ignored); it names the media, not the duration. */
+              <div className="lumen-plo-card lumen-plo-card--inert" role="img" aria-label={title} title={title}>
                 {cardBody}
               </div>
             )}
