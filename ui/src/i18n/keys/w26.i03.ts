@@ -12,6 +12,9 @@
 // player.controls.advanced-settings (Button.png footer), playlist.entry.
 // unknown-title.
 export const keys = {
+  // w26.k18 (j18 F4): player.controls.queue-items pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   /** Controls.svg audio/subtitles panels — section header over the track rows. */
   "player.controls.section.embedded-tracks": "Embedded Tracks",
   /** Controls.svg panel tab — plural spelling (Subtitles_12); the canvas
@@ -31,8 +34,6 @@ export const keys = {
   "player.controls.tab.bookmarks": "Bookmarks",
   /** Controls.svg queue panel — tab 3. */
   "player.controls.tab.chapters": "Chapters",
-  /** Controls.svg queue panel meta row — "4 items"; count composed in code. */
-  "player.controls.queue-items": "items",
   /** Playback tab — the Repeat segmented control's short segment labels. */
   "player.controls.repeat.off": "Off",
   "player.controls.repeat.all": "All",
