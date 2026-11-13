@@ -44,12 +44,24 @@ fn temp_root(tag: &str) -> PathBuf {
 }
 
 /// Write an executable helper script (the fake zenity/kdialog).
+///
+/// Write-to-staging-then-rename: the tests exec these stubs within
+/// microseconds of writing them, and exec'ing a file that was JUST open
+/// for write can race ETXTBSY ("Text file busy") on an overlay-backed
+/// /tmp — the CI container's filesystem keeps the freshly copied-up
+/// inode in a pending-write state past close() (Rust lane, run
+/// 43400611226: `xdg_dialogs_run_the_zenity_fallback` died exactly
+/// there). rename() publishes a fully-written inode that no writer
+/// still holds open — the documented workaround for the
+/// exec-after-write flake class on overlayfs.
 fn write_script(path: &Path, body: &str) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).must();
     }
-    fs::write(path, format!("#!/bin/sh\n{body}\n")).must();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).must();
+    let staged = path.with_extension("staging");
+    fs::write(&staged, format!("#!/bin/sh\n{body}\n")).must();
+    fs::set_permissions(&staged, fs::Permissions::from_mode(0o755)).must();
+    fs::rename(&staged, path).must();
 }
 
 // ---------------------------------------------------------------------------

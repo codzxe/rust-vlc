@@ -84,6 +84,7 @@ use desktop::window_config::parse_window_table;
 /// The engine → webview event channel (doc 05 §5.1: the shell forwards
 /// every engine event here). Kept in one place; the UI transport listens
 /// on the same name (`ui/src/client/tauri-transport.ts`).
+// lumen-allow-literal: transport contract string — the shell↔UI IPC channel name both sides must carry literally (doc 05 §5.1, mirrored in ui/src/client/tauri-transport.ts); a wire-protocol constant, not a config value — renaming it is a coordinated two-sided change.
 pub const EVENT_CHANNEL: &str = "lumen://event";
 
 /// The pump cadence: fast enough for 30 fps progress ticks, slow enough

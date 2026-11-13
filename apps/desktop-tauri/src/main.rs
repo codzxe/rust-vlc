@@ -5,8 +5,7 @@
 
 fn main() {
     if let Err(error) = lumen_desktop_tauri::app::run() {
-        // lumen-allow-literal: argv0/diagnostic notice — the honest
-        // failure face; exit 1 (never a fake window, 2.C3's rule).
+        // lumen-allow-literal: argv0/diagnostic notice — the honest failure face; exit 1 (never a fake window, 2.C3's rule). The marker must sit directly above the flagged line: the lint reads adjacency, and a wrapped two-line comment breaks it (C1, run 43400610890).
         eprintln!("lumen-tauri: admission shell failed: {error:#}");
         std::process::exit(1);
     }

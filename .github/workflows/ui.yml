@@ -101,7 +101,14 @@ jobs:
 
       - name: "2. lint"
         if: always()
-        run: npm run lint
+        run: |
+          npm run lint
+          # The stylelint token-discipline gate (issue #36) was local-only
+          # until wave-L round 4 — the bundled-fonts @font-face slip
+          # (fonts.css quoted family name, committed in 92311eb2, caught
+          # only by a sandbox lint run) proved the gap: a CSS gate that
+          # CI never runs cannot gate. Chained here, keep-going as above.
+          npm run lint:css
 
       # Added by card 4.H3 (agent P4-H3): l10n catalog gate — en-US 100%
       # key coverage, no duplicates, doc 07 §6.1 key grammar + §6.2
@@ -164,6 +171,22 @@ jobs:
 
       - name: "visual: PR-lite lane (compare vs committed baselines)"
         run: node scripts/visual-run.mjs --mode=pr
+
+      # Wave-L round 4 (run 43400611004 diagnosis): the report artifact
+      # carries no diff IMAGES (playwright-report references
+      # test-results/ paths that are not uploaded), so a CI-side drift
+      # could only be theorized about. This uploads the actual
+      # expected/actual/diff PNGs on failure — the next red run carries
+      # its own evidence, and host-parity fixes get made against pixels,
+      # not hypotheses.
+      - name: Upload failing diff images (test-results)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-diffs
+          path: ui/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload visual report
         if: always() # upload even (especially) when the diff failed
