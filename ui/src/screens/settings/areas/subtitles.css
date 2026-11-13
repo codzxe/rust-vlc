@@ -18,14 +18,13 @@
 
 /* w26.gfix-B (g13-P1-1): the per-section staged notes are GONE — the 7 ⓘ
  * glyphs carry the same copy as their accessible names (nothing extra
- * renders between a header and its first row; the frame carries no notes). */
-
-/* The ⓘ info glyph the frame pins after 7 labels (frame: 16px circle,
- * stroke #404040 — stroke-border). */
-.settings-area-subtitles-info {
-  flex: none;
-  color: var(--color-stroke-border);
-}
+ * renders between a header and its first row; the frame carries no notes).
+ *
+ * w26.k13 (j13 P2-3): the ⓘ is the shared SettingInfoDot button
+ * (setting-field.css .settings-field__info) — the local
+ * .settings-area-subtitles-info glyph rules retired with the local twin;
+ * the frame's 16px circle lands on the same shared 18px "info" glyph whose
+ * circle ink is r7.5 #404040. */
 
 /* ------------------------------------------------------ dropdown rows */
 
