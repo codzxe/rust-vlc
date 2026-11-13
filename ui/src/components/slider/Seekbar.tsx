@@ -115,7 +115,10 @@ export const Seekbar = forwardRef<HTMLDivElement, SeekbarProps>(function Seekbar
       {...rest}
     >
       <div className="lumen-slider__track">
-        {buffered?.map((range, index) => {
+        {/* w26.k03 (j03 P3-13): buffer math divides by duration — never map
+         * ranges onto a duration-less bar (the inert case); the pre-fix
+         * division degraded to Infinity → clamped 100% widths. */}
+        {(duration > 0 ? buffered : undefined)?.map((range, index) => {
           const start = clamp((range.start / duration) * 100, 0, 100);
           const width = clamp(((range.end - range.start) / duration) * 100, 0, 100 - start);
           return (
