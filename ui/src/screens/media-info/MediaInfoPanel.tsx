@@ -28,6 +28,8 @@
 // in ui/NEXT-STEPS.md) — they are never invented.
 
 import { useMsg } from "../../i18n/messages";
+import type { MessageKey } from "../../i18n/messages";
+import { keys as k17Keys } from "../../i18n/keys/w26.k17";
 import type { MediaInfo, TrackInfo } from "../../client/transport";
 import { Button } from "../../components/button/Button";
 import { Card, SectionHeader } from "../../components/surface/Surface";
@@ -76,10 +78,31 @@ export function MediaInfoPanel({
   showTitle?: boolean;
 }) {
   const m = useMsg();
-  const { info, notExposed } = useMediaInfo();
+  const { info, notExposed, unreachable } = useMediaInfo();
 
   // The honest unknown — single i18n key, reused for EVERY absent field.
   const unknown = m("media-info.unknown");
+
+  if (unreachable) {
+    // w26.k17 (j17 P3-8): host-unreachable is its OWN verdict — never the
+    // false "command layer did not expose it" note. Lane-key seam (§4.5):
+    // central copy once the Lead registers it; identical render either way.
+    const note =
+      m("media-info.panel.unreachable" as MessageKey) ??
+      k17Keys["media-info.panel.unreachable"];
+    return (
+      <section
+        className={`lumen-mi ${className}`.trim()}
+        data-screen-part="media-info"
+        data-state="unreachable"
+      >
+        {showTitle ? <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2> : null}
+        <Card as="div" className="lumen-mi__state-card" data-testid="media-info-unreachable">
+          <p className="lumen-mi__note">{note}</p>
+        </Card>
+      </section>
+    );
+  }
 
   if (notExposed) {
     return (
@@ -107,8 +130,10 @@ export function MediaInfoPanel({
       >
         {showTitle ? <h2 className="lumen-mi__title">{m("media-info.panel.title")}</h2> : null}
         <Card as="div" className="lumen-mi__state-card" data-testid="media-info-empty-card">
+          {/* w26.k17 (j17 P3-5): the dangling `lumen-mi__empty` class hook is
+              deleted — no rule ever existed for it; ListEmpty carries its own
+              styling. */}
           <ListEmpty
-            className="lumen-mi__empty"
             data-testid="media-info-empty"
             title={m("media-info.empty.title")}
             body={m("media-info.empty.body")}
