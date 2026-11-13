@@ -9,8 +9,10 @@
 // Accepted vs completed (doc 08 §5): `pendingSeek` marks an outstanding
 // `playback.seek` request (set on commit, cleared on `timing.seek-completed`
 // / `timing.seek-failed` / position catching up); `pendingToggle` marks an
-// outstanding `playback.play`/`pause` (cleared on `session.state-changed` or
-// command completion). Nothing else predicts engine state.
+// outstanding `playback.play`/`pause` (cleared on `session.state-changed`,
+// `playback.error`, or — w26.k06, J06-2 — the command answering error /
+// the transport failing: a toggle that never completes must not spin
+// forever). Nothing else predicts engine state.
 
 import {
   createContext,
@@ -144,6 +146,17 @@ export function usePlayerControlsOrNull(): PlayerControls | null {
 /** Position-near-target tolerance for clearing a pending seek [PROPOSAL]. */
 const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
 
+/**
+ * w26.k06 (J06-2, P1): the commands whose dispatch marks the transport
+ * toggle pending. A toggle that answers ERROR (or never reaches the
+ * engine — transport failure) never produces the `session.state-changed`
+ * that clears the flag, so the failure paths must clear it themselves —
+ * otherwise the transport control's pending spinner sticks forever
+ * (doc 08 §5.1 "≤250 ms pending" truthful-pending contract).
+ */
+const isToggleCommand = (cmd: CommandRequest["cmd"]): boolean =>
+  cmd === "playback.play" || cmd === "playback.pause" || cmd === "playback.toggle-play-pause";
+
 const bufferRangesOf = (ranges: readonly TimeRange[]): readonly PlayerBufferRange[] =>
   ranges.map((range) => ({ start: range.start, end: range.end }));
 
@@ -197,12 +210,19 @@ export function PlayerControlsProvider({
           });
           break;
         case "duration":
+          // w26.k06 cross-lane seam (j06 P1 #12, k17 leads the family fix):
+          // the wire `Timestamp` in Duration.time is MICROSECONDS per the
+          // generated schema; the player family currently treats it as
+          // SECONDS end-to-end (demo transport included). k17 lands the
+          // unit fix family-wide — do NOT patch units piecemeal here.
           patch({
             durationSeconds: result.duration.kind === "known" ? result.duration.time : null,
             engineReported: true,
           });
           break;
         case "media-info":
+          // k17 seam (see the "duration" case above): Duration.time is µs on
+          // the wire; treated as seconds until the family-wide unit fix.
           patch({
             seekable: result.info.seekable,
             durationSeconds:
@@ -213,6 +233,8 @@ export function PlayerControlsProvider({
           });
           break;
         case "state-snapshot":
+          // k17 seam (see the "duration" case above): Duration.time is µs on
+          // the wire; treated as seconds until the family-wide unit fix.
           patch({
             playbackState: result.snapshot.state,
             position: result.snapshot.time ?? 0,
@@ -248,6 +270,11 @@ export function PlayerControlsProvider({
           if (!isEmptyProbe) {
             patch({ lastError: response.result.error });
           }
+          // w26.k06 (J06-2, P1): a failed toggle never completes — clear its
+          // pending flag or the transport spinner spins forever.
+          if (isToggleCommand(request.cmd)) {
+            patch({ pendingToggle: false });
+          }
           return;
         }
         if ("completed" in response.result) {
@@ -271,6 +298,11 @@ export function PlayerControlsProvider({
             stage: "control",
           },
         });
+        // w26.k06 (J06-2, P1): idem — the toggle never reached the engine,
+        // so it will never answer with a state change. Clear the spinner.
+        if (isToggleCommand(request.cmd)) {
+          patch({ pendingToggle: false });
+        }
       }
     },
     [applyCompleted, patch, wire],
@@ -353,6 +385,12 @@ export function PlayerControlsProvider({
           setState((prev) => ({ ...prev, playbackState: "buffering" }));
           break;
         case "timing.time-tick":
+          // w26.k06 cross-lane seam (k17 leads the family fix): the wire
+          // `position` here is a 0..1 FRACTION per the generated schema, read
+          // into the seconds-documented `state.position`. k09's bookmarks
+          // consumer is seam-contract-correct and robust either way (its
+          // tests seed both fields); k17 converts at the seam family-wide —
+          // do NOT patch units piecemeal here.
           setState((prev) => ({
             ...prev,
             position: event.position,
@@ -364,6 +402,8 @@ export function PlayerControlsProvider({
           }));
           break;
         case "timing.duration-known":
+          // k17 seam (see the "duration" case in applyCompleted): the event
+          // Timestamp is µs on the wire; treated as seconds until k17.
           patch({ durationSeconds: event.duration });
           break;
         case "timing.seek-completed":
@@ -383,7 +423,20 @@ export function PlayerControlsProvider({
           patch({ mediaTitle: event.info.title ?? null });
           break;
         case "tracks.changed": {
-          const field = selectionFieldFor(event.trackKind as "video" | "audio" | "subtitle");
+          // w26.k06 (J06-12, P3): TrackChangeKind also carries "data" and
+          // "secondary-audio" (generated union, commands.ts) — neither maps
+          // to a TrackSelections field, so the old
+          // `event.trackKind as "video" | "audio" | "subtitle"` cast wrote
+          // stray keys (e.g. `selections.data`). Guard to the three
+          // supported kinds; other kinds are honest no-ops here.
+          if (
+            event.trackKind !== "video" &&
+            event.trackKind !== "audio" &&
+            event.trackKind !== "subtitle"
+          ) {
+            break;
+          }
+          const field = selectionFieldFor(event.trackKind);
           setState((prev) => ({
             ...prev,
             selections:
@@ -403,6 +456,11 @@ export function PlayerControlsProvider({
               stage: event.stage,
             },
             playbackState: event.fatal ? "error" : prev.playbackState,
+            // w26.k06 (J06-2): an async engine failure also resolves an
+            // outstanding toggle — the engine transitioned to an error, not
+            // to the requested play/pause state; the spinner must not wait
+            // for a state change that will never come.
+            pendingToggle: false,
           }));
           break;
         default:
