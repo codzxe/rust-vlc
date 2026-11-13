@@ -85,18 +85,23 @@ describe("VisualizerTool — the frame's mode dropdown (§A7)", () => {
     openSelector();
     const options = screen.getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual(FRAME_MODES);
-    // The four non-Disabled rows carry the frame's two-tone leading icons.
-    expect(container.querySelectorAll(".viz-select__icon")).toHaveLength(4);
-    // Disabled (row 1) is selected: #1F1F1F band + ONE orange check.
+    // The four non-Disabled rows carry the frame's two-tone leading icons
+    // (the shared Dropdown's option-icon slot; w26.k10 migrated the
+    // selector onto the primitive — the icons are the lane's own svgs).
+    expect(container.querySelectorAll(".lumen-dropdown__option-icon svg")).toHaveLength(4);
+    // Disabled (row 1) is selected (structural data-mode marker through the
+    // primitive's `data` option field); the #1F1F1F band + orange check are
+    // the shared menu.css selected grammar (CSS pseudo — not a DOM node).
     const selected = screen.getByRole("option", { selected: true });
     expect(selected).toHaveAttribute("data-mode", "disabled");
-    expect(container.querySelectorAll(".viz-select__check")).toHaveLength(1);
-    expect(selected.querySelector(".viz-select__check")).not.toBeNull();
+    expect(selected).toHaveAttribute("aria-selected", "true");
   });
 
   it("reveals the whole open list to scrolling hosts (w26.i07 fold fix)", () => {
     // h14 defect 4: inside the tools-dialog body the list opened with its
     // tail 164px below the fold — only the focused option auto-scrolled.
+    // w26.k10: the fold-reveal (list.scrollIntoView {block:"nearest"}) now
+    // lives in the shared Dropdown's open effect — this pins it there.
     // jsdom has no scrollIntoView; install a spy and pin the reveal call.
     const spy = vi.fn();
     const original = Element.prototype.scrollIntoView;
@@ -125,11 +130,12 @@ describe("VisualizerTool — the frame's mode dropdown (§A7)", () => {
     fireEvent.click(screen.getByRole("option", { name: "Spectrum" }));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith("spectrum");
-    // List closed, trigger now names the picked mode + its icon.
+    // List closed, trigger now names the picked mode + its icon (the
+    // primitive mirrors the selected option's iconNode in the trigger).
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: "Visualizer" });
     expect(trigger).toHaveTextContent("Spectrum");
-    expect(trigger.querySelector(".viz-select__selected-icon")).not.toBeNull();
+    expect(trigger.querySelector(".lumen-dropdown__option-icon svg")).not.toBeNull();
   });
 
   it("keyboard model: arrows move, Enter commits, Escape closes + refocuses", () => {
