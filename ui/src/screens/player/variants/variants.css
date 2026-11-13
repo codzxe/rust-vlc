@@ -394,6 +394,14 @@
   padding: 0 4px 4px;
 }
 
+/* w26.k08 (j08 P2-2): the listbox container owns keyboard focus (the
+ * VirtualList viewport grammar — list.css's .lumen-vlist:focus-visible);
+ * the accent ring is the W25 §2 focus floor. */
+.lumen-mini__queue-list:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* Quiet empty queue — the shared ListEmpty grammar, mini-weighted. */
 .lumen-mini__queue-empty {
   padding: 12px 8px;
