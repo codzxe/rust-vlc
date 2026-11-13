@@ -44,10 +44,7 @@ use testkit::assert_err;
 /// the test retries exactly that face (a missing binary or a real
 /// backend failure never contains it) with a bounded backoff, so the
 /// flake is absorbed without masking any other failure.
-fn open_file_retrying_etxtbsy(
-    dialogs: &mut XdgDialogs,
-    request: &FileDialogRequest,
-) -> FilePick {
+fn open_file_retrying_etxtbsy(dialogs: &mut XdgDialogs, request: &FileDialogRequest) -> FilePick {
     let mut attempt = 0;
     loop {
         attempt += 1;

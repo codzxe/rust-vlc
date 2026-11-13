@@ -740,7 +740,7 @@ jobs:
           # Pinned binary identical to the cargo-deny job's (G3/G4):
           # reuses the same download; see that job's pin block.
           "${DENY_BIN:-cargo-deny}" --version >/dev/null 2>&1 || cargo install cargo-deny --version 0.20.2 --locked
-          cargo deny --manifest-path apps/desktop-tauri/Cargo.toml --exclude-dev-deps --disable-duplicate-version-warning check bans licenses advisories
+          cargo deny --manifest-path apps/desktop-tauri/Cargo.toml --exclude-dev --disable-duplicate-version-warning check bans licenses advisories
       - name: "Smoke — the admission binary reports its typed launch posture"
         run: |
           # No DISPLAY on this lane: the binary is not launched here (the
