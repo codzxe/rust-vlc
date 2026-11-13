@@ -17,6 +17,9 @@
 //     pending-command ("Engine stage ready — …") for the settings rows;
 //     the tool-card staged notes live with their lanes.
 export const keys = {
+  // w26.k18 (j18 F4): player.tools.open pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   // Settings → Audio, the Effects section header (frame: Settings -
   // audio-1.svg Frame 99 "Effects" — plain "Effects", not the old
   // "Audio effects"/"Video adjust" split keys).
@@ -41,7 +44,4 @@ export const keys = {
   "player.tools.dialog.title": "Tools",
   "player.tools.tab.audio": "Audio",
   "player.tools.tab.video": "Video",
-  // Accessible name of the (Lead-wired) player affordance that opens the
-  // tools dialog — the gear/menu trigger ControlBar owns.
-  "player.tools.open": "Audio and video tools",
 } as const;
