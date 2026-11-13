@@ -122,3 +122,48 @@ WebKitGTK) is honestly pending a desktop machine.
   (`preaudit-foundation.md` method) and refreshes the record.
 - A security-review finding on the IPC surface may constrain or retire the
   `CustomProtocol`/`SharedMemory` host kinds before wire protocol v2 lands.
+
+## Launch verdicts (wave 26-M, issue #67)
+
+The launch half of the admission (`apps/desktop-tauri/INFRA-BLOCKED.md`
+§B.2) executes decision 4's remaining AC — window opens, file opens, the
+event channel holds — per OS. The lane is
+`.github/workflows/tauri-launch.yml` (workflow_dispatch ONLY — manual,
+honest: a verdict lane, not a merge gate; the merge-blocking compile and
+audit half stays ci.yml's `tauri-check`). Its design rationale, its
+assert set, and its honest boundaries (what the CI half proves vs what
+still needs a human/GUI driver) are documented in the workflow header
+and in `docs/packaging/evidence/w26m-t5-launch-verdict.md` — the short
+form: the lane launches the real release binary (Linux: under xvfb with
+the fixture on argv so the shell dispatches a real open and the 40 ms
+pump emits real engine events on `lumen://event`), then asserts
+survival for a bounded window, zero failure receipts in the app's own
+stderr (`event emit failed on the shell channel` /
+`lumen-tauri: admission shell failed`), and a harness-terminated exit
+instead of a crash face.
+
+| OS | lane job | verdict | evidence | date |
+|---|---|---|---|---|
+| Linux (WebKitGTK 4.1, xvfb) | `linux-launch` | PENDING-CI (lane designed; first run pending) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+| macOS (WKWebView, arm64) | `macos-launch` | PENDING-CI (best-effort lane; human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+| Windows (WebView2, x86_64) | `windows-launch` | PENDING-CI (best-effort lane; human confirmation owed) | `docs/packaging/evidence/w26m-t5-launch-verdict.md` | 2026-11-13 |
+
+Rows flip only on evidence, never on intent: a green `linux-launch` run
+moves Linux to "CI half proven" (the GUI half — a human or GUI driver
+observing the launched app — is still owed); macOS/Windows stay
+BEST-EFFORT-PENDING even when green (a runner session is not a real
+desktop: WebView2 runtime versioning, GPU paths, and window-server
+context differ), until a human confirms on real hardware.
+
+### The tauri-transport [VERIFY] clearing rule
+
+The `[VERIFY at the ADR-004 admission build]` marker in
+`ui/src/client/tauri-transport.ts` (the `plugin:event|listen` frame
+shape and the "Any" default target) clears ONLY on a proven event frame
+round-trip on a launched app — no earlier. This lane's no-emit-failure
++ clean-exit proof is the CI half of that proof; the GUI half (the JS
+side actually receiving `lumen://event` frames with the asserted frame
+shape) still needs a human or GUI driver on the launched app. The
+marker clears only in the same commit that flips this table's row, with
+the run link as evidence; until then it stands, annotated (its comment
+names this lane as the CI half).
