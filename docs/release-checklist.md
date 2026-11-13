@@ -145,7 +145,7 @@ P3-8; the branch remains **unmerged into `main`**) → these rows still
 ### 3.4 Update-URL wiring (card text) — the honest reality
 
 **No update mechanism exists in v0.1.0 and none is claimed.** Verified:
-`apps/desktop/tauri/tauri.conf.json` contains no updater configuration
+`apps/desktop-tauri/tauri.conf.json` contains no updater configuration
 (no `updater`/`updateUrl` keys; the tauri shell itself is INFRA-BLOCKED,
 ADR-004); the web `app_id` in product.toml is PWA identity only; there
 is no appcast/feed URL anywhere in the tree. What exists and is wired:

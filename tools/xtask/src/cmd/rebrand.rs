@@ -12,7 +12,7 @@
 //! | Surface | Identity carried | Rewrite |
 //! |---|---|---|
 //! | `product.toml` | the 19 identity key-values in their tables | key-value rebuild (below) |
-//! | `apps/desktop/tauri/tauri.conf.json` | `productName`, window `title`, `identifier` (reverse-DNS + `.desktop`) | token rewrite (card 4.H2 — the installer-identity config-file surface) |
+//! | `apps/desktop-tauri/tauri.conf.json` | `productName`, window `title`, `identifier` (reverse-DNS + `.desktop`) | token rewrite (card 4.H2 — the installer-identity config-file surface; path updated for the ADR-004 workspace-excluded `apps/desktop-tauri` subcrate, wave L) |
 //! | `README.md` | H1 title + working-name sentence | token rewrite |
 //! | `schemas/generated/settings-docs.md` | H1 | token rewrite |
 //! | `schemas/generated/settings-help.txt` | header + `lumen` CLI-name tokens | token rewrite |
@@ -662,10 +662,11 @@ fn is_exempt(entries: &[Exempt], path: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 /// The v0 surface set (see the module docs; tauri.conf.json joined in
-/// card 4.H2 as the installer-identity config-file surface).
+/// card 4.H2 as the installer-identity config-file surface — relocated to
+/// `apps/desktop-tauri/tauri.conf.json` by the ADR-004 admission, wave L).
 const SURFACES: [&str; 5] = [
     "product.toml",
-    "apps/desktop/tauri/tauri.conf.json",
+    "apps/desktop-tauri/tauri.conf.json",
     "README.md",
     "schemas/generated/settings-docs.md",
     "schemas/generated/settings-help.txt",

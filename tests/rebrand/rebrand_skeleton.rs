@@ -30,7 +30,7 @@
 //!    fields — each an honest exit-2 with an actionable message.
 //!
 //! Card 4.H2 extensions (the §8.3 acceptance surfaces the build-time plane
-//! can prove without a bundler): dest `apps/desktop/tauri/tauri.conf.json`
+//! can prove without a bundler): dest `apps/desktop-tauri/tauri.conf.json`
 //! carries the Nova installer identity (productName / identifier / window
 //! title — the installer-identity config-file surface) and dest
 //! `schemas/generated/settings-docs.md` carries the Nova header (the
@@ -385,7 +385,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
     // config content is the generation/wiring proof (doc 07 §8.3 step 2):
     // productName + window title + identifier all flow from the fixture.
 
-    let tauri = read(&dest.0, "apps/desktop/tauri/tauri.conf.json");
+    let tauri = read(&dest.0, "apps/desktop-tauri/tauri.conf.json");
     assert!(
         tauri.contains("\"productName\": \"Nova Player\""),
         "dest tauri.conf.json productName: {tauri}"
@@ -435,7 +435,7 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
         touched,
         [
             "product.toml (19 rewrites)",
-            "apps/desktop/tauri/tauri.conf.json (3 rewrites)",
+            "apps/desktop-tauri/tauri.conf.json (3 rewrites)",
             &format!("README.md ({readme_rewrites} rewrites)"),
             "schemas/generated/settings-docs.md (1 rewrite)",
             "schemas/generated/settings-help.txt (4 rewrites)",
@@ -503,7 +503,7 @@ fn reverse_control_real_product_toml_is_a_noop() {
     // repository file (doc 07 §8.3 step 1 reverse control).
     for surface in [
         "product.toml",
-        "apps/desktop/tauri/tauri.conf.json",
+        "apps/desktop-tauri/tauri.conf.json",
         "README.md",
         "schemas/generated/settings-docs.md",
         "schemas/generated/settings-help.txt",
