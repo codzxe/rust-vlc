@@ -42,6 +42,48 @@ describe("SwatchGroup (Settings - global.svg accent row, wave 26)", () => {
     expect(onChange).toHaveBeenCalledWith("gray");
   });
 
+  // j01-14: SwatchGroup had NO disabled coverage at all.
+  it("j01-14: disabled group — every swatch inert", () => {
+    const onChange = vi.fn();
+    render(<SwatchGroup label="Accent color" value="orange" disabled onChange={onChange} />);
+    const swatches = screen.getAllByRole("radio");
+    for (const swatch of swatches) {
+      expect(swatch).toBeDisabled();
+    }
+    fireEvent.click(swatches[1]!);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("j01-14: per-option disabled — the swatch is inert and the arrow keys skip it", () => {
+    const onChange = vi.fn();
+    render(
+      <SwatchGroup
+        label="Accent color"
+        value="orange"
+        onChange={onChange}
+        options={[
+          { value: "orange", label: "Orange" },
+          { value: "red", label: "Red", disabled: true },
+          { value: "yellow", label: "Yellow" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "Red" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Yellow" })).toBeEnabled();
+    // Enabled set = [orange, yellow]; ArrowRight from "orange" skips the
+    // disabled "red" and lands on "yellow".
+    fireEvent.keyDown(screen.getByRole("radiogroup"), { key: "ArrowRight" });
+    expect(onChange).toHaveBeenCalledWith("yellow");
+    expect(onChange).not.toHaveBeenCalledWith("red");
+  });
+
+  // j01-7: the id prop lands on the GROUP element.
+  it("j01-7: id lands on the radiogroup host (aria-describedby wiring)", () => {
+    render(<SwatchGroup id="accent-picker" label="Accent color" value="orange" onChange={() => {}} />);
+    expect(screen.getByRole("radiogroup")).toHaveAttribute("id", "accent-picker");
+    expect(screen.getByRole("radio", { name: "orange" })).toHaveAttribute("id", "accent-picker-orange");
+  });
+
   it("custom options override the default set (localized labels)", () => {
     render(
       <SwatchGroup
