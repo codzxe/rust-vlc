@@ -124,6 +124,9 @@ export function NetworkStreamScreen() {
   }, []);
 
   const openStream = (target: string): void => {
+    // One open in flight — a second submit (Enter while the request is
+    // pending) must not double-send (j16 P3-9).
+    if (opening) return;
     if (!isValidNetworkUrl(target)) {
       setError(m("stream.invalid"));
       return;
@@ -140,16 +143,21 @@ export function NetworkStreamScreen() {
     }
     setOpening(true);
     nextRequestId.current += 1;
+    const requestId = nextRequestId.current;
     void client
       .send({
         cmd: "session.open",
-        requestId: nextRequestId.current,
+        requestId,
         args: { source: { kind: "url", url: target } },
       })
       .catch(() => {
         // Transport unreachable — the player surfaces its own honest error.
       })
       .finally(() => {
+        // A newer submission superseded this one — it owns the exit (j16
+        // P3-9: the counter used to increment without anyone checking, so a
+        // late earlier response could clobber the newer one's navigation).
+        if (requestId !== nextRequestId.current) return;
         setOpening(false);
         navigate("/player");
       });
@@ -158,11 +166,14 @@ export function NetworkStreamScreen() {
   return (
     <Dialog open onClose={exit} labelledBy={titleId} className="network-stream-dialog" closeOnOutsideClick>
       <div className="network-stream" data-testid="network-stream-card">
-        {/* Header — frame strip: 50px #090909, title #8F8F8F, ✕ right. */}
+        {/* Header — frame strip: 50px #090909, title #8F8F8F, ✕ right.
+         * h2 (j16 P3-15): the dialog family shares one heading convention —
+         * h2 titles, h3 section heads (shortcuts + open-media already do);
+         * the AppShell owns the page-level h1. */}
         <header className="network-stream__head">
-          <h1 id={titleId} className="network-stream__title">
+          <h2 id={titleId} className="network-stream__title">
             {m("stream.title")}
-          </h1>
+          </h2>
           <IconButton
             className="network-stream__close"
             label={m("open.close")}
@@ -207,7 +218,11 @@ export function NetworkStreamScreen() {
                 }}
               />
               {error === null ? null : (
-                <p className="network-stream__error" id={urlErrorId}>
+                // role="alert" (j16 P2-4): aria-describedby alone does not
+                // fire on dynamic insertion — the rejected-URL notice must be
+                // ANNOUNCED (the onboarding library step's aria-live notice
+                // is the family precedent).
+                <p className="network-stream__error" id={urlErrorId} role="alert" data-testid="network-stream-error">
                   {error}
                 </p>
               )}
@@ -220,9 +235,9 @@ export function NetworkStreamScreen() {
                 aria-labelledby={recentsTitleId}
                 data-testid="network-stream-recents"
               >
-                <h2 id={recentsTitleId} className="network-stream__recents-title">
+                <h3 id={recentsTitleId} className="network-stream__recents-title">
                   {m("stream.recent")}
-                </h2>
+                </h3>
                 {recents.length === 0 ? (
                   <p className="network-stream__recents-empty">{m("stream.recent.empty")}</p>
                 ) : (
