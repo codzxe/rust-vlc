@@ -4,12 +4,17 @@
 #
 # WHAT SHIPS TODAY: the `lumen` CLI (package lumen-cli, apps/cli — the
 # real engine surface: demux/decode/playback through the ONE command
-# layer) and `lumen-desktop` (package desktop, apps/desktop — the
-# std-only ADR-004 composition-root skeleton, NOT a webview app yet).
-# Payload honesty (W24-R1 P2-4): tar.gz/zip/deb/rpm/msi package BOTH
+# layer), `lumen-desktop` (package desktop, apps/desktop — the std-only
+# ADR-004 composition-root skeleton) and, since W26-M, `lumen-tauri`
+# (package lumen-desktop-tauri, apps/desktop-tauri — the ADR-004
+# webview shell: a workspace-EXCLUDED crate with its own Cargo.lock,
+# built on every lane below; INFRA-BLOCKED.md §B.1/§C).
+# Payload honesty (W24-R1 P2-4): tar.gz/zip/deb/rpm/msi package the
 # binaries + the [shipped] docs list; the AppImage and the macOS
-# .app/.dmg/app-zip are DESKTOP-ONLY GUI-shell payloads (no CLI, no
-# docs) — per-artifact payload table in docs/packaging/README.md.
+# .app/.dmg/app-zip are GUI-shell payloads (no CLI, no docs) —
+# per-artifact payload table in docs/packaging/README.md. The tauri
+# binary rides the SAME installer payloads (the payload lists are
+# packaging-script/config-owned — W26-M T2/T3); no new artifact names.
 # Nothing claims a GUI that does not exist.
 #
 # HONESTY NOTE — THIS WORKFLOW HAS NEVER EXECUTED (CI billing blocked):
@@ -43,9 +48,11 @@
 # packaging-env.py (the W24-C bridge; it wraps and re-uses the wave-22
 # scripts/release/product-env.py). A rebrand, version bump, docs-list
 # change, or checksum-algorithm change touches the TOML only. The
-# single sanctioned exception: the two Cargo package ids in the build
-# command and the packaging-env.py invocation (`lumen-cli`, `desktop`)
-# — crate names needed to address the build, not product identity.
+# single sanctioned exception: the Cargo package ids in the build
+# commands and the packaging-env.py invocation (`lumen-cli`, `desktop`,
+# plus the W26-M tauri pair `lumen-desktop-tauri` +
+# apps/desktop-tauri/Cargo.toml) — crate names/paths needed to address
+# the builds, not product identity.
 # A second, same-shaped exception: the `secrets.<NAME>` references in
 # the signing steps' env: blocks — GitHub's secrets context only takes
 # static keys, so the secret NAMES configured in packaging.toml
@@ -65,6 +72,11 @@
 #   linux:   verify-linux-artifacts.sh (tar.gz + deb + AppImage + rpm
 #            + launch tests + SBOMs + per-set manifest) — the SAME
 #            script proven locally
+#   every OS lane (W26-M): the tauri webview app build —
+#            packaging-env.py --tauri-* (exports BIN_TAURI) + the
+#            ui/dist embed build + cargo build --manifest-path
+#            apps/desktop-tauri (webkit2gtk dev packages on the two
+#            linux lanes; INFRA-BLOCKED.md §B.1/§C)
 #   every job: gen-sboms.sh (per-artifact CycloneDX SBOM)
 #   release job: global checksum manifest (algorithm + name from
 #            packaging.toml) + notes + `gh release create`
@@ -88,16 +100,19 @@
 #                       github.com/AppImage/type2-runtime (x86_64 + aarch64)
 #                       — passed to appimagetool --runtime-file so NO rolling
 #                       runtime is fetched at build time
-# `gh`, `pwsh`, `hdiutil`/`ditto`, `dpkg-deb`, and `apt-get install
-# rpm` are preinstalled/native on their respective runner images
-# [VERIFY at first live run].
+# `gh`, `pwsh`, `hdiutil`/`ditto`, `dpkg-deb`, `apt-get install rpm`,
+# and `node`/`npm` (the ui/dist embed build) are preinstalled/native
+# on their respective runner images [VERIFY at first live run].
 #
 # RUNNER BUDGET (same honesty as ci.yml): this workflow only runs on
 # tag pushes (a handful of times per release cycle, never per-PR). At
 # the private-repo multipliers (windows 2x, macOS 10x) a full run is
 # roughly 6 jobs x ~15-25 raw minutes ≈ 200-300 billed minutes —
 # acceptable ONLY because it is tag-gated. The optional arm64 job is
-# continue-on-error (see its own comment).
+# continue-on-error (see its own comment). W26-M: every lane also
+# builds the workspace-excluded tauri crate (~470-package closure) and
+# the ui/dist npm build — expect the upper end of those ranges (the
+# macOS multiplier bites hardest) [VERIFY at first live run].
 
 name: Release
 
@@ -154,11 +169,44 @@ jobs:
           # python3 is the image default on all three OSes [VERIFY at
           # first live run]; python is the git-bash fallback.
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          # --tauri-package/--tauri-manifest (W26-M): export BIN_TAURI
+          # from the SUBCRATE'S OWN lockfile — apps/desktop-tauri is
+          # workspace-EXCLUDED (root Cargo.toml `exclude`), so the
+          # root cargo metadata this bridge wraps cannot see the
+          # crate; the manifest path addresses it directly.
           "$PY" scripts/packaging/packaging-env.py \
             --cli-package lumen-cli --desktop-package desktop \
+            --tauri-package lumen-desktop-tauri \
+            --tauri-manifest apps/desktop-tauri/Cargo.toml \
             --github-env --github-env-file "$GITHUB_ENV"
-      - name: Build (release, locked — both shipped binaries)
+      - name: Build (release, locked — the two workspace binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Build the embedded UI (ui/dist for tauri-codegen — must precede the tauri build)
+        run: |
+          # ORDER IS LOAD-BEARING (W26-M): tauri.conf.json frontendDist
+          # is ../../ui/dist and tauri-codegen embeds it AT COMPILE
+          # TIME — a missing/stale ui/dist would bake an empty or
+          # stale frontend into the binary. Same ordering rule (and
+          # the same --no-audit/--no-fund invocation) the ci.yml
+          # tauri-check lane proves.
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - name: Build the tauri webview app (workspace-excluded subcrate — release, locked)
+        run: |
+          # NOT a workspace feature: apps/desktop-tauri is EXCLUDED
+          # from the root workspace (root Cargo.toml `exclude`; its
+          # own Cargo.lock carries the tauri closure), so this is the
+          # INFRA-BLOCKED.md §C recipe's exact --manifest-path build
+          # against that lockfile. CARGO_TARGET_DIR=target (workflow
+          # env) lands target/release/lumen-tauri in the SAME target
+          # dir the packaging scripts below stage from.
+          # Windows: NO system webview dev packages — the WebView2
+          # runtime ships with Windows 10/11 (Evergreen) and the
+          # loader rides the wry/tauri dependency closure [VERIFY at
+          # first live run].
+          cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
       - name: Install WiX v5.0.2 (pinned nupkg, SHA-256 verified)
         run: |
           # Deterministic URL: the nuget.org v3 flat-container address of
@@ -310,11 +358,43 @@ jobs:
       - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
         run: |
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          # --tauri-package/--tauri-manifest (W26-M): export BIN_TAURI
+          # from the SUBCRATE'S OWN lockfile — apps/desktop-tauri is
+          # workspace-EXCLUDED (root Cargo.toml `exclude`), so the
+          # root cargo metadata this bridge wraps cannot see the
+          # crate; the manifest path addresses it directly.
           "$PY" scripts/packaging/packaging-env.py \
             --cli-package lumen-cli --desktop-package desktop \
+            --tauri-package lumen-desktop-tauri \
+            --tauri-manifest apps/desktop-tauri/Cargo.toml \
             --github-env --github-env-file "$GITHUB_ENV"
-      - name: Build (release, locked — both shipped binaries)
+      - name: Build (release, locked — the two workspace binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Build the embedded UI (ui/dist for tauri-codegen — must precede the tauri build)
+        run: |
+          # ORDER IS LOAD-BEARING (W26-M): tauri.conf.json frontendDist
+          # is ../../ui/dist and tauri-codegen embeds it AT COMPILE
+          # TIME — a missing/stale ui/dist would bake an empty or
+          # stale frontend into the binary. Same ordering rule (and
+          # the same --no-audit/--no-fund invocation) the ci.yml
+          # tauri-check lane proves.
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - name: Build the tauri webview app (workspace-excluded subcrate — release, locked)
+        run: |
+          # NOT a workspace feature: apps/desktop-tauri is EXCLUDED
+          # from the root workspace (root Cargo.toml `exclude`; its
+          # own Cargo.lock carries the tauri closure), so this is the
+          # INFRA-BLOCKED.md §C recipe's exact --manifest-path build
+          # against that lockfile. CARGO_TARGET_DIR=target (workflow
+          # env) lands target/release/lumen-tauri in the SAME target
+          # dir the packaging scripts below stage from.
+          # macOS: NO system packages — WKWebView/AppKit are
+          # OS-provided frameworks; this build only links them
+          # [VERIFY at first live run].
+          cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
       - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
         # sign-macos.sh (called inside, twice): real codesign/notarytool/
         # stapler when the user-owned Apple credentials exist; explicit
@@ -431,11 +511,43 @@ jobs:
       - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
         run: |
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          # --tauri-package/--tauri-manifest (W26-M): export BIN_TAURI
+          # from the SUBCRATE'S OWN lockfile — apps/desktop-tauri is
+          # workspace-EXCLUDED (root Cargo.toml `exclude`), so the
+          # root cargo metadata this bridge wraps cannot see the
+          # crate; the manifest path addresses it directly.
           "$PY" scripts/packaging/packaging-env.py \
             --cli-package lumen-cli --desktop-package desktop \
+            --tauri-package lumen-desktop-tauri \
+            --tauri-manifest apps/desktop-tauri/Cargo.toml \
             --github-env --github-env-file "$GITHUB_ENV"
-      - name: Build (release, locked — both shipped binaries)
+      - name: Build (release, locked — the two workspace binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Build the embedded UI (ui/dist for tauri-codegen — must precede the tauri build)
+        run: |
+          # ORDER IS LOAD-BEARING (W26-M): tauri.conf.json frontendDist
+          # is ../../ui/dist and tauri-codegen embeds it AT COMPILE
+          # TIME — a missing/stale ui/dist would bake an empty or
+          # stale frontend into the binary. Same ordering rule (and
+          # the same --no-audit/--no-fund invocation) the ci.yml
+          # tauri-check lane proves.
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - name: Build the tauri webview app (workspace-excluded subcrate — release, locked)
+        run: |
+          # NOT a workspace feature: apps/desktop-tauri is EXCLUDED
+          # from the root workspace (root Cargo.toml `exclude`; its
+          # own Cargo.lock carries the tauri closure), so this is the
+          # INFRA-BLOCKED.md §C recipe's exact --manifest-path build
+          # against that lockfile. CARGO_TARGET_DIR=target (workflow
+          # env) lands target/release/lumen-tauri in the SAME target
+          # dir the packaging scripts below stage from.
+          # macOS: NO system packages — WKWebView/AppKit are
+          # OS-provided frameworks; this build only links them
+          # [VERIFY at first live run].
+          cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
       - name: macOS lane (scripts/packaging/build-dmg.sh — bundle, codesign, dmg, notarize, staple)
         # sign-macos.sh (called inside, twice): see macos-arm64. Same
         # six-secret wiring + fail-loud guard (W24-R1 P1-2).
@@ -535,11 +647,58 @@ jobs:
       - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
         run: |
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          # --tauri-package/--tauri-manifest (W26-M): export BIN_TAURI
+          # from the SUBCRATE'S OWN lockfile — apps/desktop-tauri is
+          # workspace-EXCLUDED (root Cargo.toml `exclude`), so the
+          # root cargo metadata this bridge wraps cannot see the
+          # crate; the manifest path addresses it directly.
           "$PY" scripts/packaging/packaging-env.py \
             --cli-package lumen-cli --desktop-package desktop \
+            --tauri-package lumen-desktop-tauri \
+            --tauri-manifest apps/desktop-tauri/Cargo.toml \
             --github-env --github-env-file "$GITHUB_ENV"
-      - name: Build (release, locked — both shipped binaries)
+      - name: Build (release, locked — the two workspace binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install webkit2gtk + GTK dev packages (the tauri build deps — ci.yml tauri-check's proven set)
+        run: |
+          # The tauri/wry webview compiles against webkit2gtk-4.1 on
+          # Linux: these dev packages must be present BEFORE the
+          # subcrate build below. The package list is EXACTLY the one
+          # the ci.yml tauri-check lane installed green (the
+          # INFRA-BLOCKED.md §B.1 dep set); ubuntu-latest and
+          # ubuntu-24.04-arm carry the same names.
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev libsoup-3.0-dev librsvg2-dev libxdo-dev \
+            libssl-dev build-essential
+          pkg-config --exists webkit2gtk-4.1 \
+            || { echo "::error::webkit2gtk-4.1 still absent after install"; exit 1; }
+      - name: Build the embedded UI (ui/dist for tauri-codegen — must precede the tauri build)
+        run: |
+          # ORDER IS LOAD-BEARING (W26-M): tauri.conf.json frontendDist
+          # is ../../ui/dist and tauri-codegen embeds it AT COMPILE
+          # TIME — a missing/stale ui/dist would bake an empty or
+          # stale frontend into the binary. Same ordering rule (and
+          # the same --no-audit/--no-fund invocation) the ci.yml
+          # tauri-check lane proves.
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - name: Build the tauri webview app (workspace-excluded subcrate — release, locked)
+        run: |
+          # NOT a workspace feature: apps/desktop-tauri is EXCLUDED
+          # from the root workspace (root Cargo.toml `exclude`; its
+          # own Cargo.lock carries the tauri closure), so this is the
+          # INFRA-BLOCKED.md §C recipe's exact --manifest-path build
+          # against that lockfile. CARGO_TARGET_DIR=target (workflow
+          # env) lands target/release/lumen-tauri in the SAME target
+          # dir the packaging scripts below stage from.
+          # Linux: the webkit2gtk dev stack installed above is the one
+          # system dependency the webview needs (the only OS in this
+          # workflow with any).
+          cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
       - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
         run: |
           # Two pinned downloads (NOT rolling tags — pinning policy):
@@ -601,7 +760,10 @@ jobs:
   # for infrastructure reasons the release still ships the other five
   # artifact sets. Do not "fix" a red-but-ignored arm64 failure without
   # checking whether it is an infra failure — that is what this flag is
-  # for. Same artifact set + harness as linux-x64.
+  # for. Same artifact set + harness as linux-x64. W26-M: the tauri
+  # steps below (webkit deps, ui/dist, subcrate build) are ordinary
+  # steps of THIS job — they ride the job-level continue-on-error
+  # exactly like everything else; no step-level flag was added on top.
   # ------------------------------------------------------------------------
   linux-arm64:
     name: linux (aarch64 — tar.gz + deb + AppImage + rpm; best-effort)
@@ -631,11 +793,61 @@ jobs:
       - name: Parse product.toml + packaging.toml -> job env (config-driven identity AND packaging)
         run: |
           PY="$(command -v python3 || command -v python)" || { echo "::error::no python3/python on runner"; exit 1; }
+          # --tauri-package/--tauri-manifest (W26-M): export BIN_TAURI
+          # from the SUBCRATE'S OWN lockfile — apps/desktop-tauri is
+          # workspace-EXCLUDED (root Cargo.toml `exclude`), so the
+          # root cargo metadata this bridge wraps cannot see the
+          # crate; the manifest path addresses it directly.
           "$PY" scripts/packaging/packaging-env.py \
             --cli-package lumen-cli --desktop-package desktop \
+            --tauri-package lumen-desktop-tauri \
+            --tauri-manifest apps/desktop-tauri/Cargo.toml \
             --github-env --github-env-file "$GITHUB_ENV"
-      - name: Build (release, locked — both shipped binaries)
+      - name: Build (release, locked — the two workspace binaries)
         run: cargo build --release --locked -p lumen-cli -p desktop
+      - name: Install webkit2gtk + GTK dev packages (the tauri build deps — ci.yml tauri-check's proven set)
+        run: |
+          # The tauri/wry webview compiles against webkit2gtk-4.1 on
+          # Linux: these dev packages must be present BEFORE the
+          # subcrate build below. The package list is EXACTLY the one
+          # the ci.yml tauri-check lane installed green (the
+          # INFRA-BLOCKED.md §B.1 dep set); ubuntu-latest and
+          # ubuntu-24.04-arm carry the same names.
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev libsoup-3.0-dev librsvg2-dev libxdo-dev \
+            libssl-dev build-essential
+          pkg-config --exists webkit2gtk-4.1 \
+            || { echo "::error::webkit2gtk-4.1 still absent after install"; exit 1; }
+      - name: Build the embedded UI (ui/dist for tauri-codegen — must precede the tauri build)
+        run: |
+          # ORDER IS LOAD-BEARING (W26-M): tauri.conf.json frontendDist
+          # is ../../ui/dist and tauri-codegen embeds it AT COMPILE
+          # TIME — a missing/stale ui/dist would bake an empty or
+          # stale frontend into the binary. Same ordering rule (and
+          # the same --no-audit/--no-fund invocation) the ci.yml
+          # tauri-check lane proves.
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - name: Build the tauri webview app (workspace-excluded subcrate — release, locked)
+        run: |
+          # NOT a workspace feature: apps/desktop-tauri is EXCLUDED
+          # from the root workspace (root Cargo.toml `exclude`; its
+          # own Cargo.lock carries the tauri closure), so this is the
+          # INFRA-BLOCKED.md §C recipe's exact --manifest-path build
+          # against that lockfile. CARGO_TARGET_DIR=target (workflow
+          # env) lands target/release/lumen-tauri in the SAME target
+          # dir the packaging scripts below stage from.
+          # Linux: the webkit2gtk dev stack installed above is the one
+          # system dependency the webview needs (the only OS in this
+          # workflow with any).
+          # This whole job is continue-on-error (best-effort): the
+          # tauri steps ride that job-level flag unchanged — no
+          # step-level continue-on-error was added on top.
+          cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
       - name: Install appimagetool 1.9.1 + type2 runtime (pinned, SHA-256 verified)
         run: |
           # aarch64 builds of the same pinned releases (see linux-x64).
@@ -677,6 +889,16 @@ jobs:
   # - generates notes (git log since last tag; docs/RELEASE.md template)
   # - cuts the GitHub release with the PREINSTALLED gh CLI + GITHUB_TOKEN
   #   (no third-party release action), tag refs only
+  #
+  # W26-M RECONCILIATION: this job needed NO step change for the tauri
+  # webview app — the build lanes upload dist/** as before and the
+  # tauri binary rides INSIDE the existing installer payloads (zip/
+  # msi/tar.gz/deb/AppImage/dmg/app-zip; the packaging scripts own the
+  # payload lists), so the dist-* download pattern, the artifact-kind
+  # check, the checksum sweep and `gh release create dist/*` cover it
+  # with zero delta. The workflow_dispatch dry-run rides the same
+  # lanes (nothing here branches on the event type except the
+  # release-cut steps themselves).
   # ------------------------------------------------------------------------
   release:
     name: release (checksum manifest + notes + gh release create)
