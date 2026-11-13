@@ -89,6 +89,11 @@ function Get-SquishedGuid([string]$Guid) {
 
 function Get-InstalledProductCodes() {
     # ProductCodes registered under the (frozen) UpgradeCode.
+    # MSI registry contract: under UpgradeCodes\<squished-upgrade>, each
+    # value NAME is the squished ProductCode and the value DATA is
+    # installer-internal (typically an empty binary blob). The first live
+    # run (release round 5, 2026-11-13) read the DATA and found 0 codes
+    # on a perfectly registered install - read the names.
     $squished = Get-SquishedGuid $env:PRODUCT_MSI_UPGRADE_CODE
     $paths = @(
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UpgradeCodes\$squished",
@@ -99,8 +104,7 @@ function Get-InstalledProductCodes() {
         if (Test-Path $path) {
             $item = Get-Item $path
             foreach ($prop in $item.GetValueNames()) {
-                $val = $item.GetValue($prop)
-                if ($val) { $codes += $val }
+                if ($prop) { $codes += $prop }
             }
         }
     }
@@ -121,7 +125,10 @@ function Invoke-MsiExec([string]$Verb, [string]$MsiPath, [string]$LogFile) {
 
 function Assert-InstalledFiles([string]$Label) {
     $installRoot = Join-Path $env:ProgramFiles $env:PRODUCT_NAME
-    foreach ($bin in @("$($env:BIN_CLI).exe", "$($env:BIN_DESKTOP).exe")) {
+    # All three shipped exes (w26.m.t3 cross-lane note N1: the tauri row
+    # joins the upgrade-test assertion alongside the CLI and desktop
+    # binaries - the MSI ships all three since wave 26-M).
+    foreach ($bin in @("$($env:BIN_CLI).exe", "$($env:BIN_DESKTOP).exe", "$($env:BIN_TAURI).exe")) {
         $p = Join-Path $installRoot $bin
         if (-not (Test-Path $p)) {
             Fail "$Label - expected installed file missing: $p"
