@@ -19,7 +19,12 @@
 #                               .msi_upgrade_code: frozen, stable across
 #                               versions so upgrades replace, not
 #                               co-install)
-#   BIN_CLI / BIN_DESKTOP    -> the two shipped exe file names
+#   BIN_CLI / BIN_DESKTOP / BIN_TAURI
+#                            -> the three shipped exe file names (the
+#                               tauri admission crate's bin is
+#                               workspace-excluded: CI's release workflow
+#                               builds it separately and hands it over
+#                               exactly like the other two)
 # and the DOCS LIST is injected from packaging.toml [shipped] docs by
 # scripts/packaging/packaging-env.py (the W24-C bridge):
 #   PACKAGING_DOCS           -> one <File> row per doc in the Docs
@@ -45,11 +50,16 @@
 # `a&b.md` used to yield malformed XML — a loud wix-build failure, but
 # a broken one; File/@Id stays identifier-sanitized instead).
 #
-# Honest scope: the two binaries + the [shipped] docs list under
+# Honest scope: the three binaries + the [shipped] docs list under
 # Program Files, no Start-Menu shortcut — the desktop shell is the
 # ADR-004 std-only skeleton, and shipping a menu entry for a binary
 # that opens no window would be a false affordance. Revisit when the
-# webview seam lands.
+# webview seam lands. The tauri exe runs its UI on WebView2, a SYSTEM
+# component on Win10/11 (preinstalled on Win11, Evergreen-distributed
+# on Win10) — this installer stages no WebView2 runtime and carries no
+# extra dependency row for it; the assumption is pinned in the
+# generated XML beside the BinTauri component so an auditor sees it
+# without opening this script.
 #
 # Usage: gen-wxs.sh <output.wxs>
 #        gen-wxs.sh --self-test   (regression test: hostile filenames
@@ -95,6 +105,7 @@ generate_wxs() {
     : "${PRODUCT_MSI_UPGRADE_CODE:?gen-wxs.sh: PRODUCT_MSI_UPGRADE_CODE not set}"
     : "${BIN_CLI:?gen-wxs.sh: BIN_CLI not set}"
     : "${BIN_DESKTOP:?gen-wxs.sh: BIN_DESKTOP not set}"
+    : "${BIN_TAURI:?gen-wxs.sh: BIN_TAURI not set (the tauri admission bin — required like BIN_CLI/BIN_DESKTOP)}"
     : "${PACKAGING_DOCS:?gen-wxs.sh: PACKAGING_DOCS not set (run packaging-env.py first — the docs list is packaging.toml [shipped] docs; a hardcoded LICENSE/README pair here would silently ignore docs-list changes)}"
 
     esc_name=$(xml_escape "$PRODUCT_NAME")
@@ -164,6 +175,15 @@ generate_wxs() {
         <Component Id="BinDesktop" Guid="*">
           <File Id="BinDesktopExe" Source="${BIN_DESKTOP}.exe" KeyPath="yes" />
         </Component>
+        <!-- WebView2 assumption: the tauri exe renders through the
+             WebView2 Evergreen Runtime, a system component on
+             Win10/11 (preinstalled on Win11; distributed by the
+             Evergreen setup on Win10). No runtime is bundled or
+             bootstrapped here. Kept in lockstep with the twin
+             generator (change both together). -->
+        <Component Id="BinTauri" Guid="*">
+          <File Id="BinTauriExe" Source="${BIN_TAURI}.exe" KeyPath="yes" />
+        </Component>
         <Component Id="Docs" Guid="*">
 ${docs_xml}        </Component>
       </Directory>
@@ -171,6 +191,7 @@ ${docs_xml}        </Component>
     <Feature Id="Main" Level="1" Title="${esc_name}">
       <ComponentRef Id="BinCli" />
       <ComponentRef Id="BinDesktop" />
+      <ComponentRef Id="BinTauri" />
       <ComponentRef Id="Docs" />
     </Feature>
   </Package>
@@ -212,6 +233,7 @@ self_test() {
     PRODUCT_MSI_UPGRADE_CODE="11111111-2222-3333-4444-555555555555"
     BIN_CLI=selftest-cli
     BIN_DESKTOP=selftest-desktop
+    BIN_TAURI=selftest-tauri
     PACKAGING_DOCS="a&b<c>\"d\".md it's.md"
 
     generate_wxs
@@ -232,6 +254,30 @@ for hostile in ("a&b<c>\"d\".md", "it's.md"):
     assert hostile in sources, (
         f"doc basename did not round-trip through the XML escaping: "
         f"{hostile!r} not in {sources!r}")
+
+# The three shipped exe rows (CLI, desktop, tauri) must all be present,
+# each as its component's KeyPath (the w26.m.t3 payload added BinTauri).
+exe_rows = ('selftest-cli.exe', 'selftest-desktop.exe', 'selftest-tauri.exe')
+for exe in exe_rows:
+    assert exe in sources, f"shipped exe row missing from the generated .wxs: {exe!r}"
+for f in files:
+    if f.get("Source") in exe_rows:
+        assert f.get("KeyPath") == "yes", (
+            f"exe File row is not its component's KeyPath: {f.get('Source')!r}")
+
+# Every component must be referenced by the Feature, by Id= (a RefId=
+# typo would silently ship a component outside the feature — exactly
+# the regression class the payload lanes guard against).
+comp_ids = {c.get("Id") for c in root.findall(f".//{ns}Component")}
+ref_ids = {r.get("Id") for r in root.findall(f".//{ns}ComponentRef")}
+assert comp_ids, "no Component elements generated"
+assert comp_ids == ref_ids, (
+    f"Feature ComponentRefs do not cover every component: "
+    f"components={sorted(comp_ids)!r} refs={sorted(ref_ids)!r}")
+for r in root.findall(f".//{ns}ComponentRef"):
+    assert r.get("Id") and "RefId" not in r.attrib, (
+        "ComponentRef must carry Id= (never a RefId= attribute)")
+assert "BinTauri" in comp_ids, "the BinTauri component row is missing"
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,
@@ -254,7 +300,8 @@ assert root.find(f"{ns}Package").get("Name") == 'A&B "C" <D>', (
 
 print(f"gen-wxs.sh: --self-test PASS "
       f"({len(files)} File rows parsed; hostile basenames + identity "
-      f"round-trip; escape set pinned on raw text; ids sanitized)")
+      f"round-trip; escape set pinned on raw text; ids sanitized; "
+      f"exe rows KeyPath; Feature refs cover every component by Id=)")
 PYEOF
 }
 

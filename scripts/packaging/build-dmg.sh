@@ -32,6 +32,8 @@
 #
 # Inputs (environment; set by the release workflow via
 # scripts/packaging/packaging-env.py): PRODUCT_*, BIN_DESKTOP,
+# BIN_TAURI (the third shipped binary — staged into the .app by
+# make-app.sh, guarded here like BIN_DESKTOP),
 # OS_ID=macos, ARCH_ID (aarch64|x86_64), PACKAGING_MACOS_UNIVERSAL,
 # TARGET_DIR (default "target"), DIST_DIR (default "dist"),
 # APP_DIR (where the .app is staged; default "bundle").
@@ -49,6 +51,11 @@ set -eu
 : "${PRODUCT_LOWER:?build-dmg.sh: PRODUCT_LOWER not set}"
 : "${PRODUCT_VERSION:?build-dmg.sh: PRODUCT_VERSION not set}"
 : "${BIN_DESKTOP:?build-dmg.sh: BIN_DESKTOP not set}"
+# Third shipped binary, REQUIRED like BIN_DESKTOP: make-app.sh stages
+# it into Contents/MacOS (the tauri bin embeds its web UI via
+# tauri-codegen — no extra Resources; WKWebView is system-provided on
+# macOS 11+, the bundle's LSMinimumSystemVersion).
+: "${BIN_TAURI:?build-dmg.sh: BIN_TAURI not set}"
 : "${OS_ID:?build-dmg.sh: OS_ID not set}"
 : "${ARCH_ID:?build-dmg.sh: ARCH_ID not set}"
 : "${PACKAGING_MACOS_UNIVERSAL:?build-dmg.sh: PACKAGING_MACOS_UNIVERSAL not set (run packaging-env.py first)}"
