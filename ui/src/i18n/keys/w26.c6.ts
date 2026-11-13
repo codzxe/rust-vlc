@@ -9,6 +9,9 @@
 // lane seam-first resolvers (see PlaylistPanel.tsx / DiscoveryScreen.tsx /
 // PlayerScreen.tsx), so the copy renders identically before and after.
 export const keys = {
+  // w26.k18 (j18 F4): player.canvas.menu.show-queue/hide-queue pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   // Queue-row context menu (playlist context menu.svg — 8 icon rows).
   "playlist.queue.menu.title": "Queue item actions",
   "playlist.queue.menu.play": "Play",
@@ -37,7 +40,5 @@ export const keys = {
   "player.canvas.menu.more-settings": "More Settings",
   "player.canvas.menu.open-media": "Open Media",
   "player.canvas.menu.quit": "Quit VLC",
-  "player.canvas.menu.show-queue": "Show queue panel",
-  "player.canvas.menu.hide-queue": "Hide queue panel",
   "player.canvas.menu.open-playlist": "Open playlist",
 } as const;
