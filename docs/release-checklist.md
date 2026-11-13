@@ -232,3 +232,26 @@ known-limits cross-references live in `docs/KNOWN-LIMITS.md`. When a
 row's reality changes (billing unblocked, R-35 resolved, F-1/F-2
 merged), edit the row and strike the blocker — never delete history
 silently; the RC report is the record of what was true at each RC.
+
+## 9. RC 1 record (v0.1.0, 2026-11-13) — the first real run
+
+Executed after the §7 blockers moved: billing unblocked 2026-11-12
+(also unblocked: the 3-OS hosted runners, the workflow_dispatch dry-run
+path, the tag path, the checksum manifest generation — rows below
+STRUCK in place per §8's rule; history preserved above).
+
+| Row | Was | Now (evidence) |
+|---|---|---|
+| §3.1 pipeline execution | never executed (billing) | **EXECUTED**: dry-runs + two tag runs; final green = 43466814633 (@a64b7030) — all 5 OS jobs + release job; the windows upgrade test green twice |
+| §4.2 checksum manifest | blocked (billing) | **EXECUTED** — global `SHA256SUMS.txt` + per-set manifests in the published release |
+| §6.5 dry-run first | — | done (43461062527, green end to end) before the tag |
+| §6.6 tag run | blocked (billing) | **DONE** — v0.1.0 published 17:00:58Z, 40 assets, body bounded at 120k chars (422 fix, round 18) |
+| §3.3 install/launch/uninstall | 3-OS runners owed | CI half EXECUTED (MSI upgrade test green ×2; Linux verify+launch harness green in every payload job); the HUMAN post-release sanity (§6.7: download from the release page, `sha256sum --check`, install+launch+uninstall per OS) remains OWED by the user |
+| §3.4 update-URL wiring | — | unchanged (no update server yet; row stands) |
+| ADR-010 sign-off (§7) | proposed | **STILL PROPOSED** — shipped on the user's explicit instruction (issue #66); sign-off by user + counsel remains owed and is the top open governance item |
+| macOS codesign / Windows signing (§7) | credentials absent | still absent — the release ships honestly labeled-unsigned (`*.UNSIGNED.txt` sidecars; the workflow warns and names the owners) |
+| §1.6 brand assets (§7) | missing | still missing — deterministic generated icon ships (RELEASE.md known-limit 5); row stands |
+
+Post-release TODO (user): §6.7 human sanity per OS; ADR-010 decision;
+brand assets or recorded waiver; signing credentials (blockers table
+owners). The RC report above is the record of what was true at RC 1.

@@ -166,3 +166,46 @@ three bullets below), and a generation footer pointing here.
 7. **Budget**: the pipeline runs only on `v*` tags (never per-PR) —
    ~5 jobs × 15–25 raw minutes at private-repo multipliers
    (Windows 2×, macOS 10×) per release.
+
+## First real run (v0.1.0, 2026-11-13) — the record
+
+The pipeline's first live tag run, with every [VERIFY] cleared against
+real runner behavior:
+
+- **Release**: https://github.com/codzxe/rust-vlc/releases/tag/v0.1.0 —
+  published 17:00:58Z from run 43466814633 (tag `v0.1.0` @ `a64b7030`).
+- **Iterations (2)**: the first tag run (43464162696) died on the LAST
+  step — `gh release create` HTTP 422 "body is too long (maximum is
+  125000 characters)"; the notes carry the full git-log range since the
+  previous tag (`backup-2026-10-20..v0.1.0`, three weeks of history).
+  Fix: the gh step bounds the body at 120,000 characters with an
+  honest truncation footer (release.yml, round 18); tag re-cut on the
+  fixed commit (no draft was left behind — releases API verified).
+- **Asset inventory (40)**: per-OS/arch — Linux x64+arm64
+  (tar.gz/deb/rpm/AppImage + per-set SHA256SUMS + .spec), macOS x64
+  +arm64 (dmg/zip), Windows x64 (zip/msi + .wxs/.wixpdb audit source);
+  per-artifact SBOMs (`.sbom.cdx.json`, CycloneDX 1.5); the global
+  `SHA256SUMS.txt`. Both `lumen` and `lumen-desktop` binaries in every
+  package. `gh` preinstalled: VERIFIED (the tool ran; the payload was
+  the first failure).
+- **MSI upgrade-path test**: green twice (dry-run 43461062527 + tag
+  run 43466814633) — install → REPLACE (new ProductCode
+  `FF3F9614…` → `30E6F8AD…`, replaced not co-installed) → uninstall
+  clean (0 codes, dir removed). The canonical squished-GUID probe
+  (`25a6f1c7e3d9a8b4…`) found the registration first try after rounds
+  10–11 chased byte-order-reversal variants that never match a key
+  Windows writes.
+- **Signing**: honestly labeled-unsigned — `*.UNSIGNED.txt` sidecars
+  ship beside the dmg/msi; the signing-credentials step warned (the
+  eight configured names are all absent; blockers table owners: user).
+- **Shipped-open items (the honest list)**:
+  - ADR-010 (codec patent / redistribution posture) is still
+    `proposed` — its deciders are user + counsel and its hard trigger
+    is "before any public binary distribution". This release shipped
+    publicly on the user's explicit standing instruction (issue #66);
+    the ADR-010 sign-off remains owed and is recorded as such.
+  - `assets/brand/*` still placeholder-driven (known-limit 5 above);
+    the Linux/MSI packages ship the deterministic accent-color icon.
+  - macOS/Windows launch verdicts stay BEST-EFFORT-PENDING per
+    ADR-004's own rule (a runner session is not a real desktop);
+    the human/GUI confirmation half is owed on real hardware.

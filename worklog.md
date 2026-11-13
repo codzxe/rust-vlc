@@ -1988,3 +1988,34 @@ Stage Summary:
 - Round 18 pushed; tag v0.1.0 re-cut on it. The re-run is expected
   green end to end: OS jobs unchanged-and-green, the release job now
   bounded under the cap.
+---
+Task ID: w26.lead-round19
+Agent: Lead (orchestrator)
+Task: The first release is LIVE -- record it, close #66 and #67.
+
+Work Log:
+- The re-cut tag run (43466814633) is GREEN end to end. The GitHub
+  Release is PUBLISHED: https://github.com/codzxe/rust-vlc/releases/
+  tag/v0.1.0 (17:00:58Z, 40 assets, body 118,906 chars with the
+  truncation footer, title "Lumen 0.1.0-dev"). Inventory verified via
+  the releases API: Linux x64+arm64 (tar.gz/deb/rpm/AppImage + per-set
+  SHA256SUMS + .spec), macOS x64+arm64 (dmg/zip), Windows x64
+  (zip/msi + .wxs/.wixpdb), per-artifact SBOMs, global SHA256SUMS.txt,
+  UNSIGNED sidecars (honest labeled-unsigned).
+- docs/RELEASE.md: "First real run (v0.1.0)" section -- both tag-run
+  iterations (the 422 + the 120k bound), the asset inventory, the
+  upgrade test's two greens, signing status, and the honest
+  shipped-open list (ADR-010 still proposed -- shipped on the user's
+  explicit standing instruction, sign-off by user+counsel owed; brand
+  placeholders; macOS/Windows human launch confirmation owed per
+  ADR-004's rule).
+- docs/release-checklist.md: §9 "RC 1 record" -- the §7 blocker rows
+  STRUCK in place with evidence (billing, runners, tag path, checksum
+  generation); the still-open rows stand (ADR-010, signing, brand,
+  the human §6.7 sanity).
+- Closed #67 and #66 with evidence comments (admission + 3-OS
+  installers green; release published with all assets).
+
+Stage Summary:
+- Issues #66 + #67 CLOSED. Remaining: #65 acceptance verification
+  (nightly visual + zero P0/P1) and #59 (the phase8-exit record).
