@@ -46,6 +46,7 @@ import { useClient } from "../../../client/ClientProvider";
 import { isDemoTransport, type DemoRecentEntry } from "../../../client/demo-transport";
 import { openPathRequest, openPathRoute } from "../../../client/open-path";
 import type { CommandError, SourceSpec } from "../../../generated/commands";
+import { useLaneMsg } from "../laneMsg";
 import {
   ERROR_ACTION_MESSAGE_KEYS,
   STAGE_MESSAGE_KEYS,
@@ -338,6 +339,12 @@ const AUDIO_FILE_EXTENSIONS: readonly string[] = [
 ];
 
 const isAudioSource = (source: SourceSpec): boolean => {
+  // [VERIFY] w26.k06 (j06 §6 deduction): PRESENTATION-ONLY classification
+  // heuristic — url substrings "ice"/"radio" will misfile an ice-video URL
+  // (e.g. an Icecast video stream renders under "Listen Again"). Honest
+  // enough for the home face's card grouping while no engine track-kind
+  // seam exists for remembered openings; if the engine ever exposes track
+  // kinds for history, switch this to that truth.
   const text = source.kind === "file" ? source.path : source.url;
   const lower = text.toLowerCase();
   if (source.kind === "url" && (lower.includes("ice") || lower.includes("radio"))) return true;
@@ -411,14 +418,11 @@ export function HomeOverlay({
 }: {
   recents: readonly DemoRecentEntry[];
 }) {
-  const m = useMsg();
   const client = useClient();
   const nextRequestId = useRef(0);
-  const catalog: Readonly<Record<string, string>> = gfixCKeys;
-  /** Lane resolver (contract §4.5): catalog first, w26.gfixC lane copy while
-   * unregistered — identical before/after the Lead's merge. */
-  const tm = (key: MessageKey | keyof typeof gfixCKeys): string =>
-    m(key as MessageKey) ?? catalog[key as string];
+  // w26.k06 (J06-9): the shared lane resolver (../laneMsg) — was a local
+  // catalog-first closure, one of four divergent player copies.
+  const tm = useLaneMsg(gfixCKeys);
 
   const videos = recents.filter((entry) => !isAudioSource(entry.source));
   const audios = recents.filter((entry) => isAudioSource(entry.source));
