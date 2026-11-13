@@ -44,8 +44,17 @@ import type { ReactElement } from "react";
  *   - equalizer = sheet name=preferences (3 sliders + offset nubs);
  *   - thumbnail = View Options.svg Rectangle 22-25 (2×2 grid of 7.25×6.5
  *     r1.25 tiles);
- *   - hide-ui = right-click menu.svg "Hide UI" row (Rectangle 2 + Vector 115);
- *   - vlc = sheet name=vlc (traffic cone), the title-bar logo simplified.
+ *   - hide-ui = right-click menu.svg "Hide UI" row (Rectangle 2 + Vector 115).
+ *
+ * W26.K04 PRUNE (j04-4, issue #64): 9 registry names removed after an
+ * exhaustive quoted-literal grep of ui/src showed ZERO consumers — the window
+ * controls minimize/maximize (the appshell ships its own 2px-stroke family in
+ * shellGlyphs.tsx — the "[PROPOSAL] promote these into the registry" decision
+ * stays with the Lead; re-mine from the sheet when a consumer lands), the
+ * unused left-sidebar/collapse-sidebar/expand-sidebar toggles (only
+ * right-sidebar is consumed — AppShell.tsx), the person/wand alias twins
+ * (profile/customize-player carry the same glyphs), and accessibility + vlc
+ * (no host uses them). Registry: 76 names (32 wave-1 frozen + 44 a07).
  *
  * GEOMETRY CONVENTIONS:
  *   - 24×24 viewBox, no rescaling: paths are translated from sheet coordinates
@@ -63,7 +72,7 @@ import type { ReactElement } from "react";
  *     is used here with the shell's centred 1.5 stroke, so those outlines
  *     extend ~0.75u outward instead of inward; shape geometry is identical.
  *     The doubled sw=3 mask twin is dropped (w26.a07 applies the same rule to
- *     the new left-sidebar/collapse-sidebar/expand-sidebar/tv entries).
+ *     the tv entry).
  *
  * W26.i16 TWO-TONE EXTENSION (h18 defect #3 — "icon accent binary orange,
  * never two-tone"): every menu frame paints its row icons TWO-TONE — quiet
@@ -97,16 +106,10 @@ export type IconName =
   | "volume-high"
   // window/title-bar controls (Player.svg Vector 22_2/22_3, sheet name=minimize/maximize/fullscreen)
   | "fullscreen"
-  | "minimize"
-  | "maximize"
   // chrome: hamburger (Controls.svg Icon Wrapper_4), ✕ (sheet name=close), ⋯ (sheet name=more)
   | "menu"
   | "close"
   | "more"
-  // sidebar toggles (sheet name=sidebar direction=left|right, collapse-sidebar, expand-sidebar)
-  | "left-sidebar"
-  | "collapse-sidebar"
-  | "expand-sidebar"
   // navigation & data utilities (sheet name=search/sort/list/lists/grid/add/check/chevron)
   | "search"
   | "sort"
@@ -120,11 +123,10 @@ export type IconName =
   | "chevron-down"
   | "chevron-left"
   | "chevron-right"
-  // content models (sheet name=folder/playlist/queue/person/profile/artist/favorite)
+  // content models (sheet name=folder/playlist/queue/profile/artist/favorite)
   | "folder"
   | "playlist"
   | "queue"
-  | "person"
   | "profile"
   | "artist"
   | "favorite"
@@ -134,7 +136,6 @@ export type IconName =
   | "subtitles"
   // aliases for the redesign vocabulary mapped onto identical sheet geometry
   | "info" // = sheet name=info, same glyph as "about"
-  | "wand" // = sheet name=paint, same glyph as "customize-player"
   // menu/context-menu utilities (sheet name=recent/refresh/save/edit/remove/music/chapters/bookmark)
   | "recent"
   | "refresh"
@@ -144,17 +145,15 @@ export type IconName =
   | "music"
   | "chapters"
   | "bookmark"
-  // settings areas (sheet name=interface/privacy/playback/plugins/tv/wrench/accessibility)
+  // settings areas (sheet name=interface/privacy/playback/plugins/tv/wrench)
   | "interface"
   | "privacy"
   | "playback"
   | "plugins"
   | "tv"
   | "wrench"
-  | "accessibility"
-  // misc (sheet name=divider/vlc; right-click menu.svg "Hide UI")
+  // misc (sheet name=divider; right-click menu.svg "Hide UI")
   | "divider"
-  | "vlc"
   | "hide-ui"
   // customize-panel button catalog (doc 08 §1.6 Player - customize)
   | "skip-back-10"
@@ -314,12 +313,6 @@ const glyphs: Record<IconName, ReactElement> = {
   // to Player.svg title bar Vector 22_3
   "fullscreen": <path d="M9.6 6H6V9.6M14.4 6H18V9.6M18 14.4V18H14.4M9.6 18H6V14.4" />,
 
-  // Icon.svg "name=minimize" (Frame_86) — 12u baseline
-  "minimize": <path d="M6 12H18" />,
-
-  // Icon.svg "name=maximize" (Frame_87) — 12×12 square; identical to Player.svg title-bar Vector 22_2
-  "maximize": <path d="M6 6H18V18H6V6Z" />,
-
   // Hamburger — Controls.svg "Icon Wrapper_4"/Icon_8 (Vector/Vector_2…Vector_6) and
   // Player.svg bottom bar (Vector_4-6 + Vector_6/8): three rows of 1u nub + 12u line at 5u pitch
   "menu": (
@@ -349,33 +342,6 @@ const glyphs: Record<IconName, ReactElement> = {
       <path d="M6 12L6 12" strokeWidth={3} />
       <path d="M12 12L12 12" strokeWidth={3} />
       <path d="M18 12L18 12" strokeWidth={3} />
-    </>
-  ),
-
-  // Icon.svg "name=sidebar, direction=left" (Frame_46: mask shape + Rectangle 4_2 bar)
-  // — the Player.svg title-bar sidebar toggle (Rectangle 2 + Rectangle 4)
-  "left-sidebar": (
-    <>
-      <path d="M3 6C3 4.343 4.343 3 6 3H18C19.657 3 21 4.343 21 6V18C21 19.657 19.657 21 18 21H6C4.343 21 3 19.657 3 18V6Z" />
-      <rect x="6" y="6" width="2" height="12" rx="0.5" fill="currentColor" stroke="none" />
-    </>
-  ),
-
-  // Icon.svg "name=collapse-sidebar" (Frame_51) — panel + left bar + arrow pointing into the rail
-  "collapse-sidebar": (
-    <>
-      <path d="M3 6C3 4.343 4.343 3 6 3H18C19.657 3 21 4.343 21 6V18C21 19.657 19.657 21 18 21H6C4.343 21 3 19.657 3 18V6Z" />
-      <rect x="6" y="6" width="2" height="12" rx="0.5" fill="currentColor" stroke="none" />
-      <path d="M13.143 14L11 12L13.143 10M11 12H17" />
-    </>
-  ),
-
-  // Icon.svg "name=expand-sidebar" (Frame_50) — panel + left bar + arrow pointing away
-  "expand-sidebar": (
-    <>
-      <path d="M3 6C3 4.343 4.343 3 6 3H18C19.657 3 21 4.343 21 6V18C21 19.657 19.657 21 18 21H6C4.343 21 3 19.657 3 18V6Z" />
-      <rect x="6" y="6" width="2" height="12" rx="0.5" fill="currentColor" stroke="none" />
-      <path d="M14.857 14L17 12L14.857 10M17 12H11" />
     </>
   ),
 
@@ -481,8 +447,7 @@ const glyphs: Record<IconName, ReactElement> = {
     </>
   ),
 
-  // Icon.svg "name=profile" (Frame 1_22) — alias "person": head + shoulders
-  "person": personGlyph,
+  // Icon.svg "name=profile" (Frame 1_22) — head + shoulders
   "profile": personGlyph,
 
   // Icon.svg "name=artist" (Frame 1_21) — person + eighth note (attribution)
@@ -750,9 +715,6 @@ const glyphs: Record<IconName, ReactElement> = {
 
   // ===== w26.a07 additions (menus, settings areas, misc) =====
 
-  // Icon.svg "name=paint" (Rectangle 256 + Vector 100) — alias of "customize-player": the wand
-  "wand": wandGlyph,
-
   // Icon.svg "name=recent" (Frame 1_28) — clock with rewind arrow; identical to
   // menu.svg "Open Recent" (Ellipse 12 + Vector 101).
   // w26.i16 two-tone (menu.svg option_7 / sheet two-tone=yes): clock circle +
@@ -844,26 +806,8 @@ const glyphs: Record<IconName, ReactElement> = {
   // its source stroke-width 1.28571
   "wrench": <path d="M16.0875 3.2715H14.2265C13.9995 3.2715 13.7815 3.3615 13.6205 3.5225L11.5505 5.5915C11.3905 5.7525 11.2995 5.9705 11.2995 6.1975V9.7735C11.2995 10.0005 11.2095 10.2185 11.0485 10.3795L3.9405 17.4875C3.2715 18.1575 3.2715 19.2425 3.9405 19.9125L4.0875 20.0595C4.7575 20.7285 5.8425 20.7285 6.5125 20.0595L13.6205 12.9515C13.7815 12.7905 13.9995 12.7005 14.2265 12.7005H17.8025C18.0295 12.7005 18.2475 12.6095 18.4085 12.4495L20.4775 10.3795C20.6385 10.2185 20.7285 10.0005 20.7285 9.7735V7.9125C20.7285 7.1485 19.8055 6.7665 19.2655 7.3065L17.5505 9.0205C17.3905 9.1815 17.1725 9.2715 16.9445 9.2715H15.5855C15.1125 9.2715 14.7285 8.8875 14.7285 8.4145V7.0555C14.7285 6.8275 14.8185 6.6095 14.9795 6.4495L16.6935 4.7345C17.2335 4.1945 16.8515 3.2715 16.0875 3.2715Z" strokeWidth={1.28571} />,
 
-  // Icon.svg "name=accessibility" (Frame 1_25) — person in circle
-  "accessibility": (
-    <>
-      <circle cx="12" cy="12" r="11" />
-      <circle cx="12" cy="6" r="2" fill="currentColor" stroke="none" />
-      <path d="M12 13L9 19M12 13L15 19M12 13V11.81V10.619M12 10.619L13 10.295L17 9M12 10.619L11 10.295L7 9" />
-    </>
-  ),
-
   // Icon.svg "name=divider" (Frame_72) — vertical rule (customize panel separators)
   "divider": <path d="M12 3V21" />,
-
-  // Icon.svg "name=vlc" (Frame 4) — the traffic-cone mark, all filled
-  "vlc": (
-    <>
-      <path d="M16.8185 14.5665L17.2075 15.7335C16.0415 16.5885 14.2535 17.3665 12.0775 17.3665C9.8235 17.3665 8.1135 16.5885 6.9485 15.7335L7.3365 14.5665H5.5495C5.1605 14.5665 4.9275 14.7995 4.7715 15.1115L3.0625 21.6445C2.9065 22.1115 3.2955 22.6555 3.8395 22.6555H20.2385C20.7825 22.6555 21.0935 22.1885 21.0155 21.6445L19.2285 15.1115C19.1505 14.7995 18.8395 14.5665 18.4505 14.5665H16.8185Z" fill="currentColor" stroke="none" />
-      <path d="M7.8805 12.3105C8.8135 13.0105 10.2125 13.6325 12.0005 13.6325C13.7875 13.6325 15.1865 12.9325 16.1195 12.3105L15.0315 8.5775C14.3315 9.0445 13.3215 9.3555 12.0005 9.3555C10.6785 9.3555 9.6685 8.9665 8.9685 8.5775L7.8805 12.3105Z" fill="currentColor" stroke="none" />
-      <path d="M9.9795 4.9995L10.6785 2.5885C11.0675 1.3445 12.8545 1.3445 13.2435 2.5885L13.9425 4.9995C13.3985 5.1555 12.7775 5.3115 11.9995 5.3115C11.2225 5.3115 10.6005 5.1555 9.9795 4.9995Z" fill="currentColor" stroke="none" />
-    </>
-  ),
 
   // right-click menu.svg "Hide UI" row — rounded square + diagonal (Rectangle 2 +
   // Vector 115).
@@ -953,7 +897,8 @@ export function getTwoToneGlyph(name: IconName): ReactElement {
   return twoToneGlyphs[name] ?? glyphs[name];
 }
 
-/** w26.i16 — does this glyph carry a two-tone variant? (test hook) */
+/** w26.i16 — does this glyph carry a two-tone variant? (test hook — asserted
+ * in Icon.test.tsx since w26.k04, j04-7) */
 export function hasTwoToneVariant(name: IconName): boolean {
   return twoToneGlyphs[name] !== undefined;
 }
