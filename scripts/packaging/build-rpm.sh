@@ -158,12 +158,20 @@ composition-root binary and the tauri admission shell) install under
 scriptlets.
 
 %prep
-# The tarball's top-level dir is made to MATCH %{name}-%{version} (the
-# ~-mapped rpm_version) via tar --transform below — %setup's default cd
-# then lands on the real payload dir. History: round 3 tried %setup -n
-# (pinning the dash dir), but the hosted runner's rpm 4.2x ignored -n
-# for the cd (run 43406493996: `cd lumen-0.1.0~dev` still fired, line
-# 41) — the robust contract is the tarball layout, not macro options.
+# The tarball's top-level dir is made to MATCH name-version (the
+# ~-mapped rpm_version) via tar --transform below, so the setup macro's
+# default cd lands on the real payload dir. History: round 3 pinned the
+# dash dir via the setup macro's -n option, but the hosted runner's rpm
+# 4.2x ignored it for the cd (run 43406493996, script line 41) — the
+# robust contract is the tarball layout, not macro options.
+#
+# NOTE: this comment deliberately contains NO percent-macros — rpm
+# expands percent-tokens INSIDE spec comments too, and a comment naming
+# the setup macro was parsed AS a macro call on the round-2 dry run
+# (run 43409164395: 'Bad setup option -n: missing argument' at spec
+# line 31, which garbled the whole prep script). Every comment in a
+# generated spec must be macro-free; the macros live in the commands
+# only.
 %setup -q
 
 %build
@@ -171,12 +179,13 @@ scriptlets.
 # by rpmbuild. Nothing to compile here.
 
 %install
-# %setup left cwd INSIDE the extracted top-dir (= the payload root:
-# usr/, share/...); `cp -a .` copies the CONTENTS into the buildroot
-# (verified locally: `cp -a . dest/` copies children, not the dir
-# itself). The old `${name}-${version}/.` path was written for a
-# buildroot-relative cwd and died "cannot stat" the moment %prep's cwd
-# changed (aarch64, run 43406493996).
+# The setup macro left cwd INSIDE the extracted top-dir (= the payload
+# root: usr/, share/...); cp -a with a dot operand copies the CONTENTS
+# into the buildroot (verified locally: `cp -a . dest/` copies
+# children, not the dir itself). The old dir-prefixed path was written
+# for a buildroot-relative cwd and died "cannot stat" the moment the
+# prep cwd semantics changed (aarch64, run 43406493996). Comment stays
+# macro-free per the prep note above.
 cp -a . "%{buildroot}/"
 
 %files
