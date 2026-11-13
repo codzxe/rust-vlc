@@ -236,3 +236,117 @@ describe("Slider (doc 08 §4/§4.5: role=slider)", () => {
     }
   });
 });
+
+/* ------------------------------------------------------------------------- */
+/* w26.k03 (j03 P1-1/P1-2/P2-8) — L8 flush geometry pinned by PIXEL MATH.     */
+/*                                                                            */
+/* The g16-P2-3 thumb formula shipped without its fill counterpart on the base */
+/* scope (P1-1) and never vertically (P1-2); both survived three fix waves     */
+/* because nothing evaluated the formulas. These tests parse the CSS source    */
+/* (B1 pattern) and COMPUTE the geometry at real track sizes, asserting the   */
+/* flush identity at every probed p — a reverted formula fails the math, not   */
+/* just a string compare.                                                     */
+/* ------------------------------------------------------------------------- */
+
+const sliderCssCode = sliderCss.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** One rule body for `selector` (comment-stripped source, first match). */
+const cssBody = (selector: string): string =>
+  sliderCssCode.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+
+/** One declaration value out of a rule body. */
+const decl = (selector: string, prop: string): string =>
+  cssBody(selector).match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+
+/** The px number of an `Npx` declaration. */
+const px = (selector: string, prop: string): number => {
+  const value = decl(selector, prop);
+  const m = value.match(/^(-?\d+(?:\.\d+)?)px$/);
+  expect(m, `${selector} { ${prop}: ${value} } is not a plain px length`).not.toBeNull();
+  return Number(m![1]);
+};
+
+/**
+ * The L8 travel grammar `calc((100% - Npx) * var(--lumen-slider-*, 0) / 100 [- Mpx])`
+ * parsed into its exact pixel constants: the travel extent is `(track - N)`,
+ * the position offset is `post` (negative = inset-shifted start).
+ */
+const travel = (selector: string, prop: string): { extentLess: number; post: number } => {
+  const value = decl(selector, prop);
+  const m = value.match(/^calc\(\(100% - (\d+)px\) \* var\(--lumen-slider-(?:fill|thumb), 0\) \/ 100(?: - (\d+)px)?\)$/);
+  expect(m, `${selector} { ${prop}: ${value} } is not the L8 travel grammar`).not.toBeNull();
+  return { extentLess: Number(m![1]), post: m![2] === undefined ? 0 : -Number(m![2]) };
+};
+
+/** The bottom component of a vertical `inset: auto [sides]px [bottom]px`
+ * (a bare `0` is valid unitless CSS for the sides slot). */
+const insetBottom = (selector: string): number => {
+  const value = decl(selector, "inset");
+  const m = value.match(/^auto\s+(?:(\d+)(?:px)?\s+)?(\d+)px$/);
+  expect(m, `${selector} { inset: ${value} } is not the vertical anchor form`).not.toBeNull();
+  return Number(m![2]);
+};
+
+describe("L8 flush geometry — pixel math over the CSS source (w26.k03, j03 P1-1)", () => {
+  it("base horizontal: fill inset-2 + L8 thumb are flush at every p (settings §C0 track)", () => {
+    const FILL = ".lumen-slider__fill";
+    const THUMB = ".lumen-slider__thumb";
+    const fillInset = px(FILL, "left");
+    const fill = travel(FILL, "width");
+    const thumb = travel(THUMB, "left");
+    const thumbWidth = px(THUMB, "width");
+
+    // The anatomy the review demanded: inset-2 fill, 8px handle, L8 offsets.
+    expect(fillInset).toBe(2);
+    expect(fill.extentLess).toBe(4);
+    expect(thumb.extentLess).toBe(4);
+    expect(thumbWidth).toBe(8);
+
+    // Live-measured pre-fix on /settings/video (j03 §Dimension 2): thumb
+    // right edge = fill end + 2px at p=0, −2px at p=100 (err = 2 − 4p/100),
+    // thumb left edge 6px outside the track at Home. The inset-2 fill makes
+    // both edges the same number at EVERY p:
+    const W = 320; // settings §C0 "Slider" track width
+    for (const p of [0, 25, 50, 75, 100]) {
+      const fillEnd = fillInset + (W - fill.extentLess) * (p / 100);
+      const thumbRight = thumb.post + (W - thumb.extentLess) * (p / 100) + thumbWidth;
+      expect(thumbRight, `p=${p}`).toBe(fillEnd);
+    }
+    // p=0: the handle's left edge sits 6px outside the well — the frame
+    // anatomy (EQ.svg handles overhang; the hit area covers it).
+    expect(thumb.post).toBe(-6);
+    // p=100: both edges land exactly 2px inside the track's right end.
+    expect(2 + (W - fill.extentLess)).toBe(W - 2);
+  });
+
+  it("base vertical: fill bottom-inset-2 + L8 mirror thumb are flush at every p (j03 P1-2)", () => {
+    const FILL = ".lumen-slider--vertical .lumen-slider__fill";
+    const THUMB = ".lumen-slider--vertical .lumen-slider__thumb";
+    const fillBottom = insetBottom(FILL);
+    const fill = travel(FILL, "height");
+    const thumb = travel(THUMB, "bottom");
+    const thumbHeight = px(THUMB, "height");
+
+    expect(fillBottom).toBe(2);
+    expect(fill.extentLess).toBe(4);
+    expect(thumb.extentLess).toBe(4);
+    expect(thumbHeight).toBe(8);
+
+    // Vertical mirror of the flush contract: the handle's TOP edge sits on
+    // the fill's TOP edge at every p. (The pre-fix `(100% - 8px)·p` travel
+    // overhung the fill top by 6px → 2px across the range.)
+    const H = 160; // the structural default extent
+    for (const p of [0, 20, 50, 80, 100]) {
+      const fillTop = H - fillBottom - (H - fill.extentLess) * (p / 100);
+      const thumbTop = H - (thumb.post + (H - thumb.extentLess) * (p / 100)) - thumbHeight;
+      // sub-pixel tolerance (1e-9 px): p=20/80 are not binary-exact fractions
+      // — a real regression is ≥0.5px, never nanopixel noise.
+      expect(thumbTop, `p=${p}`).toBeCloseTo(fillTop, 9);
+    }
+  });
+
+  it("base vertical: the stale `(100% - 8px)·p` grammar is gone from BOTH vertical thumbs", () => {
+    // String-level pin (belt and braces): the exact grammar g16-P2-3 killed.
+    expect(sliderCssCode).not.toContain("calc((100% - 8px)");
+  });
+});
