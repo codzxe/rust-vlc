@@ -59,7 +59,17 @@ export default defineConfig({
     // difference. `--force-color-profile=srgb` pins the rendering color
     // space on every host (headless default can follow the platform).
     launchOptions: {
-      args: ["--font-render-hinting=none", "--force-color-profile=srgb"],
+      args: [
+        "--font-render-hinting=none",
+        "--force-color-profile=srgb",
+        // Round 4c — the pixel-level proof (diff-image RGB analysis of
+        // player-light, run 43410853384): the runner's text pixels are
+        // CHROMATIC (R!=G!=B, LCD/subpixel AA per its fontconfig rgba
+        // setting) while the pin host's are grayscale (R==G==B) — every
+        // glyph ghosted on all three channels. --disable-lcd-text pins
+        // grayscale AA on every host regardless of the host fontconfig.
+        "--disable-lcd-text",
+      ],
     },
     // 127.0.0.1, not localhost — contract §9 (the dev server binds 127.0.0.1
     // explicitly; w26.k20, j20 P3-13).
