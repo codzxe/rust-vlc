@@ -86,7 +86,10 @@ describe("EqualizerTool — fader columns (frame: Preamp + 10 bands, vertical)",
       expect(slider).toHaveAttribute("aria-valuemin", "-20");
       expect(slider).toHaveAttribute("aria-valuemax", "20");
     }
-    expect(container.querySelector(".eq-tool__accent")).toBeNull();
+    // w26.k10 (j10 P3-2): the old `.eq-tool__accent` null-check guarded a
+    // class that exists NOWHERE in src — vacuous. The REAL monochrome
+    // namespace is [data-accent] (GraphicEQ.test pins the same marker).
+    expect(container.querySelector("[data-accent]")).toBeNull();
     expect(container.querySelectorAll(".eq-panel__fader--zero")).toHaveLength(10);
   });
 });
@@ -107,15 +110,21 @@ describe("EqualizerTool — preset panel (frame: EQ presets.svg)", () => {
   });
 
   it("the listbox's children are exactly the 8 options in preset order", () => {
-    // w26.i06: the per-preset leading curve glyphs (equalizer.css) key on
-    // :nth-child = EQ_PRESETS order — pin that the list renders no other
-    // children and keeps the frame row order.
+    // The option ORDER is still frame-pinned (labels below); since w26.k10
+    // the preset curve glyphs key on the structural data-preset marker, so
+    // this pin guards order for the LABELS, no longer for glyph geometry.
     render(<EqualizerTool defaultOpen />);
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
     const listbox = screen.getByRole("listbox", { name: "Equalizer preset" });
     expect(listbox.children).toHaveLength(EQ_PRESETS.length);
     const names = [...listbox.children].map((child) => child.textContent);
     expect(names).toEqual(["None", "Flat", "Classical", "Club", "Dance", "Full bass", "Full bass & treble", "Full treble"]);
+    // Every option carries its structural data-preset marker (equalizer.css
+    // keys the per-preset curve glyphs on it — j10 P3-6).
+    const markers = [...listbox.children].map((child) =>
+      child.getAttribute("data-preset"),
+    );
+    expect(markers).toEqual(EQ_PRESETS.map((preset) => preset.id));
     for (const child of [...listbox.children]) {
       expect(child).toHaveAttribute("role", "option");
     }
@@ -179,11 +188,14 @@ describe("EqualizerTool — fader commits (doc 08 §5: live then commit)", () =>
     render(<EqualizerTool defaultOpen onChange={onChange} />);
     const band60 = screen.getByRole("slider", { name: "60 Hz" });
     fireEvent.keyDown(band60, { key: "ArrowUp" });
-    expect(band60).toHaveAttribute("aria-valuenow", "1");
-    expect(screen.getAllByText("1.0 dB")).toHaveLength(1);
+    // w26.k10 (j10 P2-1): the lattice is 0.1 dB — ArrowUp from 0 is +0.1,
+    // and the value lands as a CLEAN one-decimal double (no 0.1-float dust
+    // in aria-valuenow or the seam payload).
+    expect(band60).toHaveAttribute("aria-valuenow", "0.1");
+    expect(screen.getAllByText("0.1 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
       preamp: 12,
-      gains: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      gains: [0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       preset: "none",
     });
   });
@@ -194,12 +206,34 @@ describe("EqualizerTool — fader commits (doc 08 §5: live then commit)", () =>
     fireEvent.keyDown(screen.getByRole("slider", { name: "Preamp" }), {
       key: "ArrowDown",
     });
-    expect(screen.getAllByText("11.0 dB")).toHaveLength(1);
+    expect(screen.getAllByText("11.9 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
-      preamp: 11,
+      preamp: 11.9,
       gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       preset: "none",
     });
+  });
+
+  it("keyboard steps stay ON the fader lattice from fractional preset gains (P2-1 regression)", () => {
+    // The j10 P2-1 defect: with a 1 dB step, ArrowUp from Dance's 5.6
+    // jumped +1.4 (→ 7.0) while ArrowDown moved only −0.6 (→ 5.0) —
+    // asymmetric, and off the lattice a drag can land on. At 0.1 dB the
+    // steps are symmetric from ANY preset value; the coarse step
+    // (Shift/PageUp = 10 × 0.1) is symmetric too.
+    render(<EqualizerTool defaultOpen />);
+    fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
+    fireEvent.click(screen.getByRole("option", { name: "Dance" }));
+    const band60 = screen.getByRole("slider", { name: "60 Hz" });
+    expect(band60).toHaveAttribute("aria-valuenow", "5.6");
+    fireEvent.keyDown(band60, { key: "ArrowUp" });
+    expect(band60).toHaveAttribute("aria-valuenow", "5.7");
+    expect(screen.getAllByText("5.7 dB")).toHaveLength(1);
+    fireEvent.keyDown(band60, { key: "ArrowDown" });
+    fireEvent.keyDown(band60, { key: "ArrowDown" });
+    expect(band60).toHaveAttribute("aria-valuenow", "5.5");
+    expect(screen.getAllByText("5.5 dB")).toHaveLength(1);
+    fireEvent.keyDown(band60, { key: "ArrowUp", shiftKey: true });
+    expect(band60).toHaveAttribute("aria-valuenow", "6.5");
   });
 
   it("manual fader edits keep the last applied preset label (VLC behavior)", () => {
@@ -213,8 +247,9 @@ describe("EqualizerTool — fader commits (doc 08 §5: live then commit)", () =>
     expect(
       screen.getByRole("button", { name: "Equalizer preset" }).textContent,
     ).toContain("Dance");
-    // 5.6 + 1 (ArrowUp) then snapped onto the 1 dB step lattice → 7.0.
-    expect(screen.getAllByText("7.0 dB")).toHaveLength(1);
+    // 5.6 + 0.1 (ArrowUp) — one lattice step, exactly (was: snapped onto
+    // the old 1 dB lattice → 7.0, the j10 P2-1 asymmetry).
+    expect(screen.getAllByText("5.7 dB")).toHaveLength(1);
   });
 
   it("defaultState seeds the tool (hydration seam)", () => {
@@ -226,5 +261,22 @@ describe("EqualizerTool — fader commits (doc 08 §5: live then commit)", () =>
     );
     expect(screen.getAllByText("6.0 dB")).toHaveLength(1);
     expect(screen.getAllByText("3.0 dB")).toHaveLength(1);
+  });
+
+  it("self-stages like its sibling tools (markers + in-body note, P3-4)", () => {
+    // w26.k10 (j10 P3-4): the EQ stands alone — the tool root carries the
+    // staged markers and the expanded body renders the honest-unbound note
+    // (inside the tools dialog's transitional wrapper the wrapper's own
+    // note wins — equalizer.css; see the lane log).
+    const { container } = render(<EqualizerTool />);
+    const tool = container.querySelector('[data-tool="equalizer"]');
+    expect(tool).not.toBeNull();
+    expect(tool).toHaveAttribute("data-staged-tool", "equalizer");
+    expect(tool).toHaveAttribute("data-pending-command", "audio.set-eq");
+    // Collapsed: no note in the a11y tree (hidden per the frames).
+    expect(screen.queryByRole("note")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: OPEN }));
+    const note = screen.getByRole("note");
+    expect(note.textContent).toMatch(/staged/i);
   });
 });
