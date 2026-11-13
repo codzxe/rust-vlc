@@ -58,6 +58,20 @@ describe("Seekbar (doc 08 §5.2 truthful seek)", () => {
     expect(container.querySelectorAll(".lumen-seekbar__buffer")).toHaveLength(0);
   });
 
+  it("w26.k03 (j03 P3-13): no buffer nodes on a duration-less bar — never Infinity-width ranges", () => {
+    // duration <= 0 + engine ranges used to divide by 0 → Infinity →
+    // clamped 100% widths on an inert bar (cosmetic, but dishonest math).
+    const { container, rerender } = render(
+      <Seekbar value={0} duration={0} buffered={[{ start: 0, end: 120 }, { start: 200, end: 260 }]} />,
+    );
+    expect(container.querySelectorAll(".lumen-seekbar__buffer")).toHaveLength(0);
+    rerender(<Seekbar value={0} duration={-5} buffered={[{ start: 0, end: 120 }]} />);
+    expect(container.querySelectorAll(".lumen-seekbar__buffer")).toHaveLength(0);
+    // positive duration renders them (guard must not over-suppress)
+    rerender(<Seekbar value={0} duration={600} buffered={[{ start: 0, end: 120 }]} />);
+    expect(container.querySelectorAll(".lumen-seekbar__buffer")).toHaveLength(1);
+  });
+
   it("scrub: knob follows the preview while the fill stays at engine truth (§5.2.1)", () => {
     const onChangeLive = vi.fn();
     render(<Seekbar value={100} duration={1000} onChangeLive={onChangeLive} />);
