@@ -75,11 +75,11 @@ function Get-SquishedGuid([string]$Guid) {
     # (DWORD, WORD, WORD) BYTE-reversed, the rest verbatim. The first
     # three rounds of this test probed a key that can never exist: the
     # helper STRING-reversed each group ("7c1f6a52" -> "25a6f1c7") while
-    # the byte-wise reversal is "526a1f7c" (bytes 7c 1f 6a 52 reversed)
+    # the byte-wise reversal is "526a1f7c" (bytes 7c 1f 6a 52 reversed);
     # - the round-8 hive diagnostics (exists=False on every path, with
     # the install exit 0) named it. Verified example:
     # {7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701} ->
-    # 526a1f7c3e9da84ba0013f9c2d64e701.
+    # 526a1f7c3e9d8a4ba0013f9c2d64e701.
     $g = $Guid.Trim('{}').Replace('-', '').ToLowerInvariant()
     if ($g.Length -ne 32) { Fail "not a GUID: $Guid" }
     function Reverse-HexByteWise([string]$s) {
