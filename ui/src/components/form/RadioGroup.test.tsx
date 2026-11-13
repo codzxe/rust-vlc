@@ -52,6 +52,44 @@ describe("RadioGroup (doc 08 §4.5)", () => {
     expect(screen.getByLabelText("System")).toBeDisabled();
   });
 
+  // j01-14: per-option disabled (only group-level was covered before).
+  it("per-option disabled — the option is inert and the arrow keys skip it", () => {
+    const onChange = vi.fn();
+    render(
+      <RadioGroup
+        label="Theme"
+        value="dark"
+        onChange={onChange}
+        options={[
+          { value: "light", label: "Light", disabled: true },
+          { value: "dark", label: "Dark" },
+          { value: "system", label: "System" },
+        ]}
+      />,
+    );
+    expect(screen.getByLabelText("Light")).toBeDisabled();
+    expect(screen.getByLabelText("Dark")).toBeEnabled();
+    // Enabled set = [dark, system]. ArrowDown from "dark" → "system".
+    fireEvent.keyDown(screen.getByRole("radiogroup"), { key: "ArrowDown" });
+    expect(onChange).toHaveBeenCalledWith("system");
+    onChange.mockClear();
+    // The discriminating case: ArrowUp from "dark" (index 0 of the enabled
+    // set) wraps to "system" — if the disabled "light" were NOT skipped,
+    // ArrowUp would select "light" instead.
+    fireEvent.keyDown(screen.getByRole("radiogroup"), { key: "ArrowUp" });
+    expect(onChange).toHaveBeenCalledWith("system");
+    expect(onChange).not.toHaveBeenCalledWith("light");
+  });
+
+  // j01-7: the id prop lands on the GROUP element (consumers wire
+  // aria-describedby/aria-labelledby against it).
+  it("id lands on the radiogroup host (aria-describedby wiring)", () => {
+    render(<RadioGroup id="theme-group" label="Theme" options={options} value="dark" onChange={() => {}} />);
+    expect(screen.getByRole("radiogroup")).toHaveAttribute("id", "theme-group");
+    // child ids still derive from the group id (no collision)
+    expect(screen.getByLabelText("Dark")).toHaveAttribute("id", "theme-group-dark");
+  });
+
   it("invalid flag sets aria-invalid on the group", () => {
     render(<RadioGroup label="Theme" options={options} value="dark" invalid onChange={() => {}} />);
     expect(screen.getByRole("radiogroup")).toHaveAttribute("aria-invalid", "true");
