@@ -24,8 +24,22 @@ import {
   resolveVariantLayout,
 } from "./index";
 
+import { MiniPlayer } from "./MiniPlayer";
+import { PlayerControlsProvider } from "../context";
+import { PlaylistProvider } from "../../playlist";
+import type { PlaylistEntry } from "../../playlist";
+
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
 const variantsCss = readFileSync(`${dirname}/variants.css`, "utf8");
+
+/** Line-anchored single-rule extractor (the List.test cssRule pattern,
+ * anchored so prefixed selectors cannot shadow each other). Hoisted to
+ * module scope w26.k08 (j08 finding #9 — was duplicated verbatim in the
+ * gfix-F and i04 describes). */
+const cssRule = (selector: string): string => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return variantsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+};
 
 const renderWithClient = (ui: React.ReactElement, transport = new MockTransport()) => {
   const view = render(<ClientProvider transport={transport}>{ui}</ClientProvider>);
@@ -261,6 +275,81 @@ describe("miniplayer variant", () => {
     const enqueued = transport.sent.find((request) => request.cmd === "playlist.enqueue");
     expect(enqueued?.args).toMatchObject({ source: { kind: "file", path: "/media/demo/big-buck-bunny.mkv" } });
   });
+
+  // w26.k08 (j08 P2-2) — the mini queue listbox keyboard path. Direct mount
+  // over a seeded provider: MockTransport never echoes playlist.changed, so
+  // the popup path cannot grow rows in jsdom (the enqueue path itself stays
+  // pinned by the i04 test above + the shared seam's own tests, k14's tree).
+  it("the queue listbox is keyboard-operable: focus, activate, Alt+arrow reorder (j08 P2-2)", async () => {
+    const QUEUE_ROWS: readonly PlaylistEntry[] = [
+      { id: 1, title: "Big Buck Bunny", source: { kind: "file", path: "/media/demo/big-buck-bunny.mkv" }, durationSeconds: 596 },
+      { id: 2, title: "Sintel", source: { kind: "file", path: "/media/demo/sintel.mkv" }, durationSeconds: 888 },
+      { id: 3, title: "Tears of Steel", source: { kind: "file", path: "/media/demo/tears-of-steel.mkv" }, durationSeconds: 734 },
+    ];
+    const transport = new MockTransport();
+    const thumbnail = MINIPLAYER_LAYOUT.regions.find((r) => r.id === "mini-thumbnail")!;
+    const controls = MINIPLAYER_LAYOUT.regions.find((r) => r.id === "mini-controls")!;
+    render(
+      <ClientProvider transport={transport}>
+        <PlaylistProvider initialEntries={QUEUE_ROWS}>
+          <PlayerControlsProvider>
+            <MiniPlayer thumbnailRegion={thumbnail} controlsRegion={controls} onExpand={() => {}} />
+          </PlayerControlsProvider>
+        </PlaylistProvider>
+      </ClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Toggle queue" }));
+    const listbox = screen.getByRole("listbox", { name: "Queue" });
+    // The container owns focus (VirtualList's viewport tabIndex grammar).
+    expect(listbox).toHaveAttribute("tabindex", "0");
+    expect(within(listbox).getAllByRole("option")).toHaveLength(3);
+    // No current entry → the first row is the active descendant.
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-0");
+
+    // Arrows roam (clamped at the edges); Home/End jump.
+    fireEvent.keyDown(listbox, { key: "ArrowDown" });
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-1");
+    fireEvent.keyDown(listbox, { key: "End" });
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-2");
+    fireEvent.keyDown(listbox, { key: "ArrowDown" }); // clamped — no wrap
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-2");
+    fireEvent.keyDown(listbox, { key: "Home" });
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-0");
+
+    // Enter/Space activate the active row — the real play-item command.
+    fireEvent.keyDown(listbox, { key: "ArrowDown" });
+    fireEvent.keyDown(listbox, { key: "Enter" });
+    fireEvent.keyDown(listbox, { key: "ArrowDown" });
+    fireEvent.keyDown(listbox, { key: " " });
+    await act(async () => {});
+    const played = transport.sent.filter((r) => r.cmd === "playlist.play-item");
+    expect(played.map((r) => (r.args as { id: number }).id)).toEqual([2, 3]);
+
+    // Alt+Up/Down reorder the focused row through playlist.move — the same
+    // command + dragToMoveIndex semantics the mouse DnD path issues.
+    fireEvent.keyDown(listbox, { key: "ArrowUp", altKey: true }); // row 3 → slot 1
+    await act(async () => {});
+    const moved = transport.sent.filter((r) => r.cmd === "playlist.move");
+    expect(moved.map((r) => r.args)).toEqual([{ id: 3, toIndex: 1 }]);
+    // The focus index stays on the slot the row moved TO (index 1).
+    expect(listbox).toHaveAttribute("aria-activedescendant", "lumen-mini-row-1");
+    // NO-ECHO CAVEAT (honest jsdom truth): MockTransport never confirms the
+    // move, so the DOM keeps the stale order — the second Alt+Down moves the
+    // row NOW sitting at the focused index (Sintel). Against an echoing
+    // transport (the demo/live engine) the DOM reorders first and the same
+    // sequence moves the SAME item (3→1 then 3→2) — that live half rides the
+    // provider's `moved` handling + the dragToMoveIndex unit pins.
+    fireEvent.keyDown(listbox, { key: "ArrowDown", altKey: true }); // back down one
+    await act(async () => {});
+    expect(transport.sent.filter((r) => r.cmd === "playlist.move").map((r) => r.args)).toEqual([
+      { id: 3, toIndex: 1 },
+      { id: 2, toIndex: 2 },
+    ]);
+    // Edge no-ops: Alt+Down at the last row never re-dispatches.
+    fireEvent.keyDown(listbox, { key: "ArrowDown", altKey: true });
+    await act(async () => {});
+    expect(transport.sent.filter((r) => r.cmd === "playlist.move")).toHaveLength(2);
+  });
 });
 
 describe("music variant", () => {
@@ -391,18 +480,11 @@ describe("keymap-driven switching (variantKeymap seam)", () => {
 // pre-fix state (the strip-portal dead-selector class of regression —
 // measured live in /tmp/cap-gfixF, w26.gfix-F log).
 describe("w26.gfix-F frame pins (variants.css)", () => {
-  /** Line-anchored single-rule extractor (the List.test cssRule pattern,
-   * anchored so prefixed selectors cannot shadow each other). */
-  const rule = (selector: string): string => {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return variantsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
-  };
-
   it("music transport is the frame's frosted band, not the opaque chrome strip (g06 P2)", () => {
     // Player - Music.svg Controls group: 1920×54 #191919@0.95 + 1px #222222
     // hairline + 50px background blur (the g06 finding's "no band" reading
     // was wrong — the SVG pins all three; the fix killed the OPAQUE #161616).
-    const band = rule('.app-shell__strip > .lumen-player__controls[data-variant="music"]');
+    const band = cssRule('.app-shell__strip > .lumen-player__controls[data-variant="music"]');
     expect(band).toContain("color-mix(in srgb, var(--color-surface-panel) 95%, transparent)");
     expect(band).toContain("border-top: 1px solid var(--color-surface-raised)");
     expect(band).toContain("backdrop-filter: blur(50px)");
@@ -411,11 +493,11 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
   it("the tick field anchors on the footer's own data-variant (alive under the strip portal)", () => {
     // The Lead's AppShellStripContext portal hoists the band out from under
     // .lumen-player[data-variant] — the old anchor was dead CSS in the app.
-    const track = rule(
+    const track = cssRule(
       '.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__track',
     );
     expect(track).toContain("repeating-linear-gradient");
-    const thumb = rule(
+    const thumb = cssRule(
       '.lumen-player__controls[data-variant="music"] .lumen-controls__seek .lumen-slider__thumb',
     );
     expect(thumb).toContain("width: 4px");
@@ -425,10 +507,10 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
   it("mini queue: 44px row pitch, body/head band inversion, quiet title (g07 P3-3/P3-4)", () => {
     // Miniplayer.svg queue: rows 591/635/679/723 (44px), body #1B1B1B with a
     // #151515 header band, "Queue" #8F8F8F.
-    expect(rule(".lumen-mini__queue .lumen-lrow--compact")).toContain("height: 44px");
+    expect(cssRule(".lumen-mini__queue .lumen-lrow--compact")).toContain("height: 44px");
     const panel = variantsCss.match(/\.lumen-mini__queue \{([^}]*)\}/)?.[1] ?? "";
     expect(panel).toContain("var(--color-surface-panel)");
-    expect(rule(".lumen-mini__queue-head")).toContain("var(--color-surface-muted)");
+    expect(cssRule(".lumen-mini__queue-head")).toContain("var(--color-surface-muted)");
     expect(
       variantsCss.match(/\.lumen-mini__queue-title \{([^}]*)\}/)?.[1] ?? "",
     ).toContain("var(--color-content-secondary)");
@@ -437,8 +519,8 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
   it("icon wrappers round rx4 (g07 P3-1); the play pill keeps its functional circle", () => {
     // Icon Wrapper.svg hover chip rx4 — scoped to the compact card's hits so
     // the shared control radius stays for other IconButtons.
-    expect(rule(".lumen-mini .lumen-icon-button")).toContain("var(--radius-inset)");
-    expect(rule(".lumen-mini__controls .lumen-mini__play")).toContain("border-radius: 50%");
+    expect(cssRule(".lumen-mini .lumen-icon-button")).toContain("var(--radius-inset)");
+    expect(cssRule(".lumen-mini__controls .lumen-mini__play")).toContain("border-radius: 50%");
   });
 
   it("Music-1 window-centers the artwork while the dock is open (g06 P1-3 residual)", () => {
@@ -448,7 +530,7 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
     // the open dock on narrow windows. w26.i04: the clamp constant is
     // re-pinned for the proportional art (553.5px): clamp edge = dock right
     // 352 + art/2 276.75 = 628.75; 628.75 − 176 = 452.75 (was 436 @520 art).
-    const stage = rule(
+    const stage = cssRule(
       '.lumen-player[data-variant="music"][data-sidebar="open"] .lumen-music__stage',
     );
     expect(stage).toContain("position: relative");
@@ -462,16 +544,10 @@ describe("w26.gfix-F frame pins (variants.css)", () => {
 // #1) and the miniplayer shell-sidebar seam (h06 #5). CSS-rule guards so
 // the next refactor cannot silently drop a pin back to the pre-fix state.
 describe("w26.i04 frame pins (variants.css)", () => {
-  /** Line-anchored single-rule extractor (the gfix-F pattern above). */
-  const rule = (selector: string): string => {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return variantsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
-  };
-
   it("mini card vertical rhythm: 26.4px seek→title gap + the 339px card bottom inset (h06 #2)", () => {
-    expect(rule(".lumen-mini__title")).toContain("margin: 20.4px 0 0");
-    // Line-anchored on the bare card selector (the shared rule() prefix would
-    // match the earlier .lumen-mini .lumen-icon-button wrapper rule).
+    expect(cssRule(".lumen-mini__title")).toContain("margin: 20.4px 0 0");
+    // Line-anchored on the bare card selector (a cssRule( query would match
+    // the earlier .lumen-mini .lumen-icon-button wrapper rule first).
     const card = variantsCss.match(/\n\.lumen-mini \{([^}]*)\}/)?.[1] ?? "";
     expect(card).toContain("padding: 8px 8px 14.4px");
     // The seek bleeds 1px past the video each side (frame 375 vs 373). The
@@ -479,17 +555,17 @@ describe("w26.i04 frame pins (variants.css)", () => {
     // is a definite width, so the −1px margins alone only SHIFT the 373px
     // well left (measured /tmp/cap-w26i04) — calc(100% + 2px) restores the
     // frame's 375px well with the bleed on both edges.
-    const seek = rule(".lumen-mini__controls .lumen-mini__seek");
+    const seek = cssRule(".lumen-mini__controls .lumen-mini__seek");
     expect(seek).toContain("margin-inline: -1px");
     expect(seek).toContain("width: calc(100% + 2px)");
   });
 
   it("overlay skip row: prev/next centers ±75px of the play center at video mid (h06 #3)", () => {
-    expect(rule(".lumen-mini__transport .lumen-mini__skip")).toContain("top: 50%");
-    expect(rule(".lumen-mini__transport .lumen-mini__skip--prev")).toContain(
+    expect(cssRule(".lumen-mini__transport .lumen-mini__skip")).toContain("top: 50%");
+    expect(cssRule(".lumen-mini__transport .lumen-mini__skip--prev")).toContain(
       "left: calc(50% - 75px)",
     );
-    expect(rule(".lumen-mini__transport .lumen-mini__skip--next")).toContain(
+    expect(cssRule(".lumen-mini__transport .lumen-mini__skip--next")).toContain(
       "left: calc(50% + 75px)",
     );
   });
@@ -513,7 +589,7 @@ describe("w26.i04 frame pins (variants.css)", () => {
   });
 
   it("music art claims the frame's proportional share: 61.5vmin ≈ 553.5px at 1440×900 (h06)", () => {
-    expect(rule(".lumen-music__artwork")).toContain("width: min(61.5vmin, 554px)");
-    expect(rule(".lumen-music__stage")).toContain("max-width: 554px");
+    expect(cssRule(".lumen-music__artwork")).toContain("width: min(61.5vmin, 554px)");
+    expect(cssRule(".lumen-music__stage")).toContain("max-width: 554px");
   });
 });
