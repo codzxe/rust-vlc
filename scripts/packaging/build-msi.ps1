@@ -11,12 +11,22 @@
 #
 # CONFIG-DRIVEN, ZERO IDENTITY LITERALS: every identity field (product
 # name, publisher, description, numeric MSI version, the frozen
-# UpgradeCode, both exe names) is read from $env: variables exported by
-# scripts/packaging/packaging-env.py (which validates
+# UpgradeCode, all three exe names) is read from $env: variables
+# exported by scripts/packaging/packaging-env.py (which validates
 # packaging/packaging.toml against its schema and re-exports the
 # product.toml identity resolved by scripts/release/product-env.py).
 # When the environment is missing, this script bootstraps it by running
 # packaging-env.py itself (python3/python required).
+#
+# THIRD SHIPPED BINARY (w26.m.t3): BIN_TAURI (the workspace-excluded
+# tauri admission crate's bin, built by CI's release workflow
+# separately) rides exactly like BIN_CLI/BIN_DESKTOP -- staged beside
+# them and carried by its own BinTauri Component/ComponentRef pair.
+# The tauri exe renders through the WebView2 Evergreen Runtime, a
+# SYSTEM component on Win10/11 (preinstalled on Win11; distributed by
+# the Evergreen setup on Win10): no runtime is bundled or bootstrapped
+# here and no extra dependency row is needed -- the assumption is
+# pinned in the generated XML beside the BinTauri component.
 #
 # The .wxs shape MIRRORS scripts/release/gen-wxs.sh (the repo's one
 # bash generator, used by build-msi.sh). Change both together -- the
@@ -100,6 +110,7 @@ function New-MsiWxs {
         [string]$UpgradeCode,
         [string]$CliExe,
         [string]$DesktopExe,
+        [string]$TauriExe,
         [string[]]$DocPaths
     )
     $escName = XmlEscape $Name
@@ -150,6 +161,15 @@ function New-MsiWxs {
         <Component Id="BinDesktop" Guid="*">
           <File Id="BinDesktopExe" Source="$DesktopExe" KeyPath="yes" />
         </Component>
+        <!-- WebView2 assumption: the tauri exe renders through the
+             WebView2 Evergreen Runtime, a system component on
+             Win10/11 (preinstalled on Win11; distributed by the
+             Evergreen setup on Win10). No runtime is bundled or
+             bootstrapped here. Kept in lockstep with the twin
+             generator (change both together). -->
+        <Component Id="BinTauri" Guid="*">
+          <File Id="BinTauriExe" Source="$TauriExe" KeyPath="yes" />
+        </Component>
         <Component Id="Docs" Guid="*">
 $docsXml
         </Component>
@@ -158,6 +178,7 @@ $docsXml
     <Feature Id="Main" Level="1" Title="$escName">
       <ComponentRef Id="BinCli" />
       <ComponentRef Id="BinDesktop" />
+      <ComponentRef Id="BinTauri" />
       <ComponentRef Id="Docs" />
     </Feature>
   </Package>
@@ -193,6 +214,7 @@ if ($SelfTest) {
             -Description "it's <a> & `"b`" > c" -Version '1.2.3' `
             -UpgradeCode '11111111-2222-3333-4444-555555555555' `
             -CliExe 'selftest-cli.exe' -DesktopExe 'selftest-desktop.exe' `
+            -TauriExe 'selftest-tauri.exe' `
             -DocPaths @('a&b<c>"d".md', "it's.md")
         $wxsPath = Join-Path $work 'hostile.wxs'
         [IO.File]::WriteAllText($wxsPath, $wxs)
@@ -207,13 +229,37 @@ root = ET.parse(path).getroot()  # malformed XML -> parser death = test failure
 ns = "{http://wixtoolset.org/schemas/v4/wxs}"
 files = root.findall(f".//{ns}File")
 assert files, "no File elements generated"
-assert len(files) == 4, f"expected 4 File rows (2 exes + 2 docs), got {len(files)}"
+assert len(files) == 5, f"expected 5 File rows (3 exes + 2 docs), got {len(files)}"
 
 sources = [f.get("Source") for f in files]
 for hostile in ('a&b<c>"d".md', "it's.md"):
     assert hostile in sources, (
         f"doc basename did not round-trip through the XML escaping: "
         f"{hostile!r} not in {sources!r}")
+
+# The three shipped exe rows (CLI, desktop, tauri) must all be present,
+# each as its component's KeyPath (the w26.m.t3 payload added BinTauri;
+# mirrors gen-wxs.sh --self-test).
+exe_rows = ('selftest-cli.exe', 'selftest-desktop.exe', 'selftest-tauri.exe')
+for exe in exe_rows:
+    assert exe in sources, f"shipped exe row missing from the generated .wxs: {exe!r}"
+for f in files:
+    if f.get("Source") in exe_rows:
+        assert f.get("KeyPath") == "yes", (
+            f"exe File row is not its component's KeyPath: {f.get('Source')!r}")
+
+# Every component must be referenced by the Feature, by Id= (a RefId=
+# typo would silently ship a component outside the feature).
+comp_ids = {c.get("Id") for c in root.findall(f".//{ns}Component")}
+ref_ids = {r.get("Id") for r in root.findall(f".//{ns}ComponentRef")}
+assert comp_ids, "no Component elements generated"
+assert comp_ids == ref_ids, (
+    f"Feature ComponentRefs do not cover every component: "
+    f"components={sorted(comp_ids)!r} refs={sorted(ref_ids)!r}")
+for r in root.findall(f".//{ns}ComponentRef"):
+    assert r.get("Id") and "RefId" not in r.attrib, (
+        "ComponentRef must carry Id= (never a RefId= attribute)")
+assert "BinTauri" in comp_ids, "the BinTauri component row is missing"
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,
@@ -237,7 +283,8 @@ assert pkg.get("Manufacturer") == "P&Q", "hostile identity Manufacturer did not 
 
 print(f"build-msi.ps1: -SelfTest PASS ({len(files)} File rows parsed; "
       f"hostile basenames + identity round-trip; escape set pinned on "
-      f"raw text; ids sanitized)")
+      f"raw text; ids sanitized; exe rows KeyPath; Feature refs cover "
+      f"every component by Id=)")
 '@
         $proofPath = Join-Path $work 'proof.py'
         [IO.File]::WriteAllText($proofPath, $proof)
@@ -275,7 +322,7 @@ if (-not $env:PRODUCT_NAME) {
 foreach ($name in @(
         'PRODUCT_NAME', 'PRODUCT_PUBLISHER', 'PRODUCT_DESCRIPTION',
         'PRODUCT_MSI_UPGRADE_CODE', 'PRODUCT_LOWER', 'PRODUCT_VERSION',
-        'BIN_CLI', 'BIN_DESKTOP', 'OS_ID', 'ARCH_ID',
+        'BIN_CLI', 'BIN_DESKTOP', 'BIN_TAURI', 'OS_ID', 'ARCH_ID',
         'PACKAGING_WINDOWS_BINDIR', 'PACKAGING_DOCS')) {
     if (-not (Get-Item -Path "Env:$name" -ErrorAction SilentlyContinue)) {
         Fail "required config env $name is not set (run packaging-env.py first)"
@@ -315,7 +362,8 @@ $distDir = if ($env:DIST_DIR) { $env:DIST_DIR } else { 'dist' }
 
 $cliExe = "$($env:BIN_CLI).exe"
 $desktopExe = "$($env:BIN_DESKTOP).exe"
-foreach ($exe in @($cliExe, $desktopExe)) {
+$tauriExe = "$($env:BIN_TAURI).exe"
+foreach ($exe in @($cliExe, $desktopExe, $tauriExe)) {
     $path = Join-Path $targetDir "release\$exe"
     if (-not (Test-Path $path)) {
         Fail "missing packaging input: $path (build first: cargo build --release --locked)"
@@ -328,6 +376,7 @@ $stage = New-Item -ItemType Directory -Path ([IO.Path]::GetTempPath()) `
 try {
     Copy-Item (Join-Path $targetDir "release\$cliExe") $stage
     Copy-Item (Join-Path $targetDir "release\$desktopExe") $stage
+    Copy-Item (Join-Path $targetDir "release\$tauriExe") $stage
 
     # --- Docs: stage the CONFIG list (W24-R1 P2-1) ---------------------------
     # The Docs component is generated from packaging.toml [shipped] docs
@@ -348,7 +397,7 @@ try {
     $wxs = New-MsiWxs -Name $env:PRODUCT_NAME -Manufacturer $env:PRODUCT_PUBLISHER `
         -Description $env:PRODUCT_DESCRIPTION -Version $msiVersion `
         -UpgradeCode $env:PRODUCT_MSI_UPGRADE_CODE -CliExe $cliExe `
-        -DesktopExe $desktopExe -DocPaths $docPaths
+        -DesktopExe $desktopExe -TauriExe $tauriExe -DocPaths $docPaths
 
     $wxsPath = Join-Path $stage 'installer.wxs'
     [IO.File]::WriteAllText($wxsPath, $wxs)

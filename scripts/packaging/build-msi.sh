@@ -25,7 +25,8 @@
 # Inputs (environment; set by the release workflow via
 # scripts/packaging/packaging-env.py, which wraps product-env.py):
 #   PRODUCT_NAME, PRODUCT_PUBLISHER, PRODUCT_DESCRIPTION, MSI_VERSION,
-#   PRODUCT_MSI_UPGRADE_CODE, BIN_CLI, BIN_DESKTOP, OS_ID, ARCH_ID,
+#   PRODUCT_MSI_UPGRADE_CODE, BIN_CLI, BIN_DESKTOP, BIN_TAURI, OS_ID,
+#   ARCH_ID,
 #   PACKAGING_WINDOWS_BINDIR (bin dir under ProgramFiles64Folder\<Name>),
 #   PACKAGING_DOCS (packaging.toml [shipped] docs — staged + referenced
 #                   by the generated .wxs),
@@ -58,6 +59,9 @@ set -eu
 : "${PRODUCT_VERSION:?build-msi.sh: PRODUCT_VERSION not set}"
 : "${BIN_CLI:?build-msi.sh: BIN_CLI not set}"
 : "${BIN_DESKTOP:?build-msi.sh: BIN_DESKTOP not set}"
+# The tauri admission bin: REQUIRED like the other two — the generated
+# .wxs carries a BinTauri File row, so staging it is not optional.
+: "${BIN_TAURI:?build-msi.sh: BIN_TAURI not set (run packaging-env.py first)}"
 : "${OS_ID:?build-msi.sh: OS_ID not set}"
 : "${ARCH_ID:?build-msi.sh: ARCH_ID not set}"
 : "${PACKAGING_WINDOWS_BINDIR:?build-msi.sh: PACKAGING_WINDOWS_BINDIR not set (run packaging-env.py first)}"
@@ -87,7 +91,8 @@ esac
 release_dir="$TARGET_DIR/release"
 cli_exe="${BIN_CLI}.exe"
 desktop_exe="${BIN_DESKTOP}.exe"
-for f in "$release_dir/$cli_exe" "$release_dir/$desktop_exe"; do
+tauri_exe="${BIN_TAURI}.exe"
+for f in "$release_dir/$cli_exe" "$release_dir/$desktop_exe" "$release_dir/$tauri_exe"; do
     [ -f "$f" ] || die "missing packaging input: $f (build first: cargo build --release --locked)"
 done
 
@@ -98,6 +103,7 @@ trap 'rm -rf "$stage"' EXIT INT TERM
 
 install -m 0755 "$release_dir/$cli_exe" "$stage/$cli_exe"
 install -m 0755 "$release_dir/$desktop_exe" "$stage/$desktop_exe"
+install -m 0755 "$release_dir/$tauri_exe" "$stage/$tauri_exe"
 
 # Docs ride beside the exes in the staging dir: the generated .wxs
 # references every [shipped] doc by basename (File/@Source basenames

@@ -5,9 +5,22 @@
 # Bundle layout (Apple's documented macOS bundle structure):
 #   <Name>.app/
 #     Contents/Info.plist          (generated; fields from product.toml)
-#     Contents/MacOS/<desktop bin> (the lumen-desktop binary)
+#     Contents/MacOS/<desktop bin> (the lumen-desktop binary; the
+#                                  CFBundleExecutable — the only exe
+#                                  Launch Services launches directly)
+#     Contents/MacOS/<tauri bin>   (the lumen-tauri binary — an
+#                                  AUXILIARY executable: a bundle may
+#                                  carry several executables in
+#                                  MacOS/, launched explicitly, not
+#                                  by double-clicking the bundle)
 #     Contents/Resources/LICENSE
 #     Contents/Resources/README.md
+#
+# The tauri binary embeds its web UI at build time (tauri-codegen —
+# the assets are compiled in), so NO Resources additions are needed
+# for it; its rendering surface is WKWebView, system-provided on
+# macOS 11+ (the bundle's LSMinimumSystemVersion below), so no extra
+# framework or dylib is bundled either.
 #
 # Config-driven Info.plist fields (via scripts/release/product-env.py):
 #   CFBundleName              <- identity.name
@@ -37,6 +50,9 @@ set -eu
 : "${PRODUCT_VERSION_CODE:?make-app.sh: PRODUCT_VERSION_CODE not set}"
 : "${PRODUCT_BUNDLE_ID:?make-app.sh: PRODUCT_BUNDLE_ID not set}"
 : "${BIN_DESKTOP:?make-app.sh: BIN_DESKTOP not set}"
+# Third shipped binary — REQUIRED like BIN_DESKTOP (a bundle without
+# it would silently ship a partial payload).
+: "${BIN_TAURI:?make-app.sh: BIN_TAURI not set}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
 APP_DIR=${APP_DIR:-$DIST_DIR}
@@ -48,12 +64,15 @@ die() { echo "make-app.sh: error: $*" >&2; exit 2; }
 
 bin="$TARGET_DIR/release/$BIN_DESKTOP"
 [ -f "$bin" ] || die "missing desktop binary: $bin (build first: cargo build --release --locked)"
+tauri_bin="$TARGET_DIR/release/$BIN_TAURI"
+[ -f "$tauri_bin" ] || die "missing tauri binary: $tauri_bin (build first: cargo build --release --locked)"
 [ -f LICENSE ] && [ -f README.md ] || die "LICENSE/README.md not found in repo root"
 
 app_root="$APP_DIR/${PRODUCT_NAME}.app"
 mkdir -p "$app_root/Contents/MacOS" "$app_root/Contents/Resources"
 
 install -m 0755 "$bin" "$app_root/Contents/MacOS/$BIN_DESKTOP"
+install -m 0755 "$tauri_bin" "$app_root/Contents/MacOS/$BIN_TAURI"
 cp LICENSE README.md "$app_root/Contents/Resources/"
 
 xml_escape() {
@@ -98,4 +117,4 @@ cat >"$app_root/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-echo "make-app.sh: wrote $app_root (bundle id=${esc_bundle_id} version=${PRODUCT_VERSION} build=${PRODUCT_VERSION_CODE})"
+echo "make-app.sh: wrote $app_root (bundle id=${esc_bundle_id} version=${PRODUCT_VERSION} build=${PRODUCT_VERSION_CODE}; MacOS/: ${BIN_DESKTOP} + ${BIN_TAURI})"
