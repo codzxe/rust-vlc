@@ -1,29 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import type { ReactElement } from "react";
-import { useMsg } from "../../i18n/messages";
+import type { ReactElement, ReactNode } from "react";
 import type { MessageKey } from "../../i18n/messages";
-import { keys as laneKeys } from "../../i18n/keys/w26.b01";
-import { keys as registryKeys } from "../../i18n/keys/w26.b02";
-import { keys as fixerKeys } from "../../i18n/keys/w26.gfixB";
 import { Icon } from "../../components/icon/Icon";
 import { SETTINGS_AREAS } from "./generated/schema";
 import type { SettingEntry } from "./generated/schema";
 import { WIDGET_GROUPED_KEYS } from "./SettingWidgets";
 import { SettingField } from "./SettingField";
-import { useSettingsSearch } from "./search";
+import { useSettingsMsg } from "./settingsMsg";
 
 /**
  * A hand-authored row inside a schema section — no [[setting]] key exists for
  * it (an ACTION: Clear history, Reset picture; or a capability-backed
  * control: the audio Output device enumeration). Rendered in section order
- * through the same row grammar; `keywords` are its resolved search terms
- * (matched against the live query, the same filter schema rows go through).
+ * through the same row grammar.
+ * w26.k12 (j12 P2-2): the `keywords` field is GONE — it fed an in-area
+ * search filter whose every consumer was unmounted while a query was live
+ * (the shell renders cross-area results instead of the current area), so
+ * it could never match. Hand rows now always render in the normal flow;
+ * they stay invisible to cross-area search (it walks schema entries only —
+ * see search.ts).
  */
 export interface SettingRowNode {
   /** Row marker — unique within its section (DOM/tests). */
   readonly rowId: string;
-  /** Search terms (already-resolved labels); absent = hidden while searching. */
-  readonly keywords?: readonly string[];
   readonly node: ReactElement;
 }
 
@@ -42,10 +41,10 @@ export interface GeneratedSection {
  * or the composed screens). The areas' hand-rendered compositions (areas'
  * GlobalAreaScreen / PrivacyArea) iterate these entries straight off the
  * generated schema — `entry.featureExposed`, `entry.advanced`, `entry.key`,
- * search matches — without re-narrowing a union, so the precise type is the
- * contract; the union widening of the dead attempt broke every such call
- * site (tsc TS2339) and is reverted here at the type level only: the runtime
- * shape never changed (a seed section never contained a hand row). */
+ * without re-narrowing a union, so the precise type is the contract; the
+ * union widening of the dead attempt broke every such call site (tsc
+ * TS2339) and is reverted here at the type level only: the runtime shape
+ * never changed (a seed section never contained a hand row). */
 export interface SchemaSection {
   readonly id: string;
   readonly title: MessageKey;
@@ -109,54 +108,34 @@ export const withRows = (
 // disclosure (global's About fold — g10-P2-3: the bar stays the column's
 // last element).
 
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
-type FixerKey = keyof typeof fixerKeys;
-/** Pre-registration seam: b01 + b02 + this lane's keys (see w26.gfixB.ts). */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...laneKeys,
-  ...fixerKeys,
-};
-
-/** useSectionsMsg — useMsg + the settings lanes' pre-registration keys. */
-function useSectionsMsg() {
-  const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | FixerKey): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
-
-/** Split a section's rows into (normal, advanced), search + gate filtered.
- * Hand rows always render in the normal flow (their own keyword filter). */
-function partition(
-  rows: readonly SettingSectionRow[],
-  matches: (entry: SettingEntry) => boolean,
-  rowMatches: (row: SettingRowNode) => boolean,
-): { normal: readonly SettingSectionRow[]; advanced: readonly SettingEntry[] } {
-  const visible = rows.filter((row) =>
-    isSettingEntry(row) ? row.featureExposed && matches(row) : rowMatches(row),
-  );
-  return {
-    normal: visible.filter((row) => !isSettingEntry(row) || !row.advanced),
-    advanced: visible.filter(isSettingEntry).filter((entry) => entry.advanced),
-  };
-}
-
 /**
  * The "Advanced Options" disclosure — in flow at the content column's
  * bottom (NOT a pinned footer): collapsed shows the › chevron, expanded the
  * ∨ chevron and renders the advanced rows below the bar.
+ *
+ * w26.k12 (j12 P2-6/P3-4): exported — ONE implementation. It used to exist
+ * 3× (this module unexported, a hand copy in GlobalAreaScreen, a hand copy
+ * in CodecsFold WITHOUT the scrollIntoView — so the codecs fold still
+ * shipped the h08#1 "expanding reveals nothing" defect the shell half had
+ * fixed). GlobalAreaScreen and CodecsFold consume this export; the rows
+ * region's id is ONE exported constant (the two hand copies used to define
+ * it twice — no live collision, mutually exclusive screens, but a trap).
  */
-function AdvancedDisclosure({
+export const ADVANCED_ROWS_ID = "settings-advanced-rows";
+
+export function AdvancedDisclosure({
   open,
   onToggle,
   children,
 }: {
   open: boolean;
   onToggle: () => void;
-  children: ReactElement;
+  /** w26.k12: ReactNode (was ReactElement) — consumers pass mapped arrays
+   * (k13's area compositions) as well as single elements; widening is
+   * signature-compatible for every existing single-child usage. */
+  children: ReactNode;
 }) {
-  const t = useSectionsMsg();
+  const t = useSettingsMsg();
   const rowsRef = useRef<HTMLDivElement | null>(null);
   // w26.i12 (h08 defect 1, shell half): expanding a disclosure whose bar sat
   // near the fold pushed the revealed rows BELOW the window with scrollTop
@@ -174,7 +153,7 @@ function AdvancedDisclosure({
         type="button"
         className="settings-advanced__bar"
         aria-expanded={open}
-        aria-controls="settings-advanced-rows"
+        aria-controls={ADVANCED_ROWS_ID}
         onClick={onToggle}
       >
         <span className="settings-advanced__label">{t("settings.advanced-options")}</span>
@@ -185,7 +164,7 @@ function AdvancedDisclosure({
         />
       </button>
       {open ? (
-        <div className="settings-advanced__rows" id="settings-advanced-rows" ref={rowsRef}>
+        <div className="settings-advanced__rows" id={ADVANCED_ROWS_ID} ref={rowsRef}>
           {children}
         </div>
       ) : null}
@@ -204,6 +183,18 @@ function AdvancedRows({ entries }: { entries: readonly SettingEntry[] }) {
   );
 }
 
+/** Split a section's rows into (normal, advanced), feature-gate filtered.
+ * w26.k12 (j12 P2-2): no search filter here — see SettingRowNode. */
+function partition(
+  rows: readonly SettingSectionRow[],
+): { normal: readonly SettingSectionRow[]; advanced: readonly SettingEntry[] } {
+  const visible = rows.filter((row) => isSettingEntry(row) && row.featureExposed);
+  return {
+    normal: visible.filter((row) => !isSettingEntry(row) || !row.advanced),
+    advanced: visible.filter(isSettingEntry).filter((entry) => entry.advanced),
+  };
+}
+
 export function SettingsSections({
   area,
   sections,
@@ -214,19 +205,10 @@ export function SettingsSections({
   /** Rendered between the sections and the Advanced disclosure (g10-P2-3). */
   beforeAdvanced?: ReactElement;
 }) {
-  const t = useSectionsMsg();
-  const { query, matches } = useSettingsSearch();
+  const t = useSettingsMsg();
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const needle = query.trim().toLowerCase();
-  const rowMatches = (row: SettingRowNode): boolean =>
-    needle === "" ||
-    (row.keywords ?? []).some((keyword) => keyword.toLowerCase().includes(needle));
-
-  const split = sections.map((section) => ({
-    section,
-    ...partition(section.entries, matches, rowMatches),
-  }));
+  const split = sections.map((section) => ({ section, ...partition(section.entries) }));
   const visible = split.filter(({ normal }) => normal.length > 0);
   // Advanced rows keep schema order across sections (flat list, no headers).
   const advancedEntries = split.flatMap(({ advanced }) => advanced);
@@ -235,7 +217,7 @@ export function SettingsSections({
     <div className="settings-sections" data-settings-area={area}>
       {visible.map(({ section, normal }) => (
         <section key={section.id} className="settings-section" data-section={section.id}>
-          <h2 className="settings-section__title">{t(section.title as MessageKey | LaneKey | RegistryKey | FixerKey)}</h2>
+          <h2 className="settings-section__title">{t(section.title)}</h2>
           {normal.map((row) =>
             isSettingEntry(row) ? (
               <SettingField key={row.key} entry={row} />
