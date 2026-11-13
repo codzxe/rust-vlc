@@ -102,6 +102,28 @@ export function PlaylistProvider({
   const [repeat, setRepeatState] = useState<RepeatMode | null>(null);
   const [notExposed, setNotExposed] = useState(false);
 
+  // w26.k14 (j14 #5) — the LIVE-QUEUE refs. `playNext` must read the queue as
+  // of dispatch time (an items-added/moved landing between render and the
+  // post-enqueue move used to shift engine indices through a stale render
+  // closure), and the actions memo must not depend on the queue at all —
+  // every queue change used to rebuild `actions` → the context value → all
+  // consumers. All entry/current mutations flow through applyEntries /
+  // applyCurrentId, the one place that keeps ref + state in lockstep.
+  const entriesRef = useRef<readonly PlaylistEntry[]>(initialEntries);
+  const currentIdRef = useRef<PlaylistItemId | null>(null);
+  const applyEntries = useCallback(
+    (update: (prev: readonly PlaylistEntry[]) => readonly PlaylistEntry[]): void => {
+      const next = update(entriesRef.current);
+      entriesRef.current = next;
+      setEntries(next);
+    },
+    [],
+  );
+  const applyCurrentId = useCallback((id: PlaylistItemId | null): void => {
+    currentIdRef.current = id;
+    setCurrentId(id);
+  }, []);
+
   // Seed engine-reported summary state from the snapshot (doc 05 §2.13).
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +136,7 @@ export function PlaylistProvider({
         if (cancelled) return;
         if ("completed" in response.result && response.result.completed.kind === "state-snapshot") {
           const summary = response.result.completed.snapshot.playlist;
-          if (summary.current !== undefined) setCurrentId(summary.current ?? null);
+          if (summary.current !== undefined) applyCurrentId(summary.current ?? null);
           if (summary.shuffle !== undefined) setShuffleState(summary.shuffle);
           if (summary.repeat !== undefined) setRepeatState(summary.repeat);
         } else if ("error" in response.result && response.result.error.code === "feature-not-exposed") {
@@ -128,7 +150,7 @@ export function PlaylistProvider({
     return () => {
       cancelled = true;
     };
-  }, [transport, requestId]);
+  }, [transport, requestId, applyCurrentId]);
 
   // Keep membership/order/current authoritative from `playlist.changed`.
   useEffect(() => {
@@ -137,16 +159,16 @@ export function PlaylistProvider({
       const change = event.change;
       switch (change.kind) {
         case "items-added":
-          setEntries((prev) => [
+          applyEntries((prev) => [
             ...prev,
             ...change.ids.map((id) => ({ id, title: null, source: null, durationSeconds: null })),
           ]);
           break;
         case "items-removed":
-          setEntries((prev) => prev.filter((e) => !change.ids.includes(e.id)));
+          applyEntries((prev) => prev.filter((e) => !change.ids.includes(e.id)));
           break;
         case "moved":
-          setEntries((prev) => {
+          applyEntries((prev) => {
             const next = [...prev];
             const from = next.findIndex((e) => e.id === change.id);
             if (from < 0) return prev;
@@ -157,7 +179,7 @@ export function PlaylistProvider({
           });
           break;
         case "cleared":
-          setEntries([]);
+          applyEntries(() => []);
           break;
         case "shuffle-set":
           setShuffleState(change.enabled);
@@ -166,11 +188,11 @@ export function PlaylistProvider({
           setRepeatState(change.mode);
           break;
         case "current-changed":
-          setCurrentId(change.id);
+          applyCurrentId(change.id);
           break;
       }
     });
-  }, [transport]);
+  }, [transport, applyEntries, applyCurrentId]);
 
   const dispatch = useCallback(
     (request: CommandRequest): Promise<CommandResult | null> => {
@@ -244,14 +266,18 @@ export function PlaylistProvider({
         void (async () => {
           const id = await enqueue(source, title);
           if (id === null) return;
+          // w26.k14 (j14 #5): the queue is read through the live ref — an
+          // items-added/moved landing between render and this dispatch
+          // must shift the math, never a stale render closure.
+          const queue = entriesRef.current;
           const currentIndex = indexOfId(
-            entries.map((e) => e.id),
-            currentId ?? -1,
+            queue.map((e) => e.id),
+            currentIdRef.current ?? -1,
           );
           void dispatch({
             requestId: requestId(),
             cmd: "playlist.move",
-            args: { id, toIndex: playNextTargetIndex(currentIndex, entries.length) },
+            args: { id, toIndex: playNextTargetIndex(currentIndex, queue.length) },
           });
         })();
       },
@@ -262,7 +288,10 @@ export function PlaylistProvider({
         void dispatch({ requestId: requestId(), cmd: "playlist.load", args: { path, append } });
       },
     }),
-    [dispatch, requestId, enqueue, entries, currentId],
+    // w26.k14 (j14 #5): queue state NO LONGER rebuilds the actions — the
+    // identities stay stable across playlist.changed events (playNext reads
+    // the live refs), so the context value changes only when state does.
+    [dispatch, requestId, enqueue],
   );
 
   const value = useMemo<PlaylistContextValue>(
