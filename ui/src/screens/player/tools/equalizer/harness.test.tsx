@@ -80,3 +80,36 @@ describe("w26.c1 vision harness (dev-only)", () => {
     expect(existsSync(resolve(out, "presets-open.html"))).toBe(true);
   });
 });
+
+describe("w26.k10 frame-contract pins (equalizer.css)", () => {
+  // Regression pins in the dynamics/visualizer harness-test precedent
+  // (states.css string pins) for the EQ sheet's load-bearing composition
+  // rules — the g15 rail-pan fix had NO pin (j10 P3-8) and the preset
+  // glyphs keyed on DOM position until w26.k10 (j10 P3-6).
+  const css = readFileSync(
+    resolve(process.cwd(), "src/screens/player/tools/equalizer/equalizer.css"),
+    "utf8",
+  );
+
+  it("the fader rail shrinks to its mount and pans (g15 P1-1 / j10 P3-8)", () => {
+    // width 100% + max-width 748 + overflow-x: the 748px frame rail pans
+    // inside narrow hosts (the 398px tools dialog) instead of overflowing
+    // under the scrim; every column keeps the frame geometry.
+    expect(css).toMatch(/\.eq-panel__rail\s*\{[^}]*width: 100%;/s);
+    expect(css).toMatch(/\.eq-panel__rail\s*\{[^}]*max-width: 748px;/s);
+    expect(css).toMatch(/\.eq-panel__rail\s*\{[^}]*overflow-x: auto;/s);
+    expect(css).toMatch(/\.eq-panel__rail\s*\{[^}]*scrollbar-width: thin;/s);
+  });
+
+  it("preset curve glyphs key on the structural data-preset marker (j10 P3-6)", () => {
+    expect(css).toContain(
+      '.eq-tool__presets .lumen-dropdown__option[data-preset="dance"]::before',
+    );
+    expect(css).toContain(
+      '.eq-tool__presets .lumen-dropdown__option[data-preset="full-treble"]::before',
+    );
+    // Never DOM position again — the pre-k10 :nth-child keying was only as
+    // safe as the option order.
+    expect(css).not.toMatch(/:nth-child/);
+  });
+});
