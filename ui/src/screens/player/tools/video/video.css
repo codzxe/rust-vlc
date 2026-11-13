@@ -348,13 +348,12 @@
 }
 
 .video-hdr .lumen-dropdown__trigger {
-  /* w26.i08 (vision-flagged ×3, pixel-verified): the shared trigger is a
-   * <button> — the UA default `text-align: center` centers the flex-grown
-   * value span, while the frame inks the selected value LEFT
-   * ("HDR_Options.png" closed trigger: "Auto" at a 16px inset; open state
-   * likewise). Scoped `start` for both video dropdown triggers; the shared
-   * menu.css grammar should adopt it (i16/Lead — lane log). */
-  text-align: start;
+  /* Frame grammar ("HDR_Options.png" closed trigger): the selected value
+   * inks LEFT ("Auto" at a 16px inset) on the two-layer rim. w26.k11 (j11
+   * P3-4): the trigger's left alignment is owned SHARED since w26.i16 —
+   * menu.css carries `text-align: start` on .lumen-dropdown__trigger and
+   * names this sheet's former override as redundant — so the scoped copy
+   * this block carried is deleted (kept honest by the harness CSS pin). */
   background: var(--color-surface-panel); /* frame well: #191919 (358×44 rx4) */
   border: 2px solid var(--color-surface); /* frame rim: #090909 (362×48 rx6) */
 }
@@ -375,7 +374,9 @@
  * hover/open re-declarations keep the shared fills alive over the scoped
  * base (the frame exports only the closed trigger). */
 .video-tool .video-subdropdown .lumen-dropdown__trigger {
-  text-align: start; /* frame: selected value left-aligned — see .video-hdr rule */
+  /* Trigger value alignment is the shared menu.css grammar since w26.i16
+   * (`text-align: start` on the primitive's trigger) — no scoped copy
+   * remains here (j11 P3-4). */
   background: var(--color-surface-panel); /* frame well: #191919 (324×44 rx4) */
   border: 2px solid var(--color-surface-deep); /* frame rim: #0E0E0E (328×48 rx6) */
 }

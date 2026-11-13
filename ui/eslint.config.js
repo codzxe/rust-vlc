@@ -64,10 +64,13 @@ export default [
   },
   {
     // l10n-pseudo-probe.mjs is a Playwright driver: node-side timers +
-    // a page.evaluate() callback whose body runs IN THE BROWSER (document/
-    // window/getComputedStyle are browser globals there, not node). Hygiene
-    // fix by P4-GATE (phase-4 gate): pre-existing no-undef errors on main
-    // @ be4e4c6 blocked `npm run lint`; behavior-neutral config-only change.
+    // page.evaluate()/addInitScript() callbacks whose bodies run IN THE
+    // BROWSER (document/window/location/getComputedStyle are browser
+    // globals there, not node). Hygiene fix by P4-GATE (phase-4 gate):
+    // pre-existing no-undef errors on main @ be4e4c6 blocked `npm run lint`;
+    // behavior-neutral config-only change. w26.k20: `location` joined the
+    // list — the hardened probe's addInitScript seeds the onboarding store
+    // on every non-/onboarding navigation via window.location.pathname.
     files: ["scripts/l10n-pseudo-probe.mjs"],
     languageOptions: {
       globals: {
@@ -76,6 +79,7 @@ export default [
         setTimeout: "readonly",
         document: "readonly",
         window: "readonly",
+        location: "readonly",
         getComputedStyle: "readonly",
       },
     },

@@ -1,10 +1,14 @@
-// w26.c4 — VideoSliderRow: one video-tool slider row. A 1:1 mirror of the
-// dynamics lane's ToolSliderRow (w26.c2) — same DOM, same .dynamics-* classes,
-// same tick overlay — with the label resolved through THIS lane's useVideoMsg
-// seam: the dynamics row's resolver + label-key union are hard-wired to the
-// w26.c2 keys, so w26.c4 label keys (Similarity, Sepia Intensity, Sharpen
-// Sigma…) cannot resolve through it. Same reason the equalizer lane ships
-// useEqMsg + EqBandRow (w26.c1); the dynamics module is never edited.
+// w26.c4 — VideoSliderRow: one video-tool slider row. w26.k11 (j11 P2-1 /
+// P3-5): the row itself now lives in ONE place — tools/shared/SliderRow
+// (w26.k10), generic over the label key with a `resolveLabel` prop — which
+// this lane composes instead of the former 1:1 copy of the dynamics
+// ToolSliderRow. The copy had already drifted: it kept the pre-i07
+// full-width tick percent while every multi-tick video frame draws its
+// degree marks on the 2px-inset FILL domain (Essential gamma tick 1 painted
+// −1.6px off "Video - Essential.svg"; grain ±1.6, banding ±1.4, sharpen ±1,
+// the 2-tick rows ±0.7). The shared row paints the corrected i07 domain and
+// is React.memo'd — a drag on one row no longer re-renders the card's other
+// rows (j11 P3-5).
 //
 // Grammar (w26.a20 analysis §B1/§B3/§D1, frames "Video - Colors.svg" /
 // "Video - Essential.svg"): label #6B6B6B ≈15px left, NO value column (both
@@ -13,17 +17,12 @@
 // slider below: track 328×16 rx6 #090909, flat #371F06 fill 12px rx4 inset 2,
 // thumb 8×24 rx4 #AB6314, optional degree ticks (6px marks on the track
 // centerline, drawn over the fill with the thumb over its own tick — the
-// frame z-order).
+// frame z-order). See shared/SliderRow for the tick-domain measurements.
 
 import type { ReactElement } from "react";
-import { Slider } from "../../../../components/slider";
+import { SliderRow } from "../shared";
 import { useVideoMsg } from "./copy";
 import type { VideoSliderRowDef } from "./types";
-
-/** Thumb half-width in track-percent (8px thumb on a 328px track ≈ ±1.2%,
- * padded to 1.5%) — the tick under the thumb is covered, per the frames'
- * z-order (thumb paints last). */
-const COVERED_TICK_BAND = 1.5;
 
 export interface VideoSliderRowProps {
   /** Row definition (label, range, format, ticks). */
@@ -34,58 +33,12 @@ export interface VideoSliderRowProps {
   readonly onChange: (value: number) => void;
 }
 
-/** Renders one label/slider row (see module header for the grammar). */
+/** Renders one label/slider row (the shared row + this lane's i18n seam). */
 export function VideoSliderRow({
   row,
   value,
   onChange,
 }: VideoSliderRowProps): ReactElement {
   const m = useVideoMsg();
-  const label = m(row.labelKey);
-  const range = row.max - row.min;
-  const percent = range > 0 ? ((value - row.min) / range) * 100 : 0;
-  const ticks = row.ticks ?? 0;
-
-  return (
-    <div className="dynamics-row" data-row={row.id}>
-      <div className="dynamics-row__head">
-        <span className="dynamics-row__label">{label}</span>
-        <span className="dynamics-row__value">{row.format(value)}</span>
-      </div>
-      <div className="dynamics-row__slider">
-        <Slider
-          className="dynamics-slider"
-          value={value}
-          min={row.min}
-          max={row.max}
-          step={row.step}
-          onChangeLive={onChange}
-          onCommit={onChange}
-          formatValue={row.format}
-          aria-label={label}
-        />
-        {ticks > 0 ? (
-          <div className="dynamics-slider__ticks" aria-hidden="true">
-            {Array.from({ length: ticks }, (_, index) => {
-              // Frame degree marks: evenly stepped, one step in from each
-              // end (i/(n+1)) — the default value sits exactly on a tick.
-              const left = ((index + 1) / (ticks + 1)) * 100;
-              const covered = Math.abs(left - percent) <= COVERED_TICK_BAND;
-              return (
-                <span
-                  key={index}
-                  className={
-                    covered
-                      ? "dynamics-slider__tick dynamics-slider__tick--covered"
-                      : "dynamics-slider__tick"
-                  }
-                  style={{ left: `${left.toFixed(3)}%` }}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <SliderRow row={row} value={value} onChange={onChange} resolveLabel={m} />;
 }

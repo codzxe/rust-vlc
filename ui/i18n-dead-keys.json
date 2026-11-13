@@ -1,0 +1,630 @@
+[
+  {
+    "$comment": "Dead-key grandfather list (j18 F4 gate, w26.k18). A catalog key unreferenced by any ui/src|e2e|scripts|tools .ts/.tsx/.mjs/.js file (outside ui/src/i18n/messages.ts and ui/src/i18n/keys/) is rot and FAILS l10n:check unless listed here with a reason. Entries whose key leaves the catalog or gains a reference also FAIL (stale). Dynamic families (`prefix.${...}` template keys) are treated as used by prefix. Prune entries together with the Lead's messages.ts prune."
+  },
+  {
+    "key": "screen.player.music",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.miniplayer",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.playlist",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.onboarding",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.keyboard-shortcuts",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.open-network-stream",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.discovery",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.convert",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.not-found",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.placeholder.body",
+    "reason": "scaffold route-title keys, superseded by the per-screen title wiring of the W26 screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.region.library",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.placeholder",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.music.waveform-placeholder",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.panel.crop-aspect",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.field.aspect",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.field.zoom",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.field.speed",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.field.tonemap-mode",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.field.tonemap-strength",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.option.default",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.option.none",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.1-1",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.4-3",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.16-9",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.16-10",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.2-35-1",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.ratio.2-39-1",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.repeat.off",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.repeat.all",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.repeat.one",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.tonemap.clip",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.tonemap.mobius",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.tonemap.reinhard",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.tonemap.hable",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.action.seek-back-10",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.action.seek-fwd-10",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.action.seek-back-60",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.action.seek-fwd-60",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.none-available",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.group-tracks",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.advanced-badge",
+    "reason": "retired scaffold advanced-fold/settings rows; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.reset-screen",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.global.language",
+    "reason": "relabeled away — the generated schema now carries a different msgid for the same row; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.interface.remember-window-geometry",
+    "reason": "relabeled away — the generated schema now carries a different msgid for the same row; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.privacy.update-checks",
+    "reason": "relabeled away — the generated schema now carries a different msgid for the same row; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.hotkeys.defaults-note",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.appearance.theme-note",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.about.product",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.advanced.fold-show",
+    "reason": "retired scaffold advanced-fold/settings rows; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.advanced.fold-hide",
+    "reason": "retired scaffold advanced-fold/settings rows; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.advanced.intro",
+    "reason": "retired scaffold advanced-fold/settings rows; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.volume",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.mute",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.balance",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.eq.low",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.eq.mid",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.eq.high",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.brightness",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.contrast",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.saturation",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.effects.hue",
+    "reason": "retired hand-written effects-screen labels, superseded by the generated settings screens; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.appearance.title",
+    "reason": "scaffold onboarding copy, superseded by the w26 onboarding flow; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.appearance.body",
+    "reason": "scaffold onboarding copy, superseded by the w26 onboarding flow; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.title",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.body",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-play-pause",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-seek",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-fullscreen",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-more",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.progress.of",
+    "reason": "scaffold onboarding copy, superseded by the w26 onboarding flow; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "nav.open-menu",
+    "reason": "scaffold-era copy, unreferenced since the W26 screen rewrites; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.file.convert",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.file.exit",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.playback.play-pause",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.playback.stop",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.playback.next",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.view",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.view.player",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.view.discovery",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.view.shortcuts",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.tools",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.tools.customize",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.tools.media-info",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.tools.preferences",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.help",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.help.about",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "menu.help.keyboard-shortcuts",
+    "reason": "scaffold menu-bar label ids, superseded by the data-driven labelKey menus (live menu keys are exact literals); messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "demo.notice.body",
+    "reason": "scaffold-era copy, unreferenced since the W26 screen rewrites; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "stream.subtitle",
+    "reason": "scaffold network-stream copy, superseded by the w26.b15 keys; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "stream.url.placeholder",
+    "reason": "scaffold network-stream copy, superseded by the w26.b15 keys; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "stream.back",
+    "reason": "scaffold network-stream copy, superseded by the w26.b15 keys; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "discovery.volumes.empty",
+    "reason": "dead copy flagged by k17 P3-6 (superseded by ListEmpty grammar / live statuses), awaiting the Lead's messages.ts prune; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "convert.lane.unavailable",
+    "reason": "dead copy flagged by k17 P3-6 (superseded by ListEmpty grammar / live statuses), awaiting the Lead's messages.ts prune; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "convert.job.blocked.reason",
+    "reason": "dead copy flagged by k17 P3-6 (superseded by ListEmpty grammar / live statuses), awaiting the Lead's messages.ts prune; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "shortcuts.subtitle",
+    "reason": "scaffold-era copy, unreferenced since the W26 screen rewrites; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "not-found.title",
+    "reason": "dead copy flagged by k17 P3-6 (superseded by ListEmpty grammar / live statuses), awaiting the Lead's messages.ts prune; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "not-found.body",
+    "reason": "dead copy flagged by k17 P3-6 (superseded by ListEmpty grammar / live statuses), awaiting the Lead's messages.ts prune; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-volume",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-mute",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.hint-playlist",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.keys.enter",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.keys.left",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.keys.right",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.keys.strip.label",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.demo.playing",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.open.recent",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; messages.ts is Lead-owned — prune at the next catalog pass",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.frame",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; lane copy pruned from w26.a12.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.item",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; lane copy pruned from w26.a12.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.seek",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; lane copy pruned from w26.a12.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "onboarding.shortcuts.volume",
+    "reason": "scaffold onboarding shortcut-hint copy, superseded by the w26 onboarding flow and the keyboard-shortcuts dialog; lane copy pruned from w26.a12.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.cast",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.a14.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.exit-fullscreen",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.a14.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.fullscreen",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.a14.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.controls.edit-shortcuts",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); lane copy pruned from w26.b07.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.extensions.empty-body",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); lane copy pruned from w26.b08.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "settings.extensions.empty-title",
+    "reason": "retired scaffold settings copy (superseded by the generated screens / relabeled rows); lane copy pruned from w26.b08.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "shell.playlist.anime-to-watch",
+    "reason": "scaffold seed/hint copy, superseded by the playlistsStore seed + live sidebar; lane copy pruned from w26.a10.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "shell.playlist.cool-songs",
+    "reason": "scaffold seed/hint copy, superseded by the playlistsStore seed + live sidebar; lane copy pruned from w26.a10.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "shell.sidebar.create.hint",
+    "reason": "scaffold seed/hint copy, superseded by the playlistsStore seed + live sidebar; lane copy pruned from w26.a10.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.canvas.menu.hide-queue",
+    "reason": "unreferenced canvas-menu labels (the live family members are exact literals in PlayerScreen); lane copy pruned from w26.c6.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.canvas.menu.show-queue",
+    "reason": "unreferenced canvas-menu labels (the live family members are exact literals in PlayerScreen); lane copy pruned from w26.c6.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.tools.open",
+    "reason": "scaffold player copy, unreferenced since the w26 player rewrite; lane copy pruned from w26.c5.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "customize.tile.remove-hint",
+    "reason": "scaffold-era customize-panel family, superseded by the player tools screens' own keys (j18 F4); lane copy pruned from w26.gfixA.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.settings-popup",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.gfixC.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.controls.queue-items",
+    "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.i03.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  }
+]

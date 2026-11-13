@@ -13,8 +13,10 @@ import type { MessageKey } from "../../../../i18n/messages";
 /** Locale tags with a real catalog in `locales/` (the crate's source of truth). */
 export const AVAILABLE_LOCALES: readonly string[] = ["en-US"];
 
-/** doc 07 §6.3 — en-US is the reference catalog, always available. */
-export const REFERENCE_LOCALE = "en-US";
+/* w26.k13 (j13 P3-13): the test-only REFERENCE_LOCALE export is gone — the
+ * one test that wanted the reference locale now inlines "en-US" (the tag
+ * the doc 07 §6.3 comment above already names); an export nothing in
+ * production reads was drift bait. */
 
 /** Catalog label msgids per locale tag (raw tag shown when copy is missing). */
 const LOCALE_LABEL_MSGIDS: Readonly<Record<string, MessageKey>> = {

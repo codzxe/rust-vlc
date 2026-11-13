@@ -33,11 +33,17 @@ export default defineConfig({
     // Relative page.goto("/") targets resolve against the dev server
     // (card 4.A2: without an explicit baseURL, goto("/") is an invalid URL —
     // latent 4.A1 gap, first exercised now that browsers are installed).
-    baseURL: "http://localhost:5173",
+    // 127.0.0.1, not localhost — contract §9: the dev server binds 127.0.0.1
+    // explicitly (w26.k20, j20 P3-13).
+    baseURL: "http://127.0.0.1:5173",
   },
   webServer: {
     command: "npm run dev -- --port 5173 --strictPort",
-    url: "http://localhost:5173",
-    reuseExistingServer: true,
+    url: "http://127.0.0.1:5173",
+    // Playwright guidance (w26.k20, j20 P3-13): reuse an already-running
+    // server LOCALLY (the Lead-owned 5173 dev server during waves; a dev
+    // box), but NEVER in CI — there a stale server must not be silently
+    // reused. `!process.env.CI` is the documented pattern.
+    reuseExistingServer: !process.env.CI,
   },
 });

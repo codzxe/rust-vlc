@@ -7,7 +7,16 @@
  * click targets); this rule guarantees EVERY keyboard focus stop in the app
  * shows the same token ring instead of relying on per-screen auditing. It is
  * a floor, not a replacement — primitives keep their own identical
- * declarations. */
+ * declarations.
+ *
+ * Light mode re-points the ring's COLOR: `:root[data-theme="light"]
+ * :focus-visible` in theme/lumen.css (theme lane — h05 F1, WCAG 2.4.11:
+ * the accent ring measures 1.40:1 on light chrome, light swaps to the
+ * calibrated --color-focus-ring #824505, ≥3.26:1 on every light surface).
+ * The override lives in the theme sheet because the light ramp is the theme
+ * layer's, and its (0,3,0) specificity wins over this floor regardless of
+ * import order — so this floor is theme-complete in composition, with the
+ * light color owned one layer up (w26.k19, j19 J19-10). */
 
 :focus-visible {
   outline: 2px solid var(--color-accent);

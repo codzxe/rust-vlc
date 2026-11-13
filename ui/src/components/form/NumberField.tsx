@@ -14,20 +14,36 @@ export interface NumberFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   max?: number;
   /** Stepper step (doc 08 §1.5 Values.svg steppers). */
   step?: number;
+  /** Standard change handler — fired by typing AND by the pointer steppers.
+   * Stepper events are SYNTHETIC (jsdom has no stepUp/stepDown): `target` /
+   * `currentTarget` carry `value` (string) + `valueAsNumber`, but no event
+   * metadata (`name` is absent, `isTrusted` is not set) — read the value,
+   * not the event (honest-gap note, form/states.md; w26.k01 j01-11). */
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }
 
 /**
  * NumberField primitive — text input + stepper affordance (doc 08 §1.5
  * Values.svg value steppers). Steppers clamp to min/max and report through
  * the standard onChange; steppers disable at the bounds (no fabricated
- * out-of-range values). Keyboard: native number input (arrows, Home/End).
+ * out-of-range values). min/max/step are forwarded to the native input
+ * (w26.k01 j01-1), so keyboard users get the same contract pointer users
+ * do: native arrows respect the bounds and the step, instead of the mouse
+ * clamping while the keyboard stepped freely past the limits. Keyboard:
+ * native number input (arrows, Home/End).
  */
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
   ({ label, labelHidden = false, error, min, max, step = 1, id, className = "", onChange, disabled, value, ...rest }, ref) => {
     const autoId = useId();
     const inputId = id ?? autoId;
     const errorId = `${inputId}-error`;
-    const numeric = typeof value === "number" ? value : undefined;
+    // `value` is string | number (InputHTMLAttributes): numeric strings step
+    // too (j01-11 — a controlled "7" used to make the steppers silently
+    // no-op); empty or non-numeric text still means "no value → no fabricated
+    // step".
+    const parsed =
+      typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+    const numeric = Number.isFinite(parsed) ? parsed : undefined;
 
     const clamp = (next: number): number => {
       let out = next;
@@ -68,6 +84,9 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(
             aria-describedby={error ? errorId : undefined}
             value={value}
             disabled={disabled}
+            min={min}
+            max={max}
+            step={step}
             onChange={onChange}
             {...rest}
           />

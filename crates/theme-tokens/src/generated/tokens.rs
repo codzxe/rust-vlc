@@ -15,9 +15,10 @@
 //! Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
 //! One ramp per accent (doc 08 §3.3): `ACCENT_{ID}_{ROLE}` with
 //! roles PRIMARY, STRONG, TINTED_DARK, TINTED_LIGHT, BRIGHT_LIGHT,
-//! ICON_LIGHT, ON_ACCENT.
+//! BRIGHT_DARK, ICON_LIGHT, ON_ACCENT (j18 F2: the list now names
+//! all eight emitted roles).
 //!
-//! Source shape: 122 primitive / 84 alias / 84 semantic tokens.
+//! Source shape: 123 primitive / 86 alias / 86 semantic tokens.
 
 use crate::color::{Rgb8, Shadow};
 
@@ -43,15 +44,6 @@ pub const DEFAULT_ACCENT: &str = "orange";
 
 // -- semantic tokens (sorted by constant name) -----------------------------
 
-pub const ACCENT_ORANGE_BRIGHT_DARK: Rgb8 = Rgb8::new(0xe8, 0x85, 0x1a);
-pub const ACCENT_ORANGE_BRIGHT_LIGHT: Rgb8 = Rgb8::new(0xb3, 0x5f, 0x0d);
-pub const ACCENT_ORANGE_ICON_LIGHT: Rgb8 = Rgb8::new(0xc2, 0x71, 0x1a);
-pub const ACCENT_ORANGE_ON_ACCENT: Rgb8 = Rgb8::new(0x09, 0x09, 0x09);
-pub const ACCENT_ORANGE_PRIMARY: Rgb8 = Rgb8::new(0xd3, 0x79, 0x18);
-pub const ACCENT_ORANGE_STRONG: Rgb8 = Rgb8::new(0xab, 0x63, 0x14);
-pub const ACCENT_ORANGE_TINTED_DARK: Rgb8 = Rgb8::new(0x37, 0x1f, 0x06);
-pub const ACCENT_ORANGE_TINTED_LIGHT: Rgb8 = Rgb8::new(0xd8, 0xba, 0x9a);
-pub const ACCENT_RED_PRIMARY: Rgb8 = Rgb8::new(0xe1, 0x50, 0x32);
 pub const BLUR_BACKDROP: f32 = 25.0;
 pub const BLUR_BACKDROP_SMALL: f32 = 13.75;
 pub const COLOR_ACCENT: Rgb8 = Rgb8::new(0xd3, 0x79, 0x18);
@@ -103,6 +95,8 @@ pub const COLOR_SURFACE_MUTED_DARK: Rgb8 = Rgb8::new(0x15, 0x15, 0x15);
 pub const COLOR_SURFACE_MUTED_LIGHT: Rgb8 = Rgb8::new(0xc9, 0xc9, 0xc9);
 pub const COLOR_SURFACE_PANEL_DARK: Rgb8 = Rgb8::new(0x19, 0x19, 0x19);
 pub const COLOR_SURFACE_PANEL_LIGHT: Rgb8 = Rgb8::new(0xc6, 0xc6, 0xc6);
+pub const COLOR_SURFACE_PANEL_RAISED_DARK: Rgb8 = Rgb8::new(0x19, 0x19, 0x19);
+pub const COLOR_SURFACE_PANEL_RAISED_LIGHT: Rgb8 = Rgb8::new(0xde, 0xde, 0xde);
 pub const COLOR_SURFACE_RAISED_DARK: Rgb8 = Rgb8::new(0x22, 0x22, 0x22);
 pub const COLOR_SURFACE_RAISED_LIGHT: Rgb8 = Rgb8::new(0xde, 0xde, 0xde);
 pub const COLOR_SURFACE_SELECTED_DARK: Rgb8 = Rgb8::new(0x1f, 0x1f, 0x1f);
@@ -114,6 +108,7 @@ pub const FONT_SIZE_CAPTION: f32 = 11.0;
 pub const FONT_SIZE_DISPLAY: f32 = 32.0;
 pub const FONT_SIZE_LABEL: f32 = 15.0;
 pub const FONT_SIZE_MICRO: f32 = 6.0;
+pub const FONT_SIZE_SCALE_LABEL: f32 = 12.0;
 pub const FONT_SIZE_SECTION: f32 = 15.0;
 pub const FONT_SIZE_SIDEBAR: f32 = 13.0;
 pub const FONT_SIZE_TIME: f32 = 15.0;
@@ -176,6 +171,15 @@ pub const STROKE_WINDOW: f32 = 20.0;
 
 // -- accent ramps (declared accent order; doc 08 §3.3) ----------------------
 
+pub const ACCENT_ORANGE_PRIMARY: Rgb8 = Rgb8::new(0xd3, 0x79, 0x18);
+pub const ACCENT_ORANGE_STRONG: Rgb8 = Rgb8::new(0xab, 0x63, 0x14);
+pub const ACCENT_ORANGE_TINTED_DARK: Rgb8 = Rgb8::new(0x37, 0x1f, 0x06);
+pub const ACCENT_ORANGE_TINTED_LIGHT: Rgb8 = Rgb8::new(0xd8, 0xba, 0x9a);
+pub const ACCENT_ORANGE_BRIGHT_LIGHT: Rgb8 = Rgb8::new(0xb3, 0x5f, 0x0d);
+pub const ACCENT_ORANGE_BRIGHT_DARK: Rgb8 = Rgb8::new(0xe8, 0x85, 0x1a);
+pub const ACCENT_ORANGE_ICON_LIGHT: Rgb8 = Rgb8::new(0xc2, 0x71, 0x1a);
+pub const ACCENT_ORANGE_ON_ACCENT: Rgb8 = Rgb8::new(0x09, 0x09, 0x09);
+pub const ACCENT_RED_PRIMARY: Rgb8 = Rgb8::new(0xe1, 0x50, 0x32);
 pub const ACCENT_RED_STRONG: Rgb8 = Rgb8::new(0xc8, 0x3a, 0x1d);
 pub const ACCENT_RED_TINTED_DARK: Rgb8 = Rgb8::new(0x35, 0x10, 0x08);
 pub const ACCENT_RED_TINTED_LIGHT: Rgb8 = Rgb8::new(0xd6, 0xa6, 0x9c);

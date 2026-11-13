@@ -41,6 +41,36 @@ describe("Dropdown", () => {
     expect(trigger).toHaveTextContent("English");
   });
 
+  it("w26.k02 (j02 J02-2): the selected value is SR-perceivable — aria-describedby links the trigger to the value text", () => {
+    const { rerender } = render(
+      <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
+    );
+    const trigger = screen.getByRole("button", { name: "Subtitle track" });
+    // The name (aria-label) stays the field label; the VALUE is exposed as
+    // the trigger's description (announced after the name by SRs) — it was
+    // previously hidden by the aria-label override.
+    const describedId = trigger.getAttribute("aria-describedby");
+    expect(describedId).not.toBeNull();
+    const described = document.getElementById(describedId ?? "");
+    expect(described).not.toBeNull();
+    expect(described).toHaveTextContent("English");
+    // Value changes flow through the same wiring.
+    rerender(
+      <Dropdown options={options} value="ja" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
+    );
+    expect(document.getElementById(trigger.getAttribute("aria-describedby") ?? "")).toHaveTextContent("日本語");
+  });
+
+  it("w26.k02: the open list is wired via id + aria-controls from the trigger", () => {
+    render(
+      <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
+    );
+    const trigger = screen.getByRole("button", { name: "Subtitle track" });
+    expect(trigger).not.toHaveAttribute("aria-controls"); // collapsed: no list in the DOM yet
+    const list = openList();
+    expect(trigger).toHaveAttribute("aria-controls", list.id);
+  });
+
   it("opens a listbox with options; the selected option carries aria-selected", () => {
     render(
       <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />,
@@ -102,6 +132,28 @@ describe("Dropdown", () => {
     fireEvent.keyDown(screen.getByRole("option", { name: "English" }), { key: "Escape" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Subtitle track" })).toHaveFocus();
+  });
+
+  it("w26.g19 regression (j02 J02-8): Escape/Tab close the dropdown WITHOUT closing a listening host dialog; Tab also restores focus", () => {
+    const hostKeyDown = vi.fn();
+    render(
+      <div onKeyDown={hostKeyDown}>
+        <Dropdown options={options} value="en" onChange={onChange} label="Subtitle track" resolveLabel={resolve} />
+      </div>,
+    );
+    // Escape: the g19 repro — the dropdown consumes it (stopPropagation),
+    // so a host dialog listening for Escape (subtitle picker, settings
+    // window) must NOT also close while the list is open.
+    openList();
+    fireEvent.keyDown(screen.getByRole("option", { name: "English" }), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(hostKeyDown).not.toHaveBeenCalled();
+    // Tab: same scoping contract + focus restoration to the trigger.
+    openList();
+    fireEvent.keyDown(screen.getByRole("option", { name: "English" }), { key: "Tab" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subtitle track" })).toHaveFocus();
+    expect(hostKeyDown).not.toHaveBeenCalled();
   });
 
   it("typeahead jumps to the next option matching the typed prefix", () => {

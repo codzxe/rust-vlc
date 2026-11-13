@@ -23,15 +23,20 @@
 //
 // `Settings - playback-1` is a duplicate export of the same artboard (17
 // rect y-deltas of +1/+2px; g11) — no second state exists.
+//
+// w26.k13 (j13 ruling 1): the section loop rides the shared areas layer
+// (schemaSectionViews + the hiddenKeys composition option). w26.k12
+// (j12 P2-2): no search filter — the shell swaps in cross-area results
+// while a query is live, so an area-side filter could never execute; the
+// hidden rows below stay REAL, LIVE settings that the cross-area search
+// results and the onboarding wizard still reach.
 
 import type { ReactElement } from "react";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as i14Keys } from "../../../i18n/keys/w26.i14";
-import type { SettingEntry } from "../generated/schema";
-import { schemaSectionsOf } from "../SettingsSections";
 import { SettingField } from "../SettingField";
-import { useSettingsSearch } from "../search";
+import { schemaSectionViews } from "./shared";
 
 type I14Key = keyof typeof i14Keys;
 
@@ -58,14 +63,15 @@ const PLAYBACK_HINTS: Readonly<Record<string, MessageKey>> = {
 /**
  * Playback rows the frame's Tracks section does not carry (g11-P2-2): the
  * three language/mode rows stay REAL, LIVE settings (the onboarding wizard
- * writes them; search still finds them) — the playback screen's own
- * composition just hides them from the frame's 4-row Tracks section.
+ * writes them; the shell's cross-area search still finds them) — the
+ * playback screen's own composition just hides them from the frame's 4-row
+ * Tracks section.
  */
-const PLAYBACK_HIDDEN_KEYS: ReadonlySet<string> = new Set([
+const PLAYBACK_HIDDEN_KEYS: readonly string[] = [
   "playback.preferred-audio-languages",
   "playback.preferred-subtitle-languages",
   "playback.subtitle-mode",
-]);
+];
 
 /**
  * Playback settings area (route /settings/playback; Media group) — the
@@ -76,26 +82,21 @@ const PLAYBACK_HIDDEN_KEYS: ReadonlySet<string> = new Set([
  */
 export function PlaybackArea(): ReactElement {
   const m = useMsg();
-  const { matches } = useSettingsSearch();
   return (
     <div className="settings-sections" data-settings-area="playback">
-      {schemaSectionsOf("playback").map((section) => {
-        // Pure-schema sections: narrow the row union so the schema-entry
-        // fields type-check below.
-        const entries = section.entries
-          .filter((row): row is SettingEntry => "key" in row)
-          .filter((entry) => !PLAYBACK_HIDDEN_KEYS.has(entry.key))
-          .filter((entry) => entry.featureExposed && matches(entry));
-        if (entries.length === 0) return null;
-        return (
-          <section key={section.id} className="settings-section" data-section={section.id}>
-            <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
-            {entries.map((entry) => (
-              <SettingField key={entry.key} entry={entry} hint={PLAYBACK_HINTS[entry.key]} />
-            ))}
-          </section>
-        );
-      })}
+      {schemaSectionViews("playback", { hiddenKeys: PLAYBACK_HIDDEN_KEYS }).map(
+        ({ section, visible }) => {
+          if (visible.length === 0) return null;
+          return (
+            <section key={section.id} className="settings-section" data-section={section.id}>
+              <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
+              {visible.map((entry) => (
+                <SettingField key={entry.key} entry={entry} hint={PLAYBACK_HINTS[entry.key]} />
+              ))}
+            </section>
+          );
+        },
+      )}
     </div>
   );
 }

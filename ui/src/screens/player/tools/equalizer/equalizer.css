@@ -30,13 +30,32 @@
 /* -------------------------------------------------- the tools-dialog tool */
 
 /* The wrapper is transparent: the GraphicEQ panel owns the surface. It
- * carries the eq-tool--open state class the tools dialog's staged-note
- * rules key on (dialogs.css :has(.eq-tool--open)). */
+ * carries the eq-tool--open state class the tools dialog's TRANSITIONAL
+ * staged-note rule still keys on (dialogs.css :has(.eq-tool--open)) and,
+ * since w26.k10 (j10 P3-4), the tool's own staged markers — the note below
+ * renders with the expanded body like its siblings'. */
 .eq-tool {
   display: flex;
   flex-direction: column;
   width: 100%;
   font-family: var(--font-family-sans);
+}
+
+/* Staged note — the honest-unbound marker (the dynamics/visualizer/video
+ * in-body pattern): quiet caption line, never styled like an engine status. */
+.eq-tool__staged {
+  margin: calc(var(--space-inset) * 2) 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-content-secondary);
+}
+
+/* TRANSITIONAL (w26.k10, j10 P3-4): hosts that still render their own EQ
+ * staged note suppress the tool's — the tools dialog's wrapper
+ * (ToolsDialog.tsx) shows its own line via dialogs.css :has(.eq-tool--open).
+ * Delete this rule together with the wrapper + its :has() rule; standalone
+ * mounts (and every host after that deletion) render the tool's own note. */
+.tools-dialog__staged-tool .eq-tool__staged {
+  display: none;
 }
 
 /* The preset selector (EQ presets.svg) — the shared Dropdown with the
@@ -67,16 +86,15 @@
 }
 
 /* The trigger label — frame: EQ presets.svg path `Option` fill #8F8F8F
- * ≈15px at x39.2 (15px inside the inner field, LEFT-aligned; the shared
- * trigger is a <button> and inherits the UA's text-align:center — scope it
- * back to the frame's left inset). w26.i06 (h13 #2): the ink is pinned in
- * scope so no shared/base change can leak bright value ink onto this
- * quiet-label control again (h13 measured #FFFFFF; verified #8F8F8F live
- * and pinned here). */
+ * ≈15px at x39.2 (15px inside the inner field, LEFT-aligned; menu.css's
+ * shared trigger carries text-align: start since w26.i16, so the old scoped
+ * text-align twin is gone — j11 P3-4's cross-lane cleanup, routed here).
+ * w26.i06 (h13 #2): the ink is pinned in scope so no shared/base change can
+ * leak bright value ink onto this quiet-label control again (h13 measured
+ * #FFFFFF; verified #8F8F8F live and pinned here). */
 .eq-tool__presets .lumen-dropdown__value {
   font-size: var(--font-size-section); /* frame: trigger label ≈15px */
   color: var(--color-content-secondary); /* frame: #8F8F8F (h13 #2) */
-  text-align: left; /* frame: label x39.2 — left inset, not UA-centered */
 }
 
 /* frame: state=open — list 362×348 rx6 #191919 (EQ presets.svg rect x22
@@ -129,8 +147,12 @@
  * the preset's bands sit above/below 0 dB. The SELECTED row (option_2)
  * draws NO glyph — bg fill + orange check only. Painted as a ::before
  * flex item so the shared Dropdown's DOM stays untouched (g15-P3-2);
- * per-row wedges are keyed by :nth-child = EQ_PRESETS order, pinned by
- * EqualizerTool.test ("listbox children are exactly the 8 options"). */
+ * w26.k10 (j10 P3-6): per-row wedges key on the option's `data-preset`
+ * marker (DropdownOption.data) — STRUCTURAL, independent of DOM order
+ * (the pre-k10 position-keyed selectors were only as safe as the option
+ * order).
+ * "None"/"Flat" carry no wedge rule: None is selected by default (the
+ * selected rule hides its glyph) and Flat is the flat response. */
 .eq-tool__presets .lumen-dropdown__option::before {
   content: "";
   display: block;
@@ -158,19 +180,19 @@
 /* Per-preset deviation wedges — filled half-ellipses (flat side on the
  * baseline, accent ink = the check's --color-accent-icon), geometry from
  * the SVG path bboxes (frame coords → box: x−39, baseline y7–9):
- *   nth 2 "Flat"            Vector 45 only — the flat response
- *   nth 3 "Classical"       Vector 46: right end dips below (treble cut)
- *   nth 4 "Club"            Vector 46_2: mid hump above
- *   nth 5 "Dance"           Vector 46_3 bass hump + Vector 47 treble dip
- *   nth 6 "Full bass"       Vector 46_4 hump + Vector 48 first-band dip
+ *   none                    no rule — selected by default (glyph hidden)
+ *   flat                    Vector 45 only — the flat response (baseline)
+ *   classical               Vector 46: right end dips below (treble cut)
+ *   club                    Vector 46_2: mid hump above
+ *   dance                   Vector 46_3 bass hump + Vector 47 treble dip
+ *   full-bass               Vector 46_4 hump + Vector 48 first-band dip
  *                           + Vector 47_2 treble dip
- *   nth 7 "Full bass &
- *     treble"               Vector 46_5 mid dip + Vector 48_2 bass hump
+ *   full-bass-treble        Vector 46_5 mid dip + Vector 48_2 bass hump
  *                           + Vector 47_3 treble hump
- *   nth 8 "Full treble"     Vector 47_4 treble hump */
+ *   full-treble             Vector 47_4 treble hump */
 
 /* Classical — Vector 46 x52–62, 2–6px BELOW the baseline. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(3)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="classical"]::before {
   --eq-curve-a: radial-gradient(
       5px 5px at 50% 0%,
       var(--color-accent-icon) 99%,
@@ -181,7 +203,7 @@
 }
 
 /* Club — Vector 46_2 x42–52, 2–6px above. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(4)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="club"]::before {
   --eq-curve-a: radial-gradient(
       5px 5px at 50% 100%,
       var(--color-accent-icon) 99%,
@@ -192,7 +214,7 @@
 }
 
 /* Dance — Vector 46_3 x42–48 above + Vector 47 x49–61 below. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(5)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="dance"]::before {
   --eq-curve-a: radial-gradient(
       3px 7px at 50% 100%,
       var(--color-accent-icon) 99%,
@@ -209,7 +231,7 @@
 
 /* Full bass — Vector 46_4 x42–50 above + Vector 48 x39–42 and
  * Vector 47_2 x52–61 below. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(6)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="full-bass"]::before {
   --eq-curve-a: radial-gradient(
       4px 7px at 50% 100%,
       var(--color-accent-icon) 99%,
@@ -232,7 +254,7 @@
 
 /* Full bass & treble — Vector 46_5 x42–50 below + Vector 48_2 x39–42 and
  * Vector 47_3 x52–61 above. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(7)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="full-bass-treble"]::before {
   --eq-curve-a: radial-gradient(
       4px 6px at 50% 0%,
       var(--color-accent-icon) 99%,
@@ -254,7 +276,7 @@
 }
 
 /* Full treble — Vector 47_4 x49–61, 2–7px above. */
-.eq-tool__presets .lumen-dropdown__option:nth-child(8)::before {
+.eq-tool__presets .lumen-dropdown__option[data-preset="full-treble"]::before {
   --eq-curve-a: radial-gradient(
       6px 6px at 50% 100%,
       var(--color-accent-icon) 99%,

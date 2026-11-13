@@ -47,10 +47,13 @@ fn committed_source_parses_with_the_documented_shape() -> Result<(), Box<dyn std
     let counts = set.counts();
     // W25/W26 truth (figma-fidelity-spec + waves a-f/gfix): the Figma
     // redesign's orange is the default accent; counts follow the current
-    // committed source (light-ramp repins included).
-    assert_eq!(counts.primitives, 122, "primitive-layer token count");
-    assert_eq!(counts.aliases, 84, "alias-layer token count");
-    assert_eq!(counts.semantic, 84, "semantic-layer token count");
+    // committed source (light-ramp repins included). w26.k18: +font.size
+    // .scale-label (12px, i14 ask) and +color.surface.panel-raised
+    // (k17 P3-4/i09/i17/i18 ask) — 122/84/84 → 123/86/86, repinned with the
+    // regeneration in the same change.
+    assert_eq!(counts.primitives, 123, "primitive-layer token count");
+    assert_eq!(counts.aliases, 86, "alias-layer token count");
+    assert_eq!(counts.semantic, 86, "semantic-layer token count");
     assert_eq!(set.modes(), ["dark", "light"]);
     assert_eq!(set.default_mode(), "dark");
     assert_eq!(
@@ -263,6 +266,43 @@ fn emitted_documents_have_the_documented_structure() -> Result<(), Box<dyn std::
     }
 
     assert!(rust.starts_with("//! GENERATED FILE — DO NOT EDIT."));
+    // j18 F2 regression guard: the semantic section must contain ZERO
+    // `ACCENT_<ID>_<ROLE>` constants (the old `ramps * 7` arithmetic split
+    // leaked nine ramp constants into it), and the ramp section must carry
+    // exactly `ramps × 8` of them, in declared accent order.
+    let ramp_header = "// -- accent ramps (declared accent order; doc 08 §3.3)";
+    let ramp_at = rust
+        .find(ramp_header)
+        .ok_or("ramp section header missing from the Rust output")?;
+    let (semantic_section, ramp_section) = rust.split_at(ramp_at);
+    let ramp_consts: Vec<&str> = ramp_section
+        .lines()
+        .filter_map(|l| l.strip_prefix("pub const "))
+        .map(|l| l.split(':').next().unwrap_or(l).trim())
+        .collect();
+    assert_eq!(
+        ramp_consts.len(),
+        set.accent_ramps().len() * 8,
+        "each ramp emits exactly eight ACCENT_<ID>_<ROLE> constants"
+    );
+    for (ramp, chunk) in set.accent_ramps().iter().zip(ramp_consts.chunks(8)) {
+        let prefix = format!("ACCENT_{}_", ramp.id.to_uppercase().replace('-', "_"));
+        assert!(
+            chunk.iter().all(|n| n.starts_with(&prefix)),
+            "ramp `{}` constants out of declared order: {chunk:?}",
+            ramp.id
+        );
+    }
+    let semantic_leak: Vec<&str> = semantic_section
+        .lines()
+        .filter_map(|l| l.strip_prefix("pub const "))
+        .map(|l| l.split(':').next().unwrap_or(l).trim())
+        .filter(|n| n.starts_with("ACCENT_"))
+        .collect();
+    assert!(
+        semantic_leak.is_empty(),
+        "ramp constants leaked into the semantic section: {semantic_leak:?}"
+    );
     for line in [
         "pub const MODES: &[&str] = &[\"dark\", \"light\"];",
         "pub const DEFAULT_MODE: &str = \"dark\";",

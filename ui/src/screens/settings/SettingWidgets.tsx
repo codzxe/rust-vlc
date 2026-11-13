@@ -1,18 +1,20 @@
 import type { ReactElement } from "react";
 import { Slider } from "../../components/slider/Slider";
 import { Switch } from "../../components/form/Switch";
-import { useMsg } from "../../i18n/messages";
-import type { MessageKey } from "../../i18n/messages";
-import { keys as fixerKeys } from "../../i18n/keys/w26.gfixB";
-import { keys as seedKeys } from "../../i18n/keys/w26.f01";
+import { useRadiogroupKeyboard } from "../../components/form/useRadiogroupKeyboard";
+import { useSettingsMsg } from "./settingsMsg";
 import type { SettingEntry } from "./generated/schema";
 import { SETTING_AUDIO_STARTUP_VOLUME_MODE } from "./generated/schema";
 import { useSettings } from "./SettingsProvider";
 
 // SettingWidgets — the per-key special controls that have no primitive
 // mapping (w26.gfix-B, findings g11-P2-3 / g12-P1-3 / g12-P1-4). Registered
-// in areas/index.tsx SPECIAL_FIELD_WIDGETS; SettingField renders them inside
+// in the specialWidgets registry (w26.k12 leaf module, formerly
+// areas/index.tsx SPECIAL_FIELD_WIDGETS); SettingField renders them inside
 // the standard row (label left, 320px control column right).
+//
+// w26.k12 (j12 P3-5): the lane-seam resolver is the shared settingsMsg
+// module (was this file's private useWidgetMsg copy).
 //
 // Frame truth (tools-settings.md §C0 "Slider" + a19 B5 "Values-1"):
 //   Slider   track 320×16 rx6 #090909 · fill 12 rx4 #371F06 inset 2 · thumb
@@ -24,17 +26,6 @@ import { useSettings } from "./SettingsProvider";
 //            #371F06 + label #D37918 · unselected #191919 + label #6B6B6B ·
 //            nested input 182×32 rx2 @ 0.4 opacity while its row is
 //            unselected.
-
-type FixerKey = keyof typeof fixerKeys;
-type SeedKey = keyof typeof seedKeys;
-/** Pre-registration seam (w26.gfixB + the w26.f01 seed's row labels). */
-const laneCatalog: Readonly<Record<string, string>> = { ...seedKeys, ...fixerKeys };
-
-/** useWidgetMsg — useMsg + the lane catalogs' pre-registration keys. */
-function useWidgetMsg() {
-  const m = useMsg();
-  return (key: MessageKey | FixerKey | SeedKey): string => m(key as MessageKey) ?? laneCatalog[key];
-}
 
 /** One scale label: text anchored at `at` (0..1 across the track). */
 interface ScaleMark {
@@ -136,7 +127,7 @@ export const WIDGET_GROUPED_KEYS: ReadonlySet<string> = new Set(["audio.startup-
  * labels. Controlled: commits through the settings store on release/step.
  */
 export function SettingsSliderField({ entry }: { entry: SettingEntry }): ReactElement {
-  const m = useWidgetMsg();
+  const m = useSettingsMsg();
   const { value, setValue } = useSettings();
   const spec = SLIDER_SPECS[entry.key];
   const currentRaw = value(entry.key);
@@ -146,7 +137,7 @@ export function SettingsSliderField({ entry }: { entry: SettingEntry }): ReactEl
       : typeof entry.defaultValue === "number"
         ? entry.defaultValue
         : 0;
-  const label = m(entry.description as MessageKey);
+  const label = m(entry.description as Parameters<typeof m>[0]);
   if (spec === undefined) {
     // Unregistered key — the honest fallback is the schema range, no scale.
     return (
@@ -222,9 +213,9 @@ export function SettingsSliderField({ entry }: { entry: SettingEntry }): ReactEl
  * start_paused is false). Clicking ON→OFF persists start_paused = true.
  */
 export function InvertedSwitchField({ entry }: { entry: SettingEntry }): ReactElement {
-  const m = useWidgetMsg();
+  const m = useSettingsMsg();
   const { value, setValue } = useSettings();
-  const label = m(entry.description as MessageKey);
+  const label = m(entry.description as Parameters<typeof m>[0]);
   return (
     <Switch
       aria-label={label}
@@ -271,21 +262,42 @@ function StartupVolumeInput({
  * "Always starts at:" with the nested percent input (dimmed + inert while
  * unselected). Binds BOTH schema keys: the mode enum drives the selection,
  * the int drives the input.
+ *
+ * w26.k12 (j12 P2-4): the WAI-ARIA radiogroup pattern — k01's shared roving
+ * keyboard grammar (useRadiogroupKeyboard: four arrows, wrap-around, skips
+ * disabled options) on the group host + ROVING TABINDEX (only the checked
+ * radio is a tab stop; the unselected one rides tabIndex -1). The two
+ * buttons used to be two independent tab stops with no arrow keys.
  */
 export function StartupVolumeField({ entry }: { entry: SettingEntry }): ReactElement {
-  const m = useWidgetMsg();
+  const m = useSettingsMsg();
   const { value, setValue } = useSettings();
   const mode = String(value(SETTING_AUDIO_STARTUP_VOLUME_MODE.key));
   const rememberLast = mode !== "always";
   const volumeRaw = value(entry.key);
   const volume = typeof volumeRaw === "number" ? volumeRaw : 20;
   const groupLabel = m("settings.audio.startup-volume");
+  const onGroupKeyDown = useRadiogroupKeyboard(
+    [
+      { value: "remember-last" },
+      { value: "always" },
+    ],
+    mode,
+    (next) => setValue(SETTING_AUDIO_STARTUP_VOLUME_MODE.key, next),
+  );
   return (
-    <div className="settings-values" role="radiogroup" aria-label={groupLabel} data-setting-composite={entry.key}>
+    <div
+      className="settings-values"
+      role="radiogroup"
+      aria-label={groupLabel}
+      data-setting-composite={entry.key}
+      onKeyDown={onGroupKeyDown}
+    >
       <button
         type="button"
         role="radio"
         aria-checked={rememberLast}
+        tabIndex={rememberLast ? 0 : -1}
         className={
           rememberLast
             ? "settings-values__row settings-values__row--selected"
@@ -306,6 +318,7 @@ export function StartupVolumeField({ entry }: { entry: SettingEntry }): ReactEle
           type="button"
           role="radio"
           aria-checked={!rememberLast}
+          tabIndex={rememberLast ? -1 : 0}
           className="settings-values__radio"
           onClick={() => setValue(SETTING_AUDIO_STARTUP_VOLUME_MODE.key, "always")}
         >

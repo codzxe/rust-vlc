@@ -93,7 +93,7 @@ export const SETTING_INTERFACE_THEME: SettingEntry = {
   advanced: false,
   featureGate: "",
   featureExposed: true,
-  enumeration: [{ value: "dark", msgid: "settings.value.interface-theme.dark" }, { value: "light", msgid: "settings.value.interface-theme.light" }],
+  enumeration: [{ value: "dark", msgid: "settings.value.interface-theme.dark" }, { value: "light", msgid: "settings.value.interface-theme.light" }, { value: "auto", msgid: "settings.value.interface-theme.auto" }],
   min: undefined,
   max: undefined,
   screen: "global",

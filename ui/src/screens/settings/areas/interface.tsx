@@ -1,25 +1,24 @@
 import type { ReactElement } from "react";
-import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
-import { keys as laneKeys } from "../../../i18n/keys/w26.b01";
+import { keys as shellKeys } from "../../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.f03";
 import { keys as gfixKeys } from "../../../i18n/keys/w26.gfixB";
 import { keys as i13Keys } from "../../../i18n/keys/w26.i13";
-import { SETTINGS_AREAS } from "../generated/schema";
-import { useSettingsSearch } from "../search";
 import { SettingField } from "../SettingField";
+import { makeAreaMsg } from "./shared";
+import { schemaSectionViews } from "./shared";
 
 // InterfaceArea — hand-authored (w26.f03, e05 F3/F7). The Figma "Settings -
 // interface" frame (Settings - interface.svg) composes Skin · Window ·
-// Playback Controls · Notifications and System Tray and carries NO
+// Playback Controls and Notifications and System Tray and carries NO
 // "Advanced Options" bar (tools-settings §C2 + the SettingsSections
 // comment) — the advanced disclosure belongs to the frames that show it
 // (global, performance, …). So this screen renders its schema sections
 // FLAT: every seeded interface row (advanced-flagged or not) renders in
 // its section, in schema order, through SettingField — special widgets
-// (SPECIAL_FIELD_WIDGETS), type controls, dirty/restart contracts and
-// search filtering all stay framework-driven.
+// (SPECIAL_FIELD_WIDGETS), type controls, dirty/restart contracts all stay
+// framework-driven.
 //
 // w26.gfix-B (g10-P1-1): the seed now carries the frame's full inventory
 // (Skin: Use a custom skin · Skin file; Window: the 7 frame rows incl. the
@@ -36,28 +35,14 @@ import { SettingField } from "../SettingField";
 // slider label (x240–305, y728 — the next glyph is the "0 s" scale mark;
 // the row's ⓘ in the frame at cy 783 belongs to "Show controls in
 // fullscreen" below it).
+//
+// w26.k13 (j13 ruling 1): the seam hook + section loop ride the shared
+// areas layer (makeAreaMsg + schemaSectionViews). w26.k12 (j12 P2-2): no
+// search filter — the shell swaps in cross-area results while a query is
+// live, so an area-side filter could never execute.
 
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
-type FixerKey = keyof typeof fixerKeys;
-type GfixKey = keyof typeof gfixKeys;
-/** Pre-registration seam: b01 + b02 + f03 + gfixB lane keys. */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...laneKeys,
-  ...fixerKeys,
-  ...gfixKeys,
-};
-
-/** useInterfaceMsg — useMsg + the settings lanes' pre-registration keys. */
-function useInterfaceMsg() {
-  const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | FixerKey | GfixKey): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
-
-/** The interface area's schema sections (seed truth, schema order). */
-const INTERFACE_SECTIONS = SETTINGS_AREAS.find((area) => area.id === "interface")?.sections ?? [];
+/** useInterfaceMsg — useMsg + the interface lanes' pre-registration keys. */
+const useInterfaceMsg = makeAreaMsg(shellKeys, registryKeys, fixerKeys, gfixKeys, i13Keys);
 
 /** ⓘ hint msgids per row (w26.i13, h08 #3) — frame-verbatim presence: the
  * 11 rows the interface frame carries a circle for; the 2 absent rows
@@ -78,17 +63,15 @@ const INTERFACE_HINTS: Readonly<Record<string, keyof typeof i13Keys>> = {
 
 export function InterfaceArea(): ReactElement {
   const t = useInterfaceMsg();
-  const { matches } = useSettingsSearch();
 
   return (
     <div className="settings-sections" data-settings-area="interface">
-      {INTERFACE_SECTIONS.map((section) => {
-        const entries = section.entries.filter((entry) => entry.featureExposed && matches(entry));
-        if (entries.length === 0) return null;
+      {schemaSectionViews("interface").map(({ section, visible }) => {
+        if (visible.length === 0) return null;
         return (
           <section key={section.id} className="settings-section" data-section={section.id}>
             <h2 className="settings-section__title">{t(section.title as MessageKey)}</h2>
-            {entries.map((entry) => (
+            {visible.map((entry) => (
               <SettingField key={entry.key} entry={entry} hint={INTERFACE_HINTS[entry.key]} />
             ))}
           </section>

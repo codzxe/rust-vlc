@@ -6,9 +6,10 @@
 // populated body — the "Open media" action firing the shell-wide
 // open-media event — and ride the r14 Card grammar (never a bare line).
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
+import { DemoTransport } from "../../client/demo-transport";
 import type { MediaInfo } from "../../client/transport";
 import { OPEN_MEDIA_EVENT } from "../open-media";
 import { MediaInfoScreen } from "./MediaInfoScreen";
@@ -102,5 +103,48 @@ describe("MediaInfoScreen (/media-info route body)", () => {
       window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
     }
     expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+  });
+});
+
+describe("MediaInfoScreen — the real DemoTransport (w26.k17, j17 P1-1 regression)", () => {
+  it("bunny opened through the demo transport renders Duration 10:35 — the wire is µs", async () => {
+    // The exact live-verified repro this fix closes: pre-k17 the demo spoke
+    // seconds into µs wire fields while this screen formatted ms, so the
+    // 10:35 film rendered "0:00". One unit contract now: the wire carries
+    // 635 000 000 µs; formatDurationUs renders 10:35. This test FAILS on
+    // the old code at the duration assertion (renders 0:00).
+    vi.useFakeTimers();
+    const transport = new DemoTransport();
+    try {
+      // The dev shell's open-media flow: session.open for the bunny clip,
+      // then the fixed opening choreography (info burst at 320 ms).
+      await act(async () => {
+        await transport.send({
+          args: { source: { kind: "file", path: "/media/demo/big-buck-bunny.mkv" } },
+          cmd: "session.open",
+          requestId: 1,
+        });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+      // Late navigation to /media-info: the provider re-seeds from the
+      // session-scoped media.get-info probe (j17 §3's verified path).
+      vi.useRealTimers();
+      const { container } = render(
+        <ClientProvider transport={transport}>
+          <MediaInfoScreen />
+        </ClientProvider>,
+      );
+      await waitFor(() => {
+        expect(container.querySelector('[data-state="ready"]')).not.toBeNull();
+      });
+      expect(container.querySelector('[data-field="duration"]')?.textContent).toBe(
+        "Duration10:35",
+      );
+    } finally {
+      transport.dispose();
+      vi.useRealTimers();
+    }
   });
 });

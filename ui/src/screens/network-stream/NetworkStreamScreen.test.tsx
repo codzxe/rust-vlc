@@ -67,6 +67,10 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
   it("renders the frame anatomy: titled dialog, ✕ close, URL + playlist fields, footer actions", () => {
     renderScreen();
     expect(screen.getByRole("dialog", { name: "Open network stream" })).toBeInTheDocument();
+    // j16 P3-15: the dialog family's heading convention — h2 title (the
+    // AppShell owns the page h1), h3 section heads, like shortcuts/open-media.
+    expect(screen.getByRole("heading", { name: "Open network stream", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recent streams", level: 3 })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.getByLabelText("Network URL")).toBeInTheDocument();
     expect(screen.getByLabelText("Playlist Name (optional)")).toBeInTheDocument();
@@ -110,6 +114,9 @@ describe("NetworkStreamScreen (/open-network-stream)", () => {
     fireEvent.change(screen.getByLabelText("Network URL"), { target: { value: "nope" } });
     fireEvent.submit(screen.getByLabelText("Network URL").closest("form")!);
     expect(screen.getByText("Enter a valid http:// or https:// URL")).toBeInTheDocument();
+    // j16 P2-4: the notice is ANNOUNCED — aria-describedby alone does not
+    // fire on dynamic insertion, so the error carries role="alert".
+    expect(screen.getByTestId("network-stream-error")).toHaveAttribute("role", "alert");
     expect(transport.sent.some((r) => r.cmd === "session.open")).toBe(false);
   });
 

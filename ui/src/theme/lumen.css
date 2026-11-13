@@ -6,7 +6,10 @@
  * type at 10–15px, tabular timecodes, 1px --color-stroke-border
  * hairlines, ONE sparing orange accent for focus/active, thin dark
  * scrollbars. Rounding lives on CONTROLS; panels stay square-edged
- * except the r12–14 card grammar (.lumen-panel).
+ * except the r12–14 card grammar (`.lumen-card` / `.lumen-pane`, owned by
+ * components/surface/surface.css — j18 F7: the never-adopted `.lumen-panel`
+ * / `.lumen-row` primitives were removed from this sheet; `.lumen-separator`
+ * is the one shared primitive that stayed).
  *
  * Tokens come from the generated pipeline (src/tokens/generated/
  * tokens.css) — this file COMPOSES them, never overrides or redefines
@@ -22,7 +25,8 @@
  *   3. scrollbars     — thin, dark, stroke-border thumb
  *   4. selection      — orange-tinted ::selection
  *   5. focus floor    — orange :focus-visible ring
- *   6. primitives     — .lumen-panel / .lumen-row / .lumen-separator
+ *   6. primitives     — .lumen-separator (the shared hairline; panels and
+ *                       rows live in components/surface/surface.css)
  *   7. reduced motion — prefers-reduced-motion support
  *   8. light fixes    — w26.i19 light-mode role corrections (all semantic
  *                       tokens; the token values themselves live in the
@@ -59,6 +63,10 @@ body {
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body); /* compact desktop: 10–15px scale */
   line-height: 1.5;
+
+  /* The base sheet owns the body — the margin reset lives here (k05 P3-4
+   * ask); appshell.css carries a duplicate until its owner drops it. */
+  margin: 0;
 }
 
 /* Headings: medium-tight professional tracking, no display tricks. */
@@ -137,30 +145,14 @@ h6 {
 
 /* ------------------------------------------------------------------ */
 
-/* 6. Shared primitives — the panel/row/hairline grammar               */
+/* 6. Shared primitives — the separator                               */
 
 /* ------------------------------------------------------------------ */
 
-/* Card/panel surface: the r12–14 card grammar (W25 §1 radii). Square
- * chrome is the default elsewhere — apply this class for card moments
- * (playlist cards, tool panels, dialogs' inner cards). */
-.lumen-panel {
-  background: var(--color-surface-panel);
-  color: var(--color-content-primary);
-  border: 1px solid var(--color-stroke-border);
-  border-radius: var(--radius-panel);
-}
-
-/* Row grammar: label left · control right (Settings, tools, menus).
- * Neutral layout only — screens layer hover/selected states. */
-.lumen-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-inset);
-  padding: calc(var(--space-grid) * 2) var(--space-inset);
-  border-radius: var(--radius-inset);
-  color: var(--color-content-primary);
-}
+/* j18 F7: `.lumen-panel` and `.lumen-row` never gained a consumer (Surface
+ * deliberately ships `.lumen-pane` / `.lumen-card`; screens compose their
+ * own rows) — both rules were removed rather than advertised as a grammar
+ * nothing uses. The one adopted shared primitive stays: */
 
 /* Hairline separator — 1px stroke-border, quiet margins. */
 .lumen-separator {
@@ -260,7 +252,8 @@ html[data-theme="light"] .app-shell__appdot {
  * with the w26.i19 tertiary now an AA text ink (#474747) the dark
  * on-accent glyph would drop to 2.25:1, so light re-scopes the pill fill
  * to the stroke-icon step (#6b6b6b — the frame's own value, glyph 3.74:1).
- * Dark keeps tertiary #828282 (glyph 6.79:1). */
+ * Dark keeps tertiary #828282 (glyph 5.18:1 — #090909 on #828282; j18 F6
+ * corrected the number, the ≥4.5 AA conclusion is unaffected). */
 html[data-theme="light"] .lumen-controls__play[data-glyph="pause"] {
   background: var(--color-stroke-icon); /* frame: play.svg pause #6B6B6B */
 }

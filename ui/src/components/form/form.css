@@ -1,10 +1,14 @@
 /* Form input primitives — W26 Figma redesign (wave a, form lane w26.a06).
  *
  * Design provenance (design/figma/*.svg = source of truth, W25 spec §0):
- *   · Toggle.svg / Settings - *.svg toggles — 68×32 rx6 track; ON: 33×26 rx3
- *     accent-tinted text segment ("ON" in accent) + 26×26 rx3 accent-strong
- *     fill right; OFF: 26×26 rx3 stroke-border fill left + 33×26 rx3 panel
- *     text segment ("OFF" tertiary).
+ *   · Toggle.svg / Settings - *.svg toggles — the switch skin lives in
+ *     button.css since w26.k01 (j01-3): ONE shared core + ONE selector-list
+ *     stylesheet behind both exported names (button/Toggle `.lumen-toggle*`,
+ *     form/Switch `.lumen-switch*` — settings rows keep their CSS hooks on
+ *     the `.lumen-switch*` set). 68×32 rx6 track; ON = accent-tinted 33×26
+ *     text segment + accent-strong fill right; OFF = stroke-border fill left
+ *     + panel text segment, OFF label secondary (4.F4, shared — was tertiary
+ *     here, j01-9). Labels localized via i18n keys switch.on/off (j01-4).
  *   · W26 settings/onboarding inputs — #2a2a2a fill, 1px #3a3a3a border, r6,
  *     focus-orange (Lead spec + W25 spec §2). Raw fallbacks below are
  *     frame-marked and lose to `--color-surface-input` / `--color-stroke-input`
@@ -40,19 +44,11 @@
   color: var(--color-content-secondary);
 }
 
-/* hideLabel keeps the accessible name without the visual label (replaces the
- * pre-W26 inline style object — contract §6: no static inline styles). */
-.lumen-field__label--hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
+/* (w26.k01 j01-8: hideLabel is the aria-label mechanism on every field —
+ * TextField, BrowseField and NumberField (labelHidden) all drop the label
+ * node and name the input via aria-label. The `.lumen-field__label--hidden`
+ * visually-hidden rule is gone with BrowseField's old second mechanism —
+ * one prop, one mechanism; row-grammar hosts rely on the single text node.) */
 
 .lumen-field__control {
   display: inline-flex;
@@ -303,10 +299,9 @@
   min-inline-size: 0;
 }
 
-.lumen-radiogroup__label {
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-}
+/* (w26.k01 j01-5: the dead `.lumen-radiogroup__label` rule is gone — the
+ * group's accessible name rides on aria-label; no component ever rendered
+ * that class.) */
 
 .lumen-radiogroup__options {
   display: inline-flex;
@@ -368,98 +363,12 @@
 }
 
 /* -------------------------------------------------------------- Switch  *
-/* frame: Toggle.svg (honest port): 68×32 rx6 surface track, 3px inset;
- * ON  = [33×26 rx3 accent-tinted, "ON" accent] [26×26 rx3 accent-strong];
- * OFF = [26×26 rx3 stroke-border] [33×26 rx3 panel, "OFF" tertiary].
- * The ON/OFF micro labels are decorative (aria-checked carries state). */
-
-.lumen-switch {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  flex: none;
-  gap: 3px; /* frame: segment gap */
-  width: 68px; /* frame: Toggle.svg */
-  height: 32px; /* frame */
-  padding: 3px; /* frame: 26px segments inside the 32px track */
-  background: var(--color-surface);
-  border: none;
-  border-radius: var(--radius-control); /* frame rx6 */
-  cursor: pointer;
-  transition: background-color var(--motion-duration-fast) ease;
-}
-
-.lumen-switch:hover {
-  background: var(--color-surface-hover);
-}
-
-.lumen-switch:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.lumen-switch__text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  flex: none;
-  width: 33px; /* frame */
-  height: 26px; /* frame */
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-caption); /* frame ≈12px glyph height */
-  font-weight: var(--font-weight-medium);
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-  border-radius: 3px; /* frame rx3 — no 3px token (gap, states.md) */
-  transition: background-color var(--motion-duration-fast) ease;
-}
-
-.lumen-switch__text--on {
-  background: var(--color-accent-tinted);
-  color: var(--color-accent);
-}
-
-.lumen-switch__text--off {
-  background: var(--color-surface-panel);
-  color: var(--color-content-tertiary);
-}
-
-.lumen-switch__fill {
-  box-sizing: border-box;
-  flex: none;
-  width: 26px; /* frame */
-  height: 26px; /* frame */
-  background: var(--color-stroke-border);
-  border-radius: 3px; /* frame rx3 — no 3px token (gap, states.md) */
-  transition: background-color var(--motion-duration-fast) ease;
-}
-
-.lumen-switch[aria-checked="true"] .lumen-switch__fill {
-  background: var(--color-accent-strong);
-}
-
-.lumen-switch[aria-checked="true"]:hover .lumen-switch__fill {
-  background: var(--color-accent-bright);
-}
-
-.lumen-switch[aria-checked="false"]:hover .lumen-switch__fill {
-  background: color-mix(in srgb, var(--color-stroke-border) 55%, var(--color-content-secondary));
-}
-
-.lumen-switch[aria-checked="true"] .lumen-switch__text--off {
-  display: none; /* ON: text segment left, fill right (frame) */
-}
-
-.lumen-switch[aria-checked="false"] .lumen-switch__text--on {
-  display: none; /* OFF: fill left, text segment right (frame) */
-}
-
-.lumen-switch:disabled {
-  opacity: var(--opacity-disabled);
-  pointer-events: none;
-}
+/* The Switch SKIN moved to button.css in w26.k01 (j01-3): form/Switch is
+ * now the shared button/switchCore with this `.lumen-switch*` class grammar,
+ * styled — together with the button family's `.lumen-toggle*` — by ONE
+ * selector-list block there, so the two exports can never diverge again
+ * (they had: j01-9's OFF-label ink). The w26.d2 light-mode ON-label ink
+ * override moved with it (out of the light block below). */
 
 /* ---------------------------------------------------- SegmentedControl  *
 /* frame: Values.svg — rx6 surface track (2px inset), rx4 segments
@@ -517,6 +426,15 @@
 .lumen-segmented__segment:disabled {
   opacity: var(--opacity-disabled);
   pointer-events: none;
+}
+
+/* Error state (w26.k01 j01-6): `invalid` now carries the same fidelity as
+ * RadioGroup — the `lumen-choice--error` modifier swaps the segment
+ * focus ring to --color-record (the only red semantic token, states.md).
+ * The rest of the error presentation (message text, wiring) stays with the
+ * host row, exactly like RadioGroup. */
+.lumen-choice--error .lumen-segmented__segment:focus-visible {
+  outline-color: var(--color-record);
 }
 
 /* --------------------------------------------------------- SwatchGroup  *
@@ -661,9 +579,6 @@
   .lumen-field__control,
   .lumen-number__stepper,
   .lumen-choice--radio,
-  .lumen-switch,
-  .lumen-switch__text,
-  .lumen-switch__fill,
   .lumen-segmented__segment,
   .lumen-browse__action,
   .lumen-swatchgroup__swatch {
@@ -680,10 +595,11 @@
  *      mode they painted near-black wells on light panels (a dark remnant
  *      flagged by vision on /settings/interface + /convert). Light gets the
  *      same recessed-well grammar from existing semantic tokens.
- *   2. "Accent ink on accent-tinted" (active segment, selected radio row,
- *      switch ON label) is 4.7:1 in dark (#d37918 on #371f06) but 1.75:1 in
- *      light (#d37918 on the flipped #d8ba9a tint) — washed out. Light swaps
- *      the ink to content-primary (7.8:1 on the tint). */
+ *   2. "Accent ink on accent-tinted" (active segment, selected radio row)
+ *     is 4.7:1 in dark (#d37918 on #371f06) but 1.75:1 in light (#d37918 on
+ *     the flipped #d8ba9a tint) — washed out. Light swaps the ink to
+ *     content-primary (7.8:1 on the tint). (The switch ON label's copy of
+ *     this rule moved to button.css with the shared switch skin — w26.k01.) */
 :root[data-theme="light"] .lumen-field__control {
   background-color: var(--color-surface-deep);
   border-color: var(--color-stroke-border);
@@ -701,7 +617,6 @@
 }
 
 :root[data-theme="light"] .lumen-segmented__segment[aria-checked="true"],
-:root[data-theme="light"] .lumen-choice--radio:has(.lumen-choice__input:checked) label,
-:root[data-theme="light"] .lumen-switch__text--on {
+:root[data-theme="light"] .lumen-choice--radio:has(.lumen-choice__input:checked) label {
   color: var(--color-content-primary);
 }

@@ -1,5 +1,10 @@
 import react from "@vitejs/plugin-react";
-import pkg from "./package.json";
+// Import attribute (w26.k20, j20 P2-2): Vite's native-config loader requires
+// JSON imports to be typed explicitly — without `with { type: "json" }` every
+// build prints the "JSON import './package.json' without import attributes"
+// warning, which becomes a hard error once `configLoader: 'native'` is the
+// default. Node ≥20.10 / TS ≥5.3 syntax, both satisfied by the toolchain.
+import pkg from "./package.json" with { type: "json" };
 import { defineConfig } from "vitest/config";
 
 // Doc 08 §8 toolchain: Vite (dev/build) + vitest with jsdom + RTL for unit

@@ -28,26 +28,19 @@
 // slots (body → cards/rows, footer → dialog actions); the tool value of a
 // row, its slider and its presets stay the mounting lane's to compose.
 //
-// COPY NOTE: local module copy (the established dialogs pattern —
-// BOOKMARKS_COPY / GOTO_COPY); central keys are pre-registered for the
-// Lead in ui/src/i18n/keys/w26.a18.ts.
+// COPY (w26.k09, j09 P2): the shell's three strings render through
+// useMsg directly — the player.tools.* keys are already registered central
+// (messages.ts, recorded in ui/src/i18n/keys/w26.a18.ts), so pseudo-locale
+// covers the shell today. The derived TOOLS_DIALOG_COPY constant lives in
+// useDialogsMsg.ts (frozen index.ts surface, test reference).
 import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import { IconButton } from "../../../components/button/IconButton";
 import { Dialog } from "../../../components/surface/Surface";
 import type { SurfaceCloseReason } from "../../../components/surface/Surface";
+import { useMsg } from "../../../i18n/messages";
 import { ChevronGlyph, CloseGlyph } from "./dialogIcons";
 import "./dialogs.css";
-
-/** The shell's English copy (see COPY NOTE — central i18n is follow-up). */
-export const TOOLS_DIALOG_COPY = {
-  /** Collapsed card toggle label (frame: "Expand Settings"). */
-  expand: "Expand Settings",
-  /** Expanded card toggle label (frame: "Collapse Settings"). */
-  collapse: "Collapse Settings",
-  /** Accessible name of the header close ✕. */
-  close: "Close",
-} as const;
 
 export interface ToolsDialogShellProps {
   /** Whether the dialog is mounted and trapped. */
@@ -85,6 +78,7 @@ export function ToolsDialogShell({
   footer,
   className = "",
 }: ToolsDialogShellProps) {
+  const m = useMsg();
   const titleId = useId();
   return (
     <Dialog
@@ -109,8 +103,8 @@ export function ToolsDialogShell({
           </h2>
           <IconButton
             className="player-dialog__close"
-            label={TOOLS_DIALOG_COPY.close}
-            title={TOOLS_DIALOG_COPY.close}
+            label={m("player.tools.close")}
+            title={m("player.tools.close")}
             size="sm"
             onClick={() => onClose("escape")}
           >
@@ -156,6 +150,7 @@ export function ToolsCard({
   id: idProp,
   className = "",
 }: ToolsCardProps) {
+  const m = useMsg();
   const [open, setOpen] = useState(defaultOpen);
   const generatedId = useId();
   const id = idProp ?? generatedId;
@@ -177,7 +172,7 @@ export function ToolsCard({
         }}
       >
         <span className="tools-card__toggle-label">
-          {open ? TOOLS_DIALOG_COPY.collapse : TOOLS_DIALOG_COPY.expand}
+          {open ? m("player.tools.collapse-settings") : m("player.tools.expand-settings")}
         </span>
         {/* 24px glyph box — frame Vector 27 measures ≈11.5×6.5 paint-
          * inclusive at sw1.5, which a 16px box undersizes ~30% (h14 P3;

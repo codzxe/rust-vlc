@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { cloneElement, useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { TOOLTIP_HIDE_DELAY_MS, TOOLTIP_SHOW_DELAY_MS } from "./timings";
 import "./menu.css";
@@ -19,8 +19,14 @@ export interface TooltipProps {
 /**
  * Tooltip (doc 08 §259 primitives list) — wraps a single trigger element in
  * a positioning span, shows a `role="tooltip"` bubble after a hover-intent
- * delay; focus/blur show/hide immediately; Escape hides. The wrapper carries
- * `aria-describedby` while open, linking trigger to bubble.
+ * delay; focus/blur show/hide immediately; Escape hides. w26.k02 (j02 J02-1):
+ * `aria-describedby` rides ON THE CHILD TRIGGER (cloneElement), not on this
+ * non-focusable wrapper — SRs announce descriptions of the *focused*
+ * element, and focus lands on the child, so a wrapper-level describedby was
+ * never announced. The child must forward unknown props to its DOM node
+ * (plain elements do); any describedby the child already carries is MERGED
+ * ("existing tooltip-id") while open and preserved when closed. The wrapper
+ * keeps the positioning + hover/focus/key event seams (events bubble).
  */
 export function Tooltip({
   content,
@@ -50,10 +56,24 @@ export function Tooltip({
     setOpen(false);
   };
 
+  // w26.k02 (j02 J02-1): compose the trigger's describedby — the tooltip id
+  // joins whatever the child already points at; closed state keeps the
+  // child's own wiring untouched.
+  const childDescribedBy = (() => {
+    const value = (children.props as { "aria-describedby"?: unknown } | undefined)?.["aria-describedby"];
+    return typeof value === "string" && value !== "" ? value : undefined;
+  })();
+  const describedBy = open ? [childDescribedBy, tooltipId].filter(Boolean).join(" ") : childDescribedBy;
+  const trigger =
+    describedBy === undefined
+      ? children
+      : cloneElement(children as ReactElement<{ "aria-describedby"?: string }>, {
+          "aria-describedby": describedBy,
+        });
+
   return (
     <span
       className="lumen-tooltip"
-      aria-describedby={open ? tooltipId : undefined}
       onMouseEnter={() => {
         if (hideTimer.current !== null) {
           clearTimeout(hideTimer.current);
@@ -80,10 +100,17 @@ export function Tooltip({
       onFocus={() => setOpen(true)}
       onBlur={hide}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && open) hide();
+        if (event.key === "Escape" && open) {
+          hide();
+          /* w26.k02 (j02 J02-13): the tooltip was open and CONSUMED the
+           * Escape — stop it bubbling so a tooltiped control inside a host
+           * dialog no longer closes the dialog while merely hiding the
+           * tooltip. Closed-state Escape passes through untouched. */
+          event.stopPropagation();
+        }
       }}
     >
-      {children}
+      {trigger}
       {open && (
         <span
           id={tooltipId}

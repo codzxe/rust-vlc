@@ -9,8 +9,10 @@
 // Accepted vs completed (doc 08 §5): `pendingSeek` marks an outstanding
 // `playback.seek` request (set on commit, cleared on `timing.seek-completed`
 // / `timing.seek-failed` / position catching up); `pendingToggle` marks an
-// outstanding `playback.play`/`pause` (cleared on `session.state-changed` or
-// command completion). Nothing else predicts engine state.
+// outstanding `playback.play`/`pause` (cleared on `session.state-changed`,
+// `playback.error`, or — w26.k06, J06-2 — the command answering error /
+// the transport failing: a toggle that never completes must not spin
+// forever). Nothing else predicts engine state.
 
 import {
   createContext,
@@ -23,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { useClient } from "../../client/ClientProvider";
+import { durationToSeconds, secondsToUs, usToSeconds } from "../../client/wire-time";
 import type {
   CommandError,
   CommandTransport,
@@ -144,8 +147,21 @@ export function usePlayerControlsOrNull(): PlayerControls | null {
 /** Position-near-target tolerance for clearing a pending seek [PROPOSAL]. */
 const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
 
+/**
+ * w26.k06 (J06-2, P1): the commands whose dispatch marks the transport
+ * toggle pending. A toggle that answers ERROR (or never reaches the
+ * engine — transport failure) never produces the `session.state-changed`
+ * that clears the flag, so the failure paths must clear it themselves —
+ * otherwise the transport control's pending spinner sticks forever
+ * (doc 08 §5.1 "≤250 ms pending" truthful-pending contract).
+ */
+const isToggleCommand = (cmd: CommandRequest["cmd"]): boolean =>
+  cmd === "playback.play" || cmd === "playback.pause" || cmd === "playback.toggle-play-pause";
+
 const bufferRangesOf = (ranges: readonly TimeRange[]): readonly PlayerBufferRange[] =>
-  ranges.map((range) => ({ start: range.start, end: range.end }));
+  // w26.k17: wire TimeRanges are µs; the seam documents seconds — cross
+  // at the read edge (same fix family as the duration conversions).
+  ranges.map((range) => ({ start: usToSeconds(range.start), end: usToSeconds(range.end) }));
 
 const selectionFieldFor = (
   kind: "video" | "audio" | "subtitle",
@@ -190,34 +206,42 @@ export function PlayerControlsProvider({
           // Selection truth arrives via `tracks.changed` / re-query.
           break;
         case "current-time":
+          // w26.k17 family fix: the µs `time` twin is the truth carrier
+          // (the schema's `position` scalar is a 0..1 fraction of duration,
+          // redundant here); buffered TimeRanges cross at the edge above.
           patch({
-            position: result.position,
+            position: usToSeconds(result.time),
             buffered: bufferRangesOf(result.buffered),
             engineReported: true,
           });
           break;
         case "duration":
+          // w26.k17 (family fix landed; was the k06 seam note): the wire
+          // `Timestamp` in Duration.time is MICROSECONDS per the generated
+          // schema — crossed here into the seconds-documented seam.
           patch({
-            durationSeconds: result.duration.kind === "known" ? result.duration.time : null,
+            durationSeconds: durationToSeconds(result.duration),
             engineReported: true,
           });
           break;
         case "media-info":
+          // w26.k17: Duration.time is µs on the wire (see the "duration"
+          // case) — crossed at the read edge.
           patch({
             seekable: result.info.seekable,
-            durationSeconds:
-              result.info.duration.kind === "known" ? result.info.duration.time : null,
+            durationSeconds: durationToSeconds(result.info.duration),
             tracks: result.info.tracks,
             mediaTitle: result.info.title ?? null,
             engineReported: true,
           });
           break;
         case "state-snapshot":
+          // w26.k17: snapshot.time is a µs Timestamp; snapshot.duration
+          // crosses through durationToSeconds. Both crossed here.
           patch({
             playbackState: result.snapshot.state,
-            position: result.snapshot.time ?? 0,
-            durationSeconds:
-              result.snapshot.duration.kind === "known" ? result.snapshot.duration.time : null,
+            position: usToSeconds(result.snapshot.time ?? 0),
+            durationSeconds: durationToSeconds(result.snapshot.duration),
             volume: result.snapshot.volume,
             muted: result.snapshot.muted,
             tracks: result.snapshot.tracks,
@@ -248,6 +272,11 @@ export function PlayerControlsProvider({
           if (!isEmptyProbe) {
             patch({ lastError: response.result.error });
           }
+          // w26.k06 (J06-2, P1): a failed toggle never completes — clear its
+          // pending flag or the transport spinner spins forever.
+          if (isToggleCommand(request.cmd)) {
+            patch({ pendingToggle: false });
+          }
           return;
         }
         if ("completed" in response.result) {
@@ -271,6 +300,11 @@ export function PlayerControlsProvider({
             stage: "control",
           },
         });
+        // w26.k06 (J06-2, P1): idem — the toggle never reached the engine,
+        // so it will never answer with a state change. Clear the spinner.
+        if (isToggleCommand(request.cmd)) {
+          patch({ pendingToggle: false });
+        }
       }
     },
     [applyCompleted, patch, wire],
@@ -300,10 +334,11 @@ export function PlayerControlsProvider({
       },
       seek: (seconds: number) => {
         // Truthful pending: replace any outstanding request (doc 05 §4 — a
-        // new input cancels the previous one client-side).
+        // new input cancels the previous one client-side). The seam stays
+        // seconds; the wire target is µs (w26.k17 family fix).
         patch({ pendingSeek: seconds });
         void dispatch({
-          args: { target: { kind: "absolute", time: seconds } },
+          args: { target: { kind: "absolute", time: secondsToUs(seconds) } },
           cmd: "playback.seek",
           requestId: requestId(),
         });
@@ -353,21 +388,33 @@ export function PlayerControlsProvider({
           setState((prev) => ({ ...prev, playbackState: "buffering" }));
           break;
         case "timing.time-tick":
-          setState((prev) => ({
-            ...prev,
-            position: event.position,
-            pendingSeek:
-              prev.pendingSeek !== null &&
-              Math.abs(event.position - prev.pendingSeek) > SEEK_CONFIRM_TOLERANCE_SECONDS
-                ? prev.pendingSeek
-                : null,
-          }));
+          // w26.k17 family fix (was the k06 seam note): the event's µs
+          // `time` twin is read into the seconds-documented `state.position`
+          // (the `position` scalar is the schema's 0..1 fraction — redundant
+          // for the seam; nothing consumes it alone). k09's bookmarks
+          // consumer and its dual-field test seeds stay correct through
+          // this read.
+          setState((prev) => {
+            const position = usToSeconds(event.time);
+            return {
+              ...prev,
+              position,
+              pendingSeek:
+                prev.pendingSeek !== null &&
+                Math.abs(position - prev.pendingSeek) > SEEK_CONFIRM_TOLERANCE_SECONDS
+                  ? prev.pendingSeek
+                  : null,
+            };
+          });
           break;
         case "timing.duration-known":
-          patch({ durationSeconds: event.duration });
+          // w26.k17: the event Timestamp is µs on the wire — crossed here
+          // (was the k06 seam note; the family fix landed).
+          patch({ durationSeconds: usToSeconds(event.duration) });
           break;
         case "timing.seek-completed":
-          setState((prev) => ({ ...prev, position: event.position, pendingSeek: null }));
+          // w26.k17: seek-completed.position is a µs Timestamp.
+          setState((prev) => ({ ...prev, position: usToSeconds(event.position), pendingSeek: null }));
           break;
         case "timing.seek-failed":
           // Failed seek: surface typed error, snap back to engine position.
@@ -383,7 +430,20 @@ export function PlayerControlsProvider({
           patch({ mediaTitle: event.info.title ?? null });
           break;
         case "tracks.changed": {
-          const field = selectionFieldFor(event.trackKind as "video" | "audio" | "subtitle");
+          // w26.k06 (J06-12, P3): TrackChangeKind also carries "data" and
+          // "secondary-audio" (generated union, commands.ts) — neither maps
+          // to a TrackSelections field, so the old
+          // `event.trackKind as "video" | "audio" | "subtitle"` cast wrote
+          // stray keys (e.g. `selections.data`). Guard to the three
+          // supported kinds; other kinds are honest no-ops here.
+          if (
+            event.trackKind !== "video" &&
+            event.trackKind !== "audio" &&
+            event.trackKind !== "subtitle"
+          ) {
+            break;
+          }
+          const field = selectionFieldFor(event.trackKind);
           setState((prev) => ({
             ...prev,
             selections:
@@ -403,6 +463,11 @@ export function PlayerControlsProvider({
               stage: event.stage,
             },
             playbackState: event.fatal ? "error" : prev.playbackState,
+            // w26.k06 (J06-2): an async engine failure also resolves an
+            // outstanding toggle — the engine transitioned to an error, not
+            // to the requested play/pause state; the spinner must not wait
+            // for a state change that will never come.
+            pendingToggle: false,
           }));
           break;
         default:

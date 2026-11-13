@@ -16,19 +16,20 @@
 //     `feature-not-exposed` error envelope — the same honesty rule
 //     MockTransport follows, applied per-command instead of globally.
 //
-// TIMING UNITS — a deliberate, documented choice: the player state seam
-// (screens/player/context.tsx) documents `durationSeconds`/`position` in
-// SECONDS and reads `Duration.time` / `timing.time-tick.position` directly,
-// so the demo transport speaks seconds on every timing surface (snapshot,
-// duration-known, time-tick, current-time, seek). The media-info fixtures
-// carry millisecond `Duration.time` (formatDurationMs); the demo converts
-// the seeded fixtures to seconds so the PLAYER — the surface this transport
-// exists to light up — renders truthful timecodes. The ms-vs-seconds split
-// between the player and media-info screens is a pre-existing
-// inconsistency flagged to the lead; it predates this module.
+// TIMING UNITS — ONE contract, the wire's (w26.k17 family fix, j17 P1-1):
+// every `Timestamp` this transport speaks is MICROSECONDS (Duration.time,
+// duration-known, time-tick/seek-completed/current-time `time` twins,
+// snapshot.time, buffered TimeRanges, seek absolute targets, chapter
+// starts, bookmarks), and the `position` scalars it emits alongside the
+// µs twins are true 0..1 FRACTIONS (schemas: "0.0..=1.0 of duration").
+// Conversions cross the wire edge only, through client/wire-time.ts —
+// the internal clock stays seconds. The pre-k17 split (this file speaking
+// seconds/ms into µs fields while media-info formatted ms) is retired;
+// see wire-time.ts for the full contract map.
 
 import type { MessageKey } from "../i18n/messages";
 import { fullMediaInfo, liveAudioMediaInfo } from "../screens/media-info/fixtures";
+import { durationToSeconds, secondsToUs, usToSeconds } from "./wire-time";
 import type {
   Bookmark,
   CommandListing,
@@ -74,10 +75,12 @@ export interface DemoRecentEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Seeded MediaInfo (adapted from the 4.D2 fixtures; durations → seconds)
+// Seeded MediaInfo (adapted from the 4.D2 fixtures; durations on the wire
+// contract — µs — w26.k17)
 // ---------------------------------------------------------------------------
 
-const knownSeconds = (time: number): { kind: "known"; time: number } => ({ kind: "known", time });
+/** A known duration in wire µs (Duration.time is a µs Timestamp). */
+const knownUs = (us: number): { kind: "known"; time: number } => ({ kind: "known", time: us });
 
 const AMBIENT_AUDIO: TrackInfo = {
   id: 1,
@@ -115,14 +118,15 @@ const LIVE_AUDIO: TrackInfo = {
   audio: { channels: 2, sampleRate: 48_000, bitDepth: null, codecParams: null },
 };
 
-/** Big Buck Bunny — the 4.D2 rich fixture (635 s), duration in seconds. */
-const bunnyInfo: MediaInfo = { ...fullMediaInfo, duration: knownSeconds(635) };
+/** Big Buck Bunny — the 4.D2 rich fixture (635 s = 635 000 000 µs; its
+ * chapters ride the fixture's µs `timeStart`/`Duration` unchanged). */
+const bunnyInfo: MediaInfo = { ...fullMediaInfo, duration: knownUs(635 * 1_000_000) };
 
 /** Ambient loop — audio-only, known 180 s (built like the sparse fixture). */
 const ambientInfo: MediaInfo = {
   title: "Ambient loop",
   container: "FLAC",
-  duration: knownSeconds(180),
+  duration: knownUs(180 * 1_000_000),
   isLive: false,
   seekable: true,
   source: { kind: "file", path: "/media/demo/ambient-loop.flac" },
@@ -314,6 +318,11 @@ export class DemoTransport implements CommandTransport {
 
   // Open-media history
   private recent: DemoRecentEntry[] = [];
+  // w26.k17 (j17 P2-2, Lead-applied): the seeded volume table — replayed
+  // to every NEW subscriber so screens mounting after the startup
+  // choreography still see the rows (a host with VolumeMonitor wired to
+  // devices.volume-* would re-deliver its current table the same way).
+  private volumes: { id: string; label: string; volumeKind: "fixed" | "removable" }[] = [];
 
   constructor() {
     // One interval for the transport's whole life; tick() is inert unless
@@ -326,18 +335,12 @@ export class DemoTransport implements CommandTransport {
     // receive them). /discovery's rows + its context menu become
     // demonstrable in the dev shell; the screen itself still folds ONLY
     // live events (no fabricated snapshot inside the screen).
-    this.emitIn(600, {
-      kind: "devices.volume-added",
-      id: "demo-media",
-      label: "Lumen demo media",
-      volumeKind: "fixed",
-    });
-    this.emitIn(1200, {
-      kind: "devices.volume-added",
-      id: "usb-fieldkit",
-      label: "Field Kit",
-      volumeKind: "removable",
-    });
+    // Record the table as it is seeded; the choreography timings below
+    // are unchanged (boot-mounted screens still see the live events).
+    this.volumes.push({ id: "demo-media", label: "Lumen demo media", volumeKind: "fixed" });
+    this.volumes.push({ id: "usb-fieldkit", label: "Field Kit", volumeKind: "removable" });
+    this.emitIn(600, { kind: "devices.volume-added", ...this.volumes[0]! });
+    this.emitIn(1200, { kind: "devices.volume-added", ...this.volumes[1]! });
   }
 
   /** Releases the clock + pending choreography (test hygiene, teardown). */
@@ -354,6 +357,18 @@ export class DemoTransport implements CommandTransport {
 
   subscribe(listener: (event: Event) => void): () => void {
     this.listeners.add(listener);
+    // w26.k17 (j17 P2-2, Lead-applied): replay the current table to the
+    // NEW subscriber only (fresh seq per event, synchronous — existing
+    // subscribers saw the live events).
+    for (const volume of this.volumes) {
+      this.seq += 1;
+      listener({
+        kind: "devices.volume-added",
+        ...volume,
+        seq: this.seq,
+        session: this.session ?? undefined,
+      } as Event);
+    }
     return () => {
       this.listeners.delete(listener);
     };
@@ -394,7 +409,9 @@ export class DemoTransport implements CommandTransport {
         this.openSource(
           request.args.source,
           request.args.options?.startPaused === true,
-          request.args.options?.startTime ?? 0,
+          // OpenOptions.startTime is a µs Timestamp on the wire (types.rs
+          // "Start at this position (µs)") — cross at the edge (w26.k17).
+          usToSeconds(request.args.options?.startTime ?? 0),
         );
         return respond({ accepted: { gen, session: this.session ?? undefined } });
       case "session.close":
@@ -554,8 +571,10 @@ export class DemoTransport implements CommandTransport {
         return respond({
           completed: {
             kind: "current-time",
-            position: this.position,
-            time: Math.round(this.position * 1000),
+            // `position` is the schema's 0..1 fraction; `time` is the µs
+            // twin — the truth carrier (w26.k17).
+            position: this.positionFraction(),
+            time: secondsToUs(Math.round(this.position)),
             buffered: this.bufferedRanges(),
           },
         });
@@ -579,7 +598,10 @@ export class DemoTransport implements CommandTransport {
             },
           });
         }
-        this.seek({ kind: "absolute", time: chapter.timeStart / 1000 });
+        // Chapter starts are µs `Timestamp`s on the wire — the absolute
+        // seek target is µs too, so this passes through untouched (w26.k17;
+        // the old `/1000` was the fixture-ms era).
+        this.seek({ kind: "absolute", time: chapter.timeStart });
         return respond({ completed: { kind: "unit" } });
       }
       case "media.get-bookmarks":
@@ -587,9 +609,10 @@ export class DemoTransport implements CommandTransport {
           completed: { kind: "bookmarks", bookmarks: [...this.bookmarks] },
         });
       case "media.add-bookmark": {
-        // Wire `time` is µs; the demo speaks seconds everywhere (see the
-        // TIMING UNITS note in the module header).
-        const seconds = request.args.time / 1000;
+        // Wire `time` is µs (Bookmark.time shares the Timestamp contract);
+        // validation only needs the sign, and the echo below is
+        // unit-faithful (k09 + w26.k17).
+        const seconds = usToSeconds(request.args.time);
         if (seconds < 0) {
           return respond({
             error: {
@@ -657,7 +680,8 @@ export class DemoTransport implements CommandTransport {
       state: this.state,
       subtitle: {},
       subtitleDelayMs: 0,
-      time: this.state === "idle" ? null : Math.round(this.position * 1000),
+      // StateSnapshot.time is a µs Timestamp (w26.k17).
+      time: this.state === "idle" ? null : secondsToUs(Math.round(this.position)),
       tracks: this.info?.tracks ?? [],
       videoDelayMs: 0,
       volume: this.volume,
@@ -667,10 +691,13 @@ export class DemoTransport implements CommandTransport {
   private bufferedRanges(): { end: number; start: number }[] {
     if (this.info === null) return [];
     if (this.info.duration.kind === "known") {
+      // Wire TimeRange is µs — the known duration passes through (w26.k17).
       return [{ start: 0, end: this.info.duration.time }];
     }
-    // Live edge: a 30 s sliding window behind the playhead.
-    return [{ start: Math.max(0, this.position - 30), end: this.position }];
+    // Live edge: a 30 s sliding window behind the playhead, in wire µs.
+    return [
+      { start: secondsToUs(Math.max(0, this.position - 30)), end: secondsToUs(this.position) },
+    ];
   }
 
   private emit(draft: EventDraft): void {
@@ -744,8 +771,8 @@ export class DemoTransport implements CommandTransport {
     }
     this.emit({
       kind: "timing.time-tick",
-      position: this.position,
-      time: Math.round(this.position * 1000),
+      position: this.positionFraction(),
+      time: secondsToUs(Math.round(this.position)),
     });
   }
 
@@ -767,11 +794,12 @@ export class DemoTransport implements CommandTransport {
 
   private seek(target: SeekTarget): void {
     if (this.info === null) return;
-    const known = this.info.duration.kind === "known" ? this.info.duration.time : null;
+    const known = this.durationSeconds();
     let next = this.position;
     switch (target.kind) {
       case "absolute":
-        next = target.time;
+        // SeekTarget.absolute.time is a µs Timestamp (w26.k17).
+        next = usToSeconds(target.time);
         break;
       case "relative":
         next = this.position + target.deltaMs / 1000;
@@ -781,7 +809,7 @@ export class DemoTransport implements CommandTransport {
         break;
       case "chapter": {
         const chapter = this.info.chapters[target.index];
-        if (chapter !== undefined) next = chapter.timeStart / 1000;
+        if (chapter !== undefined) next = usToSeconds(chapter.timeStart);
         break;
       }
     }
@@ -789,20 +817,20 @@ export class DemoTransport implements CommandTransport {
     this.position = next;
     this.emit({
       kind: "timing.seek-completed",
-      position: Math.round(next * 1000),
+      position: secondsToUs(Math.round(next)),
       seekKind: "command",
     });
     this.emit({
       kind: "timing.time-tick",
-      position: next,
-      time: Math.round(next * 1000),
+      position: this.positionFraction(),
+      time: secondsToUs(Math.round(next)),
     });
   }
 
   private tick(): void {
     if (this.state !== "playing" || this.info === null) return;
     this.position += (TICK_MS / 1000) * this.rate;
-    const known = this.info.duration.kind === "known" ? this.info.duration.time : null;
+    const known = this.durationSeconds();
 
     if (known !== null && this.position >= known) {
       this.emit({ kind: "playback.end-of-media" });
@@ -827,9 +855,28 @@ export class DemoTransport implements CommandTransport {
 
     this.emit({
       kind: "timing.time-tick",
-      position: this.position,
-      time: Math.round(this.position * 1000),
+      position: this.positionFraction(),
+      time: secondsToUs(Math.round(this.position)),
     });
+  }
+
+  /** Current media duration in SECONDS (the internal clock unit); null for
+   * unknown/infinite — one conversion point for the µs wire field (w26.k17). */
+  private durationSeconds(): number | null {
+    return this.info === null ? null : durationToSeconds(this.info.duration);
+  }
+
+  /**
+   * The 0..1 `position` fraction the tick/current-time wire surfaces carry
+   * next to their µs `time` twin (schemas: "0.0..=1.0 of duration"). The
+   * schema leaves it undefined for infinite/unknown durations (live
+   * streams): the honest fill there is 0, and the µs twin stays the truth
+   * carrier — nothing consumes the fraction alone (w26.k17).
+   */
+  private positionFraction(): number {
+    const total = this.durationSeconds();
+    if (total === null || total <= 0) return 0;
+    return Math.min(1, Math.max(0, this.position / total));
   }
 
   // -------------------------------------------------------------------------

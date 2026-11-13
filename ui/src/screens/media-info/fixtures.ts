@@ -6,11 +6,12 @@
 import type { MediaInfo } from "../../client/transport";
 
 /** Rich case: video ×2 (one fully-specified, one sparse), audio ×2,
- * subtitles ×2 (stream + external), metadata tags, chapters. */
+ * subtitles ×2 (stream + external), metadata tags, chapters. Durations and
+ * chapter times are WIRE µs (w26.k17): 635 000 000 µs = the 10:35 film. */
 export const fullMediaInfo: MediaInfo = {
   title: "Big Buck Bunny",
   container: "Matroska (MKV)",
-  duration: { kind: "known", time: 635_000 },
+  duration: { kind: "known", time: 635_000_000 },
   isLive: false,
   seekable: true,
   source: { kind: "file", path: "/media/big-buck-bunny.mkv" },
@@ -23,7 +24,7 @@ export const fullMediaInfo: MediaInfo = {
     {
       index: 0,
       timeStart: 0,
-      duration: { kind: "known", time: 635_000 },
+      duration: { kind: "known", time: 635_000_000 },
       title: "Feature",
     },
   ],

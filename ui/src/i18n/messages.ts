@@ -1442,7 +1442,49 @@ export type MessageKey =
   | "settings.value.video-crop.1-1"
   | "settings.value.video-crop.16-10"
   | "settings.value.video-crop.16-9"
-  | "settings.value.video-crop.4-3";
+  | "settings.value.video-crop.4-3"
+  | "app.document-title.template"
+  | "media-info.panel.unreachable"
+  | "onboarding.progress.template"
+  | "onboarding.subtitles.languages.placeholder"
+  | "player.controls.queue-meta"
+  | "player.controls.queue-meta-total"
+  | "player.controls.queue-total"
+  | "player.dialog.bookmarks.add"
+  | "player.dialog.bookmarks.add-failed"
+  | "player.dialog.bookmarks.close"
+  | "player.dialog.bookmarks.delete"
+  | "player.dialog.bookmarks.delete-failed"
+  | "player.dialog.bookmarks.empty"
+  | "player.dialog.bookmarks.jump"
+  | "player.dialog.bookmarks.label"
+  | "player.dialog.bookmarks.load-failed"
+  | "player.dialog.bookmarks.placeholder"
+  | "player.dialog.bookmarks.subtitle"
+  | "player.dialog.bookmarks.title"
+  | "player.dialog.bookmarks.unnamed"
+  | "player.dialog.goto.action"
+  | "player.dialog.goto.beyond-end"
+  | "player.dialog.goto.cancel"
+  | "player.dialog.goto.close"
+  | "player.dialog.goto.invalid"
+  | "player.dialog.goto.label"
+  | "player.dialog.goto.placeholder"
+  | "player.dialog.goto.subtitle"
+  | "player.dialog.goto.title"
+  | "playlist.options.sort.needs-meta"
+  | "settings.hint.performance.clock-jitter"
+  | "settings.hint.performance.clock-reference-averaging"
+  | "settings.hint.performance.clock-synchronisation"
+  | "settings.hint.performance.decoder"
+  | "settings.hint.performance.decoding-threads"
+  | "settings.hint.performance.encoder"
+  | "settings.hint.performance.h264-loop-filter"
+  | "settings.hint.performance.hw-decode"
+  | "settings.hint.performance.process-priority"
+  | "settings.hint.performance.video-post-processing"
+  | "switch.off"
+  | "switch.on";
 
 
 // The en-US reference catalog (doc 07 §6.3) — exported for the pseudo
@@ -2875,6 +2917,48 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "settings.value.video-crop.16-10": "16:10",
   "settings.value.video-crop.16-9": "16:9",
   "settings.value.video-crop.4-3": "4:3",
+  "app.document-title.template": "{screen} — Lumen",
+  "media-info.panel.unreachable": "Media information is unavailable — the engine is not reachable.",
+  "onboarding.progress.template": "Onboarding step {current} of {total}",
+  "onboarding.subtitles.languages.placeholder": "en, de",
+  "player.controls.queue-meta": "{count} items",
+  "player.controls.queue-meta-total": "{count} items - {duration}",
+  "player.controls.queue-total": "{hours}h {minutes}m",
+  "player.dialog.bookmarks.add": "Add bookmark",
+  "player.dialog.bookmarks.add-failed": "Couldn't add the bookmark — try again.",
+  "player.dialog.bookmarks.close": "Close",
+  "player.dialog.bookmarks.delete": "Delete bookmark at {time}",
+  "player.dialog.bookmarks.delete-failed": "Couldn't delete the bookmark — try again.",
+  "player.dialog.bookmarks.empty": "No bookmarks yet — add the current position.",
+  "player.dialog.bookmarks.jump": "Jump to {time} — {label}",
+  "player.dialog.bookmarks.label": "Label (optional)",
+  "player.dialog.bookmarks.load-failed": "Couldn't load the bookmarks — try reopening the dialog.",
+  "player.dialog.bookmarks.placeholder": "Name this bookmark",
+  "player.dialog.bookmarks.subtitle": "Saved positions in the current media.",
+  "player.dialog.bookmarks.title": "Bookmarks",
+  "player.dialog.bookmarks.unnamed": "Unnamed bookmark",
+  "player.dialog.goto.action": "Go",
+  "player.dialog.goto.beyond-end": "That time is past the end ({duration})",
+  "player.dialog.goto.cancel": "Cancel",
+  "player.dialog.goto.close": "Close",
+  "player.dialog.goto.invalid": "Enter a time as seconds (90) or mm:ss (1:30)",
+  "player.dialog.goto.label": "Time",
+  "player.dialog.goto.placeholder": "mm:ss or seconds (1:30, 90)",
+  "player.dialog.goto.subtitle": "Jump to a specific time in the current media.",
+  "player.dialog.goto.title": "Go to time",
+  "playlist.options.sort.needs-meta": "Needs media metadata",
+  "settings.hint.performance.clock-jitter": "How much clock drift is tolerated before playback re-syncs.",
+  "settings.hint.performance.clock-reference-averaging": "How many clock samples are averaged to keep playback steady.",
+  "settings.hint.performance.clock-synchronisation": "Which stream's clock playback stays in step with.",
+  "settings.hint.performance.decoder": "The decoder preferred for playback.",
+  "settings.hint.performance.decoding-threads": "How many threads decode video. 0 picks automatically.",
+  "settings.hint.performance.encoder": "The encoder used when recording or streaming out.",
+  "settings.hint.performance.h264-loop-filter": "When the H.264 loop filter runs while decoding.",
+  "settings.hint.performance.hw-decode": "Use the graphics hardware to decode video when it can.",
+  "settings.hint.performance.process-priority": "The priority the app asks the system for while playing.",
+  "settings.hint.performance.video-post-processing": "Apply extra filters to the picture after decoding.",
+  "switch.off": "OFF",
+  "switch.on": "ON",
 };
 
 export type Msg = (key: MessageKey) => string;

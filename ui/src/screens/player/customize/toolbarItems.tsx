@@ -26,11 +26,17 @@
 //     disabled-with-reason (PlayerScreen's quit-row precedent — never
 //     theater);
 //   * spacer/divider are layout primitives: inert, aria-hidden separators.
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useClient } from "../../../client/ClientProvider";
-import type { CommandRequest, CommandTransport } from "../../../client/transport";
+import { secondsToUs } from "../../../client/wire-time";
+import type {
+  CommandRequest,
+  CommandResult,
+  CommandTransport,
+  Event,
+} from "../../../client/transport";
 import { Icon } from "../../../components/icon/Icon";
 import { IconButton } from "../../../components/button/IconButton";
 import { useMsg } from "../../../i18n/messages";
@@ -44,6 +50,11 @@ import { usePlayerControls } from "../context";
 // re-export is logged as a cross-lane nicety, not a need).
 import { usePlaylistOptional } from "../../playlist/PlaylistProvider";
 import { cycleArgs, tileById } from "./panels";
+// w26.k08 (j08 P2-3): the engine-confirmed cycle mapping shared with the
+// box (CustomizePanels) — the real bar's cycle tiles now ADVANCE on
+// completions and events instead of re-dispatching default-based args
+// forever.
+import { applyCycleCompletion, applyCycleEvent } from "./cycleState";
 import { useToolbarLayout } from "./toolbarLayout";
 import type { CommandArgs, CustomizeTile } from "./types";
 import "./customize.css";
@@ -81,24 +92,51 @@ export function CustomizeToolbarItems({ transport }: { readonly transport?: Comm
   const { state } = usePlayerControls();
   const playlist = usePlaylistOptional();
 
+  // ---- engine-confirmed cycle state (w26.k08, j08 P2-3) ------------------
+  // The box's subscription grammar, shared through customize/cycleState:
+  // completions and events map back by args equality — never optimistic.
+  // All hooks sit BEFORE the empty-band early return (rules-of-hooks; the
+  // subscriptions keep running while the band renders nothing).
+  const [cycleSelections, setCycleSelections] = useState<Record<string, string>>({});
+  const applyCompletion = useCallback(
+    (result: CommandResult): void => {
+      applyCycleCompletion(result, setCycleSelections);
+    },
+    [],
+  );
+  const dispatch = useCallback(
+    async (tile: CustomizeTile, args: CommandArgs): Promise<void> => {
+      if (tile.command === null) return;
+      // Forward-declared commands (record/PiP/HDR) are not yet in the 1.D4
+      // wire union — the cast bridge is CustomizePanels' pattern (recorded
+      // in ui/NEXT-STEPS.md); errors are honest no-change.
+      const request = { cmd: tile.command, args, requestId: 1 } as unknown as CommandRequest;
+      try {
+        const response = await wire.send(request);
+        if ("completed" in response.result) {
+          applyCompletion(response.result.completed);
+        }
+        // Errors (feature-not-exposed etc.) leave the selection untouched —
+        // honest no-change, no fabricated advance.
+      } catch {
+        // Transport failure — same honest no-change policy as the box.
+      }
+    },
+    [applyCompletion, wire],
+  );
+  // Engine events (doc 05 §3) — the other source of confirmed cycle truth.
+  useEffect(() => {
+    const onEvent = (event: Event): void => {
+      applyCycleEvent(event, setCycleSelections);
+    };
+    return wire.subscribe(onEvent);
+  }, [wire]);
+
   const layout = useToolbarLayout();
   const items = layout.band
     .map((id) => tileById(id))
     .filter((tile): tile is CustomizeTile => tile !== null);
   if (items.length === 0) return null;
-
-  const dispatch = async (tile: CustomizeTile, args: CommandArgs): Promise<void> => {
-    if (tile.command === null) return;
-    // Forward-declared commands (record/PiP/HDR) are not yet in the 1.D4
-    // wire union — the cast bridge is CustomizePanels' pattern (recorded
-    // in ui/NEXT-STEPS.md); errors are honest no-change.
-    const request = { cmd: tile.command, args, requestId: 1 } as unknown as CommandRequest;
-    try {
-      await wire.send(request);
-    } catch {
-      // Transport failure — same honest no-change policy as the box.
-    }
-  };
 
   // The NavigationSeam pattern (PlayerScreen/ControlBar): in-app routing
   // inside the Router; bare mounts (jsdom trees without a Router, where
@@ -113,145 +151,152 @@ export function CustomizeToolbarItems({ transport }: { readonly transport?: Comm
           aria-label={t("customize.toolbar.label")}
         >
           {items.map((tile) => {
-        const label = t(tile.labelKey);
-        if (tile.id === "spacer") {
-          return <span key="spacer" className="lumen-toolbar-items__spacer" aria-hidden="true" />;
-        }
-        if (tile.id === "divider") {
-          return <span key="divider" className="lumen-toolbar-items__divider" aria-hidden="true" />;
-        }
-        if (tile.id === "bookmark") {
-          // Real engine command (the 1.D4 union carries media.add-bookmark):
-          // drop a bookmark at the engine-reported position.
-          return (
-            <IconButton
-              key={tile.id}
-              data-field-id={tile.id}
-              label={label}
-              onClick={() => {
-                void wire.send({
-                  cmd: "media.add-bookmark",
-                  args: { time: Math.max(0, Math.floor(state.position)) },
-                  requestId: 2,
-                });
-              }}
-            >
-              {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-            </IconButton>
-          );
-        }
-        if (tile.id === "playlists" || tile.id === "right-sidebar") {
-          return (
-            <IconButton
-              key={tile.id}
-              data-field-id={tile.id}
-              label={label}
-              onClick={() => window.dispatchEvent(new CustomEvent(TOGGLE_SIDEBAR_EVENT))}
-            >
-              {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-            </IconButton>
-          );
-        }
-        if (tile.id === "vlc-settings") {
-          return (
-            <IconButton
-              key={tile.id}
-              data-field-id={tile.id}
-              label={label}
-              onClick={() => navigate("/settings")}
-            >
-              {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-            </IconButton>
-          );
-        }
-        if (tile.id === "go-home") {
-          return (
-            <IconButton
-              key={tile.id}
-              data-field-id={tile.id}
-              label={label}
-              onClick={() => navigate("/")}
-            >
-              {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-            </IconButton>
-          );
-        }
-        if (tile.control.kind !== "ui") {
-          // Engine-bound: the box's dispatch grammar. shuffle/repeat prefer
-          // the playlist context's REAL confirmed state; other cycles ride
-          // the default-based args until the engine reports (honest).
-          if (tile.id === "shuffle" && playlist !== null) {
+            const label = t(tile.labelKey);
+            if (tile.id === "spacer") {
+              return <span key="spacer" className="lumen-toolbar-items__spacer" aria-hidden="true" />;
+            }
+            if (tile.id === "divider") {
+              return <span key="divider" className="lumen-toolbar-items__divider" aria-hidden="true" />;
+            }
+            if (tile.id === "bookmark") {
+              // Real engine command (the 1.D4 union carries media.add-bookmark):
+              // drop a bookmark at the engine-reported position. w26.k17:
+              // the wire `time` is µs — the seam position is seconds, crossed
+              // at the send edge (was the last raw-seconds sender).
+              return (
+                <IconButton
+                  key={tile.id}
+                  data-field-id={tile.id}
+                  label={label}
+                  onClick={() => {
+                    void wire.send({
+                      cmd: "media.add-bookmark",
+                      args: { time: secondsToUs(Math.max(0, Math.floor(state.position))) },
+                      requestId: 2,
+                    });
+                  }}
+                >
+                  {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                </IconButton>
+              );
+            }
+            if (tile.id === "playlists" || tile.id === "right-sidebar") {
+              return (
+                <IconButton
+                  key={tile.id}
+                  data-field-id={tile.id}
+                  label={label}
+                  onClick={() => window.dispatchEvent(new CustomEvent(TOGGLE_SIDEBAR_EVENT))}
+                >
+                  {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                </IconButton>
+              );
+            }
+            if (tile.id === "vlc-settings") {
+              return (
+                <IconButton
+                  key={tile.id}
+                  data-field-id={tile.id}
+                  label={label}
+                  onClick={() => navigate("/settings")}
+                >
+                  {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                </IconButton>
+              );
+            }
+            if (tile.id === "go-home") {
+              return (
+                <IconButton
+                  key={tile.id}
+                  data-field-id={tile.id}
+                  label={label}
+                  onClick={() => navigate("/")}
+                >
+                  {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                </IconButton>
+              );
+            }
+            if (tile.control.kind !== "ui") {
+              // Engine-bound: the box's dispatch grammar. shuffle/repeat prefer
+              // the playlist context's REAL confirmed state; other cycles ride
+              // the engine-confirmed selection (completions + events, j08
+              // P2-3) — never optimistic.
+              if (tile.id === "shuffle" && playlist !== null) {
+                return (
+                  <IconButton
+                    key={tile.id}
+                    data-field-id={tile.id}
+                    label={label}
+                    aria-pressed={playlist.shuffle === true ? true : undefined}
+                    onClick={() => playlist.setShuffle(!(playlist.shuffle === true))}
+                  >
+                    {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                  </IconButton>
+                );
+              }
+              if (tile.id === "repeat" && playlist !== null) {
+                const current = playlist.repeat ?? "off";
+                const next = REPEAT_ORDER[(REPEAT_ORDER.indexOf(current) + 1) % REPEAT_ORDER.length]!;
+                return (
+                  <IconButton
+                    key={tile.id}
+                    data-field-id={tile.id}
+                    label={label}
+                    onClick={() => playlist.setRepeat(next)}
+                  >
+                    {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                  </IconButton>
+                );
+              }
+              if (tile.control.kind === "action" || tile.control.kind === "toggle-action") {
+                const args =
+                  tile.control.kind === "action"
+                    ? tile.control.args
+                    : tile.control.argsFor(playlist?.shuffle ?? null);
+                return (
+                  <IconButton
+                    key={tile.id}
+                    data-field-id={tile.id}
+                    label={label}
+                    onClick={() => void dispatch(tile, args)}
+                  >
+                    {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                  </IconButton>
+                );
+              }
+              // cycle without a playlist surface (Playback speed, Zoom): the
+              // next option from the ENGINE-CONFIRMED selection — the box's
+              // cycleArgs grammar, fed by the shared completion/event mapping
+              // (j08 P2-3: this used to re-dispatch the default-based args
+              // forever, so the rate stuck at 1.25). Before any report the
+              // defaultOption follows — never optimistic. The const captures
+              // the flow-narrowed cycle control for the closure below.
+              const cycleControl = tile.control;
+              const nextArgs = cycleArgs(cycleControl, cycleSelections[tile.id] ?? null);
+              return (
+                <IconButton
+                  key={tile.id}
+                  data-field-id={tile.id}
+                  label={label}
+                  onClick={() => void dispatch(tile, nextArgs)}
+                >
+                  {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
+                </IconButton>
+              );
+            }
+            // UI-owned with no surface in this shell — disabled with a reason
+            // (favorite, bookmarks, quit, the text-block family, replay,
+            // chapters; the PlayerScreen quit-row precedent — never theater).
             return (
               <IconButton
                 key={tile.id}
                 data-field-id={tile.id}
-                label={label}
-                aria-pressed={playlist.shuffle === true ? true : undefined}
-                onClick={() => playlist.setShuffle(!(playlist.shuffle === true))}
+                label={`${label} — ${t("customize.toolbar.unavailable")}`}
+                disabled
               >
                 {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
               </IconButton>
             );
-          }
-          if (tile.id === "repeat" && playlist !== null) {
-            const current = playlist.repeat ?? "off";
-            const next = REPEAT_ORDER[(REPEAT_ORDER.indexOf(current) + 1) % REPEAT_ORDER.length]!;
-            return (
-              <IconButton
-                key={tile.id}
-                data-field-id={tile.id}
-                label={label}
-                onClick={() => playlist.setRepeat(next)}
-              >
-                {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-              </IconButton>
-            );
-          }
-          if (tile.control.kind === "action" || tile.control.kind === "toggle-action") {
-            const args =
-              tile.control.kind === "action"
-                ? tile.control.args
-                : tile.control.argsFor(playlist?.shuffle ?? null);
-            return (
-              <IconButton
-                key={tile.id}
-                data-field-id={tile.id}
-                label={label}
-                onClick={() => void dispatch(tile, args)}
-              >
-                {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-              </IconButton>
-            );
-          }
-          // cycle without a playlist surface: default-based next (the box's
-          // "before any report" path — never optimistic). The const captures
-          // the flow-narrowed cycle control for the closure below.
-          const cycleControl = tile.control;
-          const nextArgs = cycleArgs(cycleControl, null);
-          return (
-            <IconButton
-              key={tile.id}
-              data-field-id={tile.id}
-              label={label}
-              onClick={() => void dispatch(tile, nextArgs)}
-            >
-              {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-            </IconButton>
-          );
-        }
-        // UI-owned with no surface in this shell — disabled with a reason
-        // (favorite, bookmarks, quit, the text-block family, replay,
-        // chapters; the PlayerScreen quit-row precedent — never theater).
-        return (
-          <IconButton
-            key={tile.id}
-            data-field-id={tile.id}
-            label={`${label} — ${t("customize.toolbar.unavailable")}`}
-            disabled
-          >
-            {tile.icon ? <Icon name={tile.icon} size={18} /> : null}
-          </IconButton>
-        );
           })}
         </div>
       )}

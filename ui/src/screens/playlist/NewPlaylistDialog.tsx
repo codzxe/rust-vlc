@@ -57,6 +57,19 @@ export function NewPlaylistDialog({
     return () => window.clearTimeout(timer);
   }, [open]);
 
+  // w26.k14 (j14 #7): the state reset no longer rides close() alone — a
+  // parent can drop `open` without onClose ever firing (route change,
+  // re-render with open=false). Resetting on the close edge itself keeps
+  // the next open clean of stale title/file names. (The focus macrotask
+  // stays: a contract-level `initialFocus` prop on the shared Dialog is
+  // the surface lane's call — logged in the lane log.)
+  useEffect(() => {
+    if (open) return;
+    setTitle("");
+    setFileNames([]);
+    setDropOver(false);
+  }, [open]);
+
   if (!open) return null;
 
   const close = () => {

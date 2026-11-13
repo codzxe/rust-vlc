@@ -51,6 +51,17 @@ function formatDb(value: number, unit: string): string {
   return `${value.toFixed(1)} ${unit}`;
 }
 
+/**
+ * The 0.1 dB lattice as CLEAN one-decimal doubles. w26.k10 (j10 P2-1): the
+ * interaction engine's `quantize()` lands on the lattice mathematically, but
+ * binary 0.1 arithmetic leaves float dust (5.6 + 0.1 → 5.700000000000003)
+ * that `aria-valuenow` and the `onChange` payload must not carry — the chip
+ * hides it behind `toFixed(1)`, the slider attributes and the wire seam
+ * would not. Snapping at this boundary covers both keyboard and drag
+ * commits; it never moves a value off the lattice (quantize already did).
+ */
+const snapDb = (value: number): number => Math.round(value * 10) / 10;
+
 export interface GraphicEQProps {
   /**
    * Initial expanded state (uncontrolled). The settings frame ships the
@@ -110,13 +121,18 @@ export function GraphicEQ({
   const toggleId = useId();
   const bodyId = `${toggleId}-body`;
 
+  // w26.k10 (j10 P3-3): internal state is written ONLY when uncontrolled —
+  // a controlled mount (the tools dialog passes both `open` and `state`)
+  // used to shadow-write `openInternal`/`stateInternal` on every commit,
+  // diverging behind the host's props and double-setStateing per fader
+  // commit (commit → EqualizerTool.commitFader). The host is the truth.
   const setOpen = (next: boolean): void => {
-    setOpenInternal(next);
+    if (openProp === undefined) setOpenInternal(next);
     onOpenChange?.(next);
   };
 
   const commit = (next: EqualizerState): void => {
-    setStateInternal(next);
+    if (stateProp === undefined) setStateInternal(next);
     onChange?.(next);
   };
 
@@ -230,10 +246,12 @@ function EqFaderColumn({
         step={EQ_GAIN_STEP_DB}
         aria-label={label}
         formatValue={(v) => formatDb(v, unitDb)}
-        onChangeLive={setLive}
+        onChangeLive={(v) => {
+          setLive(snapDb(v));
+        }}
         onCommit={(next) => {
           setLive(null);
-          onCommit(next);
+          onCommit(snapDb(next));
         }}
       />
       <span className="eq-panel__label">{label}</span>

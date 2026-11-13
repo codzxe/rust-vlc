@@ -4,6 +4,7 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
 <fieldset
   aria-label="Theme"
   class="lumen-radiogroup"
+  id="_r_9_"
   role="radiogroup"
 >
   <div
@@ -14,14 +15,14 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
     >
       <input
         class="lumen-choice__input"
-        id="_r_7_-light"
-        name="_r_7_-radio"
+        id="_r_9_-light"
+        name="_r_9_-radio"
         tabindex="-1"
         type="radio"
         value="light"
       />
       <label
-        for="_r_7_-light"
+        for="_r_9_-light"
       >
         Light
       </label>
@@ -32,14 +33,14 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
       <input
         checked=""
         class="lumen-choice__input"
-        id="_r_7_-dark"
-        name="_r_7_-radio"
+        id="_r_9_-dark"
+        name="_r_9_-radio"
         tabindex="0"
         type="radio"
         value="dark"
       />
       <label
-        for="_r_7_-dark"
+        for="_r_9_-dark"
       >
         Dark
       </label>
@@ -49,14 +50,14 @@ exports[`RadioGroup (doc 08 §4.5) > DOM snapshot 1`] = `
     >
       <input
         class="lumen-choice__input"
-        id="_r_7_-system"
-        name="_r_7_-radio"
+        id="_r_9_-system"
+        name="_r_9_-radio"
         tabindex="-1"
         type="radio"
         value="system"
       />
       <label
-        for="_r_7_-system"
+        for="_r_9_-system"
       >
         System
       </label>

@@ -35,7 +35,11 @@ export type EqMessageKey =
 export function useEqMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | EqMessageKey): string => m(key as MessageKey) ?? laneCatalog[key],
+    // w26.k10 (j10 P3-1): the final `?? key` fallback — the siblings
+    // (copy.ts / useVisualizerMsg.ts) carry it; an unknown key must render
+    // the key, never `undefined`.
+    (key: MessageKey | EqMessageKey): string =>
+      m(key as MessageKey) ?? laneCatalog[key] ?? key,
     [m],
   );
 }

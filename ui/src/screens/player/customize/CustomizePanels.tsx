@@ -34,10 +34,13 @@
 // Cancel reverts.
 //
 // Data-driven composition (doc 08 §4) and truthfulness (§5) are
-// unchanged: engine-bound tiles dispatch their commands and render only
-// when the engine lists them (capabilities.ts); UI-owned toolbar items
-// always render; cycle tiles (Playback speed, Repeat, Zoom) dispatch the
-// next option from ENGINE-CONFIRMED state only — never optimistic.
+// unchanged: engine-bound tiles dispatch their commands honestly — the
+// box renders the frame's FULL static catalog regardless of the listing
+// (the h07-defect-4 ruling; never a dead control, never a fabricated
+// one); cycle tiles (Playback speed, Repeat, Zoom) dispatch the next option
+// from ENGINE-CONFIRMED state only — never optimistic. The cycle mapping
+// is shared with the real bar (toolbarItems.tsx) through cycleState.ts
+// (w26.k08, j08 P2-3).
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -57,7 +60,10 @@ import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as a17Keys } from "../../../i18n/keys/w26.a17";
 import { keys as gfixAKeys } from "../../../i18n/keys/w26.gfixA";
-import { useCommandCapabilities } from "./capabilities";
+// w26.k08 (j08 P2-3): the cycle mapping shared with the real bar
+// (toolbarItems.tsx) — the local deepEqual/CYCLE_PAYLOADS/applyCyclePayload
+// trio moved there so both consumers read one implementation.
+import { applyCycleCompletion, applyCycleEvent } from "./cycleState";
 import { CUSTOMIZE_TILES, cycleArgs, tileById } from "./panels";
 import {
   loadToolbarLayout,
@@ -75,44 +81,6 @@ import "./customize.css";
 const TILE_DRAG_TYPE = "application/lumen-tile";
 /** dataTransfer type carrying a placed band item id. */
 const BAND_DRAG_TYPE = "application/lumen-band-item";
-
-/** Structural equality for plain option-args payloads. */
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
-  const ka = Object.keys(a as Record<string, unknown>);
-  const kb = Object.keys(b as Record<string, unknown>);
-  if (ka.length !== kb.length) return false;
-  return ka.every((key) =>
-    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
-  );
-}
-
-/** The cycle tiles' command → args-payload builders (completion mapping). */
-const CYCLE_PAYLOADS: ReadonlyArray<{
-  readonly command: string;
-  readonly payload: (result: CommandResult) => CommandArgs | null;
-}> = [
-  { command: "playlist.set-repeat", payload: (r) => (r.kind === "applied-repeat" ? { mode: r.mode } : null) },
-  { command: "playback.set-rate", payload: (r) => (r.kind === "applied-rate" ? { rate: r.rate } : null) },
-  { command: "video.set-zoom", payload: (r) => (r.kind === "applied-zoom" ? { factor: r.factor } : null) },
-];
-
-/** Apply a cycle payload to the matching cycle tile (engine truth only). */
-function applyCyclePayload(
-  command: string,
-  payload: CommandArgs,
-  setCycleSelections: React.Dispatch<React.SetStateAction<Record<string, string>>>,
-): void {
-  const tile = CUSTOMIZE_TILES.find(
-    (candidate) => candidate.command === command && candidate.control.kind === "cycle",
-  );
-  if (tile === undefined || tile.control.kind !== "cycle") return;
-  const option = tile.control.options.find((candidate) => deepEqual(candidate.args, payload));
-  if (option !== undefined) {
-    setCycleSelections((prev) => ({ ...prev, [tile.id]: option.id }));
-  }
-}
 
 /**
  * Seam-first label resolver: central catalog first, then the lane's
@@ -156,7 +124,6 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
   const wire = transport ?? client;
   const m = useMsg();
   const t = useCustomizeMsg();
-  const caps = useCommandCapabilities(wire);
   const titleId = useId();
   // The header ✕ — Save's focus-recovery target (h07 defect 2): an
   // always-enabled control inside the dialog.
@@ -181,13 +148,7 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
       }
       return;
     }
-    for (const entry of CYCLE_PAYLOADS) {
-      const payload = entry.payload(result);
-      if (payload !== null) {
-        applyCyclePayload(entry.command, payload, setCycleSelections);
-        return;
-      }
-    }
+    applyCycleCompletion(result, setCycleSelections);
   }, []);
 
   const dispatch = useCallback(
@@ -216,31 +177,27 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
     [applyCompletion, wire],
   );
 
-  // Engine events (doc 05 §3) — the other source of confirmed truth.
+  // Engine events (doc 05 §3) — the other source of confirmed truth. The
+  // shuffle-set engine-bool half is this surface's own; the cycle-relevant
+  // events (rate, repeat) map through the shared cycleState module
+  // (w26.k08, j08 P2-3 — same mapper the real bar subscribes to).
   useEffect(() => {
     const onEvent = (event: Event): void => {
-      switch (event.kind) {
-        case "playback.rate-changed": {
-          applyCyclePayload("playback.set-rate", { rate: event.rate }, setCycleSelections);
-          break;
-        }
-        case "playlist.changed": {
-          const change = event.change;
-          if (change.kind === "shuffle-set") {
-            const tile = CUSTOMIZE_TILES.find(
-              (candidate) => candidate.command === "playlist.set-shuffle",
-            );
-            if (tile !== undefined) {
-              setEngineBools((prev) => ({ ...prev, [tile.id]: change.enabled }));
-            }
-          } else if (change.kind === "repeat-set") {
-            applyCyclePayload("playlist.set-repeat", { mode: change.mode }, setCycleSelections);
-          }
-          break;
-        }
-        default:
-          break;
+      if (event.kind !== "playlist.changed") {
+        applyCycleEvent(event, setCycleSelections);
+        return;
       }
+      const change = event.change;
+      if (change.kind === "shuffle-set") {
+        const tile = CUSTOMIZE_TILES.find(
+          (candidate) => candidate.command === "playlist.set-shuffle",
+        );
+        if (tile !== undefined) {
+          setEngineBools((prev) => ({ ...prev, [tile.id]: change.enabled }));
+        }
+        return;
+      }
+      applyCycleEvent(event, setCycleSelections);
     };
     return wire.subscribe(onEvent);
   }, [wire]);
@@ -368,7 +325,7 @@ export function CustomizePanels({ transport, onClose, open = true }: CustomizePa
         tone="deep"
         className="lumen-customize__surface"
       >
-        <div className="lumen-customize" data-resolved={caps.resolved}>
+        <div className="lumen-customize">
           {/* header band — frame: 94px #090909, title 15px semibold
               #8F8F8F at (28,23), ✕ 10px 1.5px #8F8F8F at (20,20), the
               instruction line inside the band at (23,~75). */}
@@ -774,12 +731,14 @@ function CustomizeBand({
           </span>
         ) : null}
 
-        {/* The left split slot (frames -2..-6). */}
+        {/* The left split slot (frames -2..-6) — preview chrome like the
+            clusters (j08 P3-8/P3-9: the old aria-label on a generic span
+            was an AT no-op; decorative slots stay out of the tree). */}
         {split ? (
           <span
             className="lumen-customize-band__slot lumen-customize-band__slot--left"
             style={{ flexGrow: leftFlex, flexBasis: 0 }}
-            aria-label={t("customize.band.drop-hint")}
+            aria-hidden="true"
           />
         ) : null}
 
@@ -829,23 +788,24 @@ function CustomizeBand({
         {/* The trailing slot(s). f0 (frame 0: 1405×35 @170.5) carries the
          * live seek preview + the band timecodes; f1 (frame -1: 1431×35
          * @155.5) is left EMPTY — the seek moved to its own row above;
-         * f2..f5 split (see SLOT_FLEX). */}
+         * f2..f5 split (see SLOT_FLEX). All preview chrome (j08 P3-8:
+         * aria-hidden, not aria-labelled spans). */}
         {variant === "f0" ? (
-          <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")}>
-            <span className="lumen-customize-band__time" aria-hidden="true">00:02:10</span>
-            <span className="lumen-customize-band__seek" aria-hidden="true">
+          <span className="lumen-customize-band__slot" aria-hidden="true">
+            <span className="lumen-customize-band__time">00:02:10</span>
+            <span className="lumen-customize-band__seek">
               <span className="lumen-customize-band__seek-buffered" />
               <span className="lumen-customize-band__seek-played" />
             </span>
-            <span className="lumen-customize-band__time" aria-hidden="true">00:25:40</span>
+            <span className="lumen-customize-band__time">00:25:40</span>
           </span>
         ) : variant === "f1" ? (
-          <span className="lumen-customize-band__slot" aria-label={t("customize.band.drop-hint")} />
+          <span className="lumen-customize-band__slot" aria-hidden="true" />
         ) : (
           <span
             className="lumen-customize-band__slot lumen-customize-band__slot--right"
             style={{ flexGrow: rightFlex, flexBasis: 0 }}
-            aria-label={t("customize.band.drop-hint")}
+            aria-hidden="true"
           />
         )}
 

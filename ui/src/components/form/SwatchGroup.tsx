@@ -1,6 +1,7 @@
 import { useId } from "react";
-import type { KeyboardEvent, ReactElement } from "react";
+import type { ReactElement } from "react";
 import type { AccentId } from "../../tokens/generated/tokens";
+import { useRadiogroupKeyboard } from "./useRadiogroupKeyboard";
 import "./form.css";
 
 export interface SwatchOption {
@@ -65,23 +66,14 @@ export function SwatchGroup({
 }: SwatchGroupProps): ReactElement {
   const autoId = useId();
   const groupId = id ?? autoId;
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
-    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
-    if (!vertical && !horizontal) return;
-    const enabled = options.filter((option) => !option.disabled);
-    if (enabled.length === 0) return;
-    const currentIndex = enabled.findIndex((option) => option.value === value);
-    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
-    const next = enabled[(currentIndex + delta + enabled.length) % enabled.length];
-    if (next && next.value !== value) onChange(next.value);
-    event.preventDefault();
-  };
+  // shared roving grammar (w26.k01 j01-2): four arrows, wrap-around,
+  // disabled swatches skipped
+  const onKeyDown = useRadiogroupKeyboard(options, value, onChange);
 
   return (
     <div
       role="radiogroup"
+      id={groupId}
       aria-label={label}
       className={["lumen-swatchgroup", className].filter(Boolean).join(" ")}
       onKeyDown={onKeyDown}

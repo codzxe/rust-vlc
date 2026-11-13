@@ -6,12 +6,14 @@
 // unparseable input and times past the engine-reported duration (honest
 // errors, no seek), and closes on submit / Escape / the quiet Close.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { PlayerControlsProvider } from "../context";
 import { ClientProvider } from "../../../client/ClientProvider";
 import type { CommandTransport } from "../../../client/transport";
 import type { CommandRequest, CommandResponse, Event } from "../../../client/transport";
-import { GotoTimeDialog, GOTO_COPY } from "./GotoTimeDialog";
+import { GotoTimeDialog } from "./GotoTimeDialog";
+import { GOTO_COPY } from "./useDialogsMsg";
 
 /**
  * Transport that records every sent command, answers success, and can
@@ -54,6 +56,22 @@ function renderDialog(transport: CommandTransport, onClose = vi.fn()) {
   return onClose;
 }
 
+/**
+ * Per-open host (the PlayerScreen mount pattern): the dialog mounts on
+ * demand, so a test can seed seam truth BEFORE the dialog's mount-time
+ * prefill captures it.
+ */
+function GotoOpenOnDemand() {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <GotoTimeDialog open onClose={() => setOpen(false)} />
+  ) : (
+    <button type="button" onClick={() => setOpen(true)}>
+      open-dialog
+    </button>
+  );
+}
+
 describe("GotoTimeDialog — the seek funnel", () => {
   it("initial focus lands on the Time input, never the header ✕ (h19 P4)", () => {
     // w26.i09: body renders before the header in the DOM (the header
@@ -72,11 +90,38 @@ describe("GotoTimeDialog — the seek funnel", () => {
     expect(screen.getByRole("heading", { name: GOTO_COPY.title })).toBeInTheDocument();
     // Position 0 (no engine events) → "0:00" prefill, VLC parity.
     expect(screen.getByLabelText(GOTO_COPY.label)).toHaveValue("0:00");
+    // The mm:ss grammar needs ":" — text keypad, not numeric (j09 P3:
+    // numeric keypads have no colon).
+    expect(screen.getByLabelText(GOTO_COPY.label)).toHaveAttribute("inputmode", "text");
     // Honest unknown duration renders "--:--", never a fabricated ceiling.
     expect(screen.getByText(/0:00\s*\/\s*--:--/)).toBeInTheDocument();
   });
 
-  it("submits mm:ss as playback.seek ABSOLUTE seconds and closes", async () => {
+  it("prefills with a nonzero engine-reported position — seam seconds, formatted (j09 §4 gap)", () => {
+    // The prefill is captured at mount (= open), so the dialog mounts
+    // AFTER the seam carries the engine truth: a host that opens it on
+    // demand, the PlayerScreen per-open pattern.
+    const transport = new RecordingTransport();
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerControlsProvider transport={transport}>
+          <GotoOpenOnDemand />
+        </PlayerControlsProvider>
+      </ClientProvider>,
+    );
+    transport.emit({
+      gen: 1,
+      seq: 1,
+      kind: "timing.time-tick",
+      position: 90,
+      time: 90_000_000,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "open-dialog" }));
+    expect(screen.getByLabelText(GOTO_COPY.label)).toHaveValue("1:30");
+    expect(screen.getByText(/1:30\s*\/\s*--:--/)).toBeInTheDocument();
+  });
+
+  it("submits mm:ss as playback.seek ABSOLUTE µs (wire) and closes", async () => {
     const transport = new RecordingTransport();
     const onClose = renderDialog(transport);
     const input = screen.getByLabelText(GOTO_COPY.label);
@@ -86,8 +131,10 @@ describe("GotoTimeDialog — the seek funnel", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
     const seek = transport.sent.find((r) => r.cmd === "playback.seek");
+    // w26.k17: the seam stays seconds; the wire target crosses at the
+    // send edge — 90 s = 90 000 000 µs.
     expect(seek?.args).toEqual({
-      target: { kind: "absolute", time: 90 },
+      target: { kind: "absolute", time: 90_000_000 },
     });
   });
 
@@ -101,7 +148,7 @@ describe("GotoTimeDialog — the seek funnel", () => {
     await waitFor(() => {
       const seek = transport.sent.find((r) => r.cmd === "playback.seek");
       expect(seek?.args).toEqual({
-        target: { kind: "absolute", time: 3725 },
+        target: { kind: "absolute", time: 3_725_000_000 },
       });
     });
   });
@@ -120,8 +167,8 @@ describe("GotoTimeDialog — the seek funnel", () => {
   it("a time past the engine-reported duration is refused with the duration in the error", () => {
     const transport = new RecordingTransport();
     const onClose = renderDialog(transport);
-    // Engine truth: 10-minute media.
-    transport.emit({ gen: 1, seq: 1, kind: "timing.duration-known", duration: 600 });
+    // Engine truth: 10-minute media (600 s = 600 000 000 µs — w26.k17).
+    transport.emit({ gen: 1, seq: 1, kind: "timing.duration-known", duration: 600_000_000 });
     const input = screen.getByLabelText(GOTO_COPY.label);
     fireEvent.change(input, { target: { value: "700" } });
     fireEvent.submit(input.closest("form") as HTMLFormElement);
@@ -143,7 +190,7 @@ describe("GotoTimeDialog — the seek funnel", () => {
     );
     await waitFor(() => {
       const seek = transport.sent.find((r) => r.cmd === "playback.seek");
-      expect(seek?.args).toEqual({ target: { kind: "absolute", time: 9999 } });
+      expect(seek?.args).toEqual({ target: { kind: "absolute", time: 9_999_000_000 } });
     });
   });
 

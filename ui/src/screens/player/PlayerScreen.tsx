@@ -99,6 +99,7 @@ import { NewPlaylistDialog } from "../playlist/NewPlaylistDialog";
 import { usePlaylists } from "../playlist/playlistsStore";
 import { PlayerControlsProvider, usePlayerControls } from "./context";
 import type { PlayerControls } from "./context";
+import { useLaneMsg } from "./laneMsg";
 import { ControlBar, controlCommandOf, mapTransportControls } from "./controls";
 import { selectedTrackId, trackDisplayName, tracksOfKind } from "./context";
 import { CustomizePanels } from "./customize";
@@ -156,18 +157,23 @@ export const PLAYER_OPEN_CUSTOMIZE_EVENT = "lumen:open-customize";
 // w26.c6 — canvas context menu (right-click menu.svg)
 // ---------------------------------------------------------------------------
 
-/** c6 lane keys for the canvas menu (contract §4.5 — catalog first, lane
- * copy while unregistered; identical before/after the Lead's merge). */
-const c6Catalog: Readonly<Record<string, string>> = c6Keys;
-
-/** f09 lane keys (the customize trigger row) — same seam-first contract. */
-const f09Catalog: Readonly<Record<string, string>> = f09Keys;
-
-/** i02 lane keys (the playlists-dock rows) — same seam-first contract. */
-const i02Catalog: Readonly<Record<string, string>> = i02Keys;
+/** Lane keys (contract §4.5 — catalog first via useLaneMsg, lane copy while
+ * unregistered; identical before/after the Lead's merge).
+ * w26.k06 (J06-9): c6 + f09 + i02 feed the merged `canvasCatalog` below;
+ * i02 is also consumed standalone by the playlists dock. */
 
 /** Lane keys the canvas menu resolves (c6 frame rows + f09 + i02). */
 type CanvasLaneKey = keyof typeof c6Keys | keyof typeof f09Keys | keyof typeof i02Keys;
+
+/** w26.k06 (J06-9): the canvas menu's merged lane catalog (one resolver
+ * shape — see laneMsg.ts — instead of the inline triple-chain). Built from
+ * the literal key modules (not the widened catalogs) so the Record carries
+ * every CanvasLaneKey. */
+const canvasCatalog: Readonly<Record<CanvasLaneKey, string>> = {
+  ...c6Keys,
+  ...f09Keys,
+  ...i02Keys,
+};
 
 /**
  * w26.f09 — the customize trigger's keymap row, straight from keymap DATA:
@@ -569,6 +575,9 @@ function PlayerScreenInner({
   onVariantChange,
 }: PlayerScreenProps) {
   const m = useMsg();
+  // w26.k06 (J06-9): the canvas menu's lane resolver — ONE shared shape
+  // (laneMsg.ts) over the merged c6/f09/i02 catalog.
+  const tm = useLaneMsg(canvasCatalog);
 
   // Card 4.F2 — player variant (UI-owned state per doc 08 §4, persisted via
   // the same localStorage pattern as the settings seam). Controlled prop
@@ -745,6 +754,11 @@ function PlayerScreenInner({
     // band + modal must stay visible while the user rearranges.
     locked: openPanels.length > 0 || customizeOpen,
   });
+  // w26.k06 (J06-3, P2): the keymap keydown listener depends on `show`
+  // alone — the hook's returned object used to be a fresh literal per
+  // render (now memoized in the hook; the primitive dep pins it regardless)
+  // so the window listener churned on every render.
+  const showChrome = chrome.show;
 
   // w26.g06 P1-1 Lead fix: mirror the hide-UI state onto <html> so the SHELL
   // chrome (title bar, rail, sidebar — outside .lumen-player) fades together
@@ -824,7 +838,7 @@ function PlayerScreenInner({
             }
             break;
           case "show-controls":
-            chrome.show();
+            showChrome();
             break;
           case "forward": {
             const fwd = action.binding;
@@ -841,13 +855,17 @@ function PlayerScreenInner({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleFullscreen, exitFullscreen, chrome, onBinding, actions, setVariant, variant, hasMedia]);
+  }, [toggleFullscreen, exitFullscreen, showChrome, onBinding, actions, setVariant, variant, hasMedia]);
 
   const conditionCtx: LayoutConditionContext = {
     hasMedia,
-    hasVideo: media?.hasVideo ?? false,
+    // w26.k06 (J06-5, P2): ONE truth source — derivedMedia (the host's
+    // `media` prop first, engine track truth second). hasVideo/hasChapters
+    // used to read the raw `media` prop only, so an engine-only session
+    // (no host prop) never satisfied a `visible_when = "has-video"` region.
+    hasVideo: derivedMedia?.hasVideo ?? false,
     fullscreen: isFullscreen,
-    hasChapters: media?.hasChapters ?? false,
+    hasChapters: derivedMedia?.hasChapters ?? false,
     miniplayer: variant === "miniplayer",
     musicMode: variant === "music",
   };
@@ -902,17 +920,16 @@ function PlayerScreenInner({
             }}
           />
         )}
-        {gotoOpen ? (
-          <GotoTimeDialog open onClose={() => setGotoOpen(false)} />
-        ) : null}
-        {bookmarksOpen ? (
-          <BookmarksDialog open onClose={() => setBookmarksOpen(false)} />
-        ) : null}
-        {/* w26.gfixA — the customize modal (per-open mount; see the seam
-            comment at the listener). */}
-        {customizeOpen ? (
-          <CustomizePanels onClose={() => setCustomizeOpen(false)} />
-        ) : null}
+        {/* w26.k06 (J06-11): the shared per-open dialog trio (Goto /
+            Bookmarks / Customize) — one definition, both variant branches. */}
+        <PlayerDialogs
+          gotoOpen={gotoOpen}
+          bookmarksOpen={bookmarksOpen}
+          customizeOpen={customizeOpen}
+          onGotoClose={() => setGotoOpen(false)}
+          onBookmarksClose={() => setBookmarksOpen(false)}
+          onCustomizeClose={() => setCustomizeOpen(false)}
+        />
       </div>
     );
   }
@@ -988,12 +1005,40 @@ function PlayerScreenInner({
                   aria-label={m(canvasRegion.labelKey)}
                   className="lumen-player__canvas"
                   data-placeholder="engine-wiring-4.H1"
+                  /* w26.k06 (J06-4, P2): the labelled canvas is a TAB STOP so
+                     keyboard-only users can reach the context menu — VLC
+                     parity (the video widget is focusable); the menu is the
+                     only route to Customize interface…, Hide-UI and the
+                     track submenus. */
+                  tabIndex={0}
                   onContextMenu={(event) => {
                     // w26.c6 — the canvas context menu (right-click menu.svg)
                     // opens at the pointer; suppress the native browser menu.
                     event.preventDefault();
                     canvasMenuFocus.current = document.activeElement as HTMLElement | null;
                     setCanvasMenu({ x: event.clientX, y: event.clientY });
+                  }}
+                  onKeyDown={(event) => {
+                    // w26.k06 (J06-4, P2): the KEYBOARD path for the canvas
+                    // menu — ContextMenu and Shift+F10 (the WAI-ARIA
+                    // context-menu keys; keymap.ts carries no such action, so
+                    // the region handles them directly). Opens at the focused
+                    // element: a focused descendant anchors the menu at its
+                    // bottom-left, the region itself at its top-left.
+                    if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) {
+                      return;
+                    }
+                    event.preventDefault();
+                    canvasMenuFocus.current = document.activeElement as HTMLElement | null;
+                    const anchor =
+                      (document.activeElement as HTMLElement | null) ??
+                      (event.currentTarget as HTMLElement);
+                    const rect = anchor.getBoundingClientRect();
+                    const atRegion = anchor === event.currentTarget;
+                    setCanvasMenu({
+                      x: rect.left + (atRegion ? 8 : 0),
+                      y: atRegion ? rect.top + 8 : rect.bottom,
+                    });
                   }}
                 >
                   {/* Honest placeholder note: the DECODE/FRAMES half stays
@@ -1090,7 +1135,7 @@ function PlayerScreenInner({
                     <MenuPopup
                       entries={canvasMenuEntries({
                         m,
-                        tm: (key) => m(key as MessageKey) ?? c6Catalog[key] ?? f09Catalog[key] ?? i02Catalog[key],
+                        tm,
                         controls,
                         playlist,
                         navigate,
@@ -1101,7 +1146,7 @@ function PlayerScreenInner({
                       idPrefix="lumen-player-canvas-menu"
                       className="lumen-context-menu__popup"
                       style={{ left: canvasMenu.x, top: canvasMenu.y }}
-                      ariaLabel={m("player.canvas.menu.title" as MessageKey) ?? c6Catalog["player.canvas.menu.title"]}
+                      ariaLabel={tm("player.canvas.menu.title")}
                       onRequestClose={closeCanvasMenu}
                       onDismissAll={closeCanvasMenu}
                     />
@@ -1149,23 +1194,54 @@ function PlayerScreenInner({
         return stripHost !== null ? createPortal(node, stripHost) : node;
       })}
 
-      {gotoOpen ? (
-        <GotoTimeDialog open onClose={() => setGotoOpen(false)} />
-      ) : null}
-      {bookmarksOpen ? (
-        <BookmarksDialog open onClose={() => setBookmarksOpen(false)} />
-      ) : null}
       {/* w26.c5: audio/video tools dialog — opens via openToolsDialog() /
           the `lumen:open-tools` event seam (gear menu, keymap). */}
       <ToolsDialogHost />
-      {/* w26.gfixA (issue #62) — the customize modal: the centered
-          1048×655 editor over a scrim + the control band's dashed edit
-          wells. All three triggers reach it through the
-          `lumen:open-customize` seam listener above. */}
-      {customizeOpen ? (
-        <CustomizePanels onClose={() => setCustomizeOpen(false)} />
-      ) : null}
+      {/* w26.k06 (J06-11): the shared per-open dialog trio — one definition,
+          both variant branches (was a duplicated mount block here and in the
+          miniplayer branch; drift-prone). w26.gfixA note: the customize
+          modal mounts per-open via this fragment (see the seam listener). */}
+      <PlayerDialogs
+        gotoOpen={gotoOpen}
+        bookmarksOpen={bookmarksOpen}
+        customizeOpen={customizeOpen}
+        onGotoClose={() => setGotoOpen(false)}
+        onBookmarksClose={() => setBookmarksOpen(false)}
+        onCustomizeClose={() => setCustomizeOpen(false)}
+      />
     </div>
+  );
+}
+
+/**
+ * w26.k06 (J06-11, P3): the per-open dialog trio (Go-to-Time, Bookmarks,
+ * Customize) — ONE definition shared by the miniplayer and full variant
+ * branches. The two branches used to duplicate the mount blocks, which
+ * would drift (a dialog added to one branch silently missing from the
+ * other). ToolsDialogHost stays in the full branch only — the miniplayer
+ * surface exposes no tools entry point.
+ */
+function PlayerDialogs({
+  gotoOpen,
+  bookmarksOpen,
+  customizeOpen,
+  onGotoClose,
+  onBookmarksClose,
+  onCustomizeClose,
+}: {
+  gotoOpen: boolean;
+  bookmarksOpen: boolean;
+  customizeOpen: boolean;
+  onGotoClose: () => void;
+  onBookmarksClose: () => void;
+  onCustomizeClose: () => void;
+}) {
+  return (
+    <>
+      {gotoOpen ? <GotoTimeDialog open onClose={onGotoClose} /> : null}
+      {bookmarksOpen ? <BookmarksDialog open onClose={onBookmarksClose} /> : null}
+      {customizeOpen ? <CustomizePanels onClose={onCustomizeClose} /> : null}
+    </>
   );
 }
 
@@ -1244,8 +1320,9 @@ function PlaylistsDock({
       : naturalSort(filtered, (row) => row.label);
   }, [alphaSort, playlists, query]);
 
-  const tm = (key: keyof typeof i02Keys): string =>
-    (m(key as MessageKey) as string | undefined) ?? i02Keys[key];
+  // w26.k06 (J06-9): the shared lane resolver (was a local copy of the
+  // same catalog-first chain).
+  const tm = useLaneMsg(i02Keys);
 
   return (
     <aside
@@ -1309,7 +1386,7 @@ function PlaylistsDock({
       <div className="lumen-player__dock-meta">
         <span className="lumen-player__dock-count">
           {String(rows.length)}{" "}
-          {m("player.dock.count-suffix" as MessageKey) ?? i02Catalog["player.dock.count-suffix"]}
+          {tm("player.dock.count-suffix")}
         </span>
         <div className="lumen-player__dock-modes">
           <IconButton

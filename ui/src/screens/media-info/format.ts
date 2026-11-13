@@ -3,10 +3,15 @@
 // "Unknown" by the panel — never a fabricated value).
 
 import type { CodecDescriptor, Duration, SourceSpec } from "../../client/transport";
+import { usToSeconds } from "../../client/wire-time";
 
-/** ms → `h:mm:ss` (or `m:ss` under an hour). Truncates, never rounds. */
-export function formatDurationMs(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
+/**
+ * wire µs → `h:mm:ss` (or `m:ss` under an hour). Truncates, never rounds.
+ * `Duration.time` is a µs `Timestamp` on the 1.D4 wire (w26.k17 family
+ * fix — the old ms formatter was one of the three unit splits j17 flagged).
+ */
+export function formatDurationUs(us: number): string {
+  const total = Math.max(0, Math.floor(usToSeconds(us)));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
@@ -23,7 +28,7 @@ export function formatDurationMs(ms: number): string {
 export function formatDuration(duration: Duration, infiniteLabel: string): string | null {
   switch (duration.kind) {
     case "known":
-      return formatDurationMs(duration.time);
+      return formatDurationUs(duration.time);
     case "infinite":
       return infiniteLabel;
     case "unknown":

@@ -82,5 +82,13 @@ export const DEFAULT_EQUALIZER_STATE: EqualizerState = {
 export const EQ_GAIN_MIN_DB = -20;
 export const EQ_GAIN_MAX_DB = 20;
 
-/** Slider step in dB (frame values render one decimal, e.g. "12.0 dB"). */
-export const EQ_GAIN_STEP_DB = 1;
+/**
+ * Slider step in dB — the keyboard/pointer LATTICE. w26.k10 (j10 P2-1): the
+ * classic Winamp/VLC preset shapes are one-decimal (5.6, −7.2, 16.4 …) and
+ * the chips render one decimal, so the lattice IS 0.1 dB; the old 1 dB step
+ * made a keyboard press from a fractional preset gain snap asymmetrically
+ * (Dance 60 Hz 5.6 → +1.4 up / −0.6 down — off the fader lattice). At 0.1
+ * every arrow is ±0.1 (Shift/PageUp coarse ±1.0), symmetric from any preset
+ * value, matching exactly where a drag can land.
+ */
+export const EQ_GAIN_STEP_DB = 0.1;

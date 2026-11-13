@@ -25,6 +25,10 @@ class FakePlaylistTransport implements CommandTransport {
   constructor(
     private readonly exposed = true,
     private readonly snapshotOverrides: Partial<StateSnapshot["playlist"]> = {},
+    /** w26.k14 (j14 #5): fires inside the playlist.enqueue handler, BEFORE
+     * the completion resolves — exactly an engine event landing between
+     * the dispatch and the post-enqueue move. */
+    private readonly onEnqueue: (() => void) | undefined = undefined,
   ) {}
 
   subscribe(listener: (event: Event) => void): () => void {
@@ -55,6 +59,7 @@ class FakePlaylistTransport implements CommandTransport {
       case "system.get-state-snapshot":
         return { gen, requestId, result: { completed: { kind: "state-snapshot", snapshot: snapshot(this.snapshotOverrides) } } };
       case "playlist.enqueue":
+        this.onEnqueue?.();
         return { gen, requestId, result: { completed: { kind: "playlist-item", id: ++this.nextId } } };
       case "playlist.enqueue-many":
         return {
@@ -203,6 +208,43 @@ describe("PlaylistProvider — catalog command dispatch (spy assertions)", () =>
     await waitFor(() => expect(transport.sent.some((r) => r.cmd === "playlist.move")).toBe(true));
     // No current item → insertion at the end (doc 03: nothing is "next").
     expect(lastCmd(transport, "playlist.move")?.args.toIndex).toBe(3);
+  });
+
+  // w26.k14 (j14 #5): the move must be computed from the queue AS OF
+  // DISPATCH TIME. A `moved` event landing between the enqueue dispatch and
+  // the move (the onEnqueue seam above) shifts the current item's index —
+  // the pre-fix render closure computed toIndex 2 (stale index 1); the live
+  // ref computes 3 (current id 2 now sits at index 2 of [3, 1, 2]).
+  it("play-next reads the queue at dispatch time — a mid-flight moved event shifts the move", async () => {
+    const transport = new FakePlaylistTransport(true, { current: 2 }, () => {
+      transport.emit({ seq: 1, kind: "playlist.changed", change: { kind: "moved", id: 3, from: 2, to: 0 } });
+    });
+    const hook = renderHook(() => usePlaylist(), {
+      wrapper: ({ children }) => (
+        <ClientProvider transport={transport}>
+          <PlaylistProvider initialEntries={ENTRIES}>{children}</PlaylistProvider>
+        </ClientProvider>
+      ),
+    });
+    await waitFor(() => expect(hook.result.current.currentId).toBe(2));
+    act(() => hook.result.current.playNext({ kind: "file", path: "/media/next.mkv" }, null));
+    await waitFor(() => expect(transport.sent.some((r) => r.cmd === "playlist.move")).toBe(true));
+    expect(lastCmd(transport, "playlist.move")?.args.toIndex).toBe(3);
+  });
+
+  // w26.k14 (j14 #5): the actions used to rebuild on every queue change
+  // (the memo depended on entries/currentId), churning the context value
+  // for all consumers. The identities must now survive playlist.changed.
+  it("action identities survive queue changes — no context churn", async () => {
+    const { result, transport } = setup();
+    await waitFor(() => expect(result.current.currentId).toBe(2));
+    const { playNext, playLater, move, playItem } = result.current;
+    act(() => transport.emit({ seq: 1, kind: "playlist.changed", change: { kind: "items-added", ids: [7] } }));
+    await waitFor(() => expect(result.current.entries).toHaveLength(4));
+    expect(result.current.playNext).toBe(playNext);
+    expect(result.current.playLater).toBe(playLater);
+    expect(result.current.move).toBe(move);
+    expect(result.current.playItem).toBe(playItem);
   });
 
   it("dispatches playlist.load as the M3U seam (path + append)", async () => {

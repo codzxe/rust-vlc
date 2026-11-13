@@ -9,6 +9,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
 import { OPEN_MEDIA_EVENT } from "../../screens/open-media";
@@ -16,6 +17,9 @@ import { PLAYER_TOGGLE_SIDEBAR_EVENT } from "../../screens/player";
 // w26.f08 (e09-F5): the sidebar rows read the shared saved-playlists store.
 import { resetPlaylistsForTests, type SavedPlaylist } from "../../screens/playlist/playlistsStore";
 import { AppShell } from "./AppShell";
+// w26.k05 (j05 P2-2): the strip-portal seam now has a runtime test — the
+// consumer imports the context directly, exactly like PlayerScreen does.
+import { useAppShellStrip } from "./stripContext";
 
 /** The shell needs a client (open-media + window-close command seam). */
 const renderShell = (
@@ -209,6 +213,52 @@ describe("AppShell — playlists sidebar (sidebar.svg, store-backed since w26.f0
     expect(getShellBanner().textContent).toContain("Miniplayer");
     expect(getSidebar()).toHaveAttribute("hidden");
     expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBeNull();
+  });
+
+  it("w26.k05 (j05 P1-1): ON /miniplayer the toggle is an honest no-op — no aria flip, no un-hide, no phantom persistence", () => {
+    // j05's live repro (the exact gap the old suite missed — it covered the
+    // route-entry collapse but not the state while RESIDENT on the route):
+    // the mini variant suppresses the column via variants.css :has(), yet
+    // the toggle still flipped aria-expanded to true, dropped `hidden`, and
+    // persisted "open" — a dead control lying to AT with a preference
+    // stored for a toggle that did nothing. The gate keeps every signal
+    // honest; this regression test pins all three.
+    renderShell(<AppShell><p>screen</p></AppShell>, "/miniplayer", false);
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    const sidebar = getSidebar();
+    // pre-toggle (the review's live probe): collapsed + suppressed
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(sidebar).toHaveAttribute("hidden");
+    fireEvent.click(toggle);
+    // post-toggle: STILL collapsed — aria never claimed the suppressed column…
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(sidebar).toHaveAttribute("hidden");
+    // …and nothing was persisted for the no-op (no phantom "open")
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBeNull();
+    // a second click keeps every signal honest (no ratchet, no flicker)
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(sidebar).toHaveAttribute("hidden");
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBeNull();
+  });
+
+  it("w26.k05 (j05 P1-1): a stored OPEN preference never surfaces over the suppressed /miniplayer column (and survives it untouched)", () => {
+    // Deep-link carrying the preference another route stored: the column is
+    // display:none on /miniplayer (variants.css :has()), so the honest
+    // initial state is collapsed — loadSidebarOpen now checks the mini
+    // route BEFORE the stored preference, so not even the first committed
+    // frame claims open. The stored preference itself is read-only here and
+    // must survive untouched for the routes where the column is real.
+    window.localStorage.setItem("lumen.shell.sidebar.v1", "open");
+    renderShell(<AppShell><p>screen</p></AppShell>, "/miniplayer", false);
+    expect(screen.getByRole("button", { name: "Toggle playlists sidebar" }))
+      .toHaveAttribute("aria-expanded", "false");
+    expect(getSidebar()).toHaveAttribute("hidden");
+    // the preference survives the visit (loadSidebarOpen only reads)…
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBe("open");
+    // …and the gated toggle still persists nothing over the suppressed column
+    fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
+    expect(window.localStorage.getItem("lumen.shell.sidebar.v1")).toBe("open");
   });
 
   it("renders the header, meta row, create row and the store rows through the list primitive", () => {
@@ -491,25 +541,99 @@ describe("AppShell — main region ownership", () => {
   });
 });
 
+describe("AppShell — strip portal seam (w26.g03 P1-2, AppShellStripContext; runtime test w26.k05/j05 P2-2)", () => {
+  /** Minimal consumer of the strip contract (PlayerScreen is the real
+   * one): portals its band content into the shell-provided host, or renders
+   * in place when no shell mounted (the context's null default). */
+  function StripConsumer() {
+    const host = useAppShellStrip();
+    if (host === null) return <p data-testid="strip-inplace">in place</p>;
+    return createPortal(<footer data-testid="strip-footer">band</footer>, host);
+  }
+
+  it("portals the consumer's content into the full-window strip band — outside <main>, on the player-variant host", () => {
+    renderShell(
+      <AppShell>
+        <StripConsumer />
+      </AppShell>,
+    );
+    const footer = screen.getByTestId("strip-footer");
+    // the portal target is the shell's strip band (the full-window slot
+    // BELOW the frame row — rail + sidebar end above it, Player.svg)
+    const strip = footer.closest(".app-shell__strip");
+    expect(strip).not.toBeNull();
+    // full-window band: the portaled content lives OUTSIDE the main region
+    expect(footer.closest("main")).toBeNull();
+    expect(footer.closest(".app-shell__main")).toBeNull();
+    // the host carries the classes the portaled controls' CSS scopes to
+    // (player.css's neutralized --strip variant)
+    expect(strip).toHaveClass("lumen-player", "lumen-player--strip");
+    // and the in-place fallback is NOT rendered alongside the portal
+    expect(screen.queryByTestId("strip-inplace")).toBeNull();
+  });
+
+  it("keeps the strip band EMPTY when no consumer portals (the :empty collapse seam)", () => {
+    const { container } = renderShell();
+    const strip = container.querySelector(".app-shell__strip");
+    expect(strip).not.toBeNull();
+    // `.app-shell__strip:empty { display: none }` collapses the band on
+    // non-player routes; childElementCount 0 is the DOM-semantic proxy for
+    // :empty (jsdom computes no CSS) — a moved provider or a dropped
+    // ref={setStripHost} now fails HERE instead of only in pixel-land.
+    expect(strip?.childElementCount).toBe(0);
+  });
+
+  it("renders the consumer IN PLACE when no shell provides a strip host (the null default)", () => {
+    // Isolated host (exactly the contract PlayerScreen's footer relies on
+    // in its own tests): the context default is null → no portal, the
+    // consumer keeps its own tree.
+    render(<StripConsumer />);
+    expect(screen.getByTestId("strip-inplace")).toBeInTheDocument();
+    expect(screen.queryByTestId("strip-footer")).toBeNull();
+  });
+});
+
 describe("AppShell — narrow viewport (1024×768 graceful collapse)", () => {
   type MatchMediaFactory = typeof window.matchMedia;
+  const realMatchMedia = window.matchMedia;
 
-  function installMatchMedia(matches: boolean): void {
-    const listeners: Array<(event: { matches: boolean }) => void> = [];
-    const factory = vi.fn((query: string) => ({
-      matches: matches && query === "(max-width: 1100px)",
-      addEventListener: (_: string, cb: (event: { matches: boolean }) => void) => {
-        listeners.push(cb);
-      },
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatch: (event: { matches: boolean }) => {
-        listeners.forEach((listener) => listener(event));
-      },
-    })) as unknown as MatchMediaFactory;
+  /** Installs a controllable matchMedia mock. Returns the driver for the
+   * NARROW query's `change` event — w26.k05 (j05 P3-6): the change path
+   * (viewport crossing into the band mid-session) is now DRIVEN; the old
+   * mock's `dispatch` helper was dead test code. */
+  function installMatchMedia(matches: boolean): {
+    dispatchIntoNarrow: (event: { matches: boolean }) => void;
+  } {
+    // One fake MediaQueryList per matchMedia() call, like the real engine —
+    // listeners stay isolated per query (the shell is not the only caller).
+    const listenersByQuery = new Map<string, Array<(event: { matches: boolean }) => void>>();
+    const factory = vi.fn((query: string) => {
+      const listeners: Array<(event: { matches: boolean }) => void> = [];
+      listenersByQuery.set(query, listeners);
+      return {
+        matches: matches && query === "(max-width: 1100px)",
+        addEventListener: (_: string, cb: (event: { matches: boolean }) => void) => {
+          listeners.push(cb);
+        },
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      };
+    }) as unknown as MatchMediaFactory;
     Object.defineProperty(window, "matchMedia", { value: factory, configurable: true });
+    return {
+      dispatchIntoNarrow: (event) => {
+        listenersByQuery.get("(max-width: 1100px)")?.forEach((listener) => listener(event));
+      },
+    };
   }
+
+  afterEach(() => {
+    // Restore the REAL matchMedia — the Object.defineProperty mock used to
+    // leak into every later test in the file (the narrow suite was last
+    // only by luck of describe order; the hygiene half of j05 P3-6).
+    Object.defineProperty(window, "matchMedia", { value: realMatchMedia, configurable: true });
+  });
 
   it("auto-collapses the sidebar inside the narrow band; the toggle stays live", () => {
     installMatchMedia(true);
@@ -519,6 +643,41 @@ describe("AppShell — narrow viewport (1024×768 graceful collapse)", () => {
     // the user can still re-open it (the icon rail keeps destinations too)
     fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
     expect(sidebar).not.toHaveAttribute("hidden");
+  });
+
+  it("collapses the sidebar when the viewport crosses INTO the narrow band mid-session (the `change` path, j05 P3-6)", () => {
+    const { dispatchIntoNarrow } = installMatchMedia(false);
+    renderShell();
+    // wide start: the sidebar is up (seeded preference)
+    expect(getSidebar()).not.toHaveAttribute("hidden");
+    // the window shrinks past 1100px (devtools opened, snap resize…): the
+    // MediaQueryList fires `change` — the listener collapses the column
+    act(() => {
+      dispatchIntoNarrow({ matches: true });
+    });
+    expect(getSidebar()).toHaveAttribute("hidden");
+    // the toggle stays live inside the band (nothing clips either way)
+    fireEvent.click(screen.getByRole("button", { name: "Toggle playlists sidebar" }));
+    expect(getSidebar()).not.toHaveAttribute("hidden");
+  });
+
+  it("rescues focus to the toggle when the sidebar auto-collapses while focused inside it (j05 P3-8)", () => {
+    const { dispatchIntoNarrow } = installMatchMedia(false);
+    renderShell();
+    const sidebar = getSidebar();
+    // keyboard user working inside the sidebar (the revealed search field)
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Search playlists" }));
+    const input = within(sidebar).getByRole("searchbox");
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    // the viewport crosses into the narrow band → the column collapses…
+    act(() => {
+      dispatchIntoNarrow({ matches: true });
+    });
+    expect(sidebar).toHaveAttribute("hidden");
+    // …and focus followed the collapse to the toggle, not stranded on <body>
+    const toggle = screen.getByRole("button", { name: "Toggle playlists sidebar" });
+    expect(document.activeElement).toBe(toggle);
   });
 
   it("leaves the sidebar open on wide viewports", () => {

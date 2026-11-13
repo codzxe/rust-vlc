@@ -5,11 +5,12 @@
  *
  *   * card — collapsed 360×48 rx6 #090909 / expanded rx6 #1B1B1B (one
  *     morphing surface; 59px header block carries "Collapse Settings");
- *   * selector — the a19 A9 Dropdown grammar the A7 frame reuses verbatim:
- *     trigger 362×48 rx6 #090909 + inner 358×44 rx4 #191919 (2px ring),
- *     label #8F8F8F ≈15px, chevron-∨ 10×5 sw1.5; open list rx6 #191919 +
- *     shadow 0/+4 σ6.9, 2px inset, rows 358×44 rx4 @ 46 pitch, selected
- *     #1F1F1F + check 14×11 sw2 #D37918, two-tone 20px icons @ 16px;
+ *   * selector — the SHARED Dropdown primitive (w26.k10, j10 P2-4: the
+ *     lane-scoped combobox re-implementation is gone) carrying the
+ *     frame's five modes with their two-tone 20px leading icons (option
+ *     rows + the trigger's mirror of the selected mode, via the primitive's
+ *     additive `iconNode`), with the A7 tool-scale grammar scoped onto it
+ *     below — the .eq-tool__presets composition pattern;
  *   * display — the levels bar area: 3px round-capped pills (2× the
  *     frame's 1.5-stroke icon bars) spread across a #090909 well; live
  *     Spectrum bars cycle the eq token group, other modes keep the frame's
@@ -221,177 +222,61 @@
 
 /* --------------------------------------------------------------- selector */
 
+/* The mode selector = the shared Dropdown primitive with the frame's A7
+ * tool-scale grammar composed on top (w26.k10, j10 P2-4 — the same
+ * composition the EQ presets selector uses; the ~160-line lane grammar is
+ * gone). The primitive is inline-flex; the card body is a column — stretch.
+ */
 .viz-select {
-  position: relative; /* anchors the open list */
-  display: flex;
-  flex-direction: column;
+  align-self: stretch;
   width: 100%;
 }
 
-/* Trigger: frame state=default — 362×48 rx6 #090909 outer pill; the 2px
- * padding carries the inner 358×44 rx4 #191919 field (the A7/A3 grammar). */
-.viz-select__trigger {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  height: 48px; /* frame: trigger 362×48 */
-  padding: 2px; /* frame: inner field inset 2 */
-  font-family: inherit;
-  background: var(--color-surface); /* frame: #090909 */
-  border: none;
-  border-radius: var(--radius-control); /* frame: rx6 */
-  cursor: pointer;
-  transition: background-color var(--motion-duration-fast) ease-out;
-}
-
-.viz-select__trigger:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-/* The inner field: 358×44 rx4 #191919 — label 15px in, chevron 21px in
- * (frame: label x39.2, chevron x351–361 on the x24/x382 field). */
-.viz-select__field {
-  display: flex;
-  align-items: center;
+/* Trigger: frame state=default — 362×48 rx6 #090909 outer + 2px ring
+ * carrying the 358×44 rx4 #191919 inner field (the border renders the
+ * ring, the inner edge lands rx4; trigger label ≈15px, chevron shared). */
+.viz-select .lumen-dropdown__trigger {
   gap: 13px; /* frame: icon right x61 → label x72.8 (≈12.8px) */
-  box-sizing: border-box;
-  width: 100%;
-  height: 44px;
-  padding: 0 21px 0 15px;
-  background: var(--color-surface-panel); /* frame: #191919 */
-  border-radius: var(--radius-inset); /* frame: rx4 */
-  transition: background-color var(--motion-duration-fast) ease-out;
+  height: 48px; /* frame: trigger 362×48 */
+  padding: 0 19px 0 15px; /* frame: icon x40 / chevron x351–361 (family pin —
+                          * the EQ presets trigger's measured composition) */
+  font-size: var(--font-size-section); /* frame: trigger label ≈15px */
+  background: var(--color-surface-panel); /* frame: inner field #191919 */
+  border: 2px solid var(--color-surface); /* frame: outer ring #090909 */
+  border-radius: var(--radius-control); /* frame: rx6 (inner edge rx4) */
 }
 
-/* House hover on the whole trigger (frames carry no hover — a19 B14). */
-.viz-select__trigger:hover .viz-select__field {
+/* House hover on the whole field (frames carry no hover — a19 B14; the
+ * ring keeps its recessed ink, the EQ presets trigger's identical rule). */
+.viz-select .lumen-dropdown__trigger:hover {
   background: var(--color-surface-hover);
+  border-color: var(--color-surface);
 }
 
-.viz-select__selected-icon {
-  flex: none;
-  margin-left: 1px; /* frame: icon x40 = 16px into the field (15 + 1) */
+/* The trigger value: the frame's ≈15px quiet label (the shared value ink is
+ * already content-secondary = #8F8F8F). */
+.viz-select .lumen-dropdown__value {
+  font-size: var(--font-size-section); /* frame: trigger label ≈15px */
 }
 
-.viz-select__value {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--font-size-section); /* frame: ≈15px */
-  color: var(--color-content-secondary); /* frame: #8F8F8F */
-
-  /* Buttons center their inherited text (UA default) — the frame's label
-   * is flush-left at x39.2 (probe-verified before this rule). */
-  text-align: start;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Chevron-∨ 10×5 sw1.5 #8F8F8F (frame Vector 27 family at native scale);
- * flips to ∧ while open (the a19 open-trigger grammar). The shared glyph
- * centers in its 24px box — the −7px pull lands the stroke at the frame's
- * x351–361 (glyph inset 7px right of the box edge). */
-.viz-select__chevron {
-  flex: none;
-  margin-right: -7px; /* frame: chevron flush to x361 (probe-verified) */
-  color: var(--color-content-secondary); /* frame: #8F8F8F */
-  transition: transform var(--motion-duration-fast) ease-out;
-}
-
-.viz-select__trigger[aria-expanded="true"] .viz-select__chevron {
-  transform: rotate(180deg);
-}
-
-/* Open list: rx6 #191919 + the frame's drop shadow, 2px inset, rows at 46
- * pitch (44 + 2px gaps). The trigger stays put and the list drops below —
- * the a19 Dropdown primitive's anchoring (the frames document the two
- * states separately; c1 shipped the same reading for EQ presets). */
-.viz-select__list {
-  position: absolute;
-  top: calc(100% + var(--space-grid));
-  left: 0;
-  z-index: 10; /* overlays card content below — structural */
-  display: flex;
-  flex-direction: column;
-  gap: 2px; /* frame: row pitch 46 = 44 + 2 */
-  width: 100%;
-  box-sizing: border-box;
-  padding: 2px; /* frame: list inset 2 (rows 358 in the 362 list) */
-  background: var(--color-surface-panel); /* frame: #191919 */
-  border-radius: var(--radius-control); /* frame: rx6 */
-  box-shadow: var(--shadow-overlay); /* frame: 0/+4 σ6.9 */
-}
-
-/* Option row: 358×44 rx4 — icon 20px @ 16px, label ≈15px #8F8F8F, check
- * 19px from the right edge (frame: x349–363 on the x382 row). */
-.viz-select__option {
-  display: flex;
-  align-items: center;
+/* Option rows: frame 358×44 rx4 — two-tone icon 20px @ 16px, label ≈15px
+ * #8F8F8F @ ~13px past the icon. Rows/hover/focus/selected fills + the
+ * orange check + the 44@46 pitch come from the shared menu.css grammar
+ * (w26.i16); the list, shadow and 2px insets are shared too. */
+.viz-select .lumen-dropdown__option {
   gap: 13px; /* frame: icon → label ≈12.8px */
-  box-sizing: border-box;
-  min-height: 44px; /* frame: rows 44 tall */
   padding: 0 19px 0 16px; /* frame: icon x40, check right inset 19 */
-  font-family: var(--font-family-sans);
   font-size: var(--font-size-section); /* frame: labels ≈15px */
-  color: var(--color-content-secondary); /* frame: #8F8F8F (selected too) */
-  cursor: pointer;
-  border-radius: var(--radius-inset); /* frame: rx4 */
-  transition:
-    background-color var(--motion-duration-fast) ease-out,
-    color var(--motion-duration-fast) ease-out;
-}
-
-.viz-select__icon {
-  flex: none;
-}
-
-.viz-select__option-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.viz-select__option:hover {
-  background: var(--color-surface-hover); /* house hover grammar */
-  color: var(--color-content-bright);
-}
-
-/* The roving-focus option reads as active (the primitive's model). */
-.viz-select__option:focus {
-  background: var(--color-surface-selected);
-}
-
-.viz-select__option:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
-/* Selected row: #1F1F1F band + the orange check (frame Vector 44,
- * 14×11 sw2 #D37918). Label keeps its frame ink #8F8F8F. */
-.viz-select__option[aria-selected="true"] {
-  background: var(--color-surface-selected); /* frame: #1F1F1F */
-}
-
-.viz-select__check {
-  flex: none;
-  margin-left: auto;
-  margin-right: -5px; /* frame: check stroke flush to x363 (glyph inset 5) */
-  color: var(--color-accent); /* frame: #D37918 */
 }
 
 /* ---------------------------------------------------------------- motion */
 
+/* The selector's transitions are the shared Dropdown's (menu.css carries
+ * its reduced-motion guards). */
 @media (prefers-reduced-motion: reduce) {
   .viz-tool,
   .viz-tool__toggle,
-  .viz-tool__chevron,
-  .viz-select__trigger,
-  .viz-select__field,
-  .viz-select__chevron,
-  .viz-select__option {
+  .viz-tool__chevron {
     transition: none;
   }
 }
@@ -426,7 +311,9 @@
   background: var(--color-surface-deep);
 }
 
-/* Trigger ring: the 2px surface ring reads on the panel card in light. */
-:root[data-theme="light"] .viz-select__trigger {
-  background: var(--color-surface-deep);
+/* Trigger ring: the 2px surface ring reads on the panel card in light
+ * (the old rule remapped the trigger FILL; the composition's ring is the
+ * border — same recessed step, same token). */
+:root[data-theme="light"] .viz-select .lumen-dropdown__trigger {
+  border-color: var(--color-surface-deep);
 }

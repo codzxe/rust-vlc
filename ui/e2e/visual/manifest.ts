@@ -7,17 +7,26 @@
 //
 // 4.G2 grew the route set to the full routed inventory of ui/src/App.tsx
 // (every <Route> has a case: player, player/music, miniplayer, playlist,
-// media-info, the 5 settings areas, onboarding, keyboard-shortcuts,
-// open-network-stream, the catch-all not-found, /dev/tokens). Doc 08 §1.6's
-// not-yet-routed compositions (player.customize, context menus, audio/video
-// tools, the playlist/subtitles flow) join ROUTES when their routes land.
+// media-info, discovery, convert, ALL 13 settings areas, onboarding,
+// keyboard-shortcuts, open-network-stream, the catch-all not-found,
+// /dev/tokens). Doc 08 §1.6's not-yet-routed compositions (player
+// customize/hide-ui, context menus, audio/video tools, the playlist/
+// subtitles flow) are in-panel states, not routes — they belong to the
+// in-flow state harnesses (PlayerScreen seam tests, e2e dialogs), not this
+// route × viewport grid.
+//
+// w26.k20 (j20 P2-9): the inventory lagged the app by 9 routes (convert +
+// 8 of the 13 settings areas). ROUTES is now the full 25-route truth
+// (12 non-settings renderable routes + 13 settings areas — the same
+// inventory e2e/a11y.spec.ts walks since w26.k19; App.tsx's / and
+// /settings redirect-only paths render no screen of their own).
 //
 // 4.G2 scaling decision (recorded in MATRIX-20261024.md): the accent ×9
 // sampling of doc 08 §6.1 runs at one pinned combo (1280×720 @1× dark) on
 // the two routes the doc names — onboarding + settings/global — for the 8
 // non-default accents; the default accent already covers the full
-// route × viewport × DPI × mode grid. Full matrix = 15 × 2 × 2 × 2 + 16
-// = 136 nightly cases; PR lane = 15 routes × {dark, light} = 30.
+// route × viewport × DPI × mode grid. Full matrix = 25 × 2 × 2 × 2 + 16
+// = 216 nightly cases; PR lane = 25 routes × {dark, light} = 50.
 
 export type ThemeMode = "dark" | "light";
 
@@ -47,22 +56,35 @@ export const DPIS: readonly number[] = [1, 2] as const;
 
 export const THEMES: readonly ThemeMode[] = ["dark", "light"] as const;
 
-/** Full routed surface of ui/src/App.tsx (card 4.G2, doc 08 §1.6). */
+/** Full routed surface of ui/src/App.tsx (card 4.G2, doc 08 §1.6;
+ * w26.k20 full 25-route truth — see the header note above). */
 export const ROUTES: readonly string[] = [
   "/player",
   "/player/music",
   "/miniplayer",
   "/playlist",
   "/media-info",
+  "/discovery",
+  "/convert",
+  // All 13 settings areas (w26.k20): /settings/:area is one route, but
+  // each area is its own screenful with its own baselines — enumerated,
+  // not sampled.
   "/settings/global",
   "/settings/interface",
   "/settings/privacy",
   "/settings/playback",
+  "/settings/video",
+  "/settings/audio",
+  "/settings/subtitles",
+  "/settings/controls",
+  "/settings/library",
+  "/settings/network",
   "/settings/performance",
+  "/settings/recording",
+  "/settings/extensions",
   "/onboarding",
   "/keyboard-shortcuts",
   "/open-network-stream",
-  "/discovery",
   // No literal /not-found route exists: navigating to an unmatched path
   // renders the catch-all `*` placeholder (App.tsx).
   "/not-found",
@@ -73,17 +95,17 @@ export const ROUTES: readonly string[] = [
  * GRID_ANCHOR_ACCENT — the accent pinned across the full route × viewport ×
  * DPI × mode grid (doc 08 §6.1 "default accent at 1×").
  *
- * HONESTY NOTE (issue #37, 2026-11-09): this is `orange`, which is NOT the
- * product default — the product default is dark + yellow ("Solstice Keyvox
- * gold": ThemeProvider initial state, tokens.css `:root`, and the
- * tokens.test.ts pin all agree; only the stale TS header comment in
- * src/tokens/generated/tokens.ts and the red e2e/theme.spec.ts say
- * "orange"). The 136 baselines re-pinned by 61cb47a were captured with the
- * grid anchored on orange, so the anchor stays `orange` until a deliberate
- * re-anchor (rename: yellow samples → unsuffixed grid files, orange grid
- * files → suffixed samples + full re-capture). All 9 accents remain covered
- * either way: orange via the grid, the other 8 via ACCENT_SAMPLES (which
- * includes the product-default yellow on both sampling routes).
+ * `orange` IS the product default since the W25 redesign (2026-11-11):
+ * gen-tokens.mjs (`DEFAULT_ACCENT = "orange"`), ThemeProvider's initial
+ * state, the tokens.css `:root` cascade and e2e/theme.spec.ts:19-23 all
+ * agree — dark + orange (the VLC orange #d37918, W25 spec §1). The OLD
+ * honesty note here (issue #37, 2026-11-09) recorded a real discrepancy:
+ * the grid was anchored on orange while the product still defaulted to
+ * Solstice yellow. That discrepancy was RESOLVED by the W25 re-anchor —
+ * grid anchor == product default == the out-of-box look, so the grid
+ * baselines depict exactly what ships. The other 8 accents remain covered
+ * via ACCENT_SAMPLES on the two sampling routes. Baseline provenance:
+ * docs/waves/w26/baselines/MATRIX-20261112.md (w26.k20).
  */
 export const DEFAULT_ACCENT = "orange";
 

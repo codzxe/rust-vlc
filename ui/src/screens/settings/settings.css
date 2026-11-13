@@ -169,25 +169,6 @@
   color: color-mix(in srgb, var(--color-content-primary) 15%, var(--color-content-secondary) 85%);
 }
 
-/* Quiet ghost control skin — still used by the retired advanced area
- * surface (areas/advanced.tsx); the top-bar reset instance is gone
- * (w26.f03, e05 F10: the bar carries exactly the frame's three elements —
- * search pill · window title · ✕). */
-.settings-screen__reset {
-  border: none;
-  background: transparent;
-  color: var(--color-content-secondary);
-  font: inherit;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: var(--radius-control);
-  transition:
-    background-color var(--motion-duration-fast) ease-out,
-    color var(--motion-duration-fast) ease-out;
-}
-
 /* ✕ close — frame: 10×10 #8F8F8F stroke glyph, 25px right inset; ≥24px hit. */
 .settings-topbar__close {
   position: absolute;
@@ -209,14 +190,12 @@
     color var(--motion-duration-fast) ease-out;
 }
 
-.settings-topbar__close:hover,
-.settings-screen__reset:hover {
+.settings-topbar__close:hover {
   background: var(--color-surface-hover);
   color: var(--color-content-primary);
 }
 
-.settings-topbar__close:focus-visible,
-.settings-screen__reset:focus-visible {
+.settings-topbar__close:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
@@ -380,27 +359,39 @@
   margin-bottom: 28px;
 }
 
-/* w26.gfix-B (g13-P1-1 final): the subtitles frame packs its 14 rows + the
- * opacity scale inside the 815px viewport with zero slack (its own last row
- * overshoots the window edge by 2px), so the area tightens each section
- * boundary by 2px (sub-visual) to clear the fold with no trailing scroll. */
-.settings-area-subtitles .settings-section {
-  margin-bottom: 26px; /* frame: 2×2px reclaimed across the 2 boundaries */
+/* w26.k12 (j12 P3-1): area-scoped section-gap overrides — ONE mechanism
+ * ([data-settings-area], the marker every composed-screen root carries; the
+ * former `.settings-area-subtitles` class hook was the second mechanism,
+ * live-verified unchanged at 26px/23px/9px after the swap) and ONE
+ * live-calibration note per area. All three exist for the same reason:
+ * the frames end the column at the last control, and the default 28px
+ * boundary above overshoots each frame's fold. Every number below was
+ * MEASURED in-browser at 1440×900 (w26.k12) and depends on the area's
+ * CURRENT row inventory — re-measure when an area's rows change.
+ *   subtitles: 14 rows + the opacity scale pack the 815px viewport with zero
+ *     slack (its own last row overshoots the window edge by 2px) — 2px
+ *     reclaimed per boundary across the 2 boundaries (g13-P1-1). Live: 26px.
+ *   interface: the frame ends at the Notifications header (y837 glyph top)
+ *     INSIDE the window — 5px per boundary reclaims the header's 5px
+ *     overshoot (g10-P1-1). Live: 23px.
+ *   global: LIVE — with the CURRENT inventory (Appearance 3 · Startup 2 ·
+ *     Diagnostics 4 rows) the bar sits at window-local y611.5 (sections end
+ *     y587.5 + 9px boundary + the bar's 15px margin-top below). The frame
+ *     draws the bar at y645; the 33.5px residual lives in the ROW PITCH
+ *     above it (the old "y645" comment arithmetic never reconciled — the
+ *     j12 review's own finding). Closing it needs a row-pitch pass against
+ *     Settings - global.svg, not a gap tweak — flagged for the Lead; do
+ *     NOT "fix" it by inflating this margin. */
+.settings-sections[data-settings-area="subtitles"] .settings-section {
+  margin-bottom: 26px; /* live: 2×2px reclaimed across the 2 boundaries */
 }
 
-/* w26.gfix-B (g10-P1-1): the interface frame ends at the Notifications
- * header (y837 glyph top) INSIDE the window — 5px per boundary reclaims the
- * header’s 5px overshoot. */
 .settings-sections[data-settings-area="interface"] .settings-section {
   margin-bottom: 23px;
 }
 
-/* w26.i13 (g10-P3-3, Lead-landed): the global frame sets the Advanced bar
- * at y645 (measured 673 — 28px low): inter-section class gap 43→25 via -9px
- * per boundary + the diagnostics block ends at 620 (was 630). Bar lands
- * frame-exact in the default state; expanded state was already 647 (2px). */
 .settings-sections[data-settings-area="global"] .settings-section {
-  margin-bottom: 9px; /* Lead-calibrated live: bar 675→645 with 3 sections (3×-10) */
+  margin-bottom: 9px; /* live: sections end y587.5, bar y611.5 (see above) */
 }
 
 /* w26.gfix-B (g13-P1-1): the frames end the column at the last control —
@@ -500,24 +491,11 @@
   flex: none;
 }
 
-/* Text/number rows: the form field's own (associated) label is the row
- * label — hidden to a screen-reader-only clip, the row renders it. */
-.settings-field__bare .lumen-field__label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-.settings-field__control .lumen-field__label {
-  font-size: var(--font-size-section);
-  color: var(--color-content-secondary);
-}
+/* w26.k12 (j12 P3-3): the `.lumen-field__label` clip pair that used to live
+ * here (`.settings-field__bare …` + the font rule) is DELETED — k01's j01-8
+ * made hideLabel the aria-label grammar (no label node is rendered by any
+ * settings field), so both were dead; the defensive clip survives ONCE in
+ * setting-field.css (the sheet that owns the control skin) per the review. */
 
 /* Enum options stack in the control column (frame: 320px radio blocks). */
 .settings-field__control .lumen-radiogroup__options {
@@ -535,11 +513,9 @@
   gap: var(--space-grid);
 }
 
-.settings-field__hint {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-}
+/* w26.k12 (j12 P3-2): the dead `.settings-field__hint` rule is DELETED —
+ * the live class is `.settings-field__hinttext` (setting-field.css:198) and
+ * zero TSX ever rendered `__hint` (grep-verified by the review). */
 
 /* ------------------------------------------------- action buttons */
 
@@ -704,15 +680,9 @@
   margin-bottom: 0;
 }
 
-/* Sibling areas/* fields still render the stacked head/badges grammar —
- * keep it legible on the window. */
-.settings-field__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-grid) calc(var(--space-grid) * 2);
-  margin-bottom: var(--space-grid);
-}
+/* w26.k12 (j12 P3-2): the dead `.settings-field__head` rule is DELETED —
+ * updates-about.tsx:26 declares the stacked-head grammar gone; zero TSX
+ * users (grep-verified by the review). */
 
 /* About panel rows (updates-about) — term/value pairs. The <dl> wrapper
  * (w26.d2 a11y restructure, updates-about.tsx) needs only the UA reset. */
@@ -876,10 +846,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* w26.k12 (j12 P3-2): `.settings-screen__reset` is deleted from all three
+   * lists — its sole consumer, the unroutable areas/advanced.tsx component,
+   * was removed by k13 (j13 P2-5), so the rule was fully dead. */
   .settings-nav__item,
   .settings-topbar__search,
   .settings-topbar__close,
-  .settings-screen__reset,
   .settings-field__reset,
   .settings-advanced__bar {
     transition: none;

@@ -12,6 +12,7 @@ import type { CommandError, PlaybackState, StateSnapshot } from "../../../genera
 import { usePlayerEngineView, type PlayerEngineView } from "./context-bridge";
 import { resolveOverlay, StateRouter } from "./StateRouter";
 import { HomeOverlay } from "./StageOverlays";
+import { PlaylistBrowse } from "./PlaylistBrowse";
 
 const { dirname } = import.meta as ImportMeta & { dirname?: string };
 const statesCss = readFileSync(`${dirname}/states.css`, "utf8");
@@ -414,6 +415,37 @@ describe("states.css — the W26 Figma skin (figma-fidelity-spec §1–§2)", ()
     expect(statesCss).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.lumen-state-overlay\s*\{[^}]*transition: none/,
     );
+  });
+});
+
+// --------------------------- browse grid keys (w26.k06, J06-7 P2) ---
+
+describe("PlaylistBrowse — duplicate item names (w26.k06, J06-7)", () => {
+  it("duplicate filenames render as DISTINCT cells (no React key collision)", () => {
+    // Saved playlists carry NAMES only (playlistsStore — no uniqueness
+    // guarantee): the wave-J review found the grid keyed by name alone, so
+    // duplicate filenames collide. The index-prefixed key must render all
+    // cells with a clean console (React logs "Encountered two children with
+    // the same key" on collision — the honest probe for this regression).
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <PlaylistBrowse
+          playlist={{ id: "dupes", title: "Dupes", itemNames: ["clip.mp4", "clip.mp4", "other.mp4"] }}
+          hasMedia={false}
+          previewOpen={true}
+          onPreviewToggle={() => {}}
+          onExit={() => {}}
+        />,
+      );
+      expect(screen.getAllByRole("listitem")).toHaveLength(3);
+      const keyWarnings = errorSpy.mock.calls.filter((args) =>
+        String(args[0] ?? "").includes("same key"),
+      );
+      expect(keyWarnings).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 

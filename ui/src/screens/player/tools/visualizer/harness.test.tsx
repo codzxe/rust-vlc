@@ -18,11 +18,13 @@ import {
 afterEach(cleanup);
 
 /** Styles inlined into the exported HTML: tokens, base sheet, then the
- * component sheets the visualizer tool pulls in. */
+ * component sheets the visualizer tool pulls in (menu.css since w26.k10 —
+ * the selector is the shared Dropdown now, and its grammar lives there). */
 const CSS_FILES = [
   "src/tokens/generated/tokens.css",
   "src/theme/lumen.css",
   "src/components/icon/icon.css",
+  "src/components/menu/menu.css",
   "src/screens/player/tools/visualizer/visualizer.css",
   "src/screens/player/tools/visualizer/harness.css",
 ];
@@ -103,14 +105,26 @@ describe("w26.i07 frame-contract pins (visualizer.css)", () => {
     // Collapsed card / display well / trigger ring → the recessed step.
     // Quiet ink keeps its role (content-tertiary — i19/h20 F1 repinned the
     // light value to AA-passing #474747); no light ink override exists.
+    // w26.k10: the trigger ring rule now targets the composed shared
+    // Dropdown trigger (border = the 2px ring).
     expect(css).toContain(':root[data-theme="light"] .viz-tool {');
     expect(css).toContain(':root[data-theme="light"] .viz-display');
-    expect(css).toContain(':root[data-theme="light"] .viz-select__trigger');
+    expect(css).toContain(
+      ':root[data-theme="light"] .viz-select .lumen-dropdown__trigger',
+    );
     expect(css).toMatch(
       /\.viz-tool__toggle\s*\{[^}]*color: var\(--color-content-tertiary\);/s,
     );
     expect(css).not.toMatch(
       /:root\[data-theme="light"\][^{]*\.viz-tool__(?:toggle|chevron)\s*\{/,
     );
+  });
+
+  it("composes the shared Dropdown for the mode selector (j10 P2-4)", () => {
+    // The lane-scoped combobox grammar is gone: only the A7 tool-scale
+    // scopes remain, keyed on the primitive's own classes.
+    expect(css).toContain(".viz-select .lumen-dropdown__trigger {");
+    expect(css).toContain(".viz-select .lumen-dropdown__option {");
+    expect(css).not.toMatch(/\.viz-select__(?:trigger|field|list|option|value|chevron|check|icon)/);
   });
 });

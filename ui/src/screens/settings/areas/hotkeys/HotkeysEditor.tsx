@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Button } from "../../../../components/button/Button";
 import { useMsg } from "../../../../i18n/messages";
@@ -25,6 +25,13 @@ import "./hotkeys.css";
 // (the table) + the dirty-gated apply bar as the dialog's footer; the old
 // inline-fold presentation (nested .settings-sections root, sentence-case
 // h2, defaults note) is gone — the dialog's top bar carries the title.
+//
+// w26.k13 (j13 P2-6, the re-render hotspot): the numeric-aware ordering
+// (141 bindings × a catalog lookup each) and the conflict detection are
+// MEMOIZED (they recompute only when the bindings data or the draft
+// actually changes — not on every unrelated render), and each row is a
+// memoized component fed stable callbacks — a keystroke in one of the 141
+// controlled inputs re-renders THAT row, not the whole table's subtrees.
 
 /** A combo a binding currently claims: draft edit ▸ persisted override ▸ keymap default. */
 const comboOf = (binding: HotkeyBinding, draft: Readonly<Record<string, string>>): string =>
@@ -69,6 +76,81 @@ export function orderBindingsNumericAware(
   return result;
 }
 
+/**
+ * One memoized binding row (w26.k13, j13 P2-6): every prop is a primitive or
+ * a stable callback, so a draft keystroke re-renders only the row whose
+ * combo changed — the other 140 rows skip their subtree diff entirely.
+ */
+const HotkeysRow = memo(function HotkeysRow({
+  binding,
+  combo,
+  conflict,
+  changed,
+  label,
+  placeholder,
+  resetLabel,
+  conflictLabel,
+  onComboChange,
+  onReset,
+}: {
+  binding: HotkeyBinding;
+  combo: string;
+  conflict: boolean;
+  changed: boolean;
+  label: string;
+  placeholder: string;
+  resetLabel: string;
+  conflictLabel: string;
+  onComboChange: (id: string, value: string) => void;
+  onReset: (id: string) => void;
+}): ReactElement {
+  const command = binding.command ?? binding.recipe ?? binding.uiAction;
+  return (
+    <tr
+      className="hotkeys-row"
+      data-binding={binding.id}
+      data-conflict={conflict || undefined}
+      data-changed={changed || undefined}
+      data-disabled={binding.disabled || undefined}
+    >
+      <td className="hotkeys-row__action">{label}</td>
+      <td className="hotkeys-row__key">
+        <input
+          type="text"
+          className="hotkeys-row__input"
+          value={combo}
+          disabled={binding.disabled}
+          aria-label={label}
+          placeholder={placeholder}
+          data-testid={`hotkeys-input-${binding.id}`}
+          onChange={(e) => onComboChange(binding.id, e.target.value)}
+        />
+        {conflict ? (
+          <p className="hotkeys-row__conflict" role="alert">
+            {conflictLabel}
+          </p>
+        ) : null}
+      </td>
+      <td className="hotkeys-row__command">{command ?? "—"}</td>
+      <td className="hotkeys-row__mode">{binding.mode ?? "—"}</td>
+      <td className="hotkeys-row__reset">
+        {changed ? (
+          <button
+            type="button"
+            className="settings-field__reset"
+            aria-label={resetLabel}
+            title={resetLabel}
+            data-testid={`hotkeys-reset-${binding.id}`}
+            onClick={() => onReset(binding.id)}
+          >
+            {resetLabel}
+          </button>
+        ) : null}
+      </td>
+    </tr>
+  );
+});
+
 export function HotkeysEditor({
   bindings = HOTKEY_BINDINGS,
   store = localStorageHotkeyOverrides,
@@ -80,11 +162,38 @@ export function HotkeysEditor({
   const [overrides, setOverrides] = useState<Record<string, string>>(() => ({ ...store.load() }));
   const [draft, setDraft] = useState<Record<string, string>>(() => ({ ...overrides }));
 
-  const isEdited = (id: string): boolean => (draft[id] ?? "") !== (overrides[id] ?? "");
-  const dirtyIds = bindings.filter((b) => isEdited(b.id)).map((b) => b.id);
-  const conflicted = detectConflicts(bindings, draft);
-  // w26.i15: numbered series (bookmarks 1..10) render in NUMERIC order.
-  const ordered = orderBindingsNumericAware(bindings, (key) => m(key));
+  const isEdited = useCallback(
+    (id: string): boolean => (draft[id] ?? "") !== (overrides[id] ?? ""),
+    [draft, overrides],
+  );
+  const dirtyIds = useMemo(
+    () => bindings.filter((b) => isEdited(b.id)).map((b) => b.id),
+    [bindings, isEdited],
+  );
+  // w26.k13 (j13 P2-6): the conflict set recomputes only when the bindings
+  // data or the DRAFT changes — the O(n) scan no longer runs on every render.
+  const conflicted = useMemo(() => detectConflicts(bindings, draft), [bindings, draft]);
+  // w26.k13 (j13 P2-6): the numeric-aware ordering (141 × catalog lookups +
+  // the run sort) is memoized on the bindings data and the resolver identity
+  // (useMsg's closure is per-render; the memo then recomputes exactly when a
+  // locale switch could change the labels — never per keystroke).
+  const ordered = useMemo(
+    () => orderBindingsNumericAware(bindings, (key) => m(key)),
+    [bindings, m],
+  );
+
+  // Stable row callbacks (w26.k13): setDraft is stable, so these never
+  // change identity — the memoized rows keep their props equal on re-render.
+  const onComboChange = useCallback((id: string, value: string) => {
+    setDraft((prev) => ({ ...prev, [id]: value }));
+  }, []);
+  const onReset = useCallback((id: string) => {
+    setDraft((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (dirtyIds.length === 0) return;
@@ -109,65 +218,21 @@ export function HotkeysEditor({
             </tr>
           </thead>
           <tbody>
-            {ordered.map((binding) => {
-              const combo = comboOf(binding, draft);
-              const command = binding.command ?? binding.recipe ?? binding.uiAction;
-              const conflict = conflicted.has(binding.id);
-              const changed = combo !== binding.key;
-              return (
-                <tr
-                  key={binding.id}
-                  className="hotkeys-row"
-                  data-binding={binding.id}
-                  data-conflict={conflict || undefined}
-                  data-changed={changed || undefined}
-                  data-disabled={binding.disabled || undefined}
-                >
-                  <td className="hotkeys-row__action">{m(binding.labelMsgid as MessageKey)}</td>
-                  <td className="hotkeys-row__key">
-                    <input
-                      type="text"
-                      className="hotkeys-row__input"
-                      value={combo}
-                      disabled={binding.disabled}
-                      aria-label={m(binding.labelMsgid as MessageKey)}
-                      placeholder={m("settings.hotkeys.edit-hint")}
-                      data-testid={`hotkeys-input-${binding.id}`}
-                      onChange={(e) =>
-                        setDraft((prev) => ({ ...prev, [binding.id]: e.target.value }))
-                      }
-                    />
-                    {conflict ? (
-                      <p className="hotkeys-row__conflict" role="alert">
-                        {m("settings.hotkeys.conflict")}
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="hotkeys-row__command">{command ?? "—"}</td>
-                  <td className="hotkeys-row__mode">{binding.mode ?? "—"}</td>
-                  <td className="hotkeys-row__reset">
-                    {changed ? (
-                      <button
-                        type="button"
-                        className="settings-field__reset"
-                        aria-label={m("settings.hotkeys.reset")}
-                        title={m("settings.hotkeys.reset")}
-                        data-testid={`hotkeys-reset-${binding.id}`}
-                        onClick={() =>
-                          setDraft((prev) => {
-                            const next = { ...prev };
-                            delete next[binding.id];
-                            return next;
-                          })
-                        }
-                      >
-                        {m("settings.hotkeys.reset")}
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
+            {ordered.map((binding) => (
+              <HotkeysRow
+                key={binding.id}
+                binding={binding}
+                combo={comboOf(binding, draft)}
+                conflict={conflicted.has(binding.id)}
+                changed={comboOf(binding, draft) !== binding.key}
+                label={m(binding.labelMsgid as MessageKey)}
+                placeholder={m("settings.hotkeys.edit-hint")}
+                resetLabel={m("settings.hotkeys.reset")}
+                conflictLabel={m("settings.hotkeys.conflict")}
+                onComboChange={onComboChange}
+                onReset={onReset}
+              />
+            ))}
           </tbody>
         </table>
       </div>

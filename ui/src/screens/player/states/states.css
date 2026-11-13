@@ -27,13 +27,10 @@
  * prefers-reduced-motion: no-preference block so reduced-motion users get a
  * static ring + honest text + aria (doc 08 §4.5). */
 
-/* The 4.C1 canvas region hosts the overlays (states sit ON the labeled
- * region; the canvas itself remains engine-owned, card 4.H1). */
-.lumen-player__canvas {
-  position: relative;
-}
-
-/* --- transient + failure overlays: on the canvas over a dark scrim --- */
+/* --- transient + failure overlays: on the canvas over a dark scrim ---
+ * (w26.k06, J06-8: the duplicate `.lumen-player__canvas { position: relative }`
+ * that used to live here is deleted — player.css:435 already sets it; the
+ * overlays' absolute positioning relies on that one rule.) */
 
 .lumen-state-overlay {
   position: absolute;

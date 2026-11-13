@@ -42,6 +42,16 @@ describe("BrowseField (settings path combo, wave 26)", () => {
     expect(screen.getByText("Pick a valid skin")).toHaveAttribute("id", describedBy);
   });
 
+  // j01-8: one hideLabel mechanism across every field — TextField's
+  // aria-label contract (no second label text node; row-grammar hosts print
+  // their own visible label and expect exactly one text node).
+  it("j01-8: hideLabel uses the TextField mechanism — aria-label, no label node (aligned, not two mechanisms)", () => {
+    render(<BrowseField label="Skin file" actionLabel="Browse" hideLabel />);
+    const input = screen.getByRole("textbox", { name: "Skin file" });
+    expect(input).toHaveAttribute("aria-label", "Skin file");
+    expect(screen.queryByText("Skin file")).toBeNull(); // no label text node
+  });
+
   it("forwards the ref to the input", () => {
     const ref = createRef<HTMLInputElement>();
     render(<BrowseField ref={ref} label="Skin file" actionLabel="Browse" />);

@@ -1581,3 +1581,18 @@ Work Log:
 
 Stage Summary:
 - Wave J closed (issue #63 → closed). Next: wave K — 20 fixer lanes closing all 13 remaining P1s + P2/P3 triage (issue #64); then wave L (final verification + polish + baselines), wave M (releases).
+
+---
+Task ID: w26.lead-wave-k-close
+Agent: Lead (wave-26 orchestration)
+Task: Wave K integration — 20/20 fixers #3 + Lead items (issue #64)
+
+Work Log:
+- 20/20 k-lanes landed (heavy relaunch load: backend context-deadlines again; dead attempts left complete-or-near-complete work that relaunches assessed and kept). All 13 open j-wave P1s CLOSED with regression tests: slider L8 fill+vertical (k03), Surface Escape-yield (k04), miniplayer aria honesty (k05), idle re-render storm ref-scheduler + pendingToggle (k06), dead resolvers (k07), bookmarks µs (k09), search-survives-nav (k12), performance ⓘ (k13), subtitle-languages commas (k16), duration-units µs family via wire-time.ts (k17 — bunny renders 10:35 live), tab-audit truncation (k19). Lead-fixed earlier: merge script anchor, dev-shots globals.
+- P2/P3 sweep: ~60 P2s + ~90 P3s dispositioned (fixed in-lane or documented-deferred). Highlights: NumberField min/max/step forwarding, Switch/Toggle shared core, radiogroup keyboard helper shared across lanes, VirtualList grid API (additive), two-tone icon tests, strip portal tests, enqueue seam shared module + MiniPlayer migration + tests, EQ lattice snap, shared tools SliderRow, codecs fold scroll fix, AdvancedDisclosure dedup, wire-time.ts family contract, Nunito woff2 + font assets deleted, dead-key gate in l10n-check (125 grandfathered, 19 pruned), route-level code splitting landed by k20 (Lead build verification below), visual MATRIX provenance record, tabThrough exhausts-fail semantics, 25-route audit inventory, replayable demo volume seeding (k17 Lead-applied diff — live-verified: late navigation keeps both rows).
+- Lead registration: 42 w26.k keys merged (1443 total; messages.test count pin 1401→1443).
+- k12 regression found and fixed at integration: value-validation dropped persisted "auto" (schema enumeration lacked it; e19-F5 says auto IS valid) — schemas/settings.toml interface.theme enumeration +auto, regenerated, ThemeProvider/settingsThemeSync tests green again.
+- Battery at close: vitest 1662/1663 (1 intentional skip); e2e 88/88 (was 38 — k19 extended inventory + both-theme ring + flow smoke); eslint 0 errors; stylelint clean; tokens:check OK (86 semantic, 123/86/86, sha 26c55ab2); l10n 1443/1443 PASS; settings:check OK (121 entries); cargo green (theme-tokens, settings-schema, desktop).
+
+Stage Summary:
+- Wave K closed (issue #64 → closed). 13/13 P1s closed with regression evidence; P2/P3 triaged per acceptance. Next: wave L — final verification + polish + visual baseline re-seed + green CI line (issue #65); then wave M releases (issue #66).

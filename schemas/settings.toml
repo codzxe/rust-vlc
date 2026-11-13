@@ -73,7 +73,11 @@ since = "0.1.0"
 [[setting]]
 key = "interface.theme"
 type = "enum"
-enumeration = ["dark", "light"]
+# w26 Lead (k12 validation seam): "auto" is a UI-valid persisted mode (the
+# ThemeModePicker writes it; settingsThemeSync accepts it, e19-F5). The k12
+# value-validation drop of a persisted "auto" was a regression — the schema
+# now carries it so the localStorage seam validates honestly.
+enumeration = ["dark", "light", "auto"]
 default_ref = "defaults.theme"
 description = "settings.interface.theme"
 restart_required = false

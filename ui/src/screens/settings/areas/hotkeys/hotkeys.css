@@ -159,7 +159,11 @@
   text-align: right;
 }
 
-.visually-hidden {
+/* w26.k13 (j13 P3-10): scoped to the table — this used to be a GLOBAL
+ * unscoped .visually-hidden utility inside an area sheet (a collision with
+ * any base-sheet .visually-hidden the theme lane ever adds to lumen.css;
+ * onboarding.css keeps its own scoped variant). */
+.hotkeys-table .visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;

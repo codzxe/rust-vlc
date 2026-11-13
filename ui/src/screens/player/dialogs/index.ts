@@ -3,15 +3,17 @@
 // mounted ToolsDialog (all eight wave-c tools behind Audio/Video tabs, the
 // `lumen:open-tools` trigger seam), and the natural-sort pin for the
 // bookmarks list.
-export { BookmarksDialog, BOOKMARKS_COPY } from "./BookmarksDialog";
-export { GotoTimeDialog, GOTO_COPY } from "./GotoTimeDialog";
+//
+// w26.k09: the COPY constants consolidated into useDialogsMsg.ts (same
+// names — the frozen surface) + the additive lane i18n seam exports.
+export { BookmarksDialog } from "./BookmarksDialog";
+export { GotoTimeDialog } from "./GotoTimeDialog";
 export { parseTimeInput } from "./parseTimeInput";
 export {
   ToolsCard,
   ToolsDialogShell,
   ToolsRow,
   ToolsValueChip,
-  TOOLS_DIALOG_COPY,
 } from "./ToolsDialogShell";
 export type {
   ToolsCardProps,
@@ -33,3 +35,10 @@ export type {
   ToolsDialogTab,
 } from "./ToolsDialog";
 export { compareBookmarks, naturalCompare } from "./naturalSort";
+export {
+  BOOKMARKS_COPY,
+  GOTO_COPY,
+  TOOLS_DIALOG_COPY,
+  useDialogsMsg,
+} from "./useDialogsMsg";
+export type { DialogsLaneKey } from "./useDialogsMsg";

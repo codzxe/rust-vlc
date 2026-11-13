@@ -298,4 +298,46 @@ describe("DiscoveryScreen — volume-row context menu (w26.c6, folder context me
     fireEvent.keyDown(within(menu).getByText("Add file…"), { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  /** Emit one removable volume and return its row element (the ListRow). */
+  const volumeRow = () => {
+    const { transport } = renderScreen();
+    act(() => {
+      transport.emit({
+        kind: "devices.volume-added",
+        id: "usb-1",
+        label: "Field Kit",
+        volumeKind: "removable",
+        seq: 1,
+      });
+    });
+    return screen.getByTestId("discovery-volume").querySelector<HTMLElement>(".lumen-lrow")!;
+  };
+
+  it("keyboard (j17 P2-3): the ContextMenu key on the focused row opens the menu", async () => {
+    const row = volumeRow();
+    row.focus();
+    expect(row).toHaveFocus();
+    fireEvent.keyDown(row, { key: "ContextMenu" });
+    const menu = await screen.findByRole("menu", { name: "Volume actions" });
+    // WAI-ARIA: opening a menu moves focus onto the first item.
+    expect(menu.querySelector<HTMLElement>('[role="menuitem"]')).toHaveFocus();
+    // Escape closes through the menu API AND restores focus to the row
+    // (the opener) — the path is a real tab stop, not a mouse-only one.
+    fireEvent.keyDown(within(menu).getByText("Add file…"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(row).toHaveFocus();
+  });
+
+  it("keyboard: Shift+F10 opens the same path; plain F10 never does", async () => {
+    const row = volumeRow();
+    row.focus();
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    const menu = await screen.findByRole("menu", { name: "Volume actions" });
+    fireEvent.keyDown(within(menu).getByText("Add file…"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    // F10 without Shift is not a context-menu key — honest no-op.
+    fireEvent.keyDown(row, { key: "F10" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
 });

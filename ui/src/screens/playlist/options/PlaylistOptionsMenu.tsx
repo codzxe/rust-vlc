@@ -30,6 +30,10 @@ export interface OptionsMenuEntry<K extends string = string> {
   /** Leading line icon (View Options.svg rows carry grid/list icons). */
   icon?: IconName;
   disabled?: boolean;
+  /** w26.k15 (j15 P3-11), additive: quiet ALREADY-RESOLVED suffix after the
+   * label — honest-degradation marker (e.g. the sorting menu's "Needs media
+   * metadata" on rows that are stable no-ops until the seam is wired). */
+  hint?: string;
 }
 
 /**
@@ -42,6 +46,21 @@ const VIEWPORT_MARGIN_PX = 8;
  * top + bottom (Sorting Options.svg = 8 + 48×16 — borderless r10 panel,
  * w26.i11; the 1px border added 2px pre-fix). */
 const MENU_CHROME_PX = 8;
+
+/* w26.k15 (j15 P3-2) frame-measured FALLBACKS for the token reads below —
+ * real browsers resolve the live custom properties off the trigger; jsdom's
+ * getComputedStyle returns "" for stylesheet tokens, so the math keeps the
+ * frame values there (tests stub getComputedStyle to drive the branches). */
+const ROW_PITCH_FALLBACK_PX = 48; /* --space-item-pitch (Sorting/View Options.svg rows) */
+const ROW_GAP_FALLBACK_PX = 4; /* --space-grid (trigger→panel gap) */
+
+/** Reads a `--token` custom property as px off a live element (fallback if
+ * unset/unparseable — j15 P3-2: the flip/cap math follows the token lane). */
+const readTokenPx = (element: HTMLElement, token: string, fallback: number): number => {
+  const raw = window.getComputedStyle(element).getPropertyValue(token).trim();
+  const value = Number.parseFloat(raw);
+  return raw.endsWith("px") && Number.isFinite(value) ? value : fallback;
+};
 
 export interface PlaylistOptionsMenuProps<K extends string = string> {
   entries: readonly OptionsMenuEntry<K>[];
@@ -162,18 +181,21 @@ export function PlaylistOptionsMenu<K extends string>({
   // other can; cap to the roomier side when neither fits (the 16-row
   // sorting panel at 1440×900 / 1024×768). Zero-height triggers (jsdom,
   // display:none hosts) keep the anchor side — nothing to measure.
-  useLayoutEffect(() => {
-    if (!open) return;
+  // w26.k15 (j15 P3-2): the row pitch + trigger gap are READ FROM THE LIVE
+  // TOKENS on the trigger (--space-item-pitch / --space-grid) instead of
+  // re-pinning them in TS, and the pass re-runs on window resize while open
+  // (the old one measured once and went resize-blind).
+  const measure = (): void => {
     const trigger = triggerRef.current;
-    if (trigger === null || typeof window === "undefined") return;
+    if (trigger === null) return;
     const rect = trigger.getBoundingClientRect();
     if (rect.height === 0) {
       setDirection(placement);
       setMenuMaxHeight(null);
       return;
     }
-    const gap = 4; /* --space-grid trigger gap */
-    const natural = entries.length * 48 + MENU_CHROME_PX;
+    const gap = readTokenPx(trigger, "--space-grid", ROW_GAP_FALLBACK_PX);
+    const natural = entries.length * readTokenPx(trigger, "--space-item-pitch", ROW_PITCH_FALLBACK_PX) + MENU_CHROME_PX;
     const below = window.innerHeight - rect.bottom - gap - VIEWPORT_MARGIN_PX;
     const above = rect.top - gap - VIEWPORT_MARGIN_PX;
     if (natural <= (placement === "below" ? below : above)) {
@@ -187,6 +209,16 @@ export function PlaylistOptionsMenu<K extends string>({
       setDirection(below >= above ? "below" : "above");
       setMenuMaxHeight(Math.max(160, roomier));
     }
+  };
+  useLayoutEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    measure();
+    const onResize = (): void => measure();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // measure reads live DOM geometry + refs only (entries.length/placement
+    // re-run the pass when the row count or anchor preference changes).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entries.length, placement]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -289,6 +321,9 @@ export function PlaylistOptionsMenu<K extends string>({
                   </span>
                 )}
                 <span className="lumen-menu__label">{resolveLabel(entry.labelKey)}</span>
+                {/* w26.k15 (j15 P3-11): quiet honest-degradation suffix —
+                 * e.g. "Needs media metadata" on no-op sort rows. */}
+                {entry.hint !== undefined && <span className="lumen-plo__hint">{entry.hint}</span>}
                 {selected && <span className="lumen-plo__check" aria-hidden="true" />}
               </div>
             );

@@ -10,6 +10,7 @@ closure session), ESLint with two scaffold-local rules (`local/i18n-no-literals`
 |---|---|
 | `npm run dev` | Vite dev server (mock command transport) |
 | `npm run build` | typecheck + production build to `dist/` |
+| `npm run build:fast` | `vite build` alone — see the memory note below the table |
 | `npm run typecheck` | `tsc --noEmit` (strict, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`) |
 | `npm run test` | vitest run (jsdom + RTL, `src/**/*.test.{ts,tsx}`) |
 | `npm run lint` | ESLint flat config incl. the two local rules |
@@ -21,6 +22,15 @@ errors ✅ · e2e smoke 1/1 ✅** (chromium 156.0.8078.4 headless; 1 benign
 `ClientProvider` — standard provider/hook pairing, accepted for now). CI job for
 these four gates is proposed at `.github/workflows/ui.yml` (Lead-owned — wires
 it at merge).
+
+Memory note on `npm run build` (w26.k20, j20 P3-16): the script chains
+`tsc --noEmit && vite build`, and in a memory-constrained sandbox (4 GB) the
+two Node processes together can be **OOM-killed** — `tsc --noEmit` alone is
+fine (`npm run typecheck`), and `vite build` alone is fine (~3 s, measured
+j20). On such boxes run the two halves separately (`npm run typecheck` then
+`npm run build:fast`); on real dev machines/CI with default heaps the chained
+script works as-is. If a full run is required on a small box, raise the heap:
+`NODE_OPTIONS=--max-old-space-size=3072 npm run build`.
 
 ## Layout (as built so far)
 

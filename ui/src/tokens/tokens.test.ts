@@ -5,8 +5,10 @@
 // forgotten re-run of `npm run tokens:generate` fails here loudly.
 //
 // Byte-identity with the crate output (themes/generated/tokens.css) is
-// enforced by `npm run tokens:check` (scripts/gen-tokens.mjs --check) in CI;
-// this file pins the committed ui copy's content + shape.
+// enforced by `npm run tokens:check` (scripts/gen-tokens.mjs --check) and by
+// crates/theme-tokens/tests/diff.rs (runs under `cargo test --workspace` in
+// ci.yml — the gate j18 F3 wired); this file pins the committed ui copy's
+// content + shape.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -40,7 +42,16 @@ const cssRaw = TOKENS_CSS;
 // light #c9c9c9 panel+3 — i09's +2 elevated-panel step ask), and
 // --font-size-label 16px→15px (CONTRACT §2 10–15px band, h19/h20 violation,
 // a18/i09 15px-token ask).)
-const PINNED_SHA256 = "be4f9ccdc2936e98916763a6700a0f122314619abb91b1b62fda995eeb386c30"; /* w26.i19+i16 Lead repin: content.accelerator (+1 alias/+1 semantic — 122/84/84) */
+// w26.k18 additions: NEW --color-surface-panel-raised (dark #191919 = panel /
+// light #dedede — the raised CARD step, k17 P3-4 + i09/i17/i18 standing ask;
+// the discovery/convert/media-info `var(--color-surface-panel-raised, …)`
+// fallbacks now resolve to a real token) and NEW --font-size-scale-label
+// 12px (slider scale labels — the ≈12px frame band i14 asked for; caption
+// stays 11px). Counts 122/84/84 → 123/86/86; emit.rs ramp-section split fix
+// (j18 F2) changed the generated tokens.rs section layout in the same
+// regeneration.
+const PINNED_SHA256 =
+  "26c55ab2b3193445728537df9cbb878bc77a46b7752714f1ff45752489648a20"; /* w26.k18: +surface.panel-raised, +font.size.scale-label (123/86/86) */
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -119,11 +130,13 @@ describe("generated token snapshot (doc 08 §3)", () => {
     const rootBlock = cssRaw.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
     const cssNames = [...rootBlock.matchAll(/--[A-Za-z0-9-]+(?=\s*:)/g)].map((m) => m[0]);
     expect(new Set(cssNames)).toEqual(new Set(SEMANTIC_TOKEN_NAMES));
-    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(84); // w26.i19+i16 Lead: +content.quiet, +content.accelerator (84 semantic — 122/84/84) // w26.i19: +content-quiet +surface-elevated
+    expect(SEMANTIC_TOKEN_NAMES).toHaveLength(86); // w26.k18: +surface.panel-raised, +font.size.scale-label (86 semantic — 123/86/86) // w26.i19+i16 Lead: +content.quiet, +content.accelerator (84 semantic) // w26.i19: +content-quiet +surface-elevated
     expect(tokenVar("--color-surface-raised")).toBe("var(--color-surface-raised)");
     expect(tokenVar("--color-focus-ring")).toBe("var(--color-focus-ring)");
     expect(tokenVar("--color-content-quiet")).toBe("var(--color-content-quiet)");
     expect(tokenVar("--color-surface-elevated")).toBe("var(--color-surface-elevated)");
+    expect(tokenVar("--color-surface-panel-raised")).toBe("var(--color-surface-panel-raised)"); // w26.k18 (k17 P3-4)
+    expect(tokenVar("--font-size-scale-label")).toBe("var(--font-size-scale-label)"); // w26.k18 (i14)
   });
 
   it("keeps the semantic layer free of value-named tokens (roles, not values)", () => {
@@ -149,6 +162,8 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(rootDecl("--color-content-tertiary")).toBe("#828282");
     expect(rootDecl("--color-content-quiet")).toBe("#6b6b6b"); // w26.i19: frames' quiet band, decorative/inactive only (3.30:1 as text — NOT tertiary)
     expect(rootDecl("--color-surface-elevated")).toBe("#1b1b1b"); // w26.i19: panel+2 elevated step (i09 ask)
+    expect(rootDecl("--color-surface-panel-raised")).toBe("#191919"); // w26.k18: dark cards = panel (Δ16 on surface, i18 probe; k17 P3-4)
+    expect(rootDecl("--font-size-scale-label")).toBe("12px"); // w26.k18: the ≈12px scale-label band (i14 ask; caption stays 11px)
     expect(rootDecl("--font-size-label")).toBe("15px"); // w26.i19: §2 10–15px band (was 16px, h19/h20)
     expect(rootDecl("--color-content-bright")).toBe("#eaeaea");
     // The orange accent family (default accent).
@@ -170,6 +185,7 @@ describe("generated token snapshot (doc 08 §3)", () => {
     expect(lightDecl("--color-focus-ring")).toBe("#824505"); // w26.i19: WCAG 2.2 3:1 vs every light surface (h05 F1)
     expect(lightDecl("--color-content-quiet")).toBe("#5f5f5f"); // w26.i19: ≥3:1 non-text on surface/panel/deep/muted
     expect(lightDecl("--color-surface-elevated")).toBe("#c9c9c9"); // w26.i19: panel+3 — smallest designated light lift
+    expect(lightDecl("--color-surface-panel-raised")).toBe("#dedede"); // w26.k18: light card step runs LIGHTER than panel (Δ28 on surface #c2c2c2, i18 pixel probe)
     expect(rootDecl("--color-focus-ring")).toBe("#d37918"); // dark ring = the accent, unchanged
   });
 

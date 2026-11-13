@@ -11,7 +11,7 @@ exports[`Switch (Toggle.svg, doc 08 §4.5) > DOM snapshot 1`] = `
     aria-hidden="true"
     class="lumen-switch__text lumen-switch__text--on"
   >
-    ON
+    AN
   </span>
   <span
     aria-hidden="true"
@@ -21,7 +21,7 @@ exports[`Switch (Toggle.svg, doc 08 §4.5) > DOM snapshot 1`] = `
     aria-hidden="true"
     class="lumen-switch__text lumen-switch__text--off"
   >
-    OFF
+    AUS
   </span>
 </button>
 `;

@@ -199,29 +199,12 @@ button.lumen-controls__time[data-editing]::after {
   background: var(--color-content-secondary);
 }
 
-/* w26.gfix-C (g04 P1-2): the pill's glyph stays DARK on-accent at every
- * state. icon.css's host-state rules (`.lumen-icon-host:hover/:active/
- * :focus-visible .lumen-icon`, (0,2,0)) set `color` DIRECTLY on the svg and
- * beat the pill's `--color-stroke-icon` remap (which only feeds .lumen-icon's
- * own base rule) — the glyph flipped to #EAEAEA on the orange fill on hover.
- * The button.css primary pattern, restated at (0,3,0): the ink is pinned
- * under every state pseudo-class, hover walks the FILL, never the ink.
- * (The dark hover fill itself is token-driven: dark --color-accent-bright
- * is the Lead's WCAG-repinned #d37918 — no frame paints a pill-hover face —
- * light's #b35f0d still walks; see the w26.gfix-C lane log.) */
-.lumen-controls .lumen-controls__play:hover .lumen-icon,
-.lumen-controls .lumen-controls__play:active .lumen-icon,
-.lumen-controls .lumen-controls__play:focus-visible .lumen-icon {
-  color: var(--color-content-on-accent);
-}
-
 /* Disabled (idle/buffering): the pill keeps its glyph state and simply
  * fades — inertness is the opacity, not a third color story. The EMPTY
  * state is the exception — see the [data-playback-state="idle"] block
- * above (w26.f13, e02 F7). */
+ * below (w26.f13, e02 F7). (The on-accent ink is the consolidated pin
+ * below — (0,5,0) covers this state.) */
 .lumen-controls__play:disabled {
-  --color-stroke-icon: var(--color-content-on-accent);
-
   background: var(--color-accent);
   opacity: var(--opacity-disabled);
 }
@@ -259,16 +242,35 @@ button.lumen-controls__time[data-editing]::after {
   color: var(--color-content-secondary);
 }
 
-/* w26.d2 light/a11y sweep — the shared .lumen-icon-button:disabled remap
- * (--color-stroke-icon: content-tertiary, same (0,2,0) specificity, later
- * import order) clobbered the pill's on-accent ink: the disabled play
- * glyph rendered tertiary-gray on the accent pill — 1.8:1 in light
- * (#9a9a9a on #d37918), 2.1:1 in dark (vision-flagged on /player light).
- * Re-pin the ink at (0,4,0) rest / (0,5,0) disabled so the pill wins in
- * both themes and any import order. */
+/* w26.k07 (j07 P3-10) — ONE consolidated on-accent ink pin for the play
+ * pill, replacing the three stacked escalation blocks this sheet carried
+ * since w26.gfix-C (g04 P1-2) + w26.d2 (placed after the state blocks so
+ * the sheet's pill-selector specificity order stays ascending — stylelint's
+ * no-descending-specificity, the same discipline the pre-k07 sheet kept):
+ *   1. icon.css's host-state rules (`.lumen-icon-host:hover/:active/
+ *      :focus-visible .lumen-icon`, (0,2,0)) set `color` DIRECTLY on the
+ *      svg and beat the pill's base `--color-stroke-icon` remap (which only
+ *      feeds .lumen-icon's own rule) — the glyph flipped to #EAEAEA on the
+ *      orange fill on hover (g04 P1-2). Pin the svg color under every state
+ *      pseudo-class; hover walks the FILL, never the ink. (The dark hover
+ *      fill itself is token-driven: dark --color-accent-bright is the
+ *      Lead's WCAG-repinned #d37918 — no frame paints a pill-hover face.)
+ *   2. the shared .lumen-icon-button:disabled remap (content-tertiary ink,
+ *      same (0,2,0), later import order — button.css) clobbered the same
+ *      ink in BOTH themes (1.8:1 in light, vision-flagged on /player light,
+ *      w26.d2), so the custom property is re-pinned at (0,4,0) rest /
+ *      (0,5,0) disabled — the pill wins in both themes and any import order.
+ * The (0,6,0) idle ghost-transport block above stays separate by design:
+ * it excludes the pill via :not(.lumen-controls__play). */
 :root .lumen-player .lumen-controls .lumen-controls__play,
 :root .lumen-player .lumen-controls .lumen-controls__play:disabled {
   --color-stroke-icon: var(--color-content-on-accent);
+}
+
+:root .lumen-player .lumen-controls .lumen-controls__play:hover .lumen-icon,
+:root .lumen-player .lumen-controls .lumen-controls__play:active .lumen-icon,
+:root .lumen-player .lumen-controls .lumen-controls__play:focus-visible .lumen-icon {
+  color: var(--color-content-on-accent);
 }
 
 /* Truthful buffering hint (doc 08 §5.3): transport inert but visible. */

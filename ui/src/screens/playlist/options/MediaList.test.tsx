@@ -57,10 +57,36 @@ describe("MediaList — frame anatomy (media.svg)", () => {
 describe("MediaList — interaction", () => {
   it("one click on a row plays the entry (playlist.play-item dispatch)", () => {
     const { transport } = mountOptions(<MediaList />);
-    fireEvent.click(screen.getByText("The Wand_S01E02.mp4"));
+    // w26.k15 (j15 P2-2): the row's stretched play target owns activation —
+    // it spans the whole row, so a click anywhere on the row is this button.
+    fireEvent.click(screen.getByRole("button", { name: "Play The Wand_S01E02.mp4" }));
     const plays = transport.sent.filter((r) => r.cmd === "playlist.play-item");
     expect(plays).toHaveLength(1);
     expect(plays[0] && "args" in plays[0] ? plays[0].args : null).toEqual({ id: 2 });
+  });
+
+  it("w26.k15 (j15 P2-2): engine-scope rows are keyboard-live — every row carries a named, focusable play target", () => {
+    const { view } = mountOptions(<MediaList onEntryMenu={() => {}} />);
+    const plays = [...view.container.querySelectorAll<HTMLButtonElement>(".lumen-plo-mrow__play")];
+    expect(plays).toHaveLength(3);
+    // Native buttons: Tab focuses, Enter/Space activate (browser behavior —
+    // asserted structurally: focusable type=button with the catalog verb).
+    for (const button of plays) {
+      expect(button.type).toBe("button");
+      expect(button.tabIndex).toBe(0);
+    }
+    expect(plays.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Play The Wand_S01E10.mp4",
+      "Play The Wand_S01E02.mp4",
+      "Play The Wand_S01E01.mp4",
+    ]);
+    // The play target precedes the ••• in the row (DOM/tab order) — focusing
+    // it is :focus-within on the row, the rule that reveals the •••.
+    const row = rowOf("The Wand_S01E01.mp4");
+    const play = row.querySelector(".lumen-plo-mrow__play")!;
+    const kebab = row.querySelector(".lumen-plo-mrow__menu");
+    expect(kebab).not.toBeNull();
+    expect(play.compareDocumentPosition(kebab!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("the ••• button fires onEntryMenu and stops row play-through", () => {
@@ -151,7 +177,7 @@ describe("MediaList — local scope (w26.f06: saved-playlist browse)", () => {
     expect(screen.getByText("The Wand_S01E01.mp4")).toBeTruthy();
   });
 
-  it("no play seam → rows are honest presentation (inert, no •••, no current)", () => {
+  it("no play seam → rows are honest presentation (inert, no play target, no •••, no current)", () => {
     const { container } = render(
       <PlaylistOptionsProvider entries={LOCAL}>
         <MediaList />
@@ -159,6 +185,7 @@ describe("MediaList — local scope (w26.f06: saved-playlist browse)", () => {
     );
     const rows = [...container.querySelectorAll<HTMLElement>(".lumen-plo-mrow")];
     expect(rows.every((row) => row.classList.contains("lumen-plo-mrow--inert"))).toBe(true);
+    expect(container.querySelector(".lumen-plo-mrow__play")).toBeNull(); // no keyboard/pointer play target
     expect(container.querySelector(".lumen-plo-mrow__menu")).toBeNull(); // no menu seam either
     expect(container.querySelector(".lumen-plo-mrow--current")).toBeNull(); // no engine current
   });

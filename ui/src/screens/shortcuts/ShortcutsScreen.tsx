@@ -347,7 +347,23 @@ const FILTER_OPTIONS: DropdownOption<MessageKey | LaneKey>[] = [
 ];
 
 export function ShortcutsScreen() {
-  const m = useMsg();
+  const rawMsg = useMsg();
+  // w26.j16 P2 (j16 #4): `useMsg` returns a fresh closure every render (the
+  // messages.ts scaffold hook has no useCallback — a Lead-owned shared
+  // file), which silently DEFEATED the `ordered`/`visible` memos below: their
+  // dep arrays include `m`, so EVERY render — not just query/scope changes —
+  // re-mapped labels over all 146 rows, re-sorted and re-filtered them (the
+  // 30s jsdom timeouts this suite carries are corroborating evidence). The
+  // catalog the closure reads is MODULE state (the active locale), not
+  // render state, so a stable wrapper through a latest-ref is exact: `m`'s
+  // identity no longer changes per render and the memos now memoize. The
+  // root fix (useCallback inside useMsg) belongs to messages.ts — logged for
+  // the Lead's post-wave pass; this local pin covers this screen today.
+  const msgRef = useRef(rawMsg);
+  useEffect(() => {
+    msgRef.current = rawMsg;
+  }, [rawMsg]);
+  const m = useCallback((key: MessageKey): string => msgRef.current(key), []);
   const t = useShortcutsMsg();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -463,8 +479,11 @@ export function ShortcutsScreen() {
                       </div>
                       {/* Global hotkey: no binding in the keymaps data (VLC
                           ships global-key-* empty) — the frame's empty
-                          keycap with its pencil affordance, decorative. */}
-                      <div className="shortcuts__keycap shortcuts__keycap--global">
+                          keycap with its pencil affordance, decorative. The
+                          dead `--global` modifier hook is retired (j16
+                          P3-11): no rule ever existed for it and the base
+                          keycap class renders this cell correctly. */}
+                      <div className="shortcuts__keycap">
                         <span className="shortcuts__edit shortcuts__edit--idle" aria-hidden="true">
                           <Icon name="edit" size={24} />
                         </span>

@@ -1,5 +1,3 @@
-import { createContext } from "react";
-import { useContext } from "react";
 import type { SettingsArea, SettingEntry } from "./generated/schema";
 
 // Settings search (card 4.E1, doc 07 §5): filters fields by their label
@@ -8,28 +6,25 @@ import type { SettingsArea, SettingEntry } from "./generated/schema";
 // catalog has not resolved yet (mid-wave lane keys await Lead registration)
 // read as empty and can never match — a catalog gap degrades to "no hit",
 // never a crash.
+//
+// w26.k12 (j12 P2-2): the in-area filter context is DELETED. It could never
+// execute: while a query is live, SettingsScreen renders the cross-area
+// results INSTEAD of the current area, so every would-be consumer
+// (SettingsSections' partition, the composed areas' loops, the hand rows'
+// `keywords`) was unmounted — ~40 lines of filtering API that read as a
+// live feature. The design keeps the tested W26 contract unchanged (results
+// replace the column; the current screen is hidden while searching), and
+// the honest limits are documented here instead of simulated in code:
+//   * search walks SCHEMA entries only — hand rows (Clear history, Reset
+//     picture, the capability-backed Output device) are actions, not
+//     [[setting]] rows, and stay invisible to search;
+//   * no per-area filter survives navigation: the query clears on area
+//     change (j12 P1-1, SettingsScreen) and the target area renders clean.
 
 export interface SearchHit {
   readonly area: SettingsArea;
   readonly sectionTitle: string;
   readonly entries: readonly SettingEntry[];
-}
-
-export interface SettingsSearchContextValue {
-  readonly query: string;
-  setQuery(query: string): void;
-  /** True when a query is active and the entry's label matches it. */
-  matches(entry: SettingEntry): boolean;
-}
-
-export const SettingsSearchContext = createContext<SettingsSearchContextValue>({
-  query: "",
-  setQuery: () => undefined,
-  matches: () => true,
-});
-
-export function useSettingsSearch(): SettingsSearchContextValue {
-  return useContext(SettingsSearchContext);
 }
 
 const normalize = (text: string | undefined): string =>

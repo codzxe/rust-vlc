@@ -8,7 +8,9 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   /** Error message; presence switches the field into the error state. */
   error?: string;
   /** Renders the label as the input's aria-label instead of a visible text
-   * node (row grammar hosts that print their own label — w26.f02). */
+   * node (row grammar hosts that print their own label — w26.f02). The
+   * reference mechanism for every field's hidden-label mode (w26.k01
+   * j01-8: BrowseField/NumberField align to THIS — one text node). */
   hideLabel?: boolean;
 }
 

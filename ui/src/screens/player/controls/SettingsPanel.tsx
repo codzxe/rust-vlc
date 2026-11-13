@@ -17,6 +17,8 @@
 // + radio rows/groups — the same engine-truth rows the menu carried, in the
 // frame's panel grammar. Escape closes and restores trigger focus (e12 F8);
 // Tab wraps inside the panel (the settings-window trap pattern, a11y.spec).
+// w26.k07 (j07 P2-2): the rows ride a real radiogroup — roving tabindex +
+// arrow-key selection, the RadioGroup primitive's pattern (doc 08 §4.5).
 import { useEffect, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement, ReactNode } from "react";
 import { Icon, Toggle } from "../../../components";
@@ -211,6 +213,11 @@ export interface PanelRadioRowProps {
   readonly value?: string;
   readonly disabled?: boolean;
   readonly onSelect: () => void;
+  /** w26.k07 (j07 P2-2): roving tabindex — owned by PanelRadioGroup
+   * (the engine-reported selection is the group's Tab stop). */
+  readonly tabIndex?: number;
+  /** Ref collector for the group's arrow-key focus moves (PanelRadioGroup). */
+  readonly focusRef?: (element: HTMLButtonElement | null) => void;
 }
 
 /** A radio row: orange check column + label (Controls.svg track rows). */
@@ -220,6 +227,8 @@ export function PanelRadioRow({
   value,
   disabled = false,
   onSelect,
+  tabIndex,
+  focusRef,
 }: PanelRadioRowProps): ReactElement {
   return (
     <button
@@ -227,6 +236,8 @@ export function PanelRadioRow({
       role="radio"
       aria-checked={checked}
       disabled={disabled}
+      tabIndex={tabIndex}
+      ref={focusRef}
       className="lumen-controls__panel-row"
       data-checked={checked || undefined}
       onClick={onSelect}
@@ -237,6 +248,88 @@ export function PanelRadioRow({
         <span className="lumen-controls__panel-row-value">{value}</span>
       ) : null}
     </button>
+  );
+}
+
+export interface PanelRadioOption {
+  /** Stable option id (React key + focus-ref slot). */
+  readonly key: string;
+  readonly label: string;
+  readonly checked: boolean;
+  /** Right-aligned quiet value (the queue rows' durations). */
+  readonly value?: string;
+  readonly disabled?: boolean;
+  readonly onSelect: () => void;
+}
+
+/**
+ * The frame's radio rows as ONE ARIA radiogroup (w26.k07, j07 P2-2):
+ * `role="radiogroup"` named by its section title, roving tabindex — the
+ * engine-reported selection is the group's single Tab stop (first row while
+ * nothing is checked) — and ArrowUp/Down/Left/Right that move focus and
+ * selection together, the same pattern as the shared RadioGroup primitive
+ * (doc 08 §4.5 focus rules). Checked stays engine-truth: an arrow select
+ * dispatches onSelect and moves FOCUS, the check itself lands only when the
+ * engine reports it (never optimistic).
+ */
+export function PanelRadioGroup({
+  label,
+  options,
+}: {
+  /** The group's accessible name — the section title it sits under. */
+  readonly label: string;
+  readonly options: readonly PanelRadioOption[];
+}): ReactElement {
+  const radios = useRef<Partial<Record<string, HTMLButtonElement | null>>>({});
+  const checkedIndex = options.findIndex((option) => option.checked);
+  const stopIndex =
+    checkedIndex >= 0
+      ? checkedIndex
+      : Math.max(
+          0,
+          options.findIndex((option) => !option.disabled),
+        );
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const forward = event.key === "ArrowDown" || event.key === "ArrowRight";
+    const backward = event.key === "ArrowUp" || event.key === "ArrowLeft";
+    if (!forward && !backward) return;
+    event.preventDefault();
+    const count = options.length;
+    if (count === 0) return;
+    const focusedIndex = options.findIndex(
+      (option) => radios.current[option.key] === document.activeElement,
+    );
+    let index = focusedIndex >= 0 ? focusedIndex : stopIndex;
+    // Wrap the full ring, skipping disabled rows (the RadioGroup pattern).
+    for (let step = 0; step < count; step += 1) {
+      index = (index + (forward ? 1 : -1) + count) % count;
+      const option = options[index];
+      if (option !== undefined && !option.disabled) {
+        option.onSelect();
+        radios.current[option.key]?.focus();
+        return;
+      }
+    }
+  };
+
+  return (
+    <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
+      {options.map((option, index) => (
+        <PanelRadioRow
+          key={option.key}
+          label={option.label}
+          checked={option.checked}
+          value={option.value}
+          disabled={option.disabled}
+          onSelect={option.onSelect}
+          tabIndex={index === stopIndex ? 0 : -1}
+          focusRef={(element) => {
+            radios.current[option.key] = element;
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

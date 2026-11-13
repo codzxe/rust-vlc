@@ -6,7 +6,7 @@ exports[`NumberField > DOM snapshot 1`] = `
 >
   <label
     class="lumen-field__label"
-    for="_r_5_"
+    for="_r_8_"
   >
     Snapshot
   </label>
@@ -15,8 +15,10 @@ exports[`NumberField > DOM snapshot 1`] = `
   >
     <input
       class="lumen-field__control lumen-number__control"
-      id="_r_5_"
+      id="_r_8_"
       inputmode="numeric"
+      min="0"
+      step="1"
       type="number"
       value="3"
     />

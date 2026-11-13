@@ -1,5 +1,6 @@
 import { useId } from "react";
-import type { KeyboardEvent, ReactElement } from "react";
+import type { ReactElement } from "react";
+import { useRadiogroupKeyboard } from "./useRadiogroupKeyboard";
 import "./form.css";
 
 export interface SegmentedOption {
@@ -44,26 +45,17 @@ export function SegmentedControl({
 }: SegmentedControlProps): ReactElement {
   const autoId = useId();
   const groupId = id ?? autoId;
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
-    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
-    if (!vertical && !horizontal) return;
-    const enabled = options.filter((option) => !option.disabled);
-    if (enabled.length === 0) return;
-    const currentIndex = enabled.findIndex((option) => option.value === value);
-    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
-    const next = enabled[(currentIndex + delta + enabled.length) % enabled.length];
-    if (next && next.value !== value) onChange(next.value);
-    event.preventDefault();
-  };
+  // shared roving grammar (w26.k01 j01-2): four arrows, wrap-around,
+  // disabled options skipped
+  const onKeyDown = useRadiogroupKeyboard(options, value, onChange);
 
   return (
     <div
       role="radiogroup"
+      id={groupId}
       aria-label={label}
       aria-invalid={invalid || undefined}
-      className={["lumen-segmented", className].filter(Boolean).join(" ")}
+      className={["lumen-segmented", invalid && "lumen-choice--error", className].filter(Boolean).join(" ")}
       onKeyDown={onKeyDown}
     >
       {options.map((option) => {

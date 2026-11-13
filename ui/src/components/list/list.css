@@ -162,11 +162,12 @@
   overflow: hidden;
 }
 
+/* w26.k03 (j03 P3-9): the old `position: sticky; top: 0; z-index: 1` could
+ * never activate — the head is a flex SIBLING of the scroll container
+ * (.lumen-vtable__body), not a child of it, so it never scrolls at all.
+ * Removed as dead/misleading; the head stays pinned structurally. */
 .lumen-vtable__head {
   display: grid;
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 
 .lumen-vtable__body {

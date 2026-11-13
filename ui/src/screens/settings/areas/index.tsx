@@ -1,25 +1,15 @@
 import type { ReactElement } from "react";
-import { useEffect, useRef, useState } from "react";
-import type { ComponentType } from "react";
+import { useState } from "react";
 import type { MessageKey } from "../../../i18n/messages";
 import { useMsg } from "../../../i18n/messages";
-import { Icon } from "../../../components/icon/Icon";
-import { keys as laneKeys } from "../../../i18n/keys/w26.b02";
 import { keys as i13Keys } from "../../../i18n/keys/w26.i13";
 import { GENERATED_AREA_IDS } from "../generated/Screens";
 import { GENERATED_AREA_TITLES } from "../generated/Screens";
 import { GENERATED_SCREENS } from "../generated/Screens";
-import { SETTINGS_ENTRIES } from "../generated/schema";
-import type { SettingEntry } from "../generated/schema";
-import { schemaSectionsOf } from "../SettingsSections";
+import { AdvancedDisclosure } from "../SettingsSections";
 import { SettingField } from "../SettingField";
-import { useSettingsSearch } from "../search";
-import { InvertedSwitchField } from "../SettingWidgets";
-import { SettingsSliderField } from "../SettingWidgets";
-import { StartupVolumeField } from "../SettingWidgets";
-import { LocalePicker } from "./language/LocalePicker";
-import { ThemeModePicker } from "./appearance/ThemeModePicker";
-import { AccentColorPicker } from "./appearance/AccentColorPicker";
+import { partitionAdvanced } from "./shared";
+import { schemaSectionViews } from "./shared";
 import { InterfaceArea } from "./interface";
 import { AboutArea } from "./updates-about";
 import { EffectsArea } from "./effects";
@@ -30,6 +20,7 @@ import { PlaybackArea } from "./playback";
 import { PrivacyArea } from "./privacy";
 import { SubtitlesArea } from "./subtitles";
 import { NetworkArea } from "./privacy-network";
+import { PerformanceArea } from "./performance";
 // w26.b02 — sibling area components under the FIXED module names (wave-B
 // lanes b07/b08 land them in parallel). If these imports show unresolved-
 // module errors, the sibling files have not landed yet — EXPECTED during the
@@ -70,27 +61,25 @@ import { LibraryArea } from "./library";
 //   about    → global    (registry fold below)
 //   advanced → in-flow Advanced disclosure per area (advanced=true entries
 //              render behind each home screen's Advanced Options bar —
-//              SettingsSections; the old advanced AREA retires, slug redirects)
+//              SettingsSections; the old advanced AREA retires, slug
+//              redirects; the dead component was deleted w26.k13, j13 P2-5)
 //   effects  → audio     (registry fold below; EQ embeds per audio-1 frame)
 //   appearance → interface, language → global (already the schema placement)
 //
 // MECHANISM (unchanged, card 4.E2): the generator emits what is schema-static
 // (screens with [[setting]] rows); hand-authored areas and per-key special
-// widgets live HERE and win over the generated screen records. The shell
-// (SettingsScreen) imports this module, never generated/Screens directly.
-
-// ---------------------------------------------------------------------------
-// Pre-registration i18n seam (contract §4.5, the a10 `useShellMsg` pattern
-// applied to registry data): the three hand-area title msgids that have no
-// catalog entry yet (video/audio/subtitles) live in
-// ui/src/i18n/keys/w26.b02.ts until the Lead registers them post-wave (b19).
-// The generated titles for controls/recording/extensions flow through the
-// generator's own msgid() seam (generated/Screens.tsx). After registration
-// both paths carry the same literals — the casts become no-ops.
-// ---------------------------------------------------------------------------
-type LaneKey = keyof typeof laneKeys;
-
-const laneMsg = (key: LaneKey): MessageKey => key as string as MessageKey;
+// widgets live in the leaf modules and win over the generated screen records
+// — SPECIAL_FIELD_WIDGETS moved to ../specialWidgets (w26.k12, j12 P2-5, the
+// module-cycle fix) and is re-exported below under its frozen public name.
+// The shell (SettingsScreen) imports this module, never generated/Screens
+// directly.
+//
+// w26.k13 (j13 P3-8): the pre-registration seam apparatus for the
+// video/audio/subtitles titles is GONE — messages.ts registers all three
+// ("settings.area.video"/"-audio"/"-subtitles", registered with the b19
+// merge), so the former laneMsg cast + the w26.b02 laneKeys import were
+// no-ops; the titles flow as plain MessageKeys. (Same retirement for the
+// "Library" retitle comment — messages.ts already ships "Library".)
 
 /** ⓘ hint msgids per global row (w26.i13, h08 #3 — Settings - global.svg
  * circles: Startup×2 + Diagnostics×4; Settings - global-1.svg adds the 4
@@ -115,75 +104,37 @@ const GLOBAL_HINTS: Readonly<Record<string, keyof typeof i13Keys>> = {
  * state shows an About section. The g10-P2-3 `beforeAdvanced` placement put
  * 113px of About rows between Diagnostics and the bar, displacing it 141px
  * (y786 vs y645), so expanding revealed all 4 advanced rows below the 865px
- * window fold (`visible:false`, scrollTop unmoved — “expanding reveals
- * nothing”). Fix: the bar is the column's last element again; the About fold
- * rides BEHIND the disclosure (after the advanced rows — the h08-sanctioned
- * option; the default state is frame-exact, global-1's four rows land at
- * y690–851 inside the window, About scrolls below them), and expanding
- * scrolls the revealed rows into view (the i12 shell pattern).
+ * window fold. Fix: the bar is the column's last element again; the About
+ * fold rides BEHIND the disclosure (after the advanced rows — the
+ * h08-sanctioned option), and expanding scrolls the revealed rows into view
+ * (the i12 shell pattern).
+ *
+ * w26.k12 (j12 P2-6/P3-4): the disclosure is the shell's ONE exported
+ * AdvancedDisclosure — the hand copy here was its second implementation.
+ * w26.k13: the section split rides the shared schemaSectionViews/
+ * partitionAdvanced helpers (j13 ruling 1).
  */
 function GlobalAreaScreen(): ReactElement {
   const m = useMsg();
-  const { matches } = useSettingsSearch();
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const advancedRowsRef = useRef<HTMLDivElement | null>(null);
-
-  // w26.i12's shell fix, mirrored for this hand-rendered disclosure: reveal
-  // the rows on expand (jsdom implements no scrollIntoView — guarded).
-  useEffect(() => {
-    if (!advancedOpen) return;
-    advancedRowsRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, [advancedOpen]);
-
-  const split = schemaSectionsOf("global").map((section) => {
-    // Pure-schema sections (this screen splices no SettingRowNode hands):
-    // narrow the row union so the schema-entry fields type-check below.
-    const entries = section.entries.filter((row): row is SettingEntry => "key" in row);
-    const visible = entries.filter((entry) => entry.featureExposed && matches(entry));
-    return {
-      section,
-      normal: visible.filter((entry) => !entry.advanced),
-      advanced: visible.filter((entry) => entry.advanced),
-    };
-  });
-  const visibleSections = split.filter(({ normal }) => normal.length > 0);
-  // Advanced rows keep schema order across sections (flat list, no headers).
-  const advancedEntries = split.flatMap(({ advanced }) => advanced);
+  const { sections, advanced } = partitionAdvanced(schemaSectionViews("global"));
 
   return (
     <div className="settings-sections" data-settings-area="global">
-      {visibleSections.map(({ section, normal }) => (
+      {sections.map(({ section, entries }) => (
         <section key={section.id} className="settings-section" data-section={section.id}>
           <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
-          {normal.map((entry) => (
+          {entries.map((entry) => (
             <SettingField key={entry.key} entry={entry} hint={GLOBAL_HINTS[entry.key]} />
           ))}
         </section>
       ))}
-      {advancedEntries.length > 0 ? (
-        <div className="settings-advanced">
-          <button
-            type="button"
-            className="settings-advanced__bar"
-            aria-expanded={advancedOpen}
-            aria-controls="settings-advanced-rows"
-            onClick={() => setAdvancedOpen((open) => !open)}
-          >
-            <span className="settings-advanced__label">{m("settings.advanced-options")}</span>
-            <Icon
-              name={advancedOpen ? "chevron-down" : "chevron-right"}
-              size={14}
-              className="settings-advanced__chevron"
-            />
-          </button>
-          {advancedOpen ? (
-            <div className="settings-advanced__rows" id="settings-advanced-rows" ref={advancedRowsRef}>
-              {advancedEntries.map((entry) => (
-                <SettingField key={entry.key} entry={entry} hint={GLOBAL_HINTS[entry.key]} />
-              ))}
-            </div>
-          ) : null}
-        </div>
+      {advanced.length > 0 ? (
+        <AdvancedDisclosure open={advancedOpen} onToggle={() => setAdvancedOpen((open) => !open)}>
+          {advanced.map((entry) => (
+            <SettingField key={entry.key} entry={entry} hint={GLOBAL_HINTS[entry.key]} />
+          ))}
+        </AdvancedDisclosure>
       ) : null}
       {/* w26.i13 (h08 #2): the About fold renders BEHIND the disclosure —
        * reachable, honest, and out of the frame-true column. */}
@@ -266,15 +217,17 @@ if (MISSING_GENERATED_AREAS.length > 0) {
 
 export const SETTINGS_AREA_TITLES: Record<SettingsAreaId, MessageKey> = {
   ...GENERATED_AREA_TITLES,
-  video: laneMsg("settings.area.video"),
-  audio: laneMsg("settings.area.audio"),
-  subtitles: laneMsg("settings.area.subtitles"),
-  library: "settings.area.library", // registered ("Playlist & Services" — retitle to "Library" is a messages.ts change for the Lead/b19)
+  video: "settings.area.video", // registered (messages.ts, b19 merge)
+  audio: "settings.area.audio", // registered (messages.ts, b19 merge)
+  subtitles: "settings.area.subtitles", // registered (messages.ts, b19 merge)
+  library: "settings.area.library", // registered — "Library" (messages.ts:1887)
   network: "settings.area.network",
 };
 
 export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
-  // interface + performance stay pure schema-generated.
+  // interface + playback + performance render through their area files
+  // (interface flat — its frame carries no Advanced bar; playback and
+  // performance hand-render for per-row ⓘ hints, w26.i14 / w26.k13).
   ...GENERATED_SCREENS,
   // w26.gfix-B compositions (the frame inventories interleave hand rows
   // with the schema sections — the helpers at the top of this file):
@@ -304,6 +257,9 @@ export const SETTINGS_SCREENS: Record<SettingsAreaId, () => ReactElement> = {
   subtitles: SubtitlesArea,
   library: LibraryArea, // playlist-services fold (b07/b08)
   network: NetworkArea,
+  // w26.k13 (j13 P1-1): performance hand-renders for the frame's 10 ⓘ —
+  // the GlobalAreaScreen precedent (per-row hints through SettingField).
+  performance: PerformanceArea,
 };
 
 /**
@@ -335,47 +291,14 @@ export function resolveSettingsAreaSlug(slug: string | undefined): SettingsAreaI
 }
 
 /**
- * Per-setting-key special widgets (card 4.E2 group 1). SettingField consults
- * this registry BEFORE its type-based default renderer — the framework seam.
- * Every key MUST be a real schemas/settings.toml key (AC-asserted in
- * areas.test.tsx).
- *
- * w26.f03 (e05 F2/F4): the accent picker wires wherever the seed carries the
- * accent key (`global.accent-color` per the finding; `interface.accent`/
- * `global.accent` per the settingsThemeSync gap note), and the theme picker
- * follows the theme key if the seed moves it from `interface.theme` to
- * `global.theme` (e05 F3). Both registrations are DERIVED from the schema so
- * the AC (every key real) holds at every merge state of the parallel f01
- * seed lane.
+ * Per-setting-key special widgets (card 4.E2 group 1) — the registry every
+ * key MUST be a real schemas/settings.toml key of (AC-asserted in
+ * areas.test.tsx). w26.k12 (j12 P2-5) moved the registry to the
+ * ../specialWidgets LEAF (SettingField imports it from there — the former
+ * areas/index ⇄ SettingField module cycle is gone); re-exported here under
+ * its frozen public name/shape for the registry API.
  */
-const THEME_SETTING_KEYS: readonly string[] = ["interface.theme", "global.theme"];
-const ACCENT_SETTING_KEYS: readonly string[] = ["global.accent-color", "interface.accent", "global.accent"];
-
-const themeEntry = SETTINGS_ENTRIES.find((e) => THEME_SETTING_KEYS.includes(e.key));
-const accentEntry = SETTINGS_ENTRIES.find((e) => ACCENT_SETTING_KEYS.includes(e.key));
-
-// w26.gfix-B: the frame's slider rows (g11-P2-3 / g12-P1-3), the inverted
-// start-playing switch (g11-P2-2) and the Values-1 startup-volume control
-// (g12-P1-4) — every key a real schema key (AC below).
-const SLIDER_WIDGET_KEYS: readonly string[] = [
-  "video.hue",
-  "video.brightness",
-  "video.contrast",
-  "video.saturation",
-  "video.gamma",
-  "playback.default-rate",
-  "audio.maximum-volume",
-  "interface.hide-controls-after",
-];
-
-export const SPECIAL_FIELD_WIDGETS: Readonly<Record<string, ComponentType<{ entry: SettingEntry }>>> = {
-  ...(themeEntry !== undefined ? { [themeEntry.key]: ThemeModePicker } : {}),
-  ...(accentEntry !== undefined ? { [accentEntry.key]: AccentColorPicker } : {}),
-  "global.language": LocalePicker,
-  "playback.start-paused": InvertedSwitchField,
-  "audio.startup-volume": StartupVolumeField,
-  ...Object.fromEntries(SLIDER_WIDGET_KEYS.map((key) => [key, SettingsSliderField])),
-};
+export { SPECIAL_FIELD_WIDGETS } from "../specialWidgets";
 
 /**
  * Compound-widget keys (g12-P1-4): rendered INSIDE another key's special

@@ -21,7 +21,6 @@
 
 import type { ReactElement } from "react";
 import { Dropdown } from "../../../components/menu/Dropdown";
-import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
@@ -33,23 +32,11 @@ import {
   SETTING_PLAYBACK_HW_DECODE_POLICY,
 } from "../generated/schema";
 import { useSettings } from "../SettingsProvider";
+import { makeAreaMsg } from "./shared";
 
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
-type SeedKey = keyof typeof seedKeys;
-/** Pre-registration seam: b01 + b02 + f01 lane keys. */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...laneKeys,
-  ...seedKeys,
-};
-
-/** useAreaMsg — useMsg + the settings lanes' pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | RegistryKey | LaneKey | SeedKey): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
+/** Pre-registration seam: b01 + b02 + f01 lane keys (w26.k13: the shared
+ * makeAreaMsg factory — the j13 ruling 1 dedup). */
+const useAreaMsg = makeAreaMsg(registryKeys, laneKeys, seedKeys);
 
 /**
  * Hardware-decode policy control — bound to playback.hw-decode-policy, the
@@ -82,7 +69,7 @@ export function HwDecodePolicyControl(): ReactElement {
             label={label}
             options={entry.enumeration.map((o) => ({
               value: o.value,
-              labelKey: m(o.msgid as MessageKey | RegistryKey | LaneKey | SeedKey),
+              labelKey: m(o.msgid as MessageKey),
             }))}
             value={String(value(entry.key))}
             onChange={() => {

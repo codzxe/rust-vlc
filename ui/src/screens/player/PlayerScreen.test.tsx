@@ -4,6 +4,7 @@
 // sidebar-toggle seam, now-playing identity. DOM-shape + behavior
 // assertions per the card ACs (visual fidelity: dev-shots + VLM loop).
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { Profiler } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
@@ -11,7 +12,7 @@ import { MockTransport } from "../../client/transport";
 import { DemoTransport } from "../../client/demo-transport";
 import { openPathRequest } from "../../client/open-path";
 import type { CommandTransport, CommandResponse, CommandRequest, Event } from "../../client/transport";
-import { fullMediaInfo } from "../media-info/fixtures";
+import { fullMediaInfo, liveAudioMediaInfo } from "../media-info/fixtures";
 import { OPEN_MEDIA_EVENT } from "../open-media";
 import { PlayerScreen, PLAYER_OPEN_CUSTOMIZE_EVENT, PLAYER_TOGGLE_SIDEBAR_EVENT } from "./PlayerScreen";
 
@@ -531,6 +532,77 @@ label_key = "player.region.title-bar"
     expect(() => renderWithClient(<PlayerScreen layoutSource="schema = nope" />)).toThrow();
     spy.mockRestore();
   });
+
+  // w26.k06 (J06-5, P2): `visible_when = "has-video"` regions must follow
+  // ONE truth source — derivedMedia (host prop first, ENGINE track truth
+  // second). The old conditionCtx read the raw `media` prop only, so an
+  // engine-only session (no host prop) never satisfied the token.
+  it("w26.k06 (J06-5): has-video regions appear for ENGINE-reported video (no host media prop)", () => {
+    /** Idle-mock transport that can EMIT engine events (the honest path). */
+    function emittingTransport(): CommandTransport & { emit: (event: Event) => void } {
+      const listeners = new Set<(event: Event) => void>();
+      const wire: CommandTransport = {
+        subscribe(listener) {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        async send(request: CommandRequest): Promise<CommandResponse> {
+          return {
+            gen: 1,
+            requestId: request.requestId,
+            result: {
+              error: {
+                code: "feature-not-exposed",
+                details: { cmd: request.cmd },
+                message: "mock transport: command not simulated yet",
+                stage: "control",
+              },
+            },
+          };
+        },
+      };
+      return {
+        ...wire,
+        emit: (event: Event) => {
+          for (const listener of listeners) listener(event);
+        },
+      };
+    }
+
+    const transport = emittingTransport();
+    render(
+      <ClientProvider transport={transport}>
+        <PlayerScreen
+          layoutSource={`schema = "layout.v1"
+[[region]]
+id = "video-canvas"
+anchor = "center"
+label_key = "player.canvas.label"
+[[region]]
+id = "video-strip"
+anchor = "top"
+label_key = "player.region.title-bar"
+visible_when = "has-video"
+`}
+        />
+      </ClientProvider>,
+    );
+    // Engine truth only (no `media` prop): a playing session with a VIDEO
+    // track satisfies has-video — the top region renders.
+    act(() => {
+      transport.emit({ seq: 1, kind: "session.state-changed", from: "idle", to: "playing" });
+      transport.emit({ seq: 2, kind: "tracks.list-ready", tracks: fullMediaInfo.tracks });
+    });
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+
+    // An AUDIO-ONLY session hides it again (engine truth, both directions).
+    act(() => {
+      transport.emit({ seq: 3, kind: "tracks.list-ready", tracks: liveAudioMediaInfo.tracks });
+    });
+    expect(screen.queryByRole("banner")).toBeNull();
+  });
 });
 
 describe("PlayerScreen — chrome lock + auto-hide integration (doc 08 §4.3)", () => {
@@ -560,6 +632,32 @@ describe("PlayerScreen — chrome lock + auto-hide integration (doc 08 §4.3)", 
       window.dispatchEvent(new Event("pointermove"));
     });
     expect(root).toHaveAttribute("data-chrome", "visible");
+  });
+
+  it("w26.k06 (J06-1, P1): a pointermove storm commits NOTHING in the player tree (no re-render storm)", async () => {
+    // The Profiler counts subtree COMMITS. The wave-I nonce fix committed
+    // the whole PlayerScreen tree once per pointer event (the app's biggest
+    // tree — ControlBar, dock, canvas, menu entries); the w26.k06 ref-held
+    // scheduler must keep the restart semantics with zero commits.
+    let commits = 0;
+    render(
+      <ClientProvider transport={new MockTransport()}>
+        <Profiler id="w26-k06-commit-probe" onRender={() => { commits += 1; }}>
+          <PlayerScreen media={{ hasVideo: true, hasChapters: false }} />
+        </Profiler>
+      </ClientProvider>,
+    );
+    // Flush the mount-time probe microtasks (MockTransport answers).
+    await act(async () => {});
+    const baseline = commits;
+
+    act(() => {
+      for (let i = 0; i < 20; i++) {
+        window.dispatchEvent(new Event("pointermove"));
+        window.dispatchEvent(new Event("pointerdown"));
+      }
+    });
+    expect(commits).toBe(baseline);
   });
 });
 
@@ -990,6 +1088,46 @@ describe("PlayerScreen — canvas context menu (w26.c6, right-click menu.svg)", 
     act(() => {
       fireEvent.pointerDown(document.body);
     });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  // w26.k06 (J06-4, P2): the canvas menu is KEYBOARD-REACHABLE — the menu is
+  // the only route to Customize interface…, Hide-UI and the track submenus,
+  // and it used to open exclusively via onContextMenu (contract §7 "keyboard
+  // reachable" missed; no ContextMenu/Shift+F10 action exists in keymap.ts).
+  it("w26.k06 (J06-4): the labelled canvas is a tab stop; ContextMenu key opens the menu from the keyboard", async () => {
+    renderWithClient(<PlayerScreen />);
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    expect(canvas).toHaveAttribute("tabindex", "0");
+    canvas.focus();
+    expect(canvas).toHaveFocus();
+
+    fireEvent.keyDown(canvas, { key: "ContextMenu" });
+    const menu = await screen.findByRole("menu", { name: "Player actions" });
+    // Same menu as the right-click path (the frame's rows).
+    expect(within(menu).getByText("Customize interface…")).toBeInTheDocument();
+
+    // Escape restores focus to the opener (the ContextMenu component's
+    // contract — reproduced by the direct MenuPopup mount).
+    fireEvent.keyDown(within(menu).getByText("Play"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(canvas).toHaveFocus();
+  });
+
+  it("w26.k06 (J06-4): Shift+F10 opens the menu too (the WAI-ARIA alternate)", async () => {
+    renderWithClient(<PlayerScreen />);
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: "F10", shiftKey: true });
+    expect(await screen.findByRole("menu", { name: "Player actions" })).toBeInTheDocument();
+  });
+
+  it("w26.k06 (J06-4): plain keys do NOT open the menu (only the context-menu keys)", () => {
+    renderWithClient(<PlayerScreen />);
+    const canvas = screen.getByRole("region", { name: "Video canvas" });
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: "Enter" });
+    fireEvent.keyDown(canvas, { key: "F10" }); // Shift+F10 without Shift
     expect(screen.queryByRole("menu")).toBeNull();
   });
 });

@@ -54,13 +54,19 @@ const percent = (value: number): string => `${Math.round(value)} %`;
  * value v paints its thumb center at ≈ 0.988·v − 0.6 % of the track) so the
  * PAINTED thumb lands on the frame's SVG-measured mark ("Video - Colors.svg":
  * 20.73% / 20.73% / 33.54%; w26.i08 — the pre-flush initials 20/20/34 sat
- * 1.3–5.3px left of the frame after i07's formula landed). */
+ * 1.3–5.3px left of the frame after i07's formula landed).
+ * w26.k11 (j11 P2-2): step 0.05 — both calibrated initials (21.6, 34.55) sit
+ * on the 0.05 lattice, so every arrow is a symmetric ±0.05 from them (the
+ * former step 1 snapped 21.6 → +1.4 up / −0.6 down, 34.55 → +1.45/−0.55 —
+ * the same off-lattice defect the EQ lane closed at 0.1 dB, w26.k10). The
+ * valuetext rounds to whole percents, so the paint and the readout are
+ * unchanged at rest. */
 const SATURATION_ROW: VideoSliderRowDef = {
   id: "saturation",
   labelKey: "customize.field.saturation", // central key — reused
   min: 0,
   max: 100,
-  step: 1,
+  step: 0.05,
   initial: 21.6, // paints 20.7% — frame thumb center 20.73%
   format: percent,
 };
@@ -70,7 +76,7 @@ const SIMILARITY_ROW: VideoSliderRowDef = {
   labelKey: "player.tools.colors.similarity",
   min: 0,
   max: 100,
-  step: 1,
+  step: 0.05,
   initial: 21.6, // paints 20.7% — frame thumb center 20.73%
   format: percent,
 };
@@ -80,7 +86,7 @@ const SEPIA_ROW: VideoSliderRowDef = {
   labelKey: "player.tools.colors.sepia",
   min: 0,
   max: 100,
-  step: 1,
+  step: 0.05,
   initial: 34.55, // paints 33.5% — frame thumb center 33.54%
   ticks: 2, // frame: 2 degree ticks @ x146/x254
   format: percent,
@@ -137,7 +143,7 @@ function ColorsHexRow(props: {
   inputId: string;
 }): ReactElement {
   return (
-    <div className="video-row video-row--hex" data-row="hex">
+    <div className="video-row" data-row="hex">
       <label className="video-row__label" htmlFor={props.inputId}>
         {props.label}
       </label>
@@ -178,7 +184,7 @@ function ColorsToggleRow(props: {
   onToggle: () => void;
 }): ReactElement {
   return (
-    <div className="video-row video-row--toggle" data-row="toggle">
+    <div className="video-row" data-row="toggle">
       <span className="video-row__label">{props.label}</span>
       <span className="video-row__spacer" aria-hidden="true" />
       <Toggle checked={props.checked} onChange={props.onToggle} aria-label={props.label} />

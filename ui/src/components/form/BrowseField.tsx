@@ -11,7 +11,10 @@ export interface BrowseFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   onAction?: () => void;
   /** Error message; presence switches the field into the error state. */
   error?: string;
-  /** Renders the label but hides it visually (keeps the accessible name). */
+  /** Renders the label as the input's aria-label instead of a visible text
+   * node — the SAME mechanism as TextField's hideLabel (w26.k01 j01-8:
+   * one prop, one mechanism; row-grammar hosts print their own visible
+   * label and expect exactly one label text node in the DOM). */
   hideLabel?: boolean;
 }
 
@@ -29,33 +32,26 @@ export const BrowseField = forwardRef<HTMLInputElement, BrowseFieldProps>(
     const errorId = `${inputId}-error`;
     return (
       <div className={["lumen-field", className].filter(Boolean).join(" ")}>
-        <label
-          className={["lumen-field__label", hideLabel ? "lumen-field__label--hidden" : ""]
-            .filter(Boolean)
-            .join(" ")}
-          htmlFor={inputId}
-        >
-          {label}
-        </label>
+        {hideLabel ? null : (
+          <label className="lumen-field__label" htmlFor={inputId}>
+            {label}
+          </label>
+        )}
         <div className="lumen-browse">
           <input
             ref={ref}
             id={inputId}
             type={rest.type ?? "text"}
             className="lumen-field__control lumen-browse__control"
+            aria-label={hideLabel ? label : undefined}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             disabled={disabled}
             {...rest}
           />
-          <button
-            type="button"
-            className="lumen-browse__action"
-            onClick={() => {
-              if (!disabled) onAction?.();
-            }}
-            disabled={disabled}
-          >
+          {/* w26.k01 j01-13: no dead `if (!disabled)` guard — the native
+              disabled attribute already makes the button inert. */}
+          <button type="button" className="lumen-browse__action" onClick={() => onAction?.()} disabled={disabled}>
             {actionLabel}
           </button>
         </div>

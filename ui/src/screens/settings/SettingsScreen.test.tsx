@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../client/ClientProvider";
 import { MockTransport } from "../../client/transport";
-import { SettingsScreen } from "./SettingsScreen";
+import { FOCUSABLE, SettingsScreen } from "./SettingsScreen";
 
 const STORAGE_KEY = "lumen.settings.overrides.v1";
 
@@ -115,10 +115,12 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     expect(active).toHaveFocus();
     const window_ = container.querySelector(".settings-window") as HTMLElement;
     // Tab from the LAST focusable stop wraps to the first (the search input).
-    // Same focusable definition as the trap (aria-hidden pointer
-    // affordances like the number steppers are not tab stops).
-    const focusables = window_.querySelectorAll(
-      'button:not([disabled]):not([aria-hidden="true"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    // w26.k12 (j12 P3-9): the test imports the trap's OWN selector (FOCUSABLE)
+    // + the same aria-hidden filter, so the first/last stops can never drift
+    // from the trap's definition (the old inline copy omitted
+    // select/textarea/a[href]).
+    const focusables = Array.from(window_.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+      (el) => el.getAttribute("aria-hidden") !== "true",
     );
     const last = focusables[focusables.length - 1] as HTMLElement;
     const first = focusables[0] as HTMLElement;
@@ -242,6 +244,44 @@ describe("SettingsScreen shell (card 4.E1)", () => {
     expect(screen.getByTestId("settings-search-empty")).toHaveTextContent("No settings match your search");
   });
 
+  it("clears the search query on sidebar navigation — the target area renders clean (w26.k12, j12 P1-1)", async () => {
+    renderAt("/settings/global");
+    // While searching, the column shows the cross-area hits (the tested W26
+    // contract: results replace the current screen).
+    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "hide after" } });
+    expect(screen.getByTestId("settings-search-results")).toBeInTheDocument();
+    // Navigate with the query LIVE. Before the fix, the URL/window title/
+    // aria-current moved to Privacy but the column kept rendering the stale
+    // "hide after" hits — the Privacy screen was unreachable until the pill
+    // was cleared by hand.
+    fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Privacy" })).toHaveAttribute("aria-current", "page"),
+    );
+    // The pill is empty again …
+    expect((screen.getByPlaceholderText("Search") as HTMLInputElement).value).toBe("");
+    // … and the column renders the CLEAN Privacy screen, not the stale hits.
+    expect(screen.queryByTestId("settings-search-results")).toBeNull();
+    expect(screen.queryByTestId("settings-search-empty")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Save recently played items" })).toBeInTheDocument();
+  });
+
+  it("clears the query when the dirty dialog discards and navigates (w26.k12, j12 P1-1)", async () => {
+    renderAt("/settings/global");
+    fireEvent.click(screen.getByRole("switch", { name: "Show confirmation and error dialogs" }));
+    fireEvent.change(screen.getByPlaceholderText("Search"), { target: { value: "hide after" } });
+    fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard changes" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Privacy" })).toHaveAttribute("aria-current", "page"),
+    );
+    // The discard-path navigation clears the query too — the target screen
+    // renders, never the stale results.
+    expect((screen.getByPlaceholderText("Search") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByTestId("settings-search-results")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Save recently played items" })).toBeInTheDocument();
+  });
+
   it("confirms before navigating away with unsaved changes (4.B4 Dialog)", async () => {
     renderAt("/settings/interface");
     fireEvent.click(screen.getByRole("switch", { name: "Keep window above other windows" }));
@@ -297,4 +337,51 @@ describe("SettingsScreen shell (card 4.E1)", () => {
   // through the per-field reset buttons above and the provider's resetArea
   // seam (covered by SettingsProvider.test.tsx "resetArea resets every field
   // of one area and nothing else").
+});
+
+describe("the in-flow Advanced disclosure reveal (w26.k12, j12 P2-6 — h08 #1)", () => {
+  // jsdom implements no scrollIntoView; the component guards with `?.`. To
+  // PROVE the guarded call fires (the h08 #1 fold-reveal fix the codecs copy
+  // used to lack), install a spy on Element.prototype for these tests only.
+  let revealed: HTMLElement[] = [];
+  let lastOptions: ScrollIntoViewOptions | undefined;
+  const withScrollIntoViewSpy = () => {
+    revealed = [];
+    Element.prototype.scrollIntoView = function (this: HTMLElement, options?: ScrollIntoViewOptions) {
+      revealed.push(this);
+      lastOptions = options;
+    } as typeof Element.prototype.scrollIntoView;
+  };
+  const withoutScrollIntoViewSpy = () => {
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  };
+
+  afterEach(() => {
+    withoutScrollIntoViewSpy();
+  });
+
+  it("codecs fold (video): expanding scrolls the revealed rows into view — one shared disclosure, one id", () => {
+    withScrollIntoViewSpy();
+    renderAt("/settings/video");
+    // The codecs fold rode a hand copy WITHOUT the scrollIntoView — the h08
+    // #1 defect ("expanding reveals nothing" near the fold). It is the
+    // shell's ONE AdvancedDisclosure now: one exported id, guarded reveal.
+    const bar = screen.getByRole("button", { name: "Advanced Options" });
+    expect(bar).toHaveAttribute("aria-expanded", "false");
+    expect(bar).toHaveAttribute("aria-controls", "settings-advanced-rows");
+    fireEvent.click(bar);
+    expect(bar).toHaveAttribute("aria-expanded", "true");
+    expect(revealed).toHaveLength(1);
+    expect(revealed[0]?.id).toBe("settings-advanced-rows"); // the rows region, not the bar
+    expect(lastOptions).toMatchObject({ block: "nearest" }); // minimal movement (i12)
+    expect(document.querySelector('[data-settings-area="codecs"]')).not.toBeNull();
+  });
+
+  it("performance (generated screen): expanding scrolls the revealed rows into view", () => {
+    withScrollIntoViewSpy();
+    renderAt("/settings/performance");
+    fireEvent.click(screen.getByRole("button", { name: "Advanced Options" }));
+    expect(revealed).toHaveLength(1);
+    expect(revealed[0]).toBe(document.getElementById("settings-advanced-rows"));
+  });
 });

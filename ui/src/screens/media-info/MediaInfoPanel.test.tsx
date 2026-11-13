@@ -251,6 +251,24 @@ describe("MediaInfoPanel — data flow + honest states", () => {
     expect(container.querySelector('[data-testid="media-info-not-exposed"]')).not.toBeNull();
   });
 
+  it("host unreachable renders its OWN note — never the not-exposed verdict (w26.k17, j17 P3-8)", async () => {
+    // A rejecting transport: the command layer may expose the command while
+    // the host is down — the old catch mislabeled this as feature-not-exposed.
+    const dead: CommandTransport = {
+      subscribe: () => () => {},
+      send: () => Promise.reject(new Error("host unreachable")),
+    };
+    const { container } = renderPanel(dead);
+    await waitFor(() => {
+      expect(container.querySelector('[data-state="unreachable"]')).not.toBeNull();
+    });
+    expect(screen.getByText(/unavailable — the engine is not reachable/i)).toBeTruthy();
+    // Never the false verdict, never a fabricated section.
+    expect(container.querySelector('[data-state="not-exposed"]')).toBeNull();
+    expect(container.querySelector('[data-mi-section="general"]')).toBeNull();
+    expect(container.querySelector('[data-testid="media-info-unreachable"]')).not.toBeNull();
+  });
+
   it("media.info-ready events keep the panel authoritative", async () => {
     const transport = new FakeTransport(null, "not-found");
     const { container } = renderPanel(transport);

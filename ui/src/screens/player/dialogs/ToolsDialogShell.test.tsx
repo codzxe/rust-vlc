@@ -5,13 +5,10 @@
 // label-left/control-right row and the value chip it exposes).
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  ToolsCard,
-  ToolsDialogShell,
-  ToolsRow,
-  ToolsValueChip,
-  TOOLS_DIALOG_COPY,
-} from "./ToolsDialogShell";
+import { ToolsCard, ToolsDialogShell, ToolsRow, ToolsValueChip } from "./ToolsDialogShell";
+// w26.k09: the shell's copy renders through useMsg (player.tools.* are
+// central); TOOLS_DIALOG_COPY consolidated into useDialogsMsg.ts.
+import { TOOLS_DIALOG_COPY } from "./useDialogsMsg";
 
 function renderShell(props: Partial<Parameters<typeof ToolsDialogShell>[0]> = {}) {
   const onClose = vi.fn();

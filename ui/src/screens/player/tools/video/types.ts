@@ -2,15 +2,14 @@
 // The four tools share the w26.a20 analysis §D1 tool-card grammar with the
 // dynamics lane (§A4–A6): collapsible r6 card ("Expand/Collapse Settings" +
 // chevron), label-left rows, full-width tool slider (track 328×16 r6, flat
-// tinted fill, 8×24 r4 thumb, optional degree ticks). The slider rows render
-// via VideoSliderRow — a 1:1 mirror of the dynamics ToolSliderRow (same DOM,
-// same classes) whose labels resolve through THIS lane's useVideoMsg seam:
-// the dynamics row's resolver + label-key union are hard-wired to its own
-// lane keys, so w26.c4 keys cannot resolve through it (the same reason the
-// equalizer lane ships useEqMsg + EqBandRow). The video-specific rows
-// (hex+swatch+toggle lines, crop number-input pairs, the Gradient
-// sub-dropdown, the HDR dropdown) are also this lane's, composed inside a
-// VideoCard that reuses the dynamics card classes verbatim.
+// tinted fill, 8×24 r4 thumb, optional degree ticks). Since w26.k11 (j11
+// P2-1) the slider rows render through tools/shared/SliderRow — the ONE row
+// module both lanes compose (generic over the label key, w26.k10) — with the
+// labels resolved through THIS lane's useVideoMsg seam via its `resolveLabel`
+// prop; VideoSliderRow is the thin frozen wrapper that wires the two. The
+// video-specific rows (hex+swatch+toggle lines, crop number-input pairs, the
+// Gradient sub-dropdown, the HDR dropdown) are also this lane's, composed
+// inside a VideoCard that reuses the dynamics card classes verbatim.
 
 import type { ReactNode } from "react";
 import type { MessageKey } from "../../../../i18n/messages";
@@ -100,5 +99,7 @@ export interface VideoSliderRowDef {
 /** Slider-row values keyed by row id — all state stays local to the card. */
 export type VideoSliderRowState = Readonly<Record<string, number>>;
 
-/** Crop pair axis — the link icon couples the pair per frame row. */
+/** Crop pair axis — the link icon couples the pair per frame row. Consumed
+ * by CropTool's CROP_PAIRS coupling map (w26.k11, j11 P3-3: the export was
+ * dead — the map now types through it instead of inlining its own). */
 export type CropAxis = "vertical" | "horizontal";

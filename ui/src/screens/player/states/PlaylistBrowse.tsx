@@ -33,10 +33,11 @@
 import { useMemo } from "react";
 import { Icon, IconButton, Seekbar } from "../../../components";
 import { naturalSort } from "../../../components/list";
-import { useMsg, type MessageKey } from "../../../i18n/messages";
+import { useMsg } from "../../../i18n/messages";
 import { keys as i02Keys } from "../../../i18n/keys/w26.i02";
 import { usePlaylist, type PlaylistEntry } from "../../playlist";
 import { usePlayerControls } from "../context";
+import { useLaneMsg } from "../laneMsg";
 import { mapTransportControls, seekDisableReason } from "../controls";
 
 /** The saved-playlist record the browse face renders (playlistsStore data). */
@@ -46,14 +47,8 @@ export interface BrowsePlaylistData {
   readonly itemNames: readonly string[];
 }
 
-/** Lane-key resolver (contract §4.5): catalog first, w26.i02 lane copy while
- * unregistered — identical before/after the Lead's merge. */
-function useLaneMsg() {
-  const m = useMsg();
-  const catalog: Record<string, string> = i02Keys;
-  return (key: MessageKey | keyof typeof i02Keys): string =>
-    m(key as MessageKey) ?? catalog[key];
-}
+// w26.k06 (J06-9): the lane resolver is the shared player helper
+// (../laneMsg) — this file's local copy is gone.
 
 /** Containing folder of a file source ("/a/b/clip.mp4" → "b"); null when the
  * source is not a file or has no parent segment (honest hide). MiniPlayer's
@@ -85,7 +80,7 @@ export function PlaylistBrowse({
   onPreviewToggle,
   onExit,
 }: PlaylistBrowseProps) {
-  const tm = useLaneMsg();
+  const tm = useLaneMsg(i02Keys);
 
   // Natural order — the app-wide library order ("S01E2" before "S01E10"),
   // the same sort the dock rows and /playlist read.
@@ -131,8 +126,11 @@ export function PlaylistBrowse({
         <p className="lumen-state-browse__empty">{tm("player.browse.empty")}</p>
       ) : (
         <ul className="lumen-state-browse__grid" aria-label={tm("player.browse.label")}>
-          {rows.map((name) => (
-            <li key={name} className="lumen-state-browse__cell">
+          {rows.map((name, index) => (
+            // w26.k06 (J06-7, P2): saved playlists carry NAMES only (store
+            // data, no uniqueness guarantee) — a name-only key collides on
+            // duplicate filenames; the index keeps siblings distinct.
+            <li key={`${index}:${name}`} className="lumen-state-browse__cell">
               {/* Honest presentation, never a dead button: names-only local
                   data has no play seam (playlistsStore; the ThumbnailGrid
                   inert-card precedent). */}
@@ -162,7 +160,7 @@ export function PlaylistBrowse({
  * under the grid) is the one real media element. */
 function NowPlayingCard({ onHide }: { onHide: () => void }) {
   const m = useMsg();
-  const tm = useLaneMsg();
+  const tm = useLaneMsg(i02Keys);
   const { state, actions } = usePlayerControls();
   const playlist = usePlaylist();
   const mapped = mapTransportControls(state);

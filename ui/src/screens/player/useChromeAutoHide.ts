@@ -42,7 +42,7 @@
 // fullscreen scoping), `locked` locks as passed. The player composition is
 // the only in-repo caller (PlayerScreen mounts the provider around itself).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlayerControlsOrNull } from "./context";
 
 /** [PROPOSAL] idle delay before chrome hides (doc 08 §4.3 leaves timing open). */
@@ -119,39 +119,64 @@ export function useChromeAutoHide({
   const lockedEffective = locked || overlayOpen;
 
   const [hidden, setHidden] = useState(false);
-  // w26.i02: activity nonce — see onActivity below.
-  const [activityNonce, setActivityNonce] = useState(0);
+
+  // w26.k06 (J06-1, P1): the idle countdown is a REF-HELD timer restarted
+  // imperatively — activity never touches state. The wave-I nonce fix
+  // (w26.i02) restarted the countdown by bumping a state nonce, which
+  // re-rendered the host (PlayerScreen — the app's biggest tree) on EVERY
+  // pointermove/pointerdown/keydown. The scheduler below keeps the i02
+  // semantics exactly — activity while visible clears + re-arms the
+  // countdown — at the cost of one clearTimeout/setTimeout pair per event,
+  // zero renders (the reveal is a same-value functional update; React
+  // bails out entirely while chrome is already visible).
+  const idleTimerRef = useRef<number | null>(null);
+  const clearIdleTimer = useCallback((): void => {
+    if (idleTimerRef.current !== null) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+  const armIdleTimer = useCallback((): void => {
+    clearIdleTimer();
+    idleTimerRef.current = window.setTimeout(() => {
+      idleTimerRef.current = null;
+      setHidden(true);
+    }, delayMs);
+  }, [clearIdleTimer, delayMs]);
+
   const show = useCallback(() => {
     setHidden(false);
   }, []);
 
-  // Leaving auto-hide (standalone `enabled` off) or entering a lock must
-  // reveal chrome — a stale `hidden` must never survive those transitions.
+  // Idle-timer lifecycle: armed + unlocked + visible → the countdown runs;
+  // anything else disarms it. Leaving auto-hide (standalone `enabled` off)
+  // or entering a lock must also reveal chrome — a stale `hidden` must
+  // never survive those transitions. A reveal (hidden → false) re-arms;
+  // while hidden the timer stays off until activity/show reveals.
   useEffect(() => {
-    if (!armed || lockedEffective) setHidden(false);
-  }, [armed, lockedEffective]);
-
-  // Idle timer: (re)starts whenever chrome is shown while auto-hide is
-  // active and unlocked; cleared otherwise. `hidden` in the deps makes any
-  // reveal restart the countdown.
-  useEffect(() => {
-    if (!armed || lockedEffective || hidden) return;
-    const timer = setTimeout(() => setHidden(true), delayMs);
-    return () => clearTimeout(timer);
-    // w26.i02: activityNonce in deps = activity restarts the countdown
-    // (clearTimeout + re-arm on every reveal, including while visible).
-  }, [armed, lockedEffective, hidden, delayMs, activityNonce]);
+    if (!armed || lockedEffective) {
+      clearIdleTimer();
+      setHidden(false);
+      return;
+    }
+    if (hidden) return;
+    armIdleTimer();
+    return clearIdleTimer;
+  }, [armed, lockedEffective, hidden, armIdleTimer, clearIdleTimer]);
 
   // Activity reveals chrome: any pointer move/down or key press.
   useEffect(() => {
     if (!armed || lockedEffective) return;
     // w26.i02 (Lead-landed): activity while VISIBLE must also restart the
-    // countdown — setHidden(false) is a no-op then, so the 3s deadline kept
-    // its original start and the chrome flickered away mid-interaction.
-    // The activity nonce re-runs the idle-timer effect (clear + re-arm).
-    const onActivity = () => {
-      setHidden(false);
-      setActivityNonce((n) => n + 1);
+    // countdown — setHidden(false) is a no-op then, so the deadline must be
+    // re-armed directly. w26.k06 (J06-1): that restart is the imperative
+    // scheduler (armIdleTimer), NOT a state update — a same-value
+    // functional reveal (React bails: no render, no effect churn) plus a
+    // ref-held timer restart. From HIDDEN the reveal re-renders once and
+    // the lifecycle effect above re-arms (same tick — same semantics).
+    const onActivity = (): void => {
+      setHidden((currentlyHidden) => (currentlyHidden ? false : currentlyHidden));
+      armIdleTimer();
     };
     window.addEventListener("pointermove", onActivity);
     window.addEventListener("pointerdown", onActivity);
@@ -161,8 +186,13 @@ export function useChromeAutoHide({
       window.removeEventListener("pointerdown", onActivity);
       window.removeEventListener("keydown", onActivity);
     };
-  }, [armed, lockedEffective]);
+  }, [armed, lockedEffective, armIdleTimer]);
 
   const visibility: ChromeVisibility = lockedEffective ? "locked" : hidden ? "hidden" : "visible";
-  return { visibility, show };
+  // w26.k06 (J06-3, P2): stable identity — the hook used to return a fresh
+  // object literal per render, so consumers keying effect deps on it
+  // (PlayerScreen's keymap keydown listener) removed/re-added the listener
+  // on every render. `show` is already referentially stable; the memoized
+  // object now only changes identity when visibility actually flips.
+  return useMemo(() => ({ visibility, show }), [visibility, show]);
 }

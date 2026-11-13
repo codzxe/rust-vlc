@@ -26,10 +26,8 @@
 // focus lands on the Time input — Enter on a fresh dialog submits the
 // seek instead of dismissing the window.
 //
-// COPY NOTE: local module copy — ui/src/i18n/messages.ts is owned by the
-// i18n agent (wave ownership map), so central keys are the recorded
-// follow-up for this dialog's strings; the vocabulary mirrors VLC's
-// "Go to time" phrasing meanwhile.
+// I18N (w26.k09, j09 P2): every user-visible string resolves through
+// useDialogsMsg (central catalog → the w26.k09 lane keys; §4.5 seam).
 
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
@@ -41,20 +39,8 @@ import { formatSeekTime } from "../../../components/slider";
 import { usePlayerControls } from "../context";
 import { CloseGlyph } from "./dialogIcons";
 import { parseTimeInput } from "./parseTimeInput";
+import { useDialogsMsg } from "./useDialogsMsg";
 import "./dialogs.css";
-
-/** The dialog's English copy (see COPY NOTE — central i18n is follow-up). */
-export const GOTO_COPY = {
-  title: "Go to time",
-  subtitle: "Jump to a specific time in the current media.",
-  label: "Time",
-  placeholder: "mm:ss or seconds (1:30, 90)",
-  invalid: "Enter a time as seconds (90) or mm:ss (1:30)",
-  beyondEnd: (duration: string) => `That time is past the end (${duration})`,
-  action: "Go",
-  cancel: "Cancel",
-  close: "Close",
-} as const;
 
 /**
  * The Go-to-Time dialog. Mount per-open (fresh state — the input prefills
@@ -69,6 +55,7 @@ export function GotoTimeDialog({
   onClose: () => void;
 }) {
   const { state, actions } = usePlayerControls();
+  const m = useDialogsMsg();
   // Prefill: the engine-reported position, captured at mount (= open).
   const [value, setValue] = useState(() => formatSeekTime(state.position));
   const [error, setError] = useState<string | undefined>(undefined);
@@ -79,14 +66,19 @@ export function GotoTimeDialog({
     event.preventDefault();
     const seconds = parseTimeInput(value);
     if (seconds === null) {
-      setError(GOTO_COPY.invalid);
+      setError(m("player.dialog.goto.invalid"));
       return;
     }
     // Duration cross-check — engine-reported truth only (null = unknown
     // duration, e.g. live streams: no ceiling is invented).
     const duration = state.durationSeconds;
     if (duration !== null && seconds > duration) {
-      setError(GOTO_COPY.beyondEnd(formatSeekTime(duration)));
+      setError(
+        m("player.dialog.goto.beyond-end").replace(
+          "{duration}",
+          formatSeekTime(duration),
+        ),
+      );
       return;
     }
     actions.seek(seconds);
@@ -105,17 +97,21 @@ export function GotoTimeDialog({
         {/* Body first in the DOM (focus order — see module header); the
          * header paints above it via `order: -1`. */}
         <div className="player-dialog__body">
-          <p className="player-dialog__subtitle">{GOTO_COPY.subtitle}</p>
+          <p className="player-dialog__subtitle">
+            {m("player.dialog.goto.subtitle")}
+          </p>
 
           <form id={formId} className="player-dialog__form" onSubmit={onSubmit}>
             <TextField
-              label={GOTO_COPY.label}
-              placeholder={GOTO_COPY.placeholder}
+              label={m("player.dialog.goto.label")}
+              placeholder={m("player.dialog.goto.placeholder")}
               value={value}
               error={error}
               spellCheck={false}
               autoComplete="off"
-              inputMode="numeric"
+              /* The grammar includes ":" (mm:ss) and numeric keypads have
+               * none — text keeps the colon reachable (j09 P3). */
+              inputMode="text"
               onChange={(event) => {
                 setValue(event.target.value);
                 if (error !== undefined) setError(undefined);
@@ -132,14 +128,14 @@ export function GotoTimeDialog({
         </div>
         <div className="player-dialog__header">
           <h2 id={titleId} className="player-dialog__title">
-            {GOTO_COPY.title}
+            {m("player.dialog.goto.title")}
           </h2>
           {/* Figma dialog grammar: the title bar carries the quiet ✕
               (Escape and scrim click also close — the Dialog owns both). */}
           <IconButton
             className="player-dialog__close"
-            label={GOTO_COPY.close}
-            title={GOTO_COPY.close}
+            label={m("player.dialog.goto.close")}
+            title={m("player.dialog.goto.close")}
             size="sm"
             onClick={onClose}
           >
@@ -149,9 +145,9 @@ export function GotoTimeDialog({
 
         {/* Footer grammar (frame: quiet Cancel left, tinted confirm right). */}
         <div className="player-dialog__footer">
-          <Button onClick={onClose}>{GOTO_COPY.cancel}</Button>
+          <Button onClick={onClose}>{m("player.dialog.goto.cancel")}</Button>
           <Button type="submit" variant="tinted" form={formId}>
-            {GOTO_COPY.action}
+            {m("player.dialog.goto.action")}
           </Button>
         </div>
       </div>

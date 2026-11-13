@@ -146,9 +146,17 @@ export function PlaylistPanel({
   const repeatLabel =
     repeatMode === "one" ? m("playlist.controls.repeat.one") : repeatMode === "all" ? m("playlist.controls.repeat.all") : m("playlist.controls.repeat.off");
 
-  const onRowDrop = (event: DragEvent<HTMLDivElement>, beforeIndex: number) => {
+  const onRowDrop = (event: DragEvent<HTMLDivElement>, beforeIndex: number): void => {
     event.preventDefault();
-    const from = dragFrom ?? Number(event.dataTransfer.getData("text/plain"));
+    let from: number | null = dragFrom;
+    if (from === null) {
+      // w26.k14 (j14 #9): an external drag carrying no text payload must
+      // not decode to row 0 (Number("") === 0) — no payload, no move. The
+      // same guard k08 pinned on the MiniPlayer's drop path.
+      const raw = event.dataTransfer.getData("text/plain");
+      if (raw.trim() === "") return;
+      from = Number(raw);
+    }
     setDragFrom(null);
     if (!Number.isInteger(from) || from === beforeIndex) return;
     const entry = playlist.entries[from];
@@ -158,6 +166,7 @@ export function PlaylistPanel({
 
   return (
     <section
+      ref={panelRootRef}
       className={`lumen-playlist ${className}`.trim()}
       data-chrome-part=""
       aria-label={headingless ? m("playlist.panel.title") : undefined}
@@ -263,6 +272,7 @@ export function PlaylistPanel({
               key={entry.id}
               entry={entry}
               index={index}
+              currentIndex={currentIndex}
               isCurrent={entry.id === playlist.currentId}
               onAddSubtitles={() => setSubsOpen(true)}
               onDragStart={(e) => {
@@ -292,6 +302,7 @@ export function PlaylistPanel({
 function PlaylistRow({
   entry,
   index,
+  currentIndex,
   isCurrent,
   onAddSubtitles,
   onDragStart,
@@ -299,6 +310,10 @@ function PlaylistRow({
 }: {
   entry: PlaylistEntry;
   index: number;
+  /** The current entry's queue index (-1 = none) — passed down so rows
+   * stop re-running findIndex for play-next math the parent already
+   * computed (w26.k14, j14 #10; O(visible×n) per render before). */
+  currentIndex: number;
   isCurrent: boolean;
   onAddSubtitles: () => void;
   onDragStart: (event: DragEvent<HTMLDivElement>) => void;
@@ -312,11 +327,7 @@ function PlaylistRow({
   // Queue semantics on an EXISTING id (stable ids, doc 03 §4): play-next /
   // play-later are `playlist.move`s — inserting right after the current item
   // / appending — never a re-enqueue (that would duplicate the entry).
-  const playNextIndex = dragToMoveIndex(
-    (playlist.currentId === null ? -1 : playlist.entries.findIndex((e) => e.id === playlist.currentId)) + 1,
-    index,
-    playlist.entries.length,
-  );
+  const playNextIndex = dragToMoveIndex(currentIndex + 1, index, playlist.entries.length);
   return (
     <NavigationSeam>
       {(navigate) => (

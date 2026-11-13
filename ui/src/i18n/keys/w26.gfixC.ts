@@ -11,6 +11,9 @@
 // .hide-queue (the docked queue panel seam labels),
 // playlist.entry.unknown-title.
 export const keys = {
+  // w26.k18 (j18 F4): player.controls.settings-popup pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   /** Current_Time.svg — the position timecode button's accessible name. */
   "player.controls.time-current": "Current time",
   /** Duration.svg — the total-duration timecode button's accessible name. */
@@ -23,8 +26,6 @@ export const keys = {
   "player.controls.audio-tracks": "Audio tracks",
   /** The CC trigger's popover (Controls.svg right cluster). */
   "player.controls.subtitle-tracks": "Subtitle tracks",
-  /** The gear trigger's popover (frame tabs Playback/Video/Audio/Subtitles). */
-  "player.controls.settings-popup": "Player settings",
   /** The queue trigger's popover (Controls.svg "Queue" tab). */
   "player.controls.queue": "Queue",
   /** Queue popover honest empty face — never a fabricated list. */

@@ -89,3 +89,62 @@ describe("w26.c4 vision harness (dev-only)", () => {
     expect(existsSync(resolve(out, "hdr-open.html"))).toBe(true);
   });
 });
+
+describe("w26.k11 frame-contract pins (video.css)", () => {
+  // Regression pins for the lane's load-bearing composition rules (j11
+  // P3-2) — the sheet carries frame-measured geometry and vision-caught
+  // fixes, so the CSS itself is pinned (the dynamics harness precedent,
+  // dynamics/harness.test.tsx:59-110): a "cleanup" that silently reverts a
+  // fix now fails here instead of shipping.
+  const css = readFileSync(
+    resolve(process.cwd(), "src/screens/player/tools/video/video.css"),
+    "utf8",
+  );
+
+  it("slider rows stay label-only — the shared value span is scoped away (frame)", () => {
+    // "Video - Colors.svg" / "Video - Essential.svg" carry no value column;
+    // the span stays for the DOM contract, hidden inside .video-tool.
+    expect(css).toMatch(
+      /\.video-tool \.dynamics-row__value\s*\{[^}]*display: none;/s,
+    );
+  });
+
+  it("Crop value fields size to their digits (the vision-caught Bottom fix)", () => {
+    // w26.i08: a fixed 3ch reservation ellipsized the "Bottom" label the
+    // frame fits; field-sizing: content tracks the drawn digits, capped at
+    // the frame's 3-digit trailing reserve.
+    expect(css).toMatch(
+      /\.video-crop-input__control\s*\{[^}]*field-sizing: content;/s,
+    );
+    expect(css).toMatch(/\.video-crop-input__control\s*\{[^}]*min-width: 1ch;/s);
+    expect(css).toMatch(/\.video-crop-input__control\s*\{[^}]*max-width: 3ch;/s);
+  });
+
+  it("the capped-list grammar pins the roomier side + the cap var (i08 escape)", () => {
+    // Last-resort cap: data-list-direction pins the side, the cap var sizes
+    // the internal scroll (video.css owns the rules the hook sets vars for).
+    expect(css).toContain(
+      ".video-hdr[data-list-direction] .lumen-dropdown__list",
+    );
+    expect(css).toContain(
+      ".video-subdropdown[data-list-direction] .lumen-dropdown__list",
+    );
+    expect(css).toMatch(/max-height: var\(--video-dropdown-cap, 320px\);/);
+    expect(css).toContain('.video-subdropdown[data-list-direction="up"]');
+  });
+
+  it("trigger value alignment is owned by the shared menu.css grammar (j11 P3-4)", () => {
+    // w26.i16 landed `text-align: start` on the primitive's trigger
+    // (menu.css:316 names this sheet) — video.css must not carry a scoped
+    // copy of that declaration (both redundant ones were deleted in w26.k11;
+    // the crop input's own `text-align: right` is a different rule — the
+    // frame's value column right-alignment — and stays). Asserted against
+    // the comment-stripped sheet: the provenance comments cite the shared
+    // declaration by name on purpose.
+    const declarations = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(declarations).not.toContain("text-align: start");
+    expect(declarations).not.toMatch(
+      /\.lumen-dropdown__trigger[^{]*\{[^}]*text-align/s,
+    );
+  });
+});

@@ -6,7 +6,7 @@
 // fullscreen, empty state included. w26.gfix-F (g06 P1-2) adds the
 // DOM-truth overlay lock on top of both: an open menu or modal dialog in
 // the document locks the chrome visible.
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ClientProvider } from "../../client/ClientProvider";
@@ -323,5 +323,82 @@ describe("useChromeAutoHide — open-overlay lock (w26.gfix-F, g06 P1-2)", () =>
     // revealed AND locked in one transition — a stale hidden never survives
     expect(result.current.visibility).toBe("locked");
     document.querySelector('[role="menu"]')?.remove();
+  });
+});
+
+// ------------------------------- render-cost contract (w26.k06, J06-1 P1) ---
+
+describe("useChromeAutoHide — activity costs no renders (w26.k06, J06-1)", () => {
+  /** Host render count — the probe for the wave-I regression: the
+   * activity-nonce fix re-rendered the host (PlayerScreen, the app's
+   * biggest tree) on EVERY pointer event; the ref-held scheduler must keep
+   * the i02 restart semantics with ZERO renders per event. */
+  let hostRenders = 0;
+
+  function RenderCountingHost(props: Props) {
+    hostRenders += 1;
+    const chrome = useChromeAutoHide(props);
+    return <output data-testid="chrome-visibility">{chrome.visibility}</output>;
+  }
+
+  beforeEach(() => {
+    hostRenders = 0;
+  });
+
+  it("a pointermove storm while visible re-renders NOTHING (no setState per event)", () => {
+    render(<RenderCountingHost enabled={true} locked={false} />);
+    expect(hostRenders).toBeGreaterThanOrEqual(1);
+    const baseline = hostRenders;
+
+    // A 25-event burst — the old nonce impl rendered once per event (25
+    // renders); the ref-held scheduler must render exactly zero times.
+    act(() => {
+      for (let i = 0; i < 25; i++) {
+        window.dispatchEvent(new Event("pointermove"));
+      }
+    });
+    expect(hostRenders).toBe(baseline);
+
+    // Chrome is still visible, and the countdown was RESTARTED by the last
+    // event (the i02 semantics the nonce bought — retained): delay-1 after
+    // the burst it is still visible, +1ms it hides.
+    const visibility = document.querySelector('[data-testid="chrome-visibility"]');
+    expect(visibility?.textContent).toBe("visible");
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS - 1);
+    });
+    expect(visibility?.textContent).toBe("visible");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(visibility?.textContent).toBe("hidden");
+  });
+
+  it("activity while visible defers the hide (restart semantics, mid-burst check)", () => {
+    render(<RenderCountingHost enabled={true} locked={false} />);
+    const visibility = document.querySelector('[data-testid="chrome-visibility"]');
+    // Halfway through the delay, activity arrives; the full delay must run
+    // FROM THE EVENT, not the original arm.
+    act(() => {
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS / 2);
+      window.dispatchEvent(new Event("pointermove"));
+      vi.advanceTimersByTime(CHROME_AUTO_HIDE_DELAY_MS - 1);
+    });
+    expect(visibility?.textContent).toBe("visible");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(visibility?.textContent).toBe("hidden");
+  });
+
+  it("w26.k06 (J06-3): the returned object is referentially stable across renders", () => {
+    const { result, rerender } = renderHook((props: Props) => useChromeAutoHide(props), {
+      initialProps: { enabled: false, locked: false },
+    });
+    const first = result.current;
+    // A forced host re-render (same props) must NOT mint a fresh object —
+    // consumers key effect deps on it (PlayerScreen's keymap listener).
+    rerender({ enabled: false, locked: false });
+    expect(result.current).toBe(first);
   });
 });

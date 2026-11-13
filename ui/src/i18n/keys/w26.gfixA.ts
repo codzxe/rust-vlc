@@ -11,6 +11,9 @@
 // "Right Sidebar" / "Go Home" — the app-wide sentence-case rule wins, the
 // same call w26.a17 made for "Forward 10s").
 export const keys = {
+  // w26.k18 (j18 F4): customize.tile.remove-hint pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   // Row 1 tiles (frame order) — engine-bound quick actions keep their
   // catalog keys (customize.tile.forward-10 …, player.controls.stop,
   // customize.action.repeat); these three are new.
@@ -46,5 +49,4 @@ export const keys = {
   "customize.band.label": "Toolbar preview",
   "customize.band.drop-hint": "Drop items here to add them to the toolbar",
   "customize.band.remove": "Remove {item} from the toolbar",
-  "customize.tile.remove-hint": "Remove from toolbar",
 } as const;

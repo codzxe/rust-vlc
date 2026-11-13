@@ -7,16 +7,21 @@
 // w26.gfix-E — the catalog also carries the file-row context-menu keys
 // (ui/src/i18n/keys/w26.gfixE.ts, file context menu.svg) so the same seam
 // resolves them for MediaList hosts.
+//
+// w26.k15 — plus this lane's keys (ui/src/i18n/keys/w26.k15.ts, the j15
+// P3-11 sort hint) for the same reason: one resolver, every lane key the
+// options layer renders.
 
 import { useCallback } from "react";
 import { useMsg, type MessageKey } from "../../../i18n/messages";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b10";
 import { keys as gfixEKeys } from "../../../i18n/keys/w26.gfixE";
+import { keys as k15Keys } from "../../../i18n/keys/w26.k15";
 
 /** Keys owned by this lane (registered into messages.ts by the Lead). */
-export type OptionsLaneKey = keyof typeof laneKeys | keyof typeof gfixEKeys;
+export type OptionsLaneKey = keyof typeof laneKeys | keyof typeof gfixEKeys | keyof typeof k15Keys;
 
-const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...gfixEKeys };
+const laneCatalog: Readonly<Record<string, string>> = { ...laneKeys, ...gfixEKeys, ...k15Keys };
 
 /**
  * useOptionsMsg — `useMsg` widened with the w26.b10 playlist-options keys.

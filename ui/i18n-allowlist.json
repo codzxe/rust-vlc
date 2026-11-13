@@ -1,51 +1,46 @@
 [
   {
-    "text": "ON",
-    "reason": "Toggle.svg micro-label glyph (doc 08 §1.3 row 4.4/§1.5) — decorative artwork inside aria-hidden track, not translatable copy; switch state is conveyed by aria-checked",
-    "owner": "4.B1"
-  },
-  {
-    "text": "OFF",
-    "reason": "Toggle.svg micro-label glyph (doc 08 §1.3 row 4.4/§1.5) — decorative artwork inside aria-hidden track, not translatable copy; switch state is conveyed by aria-checked",
-    "owner": "4.B1"
-  },
-  {
     "text": "—",
+    "files": ["src/screens/settings/SettingsScreen.tsx"],
     "reason": "Punctuation separator between area and section names in settings search-result headings (doc 08 §4 typography; same em-dash convention as product.toml title_template) — not translatable copy",
     "owner": "4.E1"
   },
   {
     "text": "(",
-    "reason": "Punctuation around the numeric dirty-change count in the settings apply bar — the count is data, not copy",
+    "files": [
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+    ],
+    "reason": "Punctuation around the numeric unsaved-change count (settings apply bar + the hotkeys editor's own apply bar) — the count is data, not copy",
     "owner": "4.E1"
   },
   {
     "text": ")",
-    "reason": "Punctuation around the numeric dirty-change count in the settings apply bar — the count is data, not copy",
+    "files": [
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/screens/settings/areas/hotkeys/HotkeysEditor.tsx"
+    ],
+    "reason": "Punctuation around the numeric unsaved-change count (settings apply bar + the hotkeys editor's own apply bar) — the count is data, not copy",
     "owner": "4.E1"
   },
   {
-    "text": "404",
-    "reason": "Solstice v2 404 stage (brief §4.8) — the route-status page number scribbled large on the lost note; decorative aria-hidden numeral (the h1 carries the accessible title), not translatable copy",
-    "owner": "A"
-  },
-  {
     "text": "/",
-    "reason": "Position/duration separator in the Go-to-Time engine-truth hint (wave-8, doc 08 §5) — punctuation between two preformatted times (formatSeekTime output), data not copy",
-    "owner": "W18-LL"
-  },
-  {
-    "text": "%",
-    "reason": "Percent unit suffix on the numeric master-volume badge in Effects & Tools (wave-8, issue #33) — the number is engine data (audio.get-volume), the glyph is a unit not copy",
+    "files": [
+      "src/screens/player/dialogs/GotoTimeDialog.tsx",
+      "src/screens/onboarding/OnboardingScreen.tsx"
+    ],
+    "reason": "Position/duration separator in the Go-to-Time engine-truth hint (wave-8, doc 08 §5) and the aria-hidden shortcut-key separator between combo keys on the onboarding shortcuts step — punctuation between preformatted values, data not copy",
     "owner": "W18-LL"
   },
   {
     "text": "00:02:10",
+    "files": ["src/screens/player/customize/CustomizePanels.tsx"],
     "reason": "Player - customize*.svg band timecode (Current Time.svg's exact read, frame-pinned): decorative aria-hidden preview chrome inside the customize edit band — the real control bar renders the live localized timecodes",
     "owner": "w26.i05"
   },
   {
     "text": "00:25:40",
+    "files": ["src/screens/player/customize/CustomizePanels.tsx"],
     "reason": "Player - customize*.svg band timecode (Duration.svg's exact read, frame-pinned): decorative aria-hidden preview chrome inside the customize edit band — the real control bar renders the live localized timecodes",
     "owner": "w26.i05"
   }

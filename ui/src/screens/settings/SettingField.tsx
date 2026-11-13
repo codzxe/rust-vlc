@@ -1,29 +1,18 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Dropdown } from "../../components/menu/Dropdown";
 import { Icon } from "../../components/icon/Icon";
 import { NumberField } from "../../components/form/NumberField";
 import { Switch } from "../../components/form/Switch";
 import { TextField } from "../../components/form/TextField";
-import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
-import { keys as laneKeys } from "../../i18n/keys/w26.b01";
-import { keys as registryKeys } from "../../i18n/keys/w26.b02";
-import { keys as f02Keys } from "../../i18n/keys/w26.f02";
-import { keys as fixerKeys } from "../../i18n/keys/w26.gfixB";
-// w26.i13 (h08 #3): the global/interface/privacy rows' ⓘ hint copy — same
-// pre-registration seam as the four catalogs below (added here, not in the
-// area files, because the hint prop resolves inside this component).
-import { keys as i13Keys } from "../../i18n/keys/w26.i13";
-// w26.i14 (h09 defect #1, ship-blocker): the video Aspect-ratio / Crop enum
-// msgids (10 unregistered ratio labels) — resolved from the lane file until
-// the Lead registers them post-wave; identical output either way.
-import { keys as i14Keys } from "../../i18n/keys/w26.i14";
-import type { SettingEntry } from "./generated/schema";
-import { SPECIAL_FIELD_WIDGETS } from "./areas";
+import { SPECIAL_FIELD_WIDGETS } from "./specialWidgets";
 import { WIDGET_GROUPED_KEYS } from "./SettingWidgets";
 import { isSliderFieldKey, isValuesFieldKey } from "./SettingWidgets";
 import { useSettings } from "./SettingsProvider";
+import { useSettingsMsg } from "./settingsMsg";
+import type { SettingsMsgKey } from "./settingsMsg";
+import type { SettingEntry } from "./generated/schema";
 import "./setting-field.css";
 
 // SettingField — one schema entry as a settings ROW (W26 Figma grammar,
@@ -45,10 +34,17 @@ import "./setting-field.css";
 // setting-field.css, scoped to .settings-field__control so the shared form
 // primitives keep their onboarding grammar everywhere else (e06 F7, e08 F10).
 // Every option is bound to a REAL schema key; gated-but-unexposed features
-// render nothing (hidden + inert, doc 05 §6.4). The areas layer's special
-// widgets (SPECIAL_FIELD_WIDGETS) replace the control inside the same row.
-// Advanced entries are segregated behind the in-flow "Advanced Options"
-// disclosure (SettingsSections); the restart badge stays (behavior contract).
+// render nothing (hidden + inert, doc 05 §6.4). The special widgets
+// (SPECIAL_FIELD_WIDGETS, the w26.k12 leaf registry) replace the control
+// inside the same row. Advanced entries are segregated behind the in-flow
+// "Advanced Options" disclosure (SettingsSections); the restart badge stays
+// (behavior contract).
+//
+// w26.k12 (j12 P3-10): the duration/float wells hold the RAW text while
+// typing — the per-keystroke clamp+reformat rewrote mid-entry (a min above
+// the first digit typed, "3 " → "3 s" under the cursor). A complete parse
+// still commits immediately (clamped at commit, invisible in the well);
+// blur snaps the well back to the formatted store value.
 //
 // ⓘ hint affordance (§D2 "optional ⓘ r7.5 #404040 sw1.125 after the label",
 // e06 F11): rendered ONLY where a hint text exists — the `hint` prop first,
@@ -63,34 +59,20 @@ import "./setting-field.css";
 
 const labelOf = (entry: SettingEntry): MessageKey => entry.description as MessageKey;
 
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
-type F02Key = keyof typeof f02Keys;
-type FixerKey = keyof typeof fixerKeys;
-type I13Key = keyof typeof i13Keys;
-type I14Key = keyof typeof i14Keys;
-/** Pre-registration seam: b01 + b02 (registry/seed) + f02 + gfixB + i13 + i14
- * lane keys — identical output once the Lead registers them post-wave (b19). */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...laneKeys,
-  ...f02Keys,
-  ...fixerKeys,
-  ...i13Keys,
-  ...i14Keys,
-};
-
-/** useFieldMsg — useMsg + the settings lanes' pre-registration keys. */
-function useFieldMsg() {
-  const m = useMsg();
-  return (key: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey | I13Key | I14Key): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
+/** The ⓘ glyph's accessible-name msgid (shared by SettingField + areas). */
+const INFO_LABEL_KEY = "settings.field.more-info" as const;
 
 function numberStep(entry: SettingEntry): number {
   if (entry.type === "float") return 0.05;
   if (entry.type === "duration-ms") return 50;
   return 1;
+}
+
+/** Clamp a parsed numeric commit into the entry's schema range. */
+function clampToSchema(entry: SettingEntry, next: number): number {
+  const min = entry.min ?? -Infinity;
+  const max = entry.max ?? Infinity;
+  return Math.min(max, Math.max(min, next));
 }
 
 /**
@@ -116,9 +98,6 @@ const parseDurationMs = (key: string, text: string): number | null => {
 const formatFloatValue = (value: number): string =>
   Number.isInteger(value) ? value.toFixed(1) : String(value);
 
-/** The ⓘ glyph's accessible-name msgid (shared by SettingField + areas). */
-const INFO_LABEL_KEY = "settings.field.more-info" as const;
-
 /**
  * SettingInfoDot — the frame's ⓘ row affordance as ONE reusable grammar
  * (w26.i12; Settings - *.svg "Ellipse 9" family: r7.5 circle stroke #404040
@@ -131,12 +110,23 @@ const INFO_LABEL_KEY = "settings.field.more-info" as const;
  * `onToggle` wire the reveal caption (`.settings-field__hinttext`) the way
  * SettingField does. The areas' hand rows (i13/i14/i15) import this instead
  * of local copies (the effects-area InfoDot divergence, h10 #3).
+ *
+ * w26.k12 (j12 P2-3): the note is SR-perceivable — k02's Tooltip pattern
+ * (aria-describedby rides on the FOCUSABLE trigger, never on a wrapper).
+ * `aria-label` used to win over `title={note}` in the name computation, so
+ * the note was never announced; the accessible NAME stays the label
+ * ("More info") and the note text now rides as the accessible DESCRIPTION
+ * through a visually hidden twin rendered next to the button — SRs announce
+ * it on focus, no visual toggle needed. Sighted users keep the title
+ * tooltip; `controlsId` additionally ties the button to the reveal caption
+ * (aria-controls) when one exists.
  */
 export function SettingInfoDot({
   note,
   label,
   expanded,
   onToggle,
+  controlsId,
 }: {
   /** Hint / staged-reason text — the tooltip (and revealed caption when toggled). */
   note: string;
@@ -145,18 +135,29 @@ export function SettingInfoDot({
   /** Reveal state (aria-expanded) — omit for a tooltip-only affordance. */
   expanded?: boolean;
   onToggle?: () => void;
+  /** id of the caption this dot's button controls (aria-controls) — pass the same id to the caption element. */
+  controlsId?: string;
 }): ReactElement {
+  const noteId = useId();
   return (
-    <button
-      type="button"
-      className="settings-field__info"
-      aria-expanded={expanded}
-      aria-label={label}
-      title={note}
-      onClick={onToggle}
-    >
-      <Icon name="info" size={18} />
-    </button>
+    <>
+      <button
+        type="button"
+        className="settings-field__info"
+        aria-expanded={expanded}
+        aria-controls={controlsId}
+        aria-label={label}
+        aria-describedby={noteId}
+        title={note}
+        onClick={onToggle}
+      >
+        <Icon name="info" size={18} />
+      </button>
+      {/* The SR description twin (visually hidden, .settings-vh clip). */}
+      <span id={noteId} className="settings-vh">
+        {note}
+      </span>
+    </>
   );
 }
 
@@ -167,14 +168,19 @@ export interface SettingFieldProps {
    * the row label. `undefined` (today's seed carries no hint text) renders
    * no ⓘ — honest absence, never a fabricated description.
    */
-  hint?: MessageKey | LaneKey | RegistryKey | F02Key | FixerKey | I13Key;
+  hint?: SettingsMsgKey;
 }
 
 /** SettingField — one schema entry as a labeled, dirty-tracked control row. */
 export function SettingField({ entry, hint }: SettingFieldProps) {
-  const m = useFieldMsg();
+  const m = useSettingsMsg();
   const { value, setValue, isDirty, resetField, restartPending } = useSettings();
   const [hintOpen, setHintOpen] = useState(false);
+  // w26.k12 (j12 P3-10): raw text held while the user types in the
+  // duration/float wells; null = render the formatted store value. See the
+  // onChange handlers below — commits fire on complete parses, the clamp
+  // applies at commit, and onBlur snaps back to the formatted value.
+  const [draft, setDraft] = useState<string | null>(null);
   // Feature not exposed in product.toml [features] → hidden + inert (F1/F2).
   if (!entry.featureExposed) return null;
   // Compound-widget keys (g12-P1-4): rendered INSIDE another key's special
@@ -188,6 +194,9 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
   const hintKey = hint ?? (seedHint as MessageKey | undefined);
   const hintText = hintKey !== undefined ? m(hintKey) : undefined;
   const hasHint = typeof hintText === "string" && hintText !== "";
+  // The reveal caption's id — deterministic per row key, shared by the
+  // button's aria-controls and the caption element (w26.k12, j12 P2-3).
+  const hintCaptionId = `${entry.key}-hinttext`;
 
   const current = value(entry.key);
   const restartBadge =
@@ -229,8 +238,7 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         label={rowLabel}
         options={entry.enumeration.map((o) => ({
           value: o.value,
-          labelKey:
-            m(o.msgid as MessageKey | LaneKey | RegistryKey | F02Key | FixerKey) || o.value,
+          labelKey: m(o.msgid as SettingsMsgKey) || o.value,
         }))}
         value={String(current)}
         onChange={(next) => setValue(entry.key, next)}
@@ -248,15 +256,15 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         label={rowLabel}
         hideLabel
         inputMode="numeric"
-        value={formatDurationMs(entry.key, numeric)}
+        value={draft ?? formatDurationMs(entry.key, numeric)}
         onChange={(e) => {
+          setDraft(e.target.value);
           const next = parseDurationMs(entry.key, e.target.value);
           if (next !== null) {
-            const min = entry.min ?? -Infinity;
-            const max = entry.max ?? Infinity;
-            setValue(entry.key, Math.min(max, Math.max(min, next)));
+            setValue(entry.key, clampToSchema(entry, next));
           }
         }}
+        onBlur={() => setDraft(null)}
       />
     );
   } else if (entry.type === "float") {
@@ -272,15 +280,15 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         label={rowLabel}
         hideLabel
         inputMode="decimal"
-        value={formatFloatValue(numeric)}
+        value={draft ?? formatFloatValue(numeric)}
         onChange={(e) => {
+          setDraft(e.target.value);
           const next = Number(e.target.value);
           if (Number.isFinite(next) && e.target.value.trim() !== "") {
-            const min = entry.min ?? -Infinity;
-            const max = entry.max ?? Infinity;
-            setValue(entry.key, Math.min(max, Math.max(min, next)));
+            setValue(entry.key, clampToSchema(entry, next));
           }
         }}
+        onBlur={() => setDraft(null)}
       />
     );
   } else if (entry.type === "int") {
@@ -392,6 +400,7 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
               label={m(INFO_LABEL_KEY)}
               expanded={hintOpen}
               onToggle={() => setHintOpen((open) => !open)}
+              controlsId={hintCaptionId}
             />
           ) : null}
           {restartBadge ? (
@@ -412,8 +421,14 @@ export function SettingField({ entry, hint }: SettingFieldProps) {
         <div className="settings-field__control">{control}</div>
       </div>
       {hintOpen && typeof hintText === "string" ? (
-        <p className="settings-field__hinttext">{hintText}</p>
+        /* w26.k12 (j12 P2-3): the reveal caption is aria-associated — the
+         * button's aria-controls points here and role="note" makes the
+         * announcement explicit for ATs that surface note semantics. */
+        <p id={hintCaptionId} role="note" className="settings-field__hinttext">
+          {hintText}
+        </p>
       ) : null}
     </div>
   );
 }
+

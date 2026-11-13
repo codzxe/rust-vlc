@@ -111,7 +111,12 @@ function hydrate(): ProfilesState {
 
 // --- external store (no provider; the flyout host reads it reactively) ---
 
-let persistence: ProfilesPersistence = localStorageProfilesPersistence;
+/* w26.k02 (j02 J02-11): hydrate() runs at MODULE IMPORT and used to touch
+ * window.localStorage unguarded (unlike Dropdown.tsx's typeof-window seam) —
+ * any non-DOM import of this module (SSR/node) crashed at import time. In a
+ * windowless environment the store rides the memory seam + seed. */
+let persistence: ProfilesPersistence =
+  typeof window === "undefined" ? memoryProfilesPersistence : localStorageProfilesPersistence;
 let state: ProfilesState = hydrate();
 const listeners = new Set<() => void>();
 

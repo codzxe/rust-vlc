@@ -17,8 +17,10 @@
 // menu. Every dispatch assertion is the same command + args as before; the
 // two-timecode anatomy (e02 F6) gets its own pin below.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it } from "vitest";
 import { ClientProvider } from "../../../client/ClientProvider";
+import { secondsToUs } from "../../../client/wire-time";
 import { MockTransport } from "../../../client/transport";
 import type {
   CommandRequest,
@@ -27,8 +29,14 @@ import type {
   PlaybackState,
   TrackInfo,
 } from "../../../client/transport";
+import {
+  getProfilesState,
+  memoryProfilesPersistence,
+  resetProfilesForTests,
+} from "../../../components/menu/ProfilesFlyout";
 import { PlayerControlsProvider } from "../context";
 import { PlaylistProvider } from "../../playlist";
+import type { PlaylistEntry } from "../../playlist";
 import { PlayerScreen } from "../PlayerScreen";
 import { ControlBar } from "./ControlBar";
 
@@ -90,7 +98,10 @@ const snapshotResult = (
     snapshot: {
       audioDelayMs: 0,
       devices: [],
-      duration: { kind: "known", time: extra.durationTime ?? 100 },
+      // w26.k17 unit correction: StateSnapshot.time / duration are µs
+      // Timestamps on the wire — the helper takes SECONDS (call sites
+      // unchanged) and crosses at the edge.
+      duration: { kind: "known", time: secondsToUs(extra.durationTime ?? 100) },
       muted: extra.muted ?? false,
       playlist: extra.playlist ?? {},
       rate: 1,
@@ -98,7 +109,7 @@ const snapshotResult = (
       state,
       subtitle: {},
       subtitleDelayMs: 0,
-      time: extra.time ?? 0,
+      time: secondsToUs(extra.time ?? 0),
       tracks: extra.tracks ?? [],
       videoDelayMs: 0,
       volume: extra.volume ?? 0.5,
@@ -112,6 +123,23 @@ function renderBar(transport: FakeTransport | MockTransport) {
   return render(
     <ClientProvider transport={transport}>
       <PlaylistProvider>
+        <PlayerControlsProvider>
+          <ControlBar />
+        </PlayerControlsProvider>
+      </PlaylistProvider>
+    </ClientProvider>,
+  );
+}
+
+/** renderBar + a seeded queue (PlaylistProvider's fixture seam — the queue
+ * meta's total branch needs entries with known durations). */
+function renderBarWithQueue(
+  transport: FakeTransport | MockTransport,
+  initialEntries: readonly PlaylistEntry[],
+) {
+  return render(
+    <ClientProvider transport={transport}>
+      <PlaylistProvider initialEntries={initialEntries}>
         <PlayerControlsProvider>
           <ControlBar />
         </PlayerControlsProvider>
@@ -238,9 +266,11 @@ describe("seekbar cluster — accepted vs completed (doc 08 §5.2)", () => {
         return {
           completed: {
             kind: "current-time",
-            position: 10,
-            time: 10,
-            buffered: [{ start: 0, end: 50 }],
+            // w26.k17 units: position = the 0..1 fraction, time = the µs
+            // twin (10 s of media), buffered TimeRanges in µs (0..50 s).
+            position: 0.1,
+            time: 10_000_000,
+            buffered: [{ start: 0, end: 50_000_000 }],
           },
         };
       }
@@ -260,7 +290,9 @@ describe("seekbar cluster — accepted vs completed (doc 08 §5.2)", () => {
     fireEvent.keyDown(seekbar, { key: "End" });
     const seek = fake.sent.find((r) => r.cmd === "playback.seek");
     expect(seek).toBeDefined();
-    expect(seek?.args).toEqual({ target: { kind: "absolute", time: 100 } });
+    // w26.k17: the wire target is µs — End on a 100 s media seeks
+    // 100 000 000 µs (the seam crossed at the send edge).
+    expect(seek?.args).toEqual({ target: { kind: "absolute", time: 100_000_000 } });
     // Truthful pending: request outstanding until the engine confirms.
     expect(seekbar.getAttribute("data-pending")).toBe("true");
   });
@@ -273,7 +305,8 @@ describe("seekbar cluster — accepted vs completed (doc 08 §5.2)", () => {
     fireEvent.keyDown(seekbar, { key: "End" });
     expect(seekbar.getAttribute("data-pending")).toBe("true");
     act(() => {
-      fake.emit({ kind: "timing.seek-completed", position: 100, seekKind: "command", seq: 3 });
+      // w26.k17: seek-completed.position is a µs Timestamp (100 s).
+      fake.emit({ kind: "timing.seek-completed", position: 100_000_000, seekKind: "command", seq: 3 });
     });
     expect(seekbar.getAttribute("data-pending")).toBeNull();
     expect(seekbar.getAttribute("aria-valuenow")).toBe("100");
@@ -287,7 +320,9 @@ describe("seekbar cluster — accepted vs completed (doc 08 §5.2)", () => {
     fireEvent.keyDown(seekbar, { key: "End" });
     expect(seekbar.getAttribute("data-pending")).toBe("true");
     act(() => {
-      fake.emit({ kind: "timing.time-tick", position: 100, time: 100, seq: 4 });
+      // w26.k17: the µs twin carries the 100 s truth; `position` is the
+      // 0..1 fraction (100 s of a 100 s media = 1.0).
+      fake.emit({ kind: "timing.time-tick", position: 1, time: 100_000_000, seq: 4 });
     });
     expect(seekbar.getAttribute("data-pending")).toBeNull();
   });
@@ -952,5 +987,212 @@ describe("right cluster — Controls.svg Frame 23 (w26.gfix-C, g04 P1-6) + the f
     fireEvent.keyDown(panel, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+// ------------------------------------------------- w26.k07 (j07 close-out) ---
+
+describe("w26.k07 P1 regression — the dead lane-seam resolvers are gone, every label resolves through the registered catalog", () => {
+  it("app menu: all 12 frame rows render real labels (an unregistered key would render empty)", () => {
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    const labels = [...menu.querySelectorAll<HTMLElement>(".lumen-menu__label")].map(
+      (label) => label.textContent,
+    );
+    // All 12 rows carry non-empty resolved copy — useMsg returns undefined
+    // for an unregistered key, which the frame-label list here would catch.
+    expect(labels).toHaveLength(12);
+    for (const label of labels) expect(label).toBeTruthy();
+  });
+
+  it("the formerly seam-resolved surfaces resolve: timecodes, right-cluster triggers, panel tabs", () => {
+    renderBar(new FakeTransport());
+    // gfixC keys: the two timecode names + the three panel triggers.
+    expect(screen.getByRole("button", { name: /Current time/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Total duration/ })).toBeInTheDocument();
+    for (const name of ["Audio tracks", "Subtitle tracks", "Queue"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    // i03 keys: the queue panel's tab header (Queue · Bookmarks · Chapters)
+    // + the track panels' Subtitles tab.
+    click(screen.getByRole("button", { name: "Queue" }));
+    const queue = screen.getByRole("dialog", { name: "Queue" });
+    expect(within(queue).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Queue",
+      "Bookmarks",
+      "Chapters",
+    ]);
+    click(screen.getByRole("button", { name: "Audio tracks" }));
+    const audio = screen.getByRole("dialog", { name: "Audio tracks" });
+    expect(within(audio).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Video",
+      "Audio",
+      "Subtitles",
+    ]);
+  });
+});
+
+describe("w26.k07 P2-2 — panel radio rows are one ARIA radiogroup (roving tabindex + arrow keys)", () => {
+  it("track rows: group named by the section, engine selection is the Tab stop, arrows select + focus", async () => {
+    const fake = new FakeTransport();
+    fake.respond = () =>
+      snapshotResult("playing", {
+        tracks: [
+          track(1, "audio", "English 5.1", "en"),
+          track(2, "audio", "Commentaire", "fr", true),
+          track(3, "audio", "Español", "es"),
+        ],
+        selections: { audio: 2 },
+      });
+    renderBar(fake);
+    await flush();
+    click(screen.getByRole("button", { name: "Audio tracks" }));
+    const panel = screen.getByRole("dialog", { name: "Audio tracks" });
+    const group = within(panel).getByRole("radiogroup", { name: "Embedded Tracks" });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios).toHaveLength(5); // auto + disable + 3 tracks
+    // Roving tabindex: the engine-reported selection is the group's Tab stop.
+    expect(within(group).getByRole("radio", { name: "Commentaire" })).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
+    for (const name of ["Automatic", "Disabled", "English 5.1", "Español"]) {
+      expect(within(group).getByRole("radio", { name })).toHaveAttribute("tabindex", "-1");
+    }
+    // ArrowRight from the checked row: selection follows focus — the next row
+    // dispatches its real selector AND takes focus; the CHECK itself stays
+    // engine-truth (never optimistic).
+    const checked = within(group).getByRole("radio", { name: "Commentaire" });
+    checked.focus();
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(within(group).getByRole("radio", { name: "Español" })).toHaveFocus();
+    const select = fake.sent.find((r) => r.cmd === "tracks.set-audio-track");
+    expect(select?.args).toEqual({ selector: { kind: "id", id: 3 } });
+    expect(
+      within(group).getByRole("radio", { name: "Commentaire" }).getAttribute("aria-checked"),
+    ).toBe("true");
+    // ArrowLeft skips back over the ring one row (Español → Commentaire).
+    fireEvent.keyDown(group, { key: "ArrowLeft" });
+    expect(within(group).getByRole("radio", { name: "Commentaire" })).toHaveFocus();
+  });
+
+  it("queue rows: the queue is one radiogroup named by its tab; arrow select plays the entry", () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing");
+    renderBarWithQueue(fake, [
+      { id: 7, title: "The Wand S01E11", source: null, durationSeconds: 3600 },
+      { id: 8, title: "Trailer", source: null, durationSeconds: 1800 },
+    ]);
+    click(screen.getByRole("button", { name: "Queue" }));
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    const group = within(panel).getByRole("radiogroup", { name: "Queue" });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    // Nothing current → the first row is the Tab stop.
+    expect(radios[0]).toHaveAttribute("tabindex", "0");
+    radios[0]?.focus();
+    fireEvent.keyDown(group, { key: "ArrowDown" });
+    expect(radios[1]).toHaveFocus();
+    const play = fake.sent.find((r) => r.cmd === "playlist.play-item");
+    expect(play?.args).toEqual({ id: 8 });
+  });
+});
+
+describe("w26.k07 P2-4 — the queue meta composition is localizable (i18n keys, not hardcoded unit grammar)", () => {
+  it("known total composes '2 items - 1h 30m' through the queue-meta keys", () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing");
+    renderBarWithQueue(fake, [
+      { id: 7, title: "The Wand S01E11", source: null, durationSeconds: 3600 },
+      { id: 8, title: "Trailer", source: null, durationSeconds: 1800 },
+    ]);
+    click(screen.getByRole("button", { name: "Queue" }));
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    // en-US frame copy composes identically to the pre-k07 hardcoded string;
+    // the unit grammar/join/order now ride player.controls.queue-meta-total.
+    expect(within(panel).getByText("2 items - 1h 30m")).toBeInTheDocument();
+  });
+
+  it("partial durations stay count-only (a partial total would read as the whole truth)", () => {
+    const fake = new FakeTransport();
+    fake.respond = () => snapshotResult("playing");
+    renderBarWithQueue(fake, [
+      { id: 7, title: "The Wand S01E11", source: null, durationSeconds: 3600 },
+      { id: 8, title: "Live", source: null, durationSeconds: null },
+    ]);
+    click(screen.getByRole("button", { name: "Queue" }));
+    const panel = screen.getByRole("dialog", { name: "Queue" });
+    expect(within(panel).getByText("2 items")).toBeInTheDocument();
+    expect(within(panel).queryByText(/1h/)).toBeNull();
+  });
+});
+
+describe("w26.k07 P3-8 — profile flyout click-through (select persists, '+ New' quick-creates)", () => {
+  // The profile store is module-global: pin it to the in-memory seam for
+  // determinism, restore the default seam after each test.
+  afterEach(() => {
+    resetProfilesForTests();
+  });
+
+  it("select persists the store's selectedId; '+ New' creates and selects 'Profile 5'", () => {
+    resetProfilesForTests(memoryProfilesPersistence);
+    renderBar(new FakeTransport());
+    const menu = openAppMenu();
+    click(within(menu).getByRole("menuitem", { name: "Profile" }));
+    const submenu = screen.getByRole("menu", { name: "Profile" });
+    // Seed truth: Movies is the selected row (the resting selected face).
+    expect(within(submenu).getByRole("menuitem", { name: "Movies" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    // Select through the app-menu mount — persists (the menu closes on
+    // activation; MenuPopup's onDismissAll).
+    click(within(submenu).getByRole("menuitem", { name: "Music" }));
+    expect(getProfilesState().selectedId).toBe("music");
+    const menu2 = openAppMenu();
+    click(within(menu2).getByRole("menuitem", { name: "Profile" }));
+    const submenu2 = screen.getByRole("menu", { name: "Profile" });
+    expect(within(submenu2).getByRole("menuitem", { name: "Music" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    // Quick-create: 4 seeded rows → "Profile 5", created + selected.
+    click(within(submenu2).getByRole("menuitem", { name: "New" }));
+    expect(getProfilesState().profiles.map((profile) => profile.name)).toContain("Profile 5");
+    expect(getProfilesState().selectedId).not.toBe("music");
+  });
+});
+
+// The w26.k07 CSS-rule guards (the variants.test cssRule pattern, anchored
+// so prefixed selectors cannot shadow each other): j07's untested-fix and
+// specificity-escalation findings pinned so the next refactor cannot
+// silently drop them back to the pre-fix state.
+describe("w26.k07 pins — controls.css regression guards (j07 P3-9/P3-10)", () => {
+  const { dirname } = import.meta as ImportMeta & { dirname?: string };
+  const controlsCss = readFileSync(`${dirname}/controls.css`, "utf8");
+
+  const rule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return controlsCss.match(new RegExp(`\\n${escaped}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+  };
+
+  it("the e18-F1 900px seek floor stays: the seek row never compresses below max-content", () => {
+    // The fix (controls.css, e18 F1): min-width: max-content floors the row
+    // at position-timecode + gap + the 48px scrub floor — below that the row
+    // overflows as a whole instead of printing timecode on timecode.
+    const seek = rule(".lumen-controls__seek");
+    expect(seek).toContain("flex: 1 1 48px");
+    expect(seek).toContain("min-width: max-content");
+  });
+
+  it("the play-pill ink pin is ONE consolidated block, not a three-block arms race", () => {
+    // The consolidated (0,4,0)/(0,5,0) custom-property pin…
+    const pin = rule(":root .lumen-player .lumen-controls .lumen-controls__play");
+    expect(pin).toContain("--color-stroke-icon: var(--color-content-on-accent)");
+    // …and the pre-k07 un-prefixed (0,3,0) svg pin is gone (consolidated up).
+    const legacy = controlsCss.match(
+      /\n\.lumen-controls \.lumen-controls__play:hover \.lumen-icon[^{]*\{/,
+    );
+    expect(legacy).toBeNull();
   });
 });

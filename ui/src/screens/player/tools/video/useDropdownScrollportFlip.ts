@@ -31,17 +31,29 @@
 //      internally instead of clipping (the w26.g17 long-list grammar).
 //
 // While an escape is active the fixed list follows the trigger on scroll /
-// resize (the body scrolling under an open dropdown moves the trigger; the
-// list re-glues instead of detaching). DOM-written, not React state:
-// measured positioning is imperative by nature and the markers/coordinates
-// are purely presentational.
+// resize — and w26.k11 (j11 P3-1) re-runs the FULL placement decision, not
+// just the coordinate glue: if the body scrolling under an open list lets it
+// fit a clip side again, the list reverts to the shared in-flow flip instead
+// of staying stuck in escape mode. DOM-written, not React state: measured
+// positioning is imperative by nature and the markers/coordinates are
+// purely presentational.
+//
+// w26.k11 (j11 P3-1): the DOM half is a jsdom-testable seam — `applyPlacement`
+// / `clearPlacement` below take an explicit decision + elements, so the
+// escape/cap/clear writes are unit-pinned (a selector rename or clear-order
+// bug now fails tests instead of passing silently).
 //
 // ROOT-FIX NOTE for i16/Lead (also in docs/waves/w26/logs/w26.i08.md): the
 // escape belongs in the shared primitive eventually — a `Dropdown` that
 // knows about scrollports should also fall back to the viewport when
 // neither side of the clip box fits (portal or fixed), so every
 // dialog-hosted dropdown gets it; this hook is the scoped stopgap that
-// closes h15's HDR NO this wave.
+// closes h15's HDR NO this wave. DELETE THIS MODULE when the primitive
+// gains the escape. (Known wrinkle kept for that consolidation:
+// `clipBoxAround` intersects EVERY clipping ancestor while the primitive's
+// `clippingBounds` takes the nearest only — two algorithms that can
+// disagree; unifying them means editing Dropdown.tsx, which is the menu
+// lane's file, not this lane's.)
 
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
@@ -152,10 +164,58 @@ function clipBoxAround(el: HTMLElement): PlacementBox {
   return box;
 }
 
-/** Escape coordinates the hook re-glues on scroll/resize (mode is sticky). */
-interface EscapeState {
-  side: "below" | "above";
-  listHeight: number;
+/**
+ * Removes every placement marker/style this module writes (w26.k11, j11
+ * P3-1: exported so jsdom can pin the clear path) — restores the shared
+ * Dropdown's own in-flow default.
+ */
+export function clearPlacement(root: HTMLElement, dropdown: HTMLElement): void {
+  root.removeAttribute("data-list-direction");
+  root.removeAttribute("data-list-escape");
+  root.style.removeProperty("--video-dropdown-cap");
+  const list = dropdown.querySelector<HTMLElement>(".lumen-dropdown__list");
+  if (list !== null) {
+    for (const property of ["position", "top", "bottom", "left", "width"] as const) {
+      list.style.removeProperty(property);
+    }
+  }
+}
+
+/**
+ * Applies one placement decision to the DOM (w26.k11, j11 P3-1: the hook's
+ * DOM half, extracted so jsdom can pin the writes without layout):
+ *   • `inflow` — nothing (the shared Dropdown's own data-direction rules own
+ *     the placement; no double ownership);
+ *   • `escape` — `data-list-escape` marker on the wrapper + computed inline
+ *     `position: fixed` coordinates on the list (escapes every overflow clip
+ *     while staying a DOM child — outside-click/Escape/typeahead intact);
+ *   • `capped` — `data-list-direction` pins the roomier side and
+ *     `--video-dropdown-cap` caps the list so it scrolls internally
+ *     (the w26.g17 long-list grammar; video.css owns the rules).
+ */
+export function applyPlacement(
+  root: HTMLElement,
+  dropdown: HTMLElement,
+  placement: ListPlacement,
+): void {
+  clearPlacement(root, dropdown);
+  if (placement.mode === "inflow") return;
+  const list = dropdown.querySelector<HTMLElement>(".lumen-dropdown__list");
+  if (list === null) return;
+  if (placement.mode === "escape") {
+    root.setAttribute("data-list-escape", placement.side);
+    // Computed/dynamic coordinates — inline styles by contract §6.
+    // `bottom: auto` is explicit: menu.css's data-direction="up" rule
+    // would otherwise stretch a fixed box pinned by both insets.
+    list.style.position = "fixed";
+    list.style.top = `${placement.top}px`;
+    list.style.bottom = "auto";
+    list.style.left = `${placement.left}px`;
+    list.style.width = `${placement.width}px`;
+    return;
+  }
+  root.setAttribute("data-list-direction", placement.side === "below" ? "down" : "up");
+  root.style.setProperty("--video-dropdown-cap", `${placement.cap}px`);
 }
 
 /**
@@ -171,95 +231,46 @@ export function useDropdownScrollportFlip<T extends HTMLElement>(): RefObject<T 
   useEffect(() => {
     const root = ref.current;
     if (root === null || typeof MutationObserver === "undefined") return;
-    const dropdown = root.querySelector(".lumen-dropdown");
+    const dropdown = root.querySelector<HTMLElement>(".lumen-dropdown");
     if (dropdown === null) return;
 
-    let escape: EscapeState | null = null;
-    let reposition: (() => void) | null = null;
-
-    const clear = (): void => {
-      root.removeAttribute("data-list-direction");
-      root.removeAttribute("data-list-escape");
-      root.style.removeProperty("--video-dropdown-cap");
-      const list = dropdown.querySelector<HTMLElement>(".lumen-dropdown__list");
-      if (list !== null) {
-        for (const property of ["position", "top", "bottom", "left", "width"] as const) {
-          list.style.removeProperty(property);
-        }
-      }
-    };
-
-    const apply = (): void => {
+    const measure = (): void => {
       const trigger = dropdown.querySelector<HTMLElement>(".lumen-dropdown__trigger");
       const list = dropdown.querySelector<HTMLElement>(".lumen-dropdown__list");
       if (trigger === null || list === null) {
-        escape = null;
-        reposition = null;
-        clear();
+        clearPlacement(root, dropdown);
         return;
       }
       const rect = trigger.getBoundingClientRect();
       const listHeight = list.getBoundingClientRect().height;
       if (rect.height <= 0 || listHeight <= 0) {
         // jsdom / pre-layout: nothing to decide — the shared default holds.
-        escape = null;
-        reposition = null;
-        clear();
+        clearPlacement(root, dropdown);
         return;
       }
 
-      const placement = resolveListPlacement({
-        trigger: { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
-        clip: clipBoxAround(trigger),
-        listHeight,
-        viewportHeight: window.innerHeight,
-      });
-
-      clear();
-      if (placement.mode === "inflow") {
-        escape = null;
-        reposition = null;
-        return;
-      }
-      if (placement.mode === "escape") {
-        escape = { side: placement.side, listHeight };
-        root.setAttribute("data-list-escape", placement.side);
-        // Computed/dynamic coordinates — inline styles by contract §6.
-        // `bottom: auto` is explicit: menu.css's data-direction="up" rule
-        // would otherwise stretch a fixed box pinned by both insets.
-        list.style.position = "fixed";
-        list.style.top = `${placement.top}px`;
-        list.style.bottom = "auto";
-        list.style.left = `${placement.left}px`;
-        list.style.width = `${placement.width}px`;
-        reposition = (): void => {
-          const current = trigger.getBoundingClientRect();
-          list.style.top = `${
-            placement.side === "below"
-              ? current.bottom + LIST_GAP
-              : current.top - LIST_GAP - escape!.listHeight
-          }px`;
-          list.style.left = `${current.left}px`;
-          list.style.width = `${current.width}px`;
-        };
-        return;
-      }
-      // Last resort: capped internal scroll on the roomier side (the
-      // video.css data-list-direction rules pin the side + the cap var).
-      escape = null;
-      reposition = null;
-      root.setAttribute("data-list-direction", placement.side === "below" ? "down" : "up");
-      root.style.setProperty("--video-dropdown-cap", `${placement.cap}px`);
+      applyPlacement(
+        root,
+        dropdown,
+        resolveListPlacement({
+          trigger: { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
+          clip: clipBoxAround(trigger),
+          listHeight,
+          viewportHeight: window.innerHeight,
+        }),
+      );
     };
 
     // The shared Dropdown renders its list only while open — watch for it.
-    const observer = new MutationObserver(apply);
+    const observer = new MutationObserver(measure);
     observer.observe(dropdown, { childList: true });
 
-    // While escaped, the fixed list follows the trigger (scroll under an
-    // open dropdown moves the trigger; the list re-glues, never detaches).
+    // While escaped, the fixed list follows the trigger — and the FULL
+    // decision re-runs (w26.k11, j11 P3-1): geometry that lets the list fit
+    // a clip side again reverts it to the shared in-flow flip, so an escape
+    // is no longer sticky for the whole open.
     const onScrollOrResize = (): void => {
-      if (reposition !== null) reposition();
+      measure();
     };
     window.addEventListener("resize", onScrollOrResize, { passive: true });
     const scroller = (() => {

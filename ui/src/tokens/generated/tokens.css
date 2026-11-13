@@ -21,7 +21,7 @@
  *
  * Modes (2): dark (default), light.
  * Accents (9): orange (default), red, yellow, green, cyan, blue, violet, pink, gray.
- * Tokens: 122 primitive / 84 alias / 84 semantic (source:
+ * Tokens: 123 primitive / 86 alias / 86 semantic (source:
  * themes/tokens.json).
  */
 
@@ -58,6 +58,7 @@
   --color-surface-hover: #262626;
   --color-surface-muted: #151515;
   --color-surface-panel: #191919;
+  --color-surface-panel-raised: #191919;
   --color-surface-raised: #222222;
   --color-surface-selected: #1f1f1f;
   --font-family-sans: "Inter", "-apple-system", "Segoe UI", "Roboto", sans-serif;
@@ -67,6 +68,7 @@
   --font-size-display: 32px;
   --font-size-label: 15px;
   --font-size-micro: 6px;
+  --font-size-scale-label: 12px;
   --font-size-section: 15px;
   --font-size-sidebar: 13px;
   --font-size-time: 15px;
@@ -132,6 +134,7 @@
   --color-surface-hover: #b4b4b4;
   --color-surface-muted: #c9c9c9;
   --color-surface-panel: #c6c6c6;
+  --color-surface-panel-raised: #dedede;
   --color-surface-raised: #dedede;
   --color-surface-selected: #aeaeae;
   --opacity-chrome: 0.75;

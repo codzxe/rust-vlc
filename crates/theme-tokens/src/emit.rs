@@ -417,13 +417,20 @@ struct Const {
 
 fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     validate_mode_pair(tokens)?;
-    let mut consts: Vec<Const> = Vec::new();
+    // Semantic and ramp constants are collected in SEPARATE vectors (j18 F2):
+    // the previous single vector split them by `len() - ramps * 7`, but each
+    // ramp emits EIGHT constants, so nine ramp constants leaked into the
+    // "sorted by constant name" semantic section. Splitting at the source
+    // removes the magic count entirely — the section boundary is structural,
+    // not arithmetic.
+    let mut semantic_consts: Vec<Const> = Vec::new();
+    let mut ramp_consts: Vec<Const> = Vec::new();
 
     for token in tokens.semantic() {
         match &token.values {
             ModeValues::Single(value) => {
                 let (ty, expr) = rust_const(value)?;
-                consts.push(Const {
+                semantic_consts.push(Const {
                     name: token.rust_name.clone(),
                     ty,
                     expr,
@@ -432,7 +439,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
             ModeValues::PerMode(pairs) => {
                 for (mode, value) in pairs {
                     let (ty, expr) = rust_const(value)?;
-                    consts.push(Const {
+                    semantic_consts.push(Const {
                         name: format!("{}_{}", token.rust_name, screaming(mode)),
                         ty,
                         expr,
@@ -443,6 +450,8 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     }
     for ramp in tokens.accent_ramps() {
         let id = screaming(&ramp.id);
+        // The eight ramp roles, in emission order. Keep this table in sync
+        // with the role list in `rust_header` (both list the same eight).
         for (suffix, color) in [
             ("PRIMARY", ramp.primary),
             ("STRONG", ramp.strong),
@@ -453,7 +462,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
             ("ICON_LIGHT", ramp.icon_light),
             ("ON_ACCENT", ramp.on_accent),
         ] {
-            consts.push(Const {
+            ramp_consts.push(Const {
                 name: format!("ACCENT_{id}_{suffix}"),
                 ty: "Rgb8",
                 expr: rgb_expr(color),
@@ -463,7 +472,11 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
 
     // Duplicate constant names would silently shadow in the generated
     // module — reject them explicitly.
-    let mut names: Vec<&str> = consts.iter().map(|c| c.name.as_str()).collect();
+    let mut names: Vec<&str> = semantic_consts
+        .iter()
+        .chain(ramp_consts.iter())
+        .map(|c| c.name.as_str())
+        .collect();
     names.sort_unstable();
     for pair in names.windows(2) {
         if pair[0] == pair[1] {
@@ -475,8 +488,7 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     }
     // Semantic constants sorted by name; ramp constants stay in declared
     // accent order (the `data-accent` order matters to consumers).
-    let semantic_count = consts.len() - tokens.accent_ramps().len() * 7;
-    consts[..semantic_count].sort_by(|a, b| a.name.cmp(&b.name));
+    semantic_consts.sort_by(|a, b| a.name.cmp(&b.name));
 
     let mut document = rust_header(tokens);
     document.push_str("use crate::color::{Rgb8, Shadow};\n\n");
@@ -499,13 +511,13 @@ fn rust_document(tokens: &TokenSet) -> Result<String, TokenError> {
     document.push_str(
         "\n// -- semantic tokens (sorted by constant name) -----------------------------\n\n",
     );
-    for c in &consts[..semantic_count] {
+    for c in &semantic_consts {
         document.push_str(&format!("pub const {}: {} = {};\n", c.name, c.ty, c.expr));
     }
     document.push_str(
         "\n// -- accent ramps (declared accent order; doc 08 §3.3) ----------------------\n\n",
     );
-    for c in &consts[semantic_count..] {
+    for c in &ramp_consts {
         document.push_str(&format!("pub const {}: {} = {};\n", c.name, c.ty, c.expr));
     }
     Ok(document)
@@ -647,7 +659,8 @@ fn rust_header(tokens: &TokenSet) -> String {
         ),
         "//! One ramp per accent (doc 08 §3.3): `ACCENT_{ID}_{ROLE}` with".to_owned(),
         "//! roles PRIMARY, STRONG, TINTED_DARK, TINTED_LIGHT, BRIGHT_LIGHT,".to_owned(),
-        "//! ICON_LIGHT, ON_ACCENT.".to_owned(),
+        "//! BRIGHT_DARK, ICON_LIGHT, ON_ACCENT (j18 F2: the list now names".to_owned(),
+        "//! all eight emitted roles).".to_owned(),
         "//!".to_owned(),
         format!(
             "//! Source shape: {} primitive / {} alias / {} semantic tokens.",

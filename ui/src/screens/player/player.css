@@ -592,7 +592,14 @@
  * rail — does the rail go, matching Player-6 exactly. f08 note: own this in
  * AppShell (render the rail hidden when its sidebar is collapsed on /player)
  * when the rail gains its own data hook; until then this rule is the
- * documented composition seam. */
+ * documented composition seam.
+ *
+ * w26.k06 (J06-6) triage: the move into appshell.css needs the APPSHELL
+ * lane's file (k05 / Lead own it — contract §4.2 forbids this lane from
+ * editing it). Handoff logged in docs/waves/w26/logs/w26.k06.md: adopt this
+ * rule into appshell.css keyed on the shell's own data hook, delete it
+ * here. Until then it stays — working, provenance-commented, the only
+ * cross-sheet reach in this file. */
 .app-shell__frame:has(> .app-shell__sidebar[hidden]):has(.lumen-player[data-sidebar="closed"])
   > .app-shell__rail {
   display: none;

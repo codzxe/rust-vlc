@@ -38,11 +38,20 @@ export interface PlaylistOptionsValue {
   setViewMode(mode: PlaylistViewMode): void;
   /** Entries ordered by the current sort (presentation order only). */
   readonly sortedEntries: readonly PlaylistEntry[];
-  /** Engine metadata seam (watched state, artist/album/track/disc, add date).
-   * Undefined = no metadata reported (the honest default). */
+  /** Metadata resolver bound to entry identity — the EFFECTIVE seam (the
+   * engine-reported meta merged with the client-local Mark-as-Watched
+   * override). w26.k15 (j15 P3-3): this used to publish the RAW prop, so a
+   * consumer reading `ctx.resolveMeta` got engine data WITHOUT the override;
+   * `metaOf` is the same function (kept as the stable, named lookup). */
   readonly resolveMeta: ResolveEntryMeta | undefined;
   /** Meta lookup bound to entry identity — stable for consumers. */
   metaOf(entry: PlaylistEntry): PlaylistEntryMeta | undefined;
+  /** w26.k15 (j15 P3-11) — true when metadata can influence sorts: the
+   * engine `resolveMeta` seam is wired OR the user has local Mark-as-Watched
+   * overrides. The sorting menu renders its "needs metadata" hint on
+   * seam-dependent rows while this is false (those sorts are stable no-ops
+   * then — honest degradation, now visible). */
+  readonly metaSeamWired: boolean;
   /** w26.gfix-E — Mark as Watched: a client-local watched override merged
    * over `resolveMeta` (the file context menu's row 2). No engine command
    * exists (doc 05 §2.9 has no watched command) and nothing persists — the
@@ -120,6 +129,11 @@ export function PlaylistOptionsProvider({
     });
   }, []);
 
+  // w26.k15 (j15 P3-11): the honest "can any metadata move the sorts" flag —
+  // the engine seam OR at least one local watched override (watched marks
+  // make the watched/unwatched sorts real even without the engine seam).
+  const metaSeamWired = resolveMeta !== undefined || watchedOverrides.size > 0;
+
   const value = useMemo<PlaylistOptionsValue>(
     () => ({
       sortKey,
@@ -127,11 +141,15 @@ export function PlaylistOptionsProvider({
       viewMode,
       setViewMode,
       sortedEntries,
-      resolveMeta,
+      // w26.k15 (j15 P3-3): the EFFECTIVE resolver — raw engine meta merged
+      // with the watched overrides (was: the raw prop, which leaked
+      // un-merged engine data to any ctx.resolveMeta consumer).
+      resolveMeta: resolveMetaEffective,
       metaOf,
+      metaSeamWired,
       setWatched,
     }),
-    [sortKey, viewMode, sortedEntries, resolveMeta, metaOf, setWatched],
+    [sortKey, viewMode, sortedEntries, resolveMetaEffective, metaOf, metaSeamWired, setWatched],
   );
 
   return <PlaylistOptionsContext.Provider value={value}>{children}</PlaylistOptionsContext.Provider>;

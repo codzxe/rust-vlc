@@ -20,17 +20,11 @@
 //    below is the honest one-line description of what each row does (the
 //    w26.i13 pattern), rendered through the shared SettingInfoDot grammar.
 export const keys = {
-  // --- Video "Framing" dropdown values (frame-verbatim ratio spellings) -----
-  "settings.value.video-aspect-ratio.1-1": "1:1",
-  "settings.value.video-aspect-ratio.4-3": "4:3",
-  "settings.value.video-aspect-ratio.16-9": "16:9",
-  "settings.value.video-aspect-ratio.16-10": "16:10",
-  "settings.value.video-aspect-ratio.2-35-1": "2.35:1",
-  "settings.value.video-aspect-ratio.2-39-1": "2.39:1",
-  "settings.value.video-crop.1-1": "1:1",
-  "settings.value.video-crop.4-3": "4:3",
-  "settings.value.video-crop.16-9": "16:9",
-  "settings.value.video-crop.16-10": "16:10",
+  // w26.k18 (j18 F11): the ten Framing dropdown ratio msgids
+  // (settings.value.video-aspect-ratio.* / video-crop.*) were duplicated
+  // here AND in w26.f01.ts with identical values — this copy is removed;
+  // w26.f01.ts (the original registrar) owns them, and the catalog entry
+  // is unchanged. Cross-file dupes would resurrect on future merges.
 
   // --- Playback (Settings - playback.svg ⓘ — 12 rows; the Default playback
   //     speed slider row carries no circle, reproduced honestly) -------------

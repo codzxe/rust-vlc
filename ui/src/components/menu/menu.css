@@ -256,14 +256,29 @@
    * WCAG-adjusted --color-content-tertiary (#828282, w26.f15) is a TEXT repin
    * that never applied to these glyphs; a dedicated accelerator token is the
    * token-lane seam (fallback carries the frame value until it lands). */
-  color: var(--color-content-accelerator, #6b6b6b); /* stylelint-disable-line color-no-hex -- frame: menu.svg accelerators #6B6B6B; token seam --color-content-accelerator LIVE (w26.i19 Lead-landed, 122/84/84) */
-}
 
-/* Light ramp: h18's light probe measured the flyout accelerators at #5F5F5F
- * (gray.460, the light tertiary) — the dark frame value would over-darken
- * the light panel. Same token seam, light fallback. */
-:root[data-theme="light"] .lumen-menu__accelerator {
-  color: var(--color-content-accelerator, #5f5f5f); /* stylelint-disable-line color-no-hex -- frame: light accel ink #5F5F5F (Player - Light ramp, h18 light probe); token seam live (w26.i19) */
+  /* w26.k02 (j02 J02-3/J02-4): the token seam is RETIRED —
+   * --color-content-accelerator is LIVE in both themes (w26.i19 Lead-landed:
+   * tokens.css:36 dark #6b6b6b, :119 light #5f5f5f), so the vestigial
+   * fallback hexes (which could silently mask a future token rename) and
+   * the light-theme override rule (it only ever swapped the FALLBACK of an
+   * always-defined token — dead since i19) are deleted. Measured contrast,
+   * WCAG relative luminance (recomputed this session, matches w26.i19 §3):
+   *   dark  #6b6b6b — 3.30:1 on panel #191919, 3.09:1 on the selected/hover
+   *         row #1f1f1f (sub-AA as 15px TEXT, 4.5:1 needed)
+   *   light #5f5f5f — 3.74:1 on panel #c6c6c6, 2.88:1 on the selected row
+   *         #aeaeae (sub-AA as text; sub-3:1 on light selected rows — the
+   *         quiet band's documented light-scope gap, w26.i19 §3)
+   * STANDING TOKEN-LANE RULING (w26.i19 §4.4 + the tokens.json
+   * content.accelerator description): #6b6b6b/#5f5f5f is the mined QUIET
+   * BAND, scoped to NON-TEXT / shortcut-hint ink — accelerators are
+   * supplementary shortcut hints (each shortcut is also documented in the
+   * keyboard-shortcuts dialog), frame-pinned next to the AA-carrier label
+   * (--color-content-secondary: 5.44:1 dark / 6.66:1 light on panel).
+   * WCAG trumps extraction for TEXT — tertiary stays the AA text ink — and
+   * accelerators are not the reading copy. A future retune diverges via the
+   * dedicated token, not here. */
+  color: var(--color-content-accelerator);
 }
 
 /* Submenu affordance: a "›" chevron (frame `menu.svg` Vector 27: 10px chevron,
@@ -408,7 +423,10 @@
   box-shadow: var(--shadow-overlay); /* frame list drop shadow (dy 4, blur 6.9) */
 
   /* w26.g17 P1 Lead fix: scrollport — long lists cap and scroll instead of
-   * clipping under the viewport edge (HDR options in the tools dialog). */
+   * clipping under the viewport edge (HDR options in the tools dialog).
+   * w26.k02 (j02 J02-5): keep in sync with DROPDOWN_LIST_MAX_HEIGHT
+   * (Dropdown.tsx) — the TS estimate and this cap are one grammar in two
+   * files, cross-linked both ways. */
   max-height: 320px;
   overflow-y: auto;
   overscroll-behavior: contain;
