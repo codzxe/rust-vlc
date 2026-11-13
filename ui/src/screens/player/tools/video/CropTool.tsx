@@ -24,7 +24,7 @@ import { useId, useState } from "react";
 import type { ReactElement } from "react";
 import { VideoCard } from "./VideoCard";
 import { useVideoMsg } from "./copy";
-import type { VideoToolProps } from "./types";
+import type { CropAxis, VideoToolProps } from "./types";
 
 /** Digit-only sanitize (crop pixels are non-negative integers). */
 const digits = (value: string): string => value.replace(/[^\d]/g, "");
@@ -40,6 +40,19 @@ interface CropFields {
 const FRAME_CROP: CropFields = { top: "0", bottom: "0", left: "0", right: "0" };
 
 type CropField = keyof CropFields;
+
+/** The frame's two coupled pairs, keyed by crop axis — the link icon locks a
+ * pair (Top↔Bottom, Left↔Right). w26.k11 (j11 P3-3): module-level (the
+ * former per-keystroke closure rebuild is gone) and typed through the
+ * exported CropAxis, which was dead before this map consumed it. */
+const CROP_PAIRS: Readonly<Record<CropAxis, readonly [CropField, CropField]>> = {
+  vertical: ["top", "bottom"],
+  horizontal: ["left", "right"],
+};
+
+/** The axis a field's link toggle governs. */
+const axisOf = (field: CropField): CropAxis =>
+  field === "top" || field === "bottom" ? "vertical" : "horizontal";
 
 /** One 141×33 number input: inner label left, value+unit right. */
 function CropInput(props: {
@@ -144,19 +157,12 @@ export function CropTool({
   /** Setting one field of a pair mirrors it when the pair is linked. */
   const setField = (field: CropField, next: string): void => {
     setCrop((prev) => {
-      const coupled: Partial<Record<CropField, CropField>> = {
-        top: "bottom",
-        bottom: "top",
-        left: "right",
-        right: "left",
-      };
-      const twin = coupled[field];
-      const linkOn =
-        (field === "top" || field === "bottom") ? verticalLinked : horizontalLinked;
-      if (twin !== undefined && linkOn) {
-        return { ...prev, [field]: next, [twin]: next };
-      }
-      return { ...prev, [field]: next };
+      const [first, second] = CROP_PAIRS[axisOf(field)];
+      const linked =
+        axisOf(field) === "vertical" ? verticalLinked : horizontalLinked;
+      if (!linked) return { ...prev, [field]: next };
+      const twin = field === first ? second : first;
+      return { ...prev, [field]: next, [twin]: next };
     });
   };
 
