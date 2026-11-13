@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement, Ref } from "react";
 import { MenuPopup } from "./MenuPopup";
 import { identityResolveLabel } from "./types";
@@ -39,10 +39,15 @@ export function ContextMenu<K extends string>({
   className = "",
   ref,
 }: ContextMenuProps<K>): ReactElement {
+  const autoId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  /* w26.k02 (j02 J02-10): per-instance id prefix (the MenuBar/Dropdown
+   * useId pattern) — the old static "lumen-context-menu" prefix produced
+   * duplicate item DOM ids across co-existing instances. */
+  const idPrefix = `lumen-context-menu-${autoId}`;
 
   // Outside pointer dismiss (focus is not stolen).
   useEffect(() => {
@@ -81,7 +86,7 @@ export function ContextMenu<K extends string>({
         <MenuPopup
           entries={entries}
           resolveLabel={resolveLabel}
-          idPrefix="lumen-context-menu"
+          idPrefix={idPrefix}
           density={density}
           className="lumen-context-menu__popup"
           style={{ left: position.x, top: position.y }}
