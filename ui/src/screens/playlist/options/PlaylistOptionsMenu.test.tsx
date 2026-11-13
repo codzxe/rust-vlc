@@ -5,7 +5,7 @@
 // dismiss, disabled inertness, align/placement classes.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlaylistOptionsMenu } from "./PlaylistOptionsMenu";
 
 interface Entry {
@@ -182,5 +182,114 @@ describe("PlaylistOptionsMenu — anchor classes", () => {
     const menu = screen.getByRole("menu");
     expect(menu.className).toContain("lumen-plo__menu--end");
     expect(menu.className).toContain("lumen-plo__menu--above");
+  });
+});
+
+describe("PlaylistOptionsMenu — open-direction measurement (w26.k15, j15 P3-2/P3-8)", () => {
+  /** Stubs the trigger geometry: a 40px-tall trigger at the given viewport
+   * position (the shared measure() only reads the TRIGGER's rect). */
+  const stubTriggerRect = (top: number): void => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top,
+      bottom: top + 40,
+      height: 40,
+      width: 40,
+      left: 0,
+      right: 40,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect);
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.innerHeight = 768; // jsdom default
+  });
+
+  it("flips ABOVE when the preferred side cannot fit and the other can", () => {
+    // 3 rows: natural 3×48+8 = 152. Viewport 600, trigger at y500: below =
+    // 600−540−4−8 = 48 (< 152), above = 500−4−8 = 488 (≥ 152) → flip.
+    stubTriggerRect(500);
+    window.innerHeight = 600;
+    setup();
+    open();
+    expect(screen.getByRole("menu").className).toContain("lumen-plo__menu--above");
+    expect(screen.getByRole("menu").style.maxHeight).toBe(""); // no cap needed
+  });
+
+  it("caps the panel to a scrollport when NEITHER side fits (the 16-row shape)", () => {
+    const SIXTEEN = Array.from({ length: 16 }, (_, index) => ({ id: `k${index}`, labelKey: `Row ${index}` }));
+    // natural 16×48+8 = 776. Viewport 600, trigger at y300: below = 248,
+    // above = 288 — neither fits → roomier side (above) + a max-height cap.
+    stubTriggerRect(300);
+    window.innerHeight = 600;
+    render(
+      <PlaylistOptionsMenu
+        entries={SIXTEEN}
+        value="k0"
+        onSelect={() => {}}
+        resolveLabel={(key) => key}
+        menuLabel="m"
+        triggerLabel="t"
+        triggerIcon="list"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "t" }));
+    const menu = screen.getByRole("menu");
+    expect(menu.className).toContain("lumen-plo__menu--above");
+    expect(menu.style.maxHeight).toBe("288px"); // above room, floored at 160
+  });
+
+  it("measures with the LIVE token values, not the TS fallbacks", () => {
+    // jsdom's getComputedStyle returns "" for stylesheet custom properties —
+    // the stub makes the trigger resolve --space-item-pitch as 10px, so the
+    // 3-row panel is 38px tall and fits below with no flip/cap.
+    vi.spyOn(window, "getComputedStyle").mockImplementation(
+      () =>
+        ({
+          getPropertyValue: (token: string) =>
+            token === "--space-item-pitch" ? "10px" : token === "--space-grid" ? "4px" : "",
+        }) as unknown as CSSStyleDeclaration,
+    );
+    stubTriggerRect(500);
+    window.innerHeight = 900; // below = 900−540−12 = 348 ≥ 38
+    setup();
+    open();
+    const menu = screen.getByRole("menu");
+    expect(menu.className).toContain("lumen-plo__menu--below");
+    expect(menu.style.maxHeight).toBe("");
+  });
+
+  it("re-measures on window resize while open (was resize-blind)", () => {
+    stubTriggerRect(500);
+    window.innerHeight = 900; // below = 348 ≥ 152 → stays below
+    setup();
+    open();
+    expect(screen.getByRole("menu").className).toContain("lumen-plo__menu--below");
+    // Shrink the viewport under the open menu: below = 48 < 152, above = 488.
+    window.innerHeight = 600;
+    fireEvent(window, new Event("resize"));
+    expect(screen.getByRole("menu").className).toContain("lumen-plo__menu--above");
+  });
+
+  it("zero-height triggers (jsdom/display:none hosts) keep the anchor side", () => {
+    // height 0: the measure keeps the anchor placement unchanged (nothing to
+    // measure — the jsdom path every OTHER test in this suite rides on).
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: 0,
+      bottom: 0,
+      height: 0,
+      width: 0,
+      left: 0,
+      right: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    setup();
+    open();
+    expect(screen.getByRole("menu").className).toContain("lumen-plo__menu--below");
+    expect(screen.getByRole("menu").style.maxHeight).toBe("");
   });
 });
