@@ -10,10 +10,6 @@ import { isDesktopShell } from "../../client/app-transport";
 import { createConfigSettingsPersistence } from "../../client/config-settings";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
-import { keys as laneKeys } from "../../i18n/keys/w26.b01";
-import { keys as registryKeys } from "../../i18n/keys/w26.b02";
-import { keys as fixerKeys } from "../../i18n/keys/w26.f03";
-import { keys as gfixKeys } from "../../i18n/keys/w26.gfixB";
 import { SETTINGS_AREA_IDS } from "./areas";
 import { SETTINGS_AREA_TITLES } from "./areas";
 import { SETTINGS_SCREENS } from "./areas";
@@ -24,8 +20,10 @@ import { localStorageSettingsPersistence } from "./persistence";
 import { SettingsProvider } from "./SettingsProvider";
 import { useSettings } from "./SettingsProvider";
 import { useSettingsThemeSync } from "../../theme/settingsThemeSync";
-import { SettingsSearchContext } from "./search";
 import { searchSettings } from "./search";
+import { useSettingsMsg } from "./settingsMsg";
+import { settingsLaneCatalog } from "./settingsMsg";
+import type { SettingsMsgKey } from "./settingsMsg";
 import { SettingField } from "./SettingField";
 import "./settings.css";
 
@@ -49,39 +47,14 @@ import "./settings.css";
 // GONE (e05 F10 — the per-field resets keep the reset-to-default contract);
 // focus starts on the sidebar's active row and Tab wraps inside the window
 // (e06 F8).
-
-type LaneKey = keyof typeof laneKeys;
-type RegistryKey = keyof typeof registryKeys;
-type FixerKey = keyof typeof fixerKeys;
-type GfixKey = keyof typeof gfixKeys;
-/** Pre-registration seam: this lane's keys + the registry lane's (b02) + the
- * gfix-B seed keys — all resolve identically once the Lead registers them
- * post-wave. */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...laneKeys,
-  ...fixerKeys,
-  ...gfixKeys,
-};
-
-/**
- * useSettingsMsg — `useMsg` extended with the settings lanes' pre-registration
- * keys (same seam as w26.a10's useShellMsg): lane keys win while unregistered;
- * after the Lead merges them into the catalog both paths return the same
- * string. w26.f03: the f03 RETITLES ("settings.area.global" → "General",
- * e05/e06 F6 — the b02 library precedent) must render pre-registration too,
- * so the f03 values take precedence over the registered catalog until the
- * Lead carries them into messages.ts. Every user-visible shell string flows
- * through here.
- */
-function useSettingsMsg() {
-  const m = useMsg();
-  return useCallback(
-    (key: MessageKey | LaneKey | RegistryKey | FixerKey | GfixKey): string =>
-      fixerKeys[key as FixerKey] ?? m(key as MessageKey) ?? laneCatalog[key],
-    [m],
-  );
-}
+//
+// w26.k12 (j12 P2-2): the search CONTEXT is gone — while a query is live the
+// content column renders the cross-area results INSTEAD of the current area
+// (the tested W26 contract), so an in-area filter could never execute; the
+// dead context/plumbing is deleted (see search.ts + SettingsSections).
+// w26.k12 (j12 P3-5): the shell's lane-seam resolver is the shared settingsMsg
+// module (was this file's private useSettingsMsg copy with its own
+// precedence).
 
 // ---------------------------------------------------------------------------
 // Sidebar structure (Settings - global.svg Frame 260/261/263): three fixed
@@ -95,7 +68,7 @@ function useSettingsMsg() {
 
 interface SidebarGroup {
   readonly id: "app" | "media" | "system";
-  readonly labelKey: LaneKey;
+  readonly labelKey: "settings.group.app" | "settings.group.media" | "settings.group.system";
   readonly areas: readonly string[];
 }
 
@@ -134,10 +107,12 @@ const AREA_ICONS: Readonly<Record<string, IconName>> = {
 
 const iconOf = (area: string): IconName => AREA_ICONS[area] ?? "settings";
 
-/** Top-bar window title: the frames' verbatim copy, registry title fallback. */
-const windowTitleKey = (area: SettingsAreaId): MessageKey | LaneKey =>
-  (`settings.window-title.${area}` as LaneKey) in laneCatalog
-    ? (`settings.window-title.${area}` as LaneKey)
+/** Top-bar window title: the frames' verbatim copy, registry title fallback.
+ * w26.k12 (j12 P3-5): membership probe + resolution through the shared
+ * settingsMsg catalog (ONE precedence rule for the whole shell). */
+const windowTitleKey = (area: SettingsAreaId): SettingsMsgKey =>
+  (`settings.window-title.${area}` as SettingsMsgKey) in settingsLaneCatalog
+    ? (`settings.window-title.${area}` as SettingsMsgKey)
     : SETTINGS_AREA_TITLES[area];
 
 // ---------------------------------------------------------------------------
@@ -158,8 +133,11 @@ function groupRows(group: SidebarGroup, registered: readonly SettingsAreaId[]): 
 
 /** Focus-trap candidate selector (w26.f03, e06 F8) — natural tab stops inside
  * the settings window; roving-tabindex controls (segmented cells, swatches,
- * dropdown options) surface their active item at tabIndex 0. */
-const FOCUSABLE =
+ * dropdown options) surface their active item at tabIndex 0.
+ * w26.k12 (j12 P3-9): EXPORTED — the trap test imports the same selector so
+ * the test's first/last stops can never drift from the trap's definition
+ * (the old test copy omitted select/textarea/a[href]). */
+export const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
 function SettingsShell() {
@@ -172,6 +150,19 @@ function SettingsShell() {
   useSettingsThemeSync();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<{ area: SettingsAreaId } | { close: true } | null>(null);
+
+  // w26.k12 (j12 P1-1): the search query must NOT survive navigation.
+  // requestArea used to navigate while `searching` kept the content column
+  // in cross-area results mode — the URL, window title and `aria-current`
+  // moved to the target area, but the column kept rendering the STALE hits
+  // and the target screen was unreachable until the pill was cleared. One
+  // effect on the ROUTE PARAM clears the pill on every area change; all
+  // navigation paths funnel through :area (sidebar row, the dirty-dialog's
+  // discard-and-continue, deep-link/slug redirects), so one hook covers
+  // them all. First mount is a no-op (the pill starts empty).
+  useEffect(() => {
+    setQuery("");
+  }, [area]);
 
   // w26.f03 (e06 F8) — the settings window is a floating surface: focus
   // starts INSIDE it, on the sidebar's active area row, and Tab wraps within
@@ -243,7 +234,7 @@ function SettingsShell() {
   // guard matches the Dropdown POPUP class, not every role="listbox" (the
   // shell's sidebar VirtualList is a persistent listbox, never an overlay).
   // Declared before the area-guard early return (Rules of Hooks); the ref
-  // carries the fresh requestClose closure each render.
+  // carries the fresh requestClose closure (updated post-commit below).
   const requestCloseRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -258,32 +249,10 @@ function SettingsShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  if (!isAreaId(area)) {
-    // Deep-link canonicalisation (registry API): retired slugs (hotkeys,
-    // codecs, about, advanced, effects — the b02 merges) redirect to their
-    // merged home via resolveSettingsAreaSlug; unknown slugs to the first
-    // area. Nothing 404s.
-    const target = resolveSettingsAreaSlug(area) ?? SETTINGS_AREA_IDS[0];
-    return <Navigate to={`/settings/${target}`} replace />;
-  }
-
-  // Search labels resolve through the SAME seam the UI renders with (b01 +
-  // b02 lane keys pre-registration), so what matches is what the user sees.
-  // Unresolved labels (mid-wave catalog gaps) read as empty — the search
-  // path never crashes; an entry without a resolved label cannot match.
-  const labelOf = (entry: { description: string }): string => {
-    const text = t(entry.description as MessageKey);
-    return typeof text === "string" ? text : "";
-  };
-  const matches = (entry: { description: string; featureExposed: boolean }): boolean =>
-    query.trim() === "" || labelOf(entry).toLowerCase().includes(query.trim().toLowerCase());
-  const searchValue: SettingsSearchContextValueLike = { query, setQuery, matches };
-  const searching = query.trim() !== "";
-  const hits = searching ? searchSettings(SETTINGS_AREAS, query, labelOf) : [];
-  const Current = SETTINGS_SCREENS[area];
-
   // Dirty-gated navigation (4.B4): area switches AND the window's ✕ both
   // route through the same confirm dialog; "discard" reverts and continues.
+  // Declared BEFORE the area-guard early return so the ref-updating effect
+  // below can close over it unconditionally (Rules of Hooks).
   const requestArea = (next: SettingsAreaId) => {
     if (next === area) return;
     if (settings.dirtyCount > 0) {
@@ -299,7 +268,6 @@ function SettingsShell() {
     }
     navigate("/player");
   };
-  requestCloseRef.current = requestClose; // the Escape seam's fresh closure
   const discardAndContinue = () => {
     const next = pending;
     setPending(null);
@@ -308,153 +276,173 @@ function SettingsShell() {
     else navigate("/player");
   };
 
+  // w26.k12 (j12 P3-8): the Escape seam's fresh-closure write moved OUT of
+  // the render path into this no-deps effect (runs after every commit, so
+  // the listener always reads the latest closure — the previous render-phase
+  // ref write was equivalent but unsanctioned shape).
+  useEffect(() => {
+    requestCloseRef.current = requestClose;
+  });
+
+  if (!isAreaId(area)) {
+    // Deep-link canonicalisation (registry API): retired slugs (hotkeys,
+    // codecs, about, advanced, effects — the b02 merges) redirect to their
+    // merged home via resolveSettingsAreaSlug; unknown slugs to the first
+    // area. Nothing 404s.
+    const target = resolveSettingsAreaSlug(area) ?? SETTINGS_AREA_IDS[0];
+    return <Navigate to={`/settings/${target}`} replace />;
+  }
+
+  // Search labels resolve through the SAME seam the UI renders with (the
+  // shared settingsMsg catalog), so what matches is what the user sees.
+  // Unresolved labels (mid-wave catalog gaps) read as empty — the search
+  // path never crashes; an entry without a resolved label cannot match.
+  const labelOf = (entry: { description: string }): string => {
+    const text = t(entry.description as MessageKey);
+    return typeof text === "string" ? text : "";
+  };
+  const searching = query.trim() !== "";
+  const hits = searching ? searchSettings(SETTINGS_AREAS, query, labelOf) : [];
+  const Current = SETTINGS_SCREENS[area];
+
   return (
-    <SettingsSearchContext.Provider value={searchValue}>
-      <main className="settings-screen" data-screen="settings">
-        {/* Window-accessible name (the frames carry no "Settings" wordmark;
-            the top bar shows the AREA title). Kept as a real heading so the
-            screen keeps its h1 anchor. */}
-        <h1 className="settings-vh">{m("settings.nav.title")}</h1>
-        <div className="settings-window" ref={windowRef} onKeyDown={onWindowKeyDown}>
-          <header className="settings-topbar">
-            <label className="settings-topbar__search">
-              <Icon name="search" size={15} className="settings-topbar__search-icon" />
-              <input
-                type="search"
-                value={query}
-                placeholder={t("settings.search.placeholder")}
-                aria-label={m("settings.search.label")}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <h2 className="settings-topbar__title">{t(windowTitleKey(area))}</h2>
-            {/* w26.f03 (e05 F10): the top bar is frame-verbatim — search pill ·
-                window title · ✕ only; the extra per-screen reset ghost is
-                gone (per-field resets + the provider's resetArea seam keep
-                the behavior contract). */}
-            <button
-              type="button"
-              className="settings-topbar__close"
-              aria-label={t("settings.close")}
-              title={t("settings.close")}
-              onClick={requestClose}
-            >
-              <Icon name="close" size={14} />
-            </button>
-          </header>
-          <div className="settings-window__body">
-            <aside className="settings-sidebar" aria-label={m("settings.nav.title")}>
-              <div className="settings-sidebar__panel">
-                {SIDEBAR_GROUPS.map((group) => {
-                  const rows = groupRows(group, SETTINGS_AREA_IDS);
-                  if (rows.length === 0) return null;
-                  return (
-                    <section key={group.id} className="settings-sidebar__group">
-                      <h3 className="settings-sidebar__group-label">{t(group.labelKey)}</h3>
-                      <ul>
-                        {rows.map((id) => (
-                          <li key={id}>
-                            <button
-                              type="button"
-                              className={
-                                id === area
-                                  ? "settings-nav__item settings-nav__item--active"
-                                  : "settings-nav__item"
-                              }
-                              aria-current={id === area ? "page" : undefined}
-                              ref={id === area ? focusActiveNav : undefined}
-                              onClick={() => requestArea(id)}
-                            >
-                              <Icon
-                                name={iconOf(id)}
-                                size={18}
-                                variant={id === area ? "strong" : "default"}
-                                className="settings-nav__icon"
-                              />
-                              <span className="settings-nav__label">
-                                {t(SETTINGS_AREA_TITLES[id])}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  );
-                })}
-              </div>
-            </aside>
-            <div className="settings-content">
-              {searching ? (
-                hits.length === 0 ? (
-                  <p className="settings-screen__empty" data-testid="settings-search-empty">
-                    {m("settings.search.no-results")}
-                  </p>
-                ) : (
-                  <div className="settings-screen__results" data-testid="settings-search-results">
-                    {hits.map((hit) => (
-                      <section key={`${hit.area.id}/${hit.sectionTitle}`} className="settings-section">
-                        <h2 className="settings-section__title">
-                          {t(SETTINGS_AREA_TITLES[hit.area.id as SettingsAreaId])} —{" "}
-                          {t(hit.sectionTitle as MessageKey)}
-                        </h2>
-                        {hit.entries.map((entry) => (
-                          <SettingField key={entry.key} entry={entry} />
-                        ))}
-                      </section>
-                    ))}
-                  </div>
-                )
-              ) : (
-                <Current />
-              )}
-
-              {settings.restartPending.length > 0 ? (
-                <p className="settings-screen__restart" data-testid="settings-restart-notice" role="status">
-                  {m("settings.restart-applied")}
-                </p>
-              ) : null}
-
-              {settings.dirtyCount > 0 ? (
-                <div className="settings-applybar" data-testid="settings-applybar">
-                  <span className="settings-applybar__count">
-                    {m("settings.unsaved-changes")} ({settings.dirtyCount})
-                  </span>
-                  <Button variant="primary" onClick={() => settings.apply()}>
-                    {m("settings.apply")}
-                  </Button>
-                  <Button variant="default" onClick={() => settings.revert()}>
-                    {m("settings.revert")}
-                  </Button>
-                </div>
-              ) : null}
+    <main className="settings-screen" data-screen="settings">
+      {/* Window-accessible name (the frames carry no "Settings" wordmark;
+          the top bar shows the AREA title). Kept as a real heading so the
+          screen keeps its h1 anchor. */}
+      <h1 className="settings-vh">{m("settings.nav.title")}</h1>
+      <div className="settings-window" ref={windowRef} onKeyDown={onWindowKeyDown}>
+        <header className="settings-topbar">
+          <label className="settings-topbar__search">
+            <Icon name="search" size={15} className="settings-topbar__search-icon" />
+            <input
+              type="search"
+              value={query}
+              placeholder={t("settings.search.placeholder")}
+              aria-label={m("settings.search.label")}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <h2 className="settings-topbar__title">{t(windowTitleKey(area))}</h2>
+          {/* w26.f03 (e05 F10): the top bar is frame-verbatim — search pill ·
+              window title · ✕ only; the extra per-screen reset ghost is
+              gone (per-field resets + the provider's resetArea seam keep the
+              behavior contract). */}
+          <button
+            type="button"
+            className="settings-topbar__close"
+            aria-label={t("settings.close")}
+            title={t("settings.close")}
+            onClick={requestClose}
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </header>
+        <div className="settings-window__body">
+          <aside className="settings-sidebar" aria-label={m("settings.nav.title")}>
+            <div className="settings-sidebar__panel">
+              {SIDEBAR_GROUPS.map((group) => {
+                const rows = groupRows(group, SETTINGS_AREA_IDS);
+                if (rows.length === 0) return null;
+                return (
+                  <section key={group.id} className="settings-sidebar__group">
+                    <h3 className="settings-sidebar__group-label">{t(group.labelKey)}</h3>
+                    <ul>
+                      {rows.map((id) => (
+                        <li key={id}>
+                          <button
+                            type="button"
+                            className={
+                              id === area
+                                ? "settings-nav__item settings-nav__item--active"
+                                : "settings-nav__item"
+                            }
+                            aria-current={id === area ? "page" : undefined}
+                            ref={id === area ? focusActiveNav : undefined}
+                            onClick={() => requestArea(id)}
+                          >
+                            <Icon
+                              name={iconOf(id)}
+                              size={18}
+                              variant={id === area ? "strong" : "default"}
+                              className="settings-nav__icon"
+                            />
+                            <span className="settings-nav__label">
+                              {t(SETTINGS_AREA_TITLES[id])}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
             </div>
+          </aside>
+          <div className="settings-content">
+            {searching ? (
+              hits.length === 0 ? (
+                <p className="settings-screen__empty" data-testid="settings-search-empty">
+                  {m("settings.search.no-results")}
+                </p>
+              ) : (
+                <div className="settings-screen__results" data-testid="settings-search-results">
+                  {hits.map((hit) => (
+                    <section key={`${hit.area.id}/${hit.sectionTitle}`} className="settings-section">
+                      <h2 className="settings-section__title">
+                        {t(SETTINGS_AREA_TITLES[hit.area.id as SettingsAreaId])} —{" "}
+                        {t(hit.sectionTitle as MessageKey)}
+                      </h2>
+                      {hit.entries.map((entry) => (
+                        <SettingField key={entry.key} entry={entry} />
+                      ))}
+                    </section>
+                  ))}
+                </div>
+              )
+            ) : (
+              <Current />
+            )}
+
+            {settings.restartPending.length > 0 ? (
+              <p className="settings-screen__restart" data-testid="settings-restart-notice" role="status">
+                {m("settings.restart-applied")}
+              </p>
+            ) : null}
+
+            {settings.dirtyCount > 0 ? (
+              <div className="settings-applybar" data-testid="settings-applybar">
+                <span className="settings-applybar__count">
+                  {m("settings.unsaved-changes")} ({settings.dirtyCount})
+                </span>
+                <Button variant="primary" onClick={() => settings.apply()}>
+                  {m("settings.apply")}
+                </Button>
+                <Button variant="default" onClick={() => settings.revert()}>
+                  {m("settings.revert")}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
+      </div>
 
-        <Dialog open={pending !== null} onClose={() => setPending(null)} labelledBy="settings-confirm-title">
-          <div className="settings-confirm">
-            <h2 id="settings-confirm-title">{m("settings.confirm-leave.title")}</h2>
-            <p>{m("settings.confirm-leave.body")}</p>
-            <div className="settings-confirm__actions">
-              <Button variant="primary" onClick={discardAndContinue}>
-                {m("settings.confirm-leave.discard")}
-              </Button>
-              <Button variant="default" onClick={() => setPending(null)}>
-                {m("settings.confirm-leave.stay")}
-              </Button>
-            </div>
+      <Dialog open={pending !== null} onClose={() => setPending(null)} labelledBy="settings-confirm-title">
+        <div className="settings-confirm">
+          <h2 id="settings-confirm-title">{m("settings.confirm-leave.title")}</h2>
+          <p>{m("settings.confirm-leave.body")}</p>
+          <div className="settings-confirm__actions">
+            <Button variant="primary" onClick={discardAndContinue}>
+              {m("settings.confirm-leave.discard")}
+            </Button>
+            <Button variant="default" onClick={() => setPending(null)}>
+              {m("settings.confirm-leave.stay")}
+            </Button>
           </div>
-        </Dialog>
-      </main>
-    </SettingsSearchContext.Provider>
+        </div>
+      </Dialog>
+    </main>
   );
-}
-
-/** Minimal structural type for the context value (keeps search.ts import-free). */
-interface SettingsSearchContextValueLike {
-  readonly query: string;
-  setQuery(query: string): void;
-  matches(entry: { description: string; featureExposed: boolean }): boolean;
 }
 
 /** Route element: /settings/:area */
