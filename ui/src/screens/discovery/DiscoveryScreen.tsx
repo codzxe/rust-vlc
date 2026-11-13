@@ -53,6 +53,7 @@
 // The screen renders NO <main> of its own — the AppShell provides it.
 
 import { useCallback, useEffect, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { VolumeKind } from "../../generated/commands";
 import { useClient } from "../../client/ClientProvider";
 import { useMsg } from "../../i18n/messages";
@@ -116,6 +117,7 @@ function kindKey(kind: VolumeKind): MessageKey {
  * The volume-row context menu (folder context menu.svg — 6 rows, pinned
  * icon order; row 1's plus is the frame's only all-gray icon). Seams only:
  * the open-media event is real, the rest have no seam and stay disabled.
+ * Built once at module scope — no per-row/per-render rebuild (j17 §3).
  */
 function volumeRowMenu(): MenuEntry<LaneKey>[] {
   return [
@@ -144,6 +146,37 @@ function volumeRowMenu(): MenuEntry<LaneKey>[] {
     { id: "info", labelKey: "discovery.menu.info", icon: "info", iconAccent: true, disabled: true },
   ];
 }
+
+/** The one immutable instance the rows share (entries have no inputs). */
+const VOLUME_ROW_MENU: MenuEntry<LaneKey>[] = volumeRowMenu();
+
+/**
+ * w26.k17 (j17 P2-3): the KEYBOARD path for the volume-row menu — the
+ * WAI-ARIA context-menu keys (ContextMenu / Shift+F10) on the focused row
+ * synthesize the row's context-menu open at its bottom-left, through the
+ * REAL ContextMenu open path (position, focus restore, the MenuPopup
+ * keyboard model). keymap.ts carries no such action — the consumption side
+ * owns it, k06's J06-4 canvas precedent. Plain F10 (no Shift) and every
+ * other key are honest no-ops. The row is a tab stop so the path is
+ * reachable at all: with rows present the empty-state CTA is gone, and
+ * the screen's one real action must not stay mouse-only.
+ */
+const openRowMenuOnKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
+  if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) {
+    return;
+  }
+  event.preventDefault();
+  const row = event.currentTarget;
+  const rect = row.getBoundingClientRect();
+  row.dispatchEvent(
+    new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left,
+      clientY: rect.bottom,
+    }),
+  );
+};
 
 /**
  * The registry glyph for a volume kind (pinned Icon.svg vocabulary only —
@@ -264,7 +297,7 @@ export function DiscoveryScreen() {
               {rows.map((row) => (
                 <li key={row.id} data-testid="discovery-volume">
                   <ContextMenu
-                    entries={volumeRowMenu()}
+                    entries={VOLUME_ROW_MENU}
                     resolveLabel={t}
                     ariaLabel={t("discovery.menu.title")}
                   >
@@ -273,6 +306,8 @@ export function DiscoveryScreen() {
                       title={row.label}
                       meta={t(kindKey(row.volumeKind))}
                       trailing={<span className="discovery__volume-id">{row.id}</span>}
+                      tabIndex={0}
+                      onKeyDown={openRowMenuOnKey}
                     />
                   </ContextMenu>
                 </li>
