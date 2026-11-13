@@ -70,6 +70,30 @@ runner and forwards the exit code verbatim (verified: 0).
   (`testIgnore: "**/visual/**"`): plain `npm run test:e2e` no longer runs
   visual cases against Playwright's default snapshot dir.
 
+## What wave 26 delivered (2026-11-13)
+
+- **W25 redesign re-pin — the missing provenance record, closed (j20
+  P2-4)**: the 2026-11-12 full re-pin of the then-144-case set post-W25
+  redesign shipped with no MATRIX record. Provenance — environment,
+  justification, the grid-anchor-is-the-product-default resolution, and the
+  wave-K 25-route completion — is now recorded in
+  [`docs/waves/w26/baselines/MATRIX-20261112.md`](../../../docs/waves/w26/baselines/MATRIX-20261112.md).
+- **25-route manifest truth (j20 P2-9)**: `ROUTES` now enumerates the full
+  routable inventory — 12 non-settings renderable routes + all 13 settings
+  areas + the `/dev/tokens` dev fixture — the same inventory
+  `e2e/a11y.spec.ts` walks since w26.k19. Disk holds **216 baselines**
+  (25 routes × 2 viewports × 2 DPIs × 2 themes = 200 grid cases + 16 accent
+  samples); the nightly lane is **216 cases**, the PR lane **50**
+  (25 routes × {dark, light}).
+- The stale "Solstice gold" honesty note on `DEFAULT_ACCENT` is gone:
+  `orange` is both the grid anchor and the product default since the W25
+  re-anchor (see the rewritten note in `manifest.ts`).
+- **Pending (Lead, wave L)**: waves i–k landed further UI changes after
+  both capture dates, so the full-matrix diff-green re-verification +
+  re-seed is deferred to the Lead's between-wave L pass (recorded in the
+  wave-i integration commit); MATRIX-20261112 is the provenance anchor for
+  that pass.
+
 ## What remains
 
 - ~~Wire CI~~ (done, issue #5): Linux PR lane per push/PR, nightly full
@@ -78,6 +102,8 @@ runner and forwards the exit code verbatim (verified: 0).
 - macOS/Windows baseline sets: still CI-blocked on a first real seed run
   (the seed job captures + uploads them for human commit; Linux stays
   canonical).
-- Grow `ROUTES` as doc 08 §1.6's unrouted compositions land (player
-  customize/hide-ui, miniplayer states, context menus, audio/video tools,
-  playlist/subtitles flow).
+- In-panel states (player customize/hide-ui, miniplayer states, context
+  menus, audio/video tools, the playlist/subtitles flow) are NOT routes —
+  they belong to the in-flow state harnesses (PlayerScreen seam tests, e2e
+  dialog specs), not this route × viewport grid (manifest header, w26.k20).
+  The route inventory itself is complete.
