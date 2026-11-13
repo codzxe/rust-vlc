@@ -22,6 +22,15 @@
 // ••• synthesizes a contextmenu at its own position, the LibraryRow kebab
 // precedent). The raw `onEntryMenu` callback seam stays for hosts that own
 // their own menu surface.
+//
+// w26.k15 (j15 P2-2): engine-scope rows are KEYBOARD-LIVE — a transparent
+// native <button> stretches behind the row content (Enter/Space play, a
+// real focus target for :focus-within), and the ••• lifts above it (z-index)
+// so Tab reaches it: focusing the play button reveals the ••• via the
+// row's existing :focus-within rule. The row div itself carries no handler
+// anymore — the stretched button owns activation (no nested role=button
+// with a real button inside, the axe nested-interactive rule VirtualList's
+// `semantics="grid"` exists for). Local-scope rows stay presentation.
 
 import type { ReactElement } from "react";
 import { useMsg } from "../../../i18n/messages";
@@ -93,6 +102,7 @@ export function MediaList({ onEntryMenu, entryMenu, menuResolveLabel, menuAriaLa
             onMenu={onEntryMenu !== undefined ? () => onEntryMenu(entry) : undefined}
             onOpenMenuAt={wrapMenu ? openMenuAtKebab : undefined}
             menuLabel={t("playlist.options.entry-menu")}
+            playLabel={m("player.controls.play")}
           />
         );
         if (!wrapMenu) return row;
@@ -138,6 +148,7 @@ function MediaRow({
   onMenu,
   onOpenMenuAt,
   menuLabel,
+  playLabel,
 }: {
   isCurrent: boolean;
   title: string;
@@ -149,6 +160,8 @@ function MediaRow({
   /** Open the row's ContextMenu at this ••• element (entryMenu mode). */
   onOpenMenuAt: ((button: HTMLButtonElement) => void) | undefined;
   menuLabel: string;
+  /** "Play" — the catalog verb for the stretched play target's name. */
+  playLabel: string;
 }): ReactElement {
   const watched = meta?.watched === true;
   // Watched progress 0..1; a fully watched item reports watched=true with
@@ -166,8 +179,25 @@ function MediaRow({
         .join(" ")}
       data-watched={watched || undefined}
       aria-current={isCurrent || undefined}
-      onClick={onPlay}
     >
+      {/* w26.k15 (j15 P2-2): the stretched play target — a transparent native
+       * button spanning the row BEHIND the content. Real-browser clicks land
+       * here (positioned elements paint above the in-flow tile/title), its
+       * Enter/Space activation is native, and focusing it is :focus-within on
+       * the row so the ••• (lifted above via z-index) becomes Tab-reachable.
+       * stopPropagation keeps the click from re-firing through any ancestor
+       * row handler; local-scope rows render no button (presentation). */}
+      {onPlay !== undefined && (
+        <button
+          type="button"
+          className="lumen-plo-mrow__play"
+          aria-label={`${playLabel} ${title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onPlay();
+          }}
+        />
+      )}
       <span className="lumen-plo-mrow__tile" aria-hidden="true">
         {progress > 0 && (
           <span
