@@ -5,6 +5,9 @@
 // `useOnboardingMsg`), so the copy renders identically before and after
 // registration. Frame-provenance notes per key.
 export const keys = {
+  // w26.k18 (j18 F4): onboarding.shortcuts.seek/item/frame/volume pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   // Media/library step (frame: Onboarding.svg "Choose a Media Folder…"
   // input row, recomposed around this build's real open-path funnel).
   "onboarding.library.title": "Media library",
@@ -25,10 +28,4 @@ export const keys = {
   // Shortcuts step (frame: Onboarding-2.svg — heading + footer note verbatim).
   "onboarding.shortcuts.heading": "Learn the basic keyboard shortcuts.",
   "onboarding.shortcuts.more": "Find the full list in the menu.",
-  // Pair-row labels for the two-column tour (frame: Onboarding-2.svg rows;
-  // each row's keycaps come from the real keymap, never typed copy).
-  "onboarding.shortcuts.seek": "Seek backward / forward",
-  "onboarding.shortcuts.item": "Previous / next item",
-  "onboarding.shortcuts.frame": "Previous / next frame",
-  "onboarding.shortcuts.volume": "Increase / decrease volume",
 } as const;
