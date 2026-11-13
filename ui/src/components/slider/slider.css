@@ -8,7 +8,9 @@
  *     in the same slim grammar. The frame's level fill is the measured
  *     signal gradient (#95D318 → #B2A918 → #D37918 → #FF3737, revealed to
  *     the level) — resolved through the --gradient-volume-level token when
- *     the token lane lands it; the accent is the fallback (same grammar).
+ *     the token lane lands it (still absent as of w26.k03 — j03 P3-10,
+ *     re-logged; the accent fallback below is the standing grammar); the
+ *     accent is the fallback (same grammar).
  *   EQ.svg / Audio - Equalizer.svg (EQ sliders, W25 spec §2 — re-measured
  *     against the SVG sources by w26.a20 §A1 and re-pinned by w26.f05 F10:
  *     the SVG wins over the spec's drifted VLM numbers): 16px rx6 track on
@@ -54,16 +56,28 @@
 /* fill — the level/progress value; width driven by --lumen-slider-fill.
  * Amber gradient accent.tinted → accent-strong (frame: EQ.svg / Audio -
  * Equalizer.svg; brief + W25 spec §2: #371f06 → #a5621a). The dedicated
- * --color-eq-fill-* tokens win once the token lane lands them; until then
- * the semantic fallbacks render the frame-measured stops to within Δ≤6/255
- * per channel (accent.tinted == #371f06 exactly; accent-strong #ab6314 ≈
- * end #a5621a) — no raw hex needed in the sheet. */
+ * --color-eq-fill-* tokens win once the token lane lands them (still
+ * absent from tokens.css as of w26.k03 — j03 P3-10, re-logged for the
+ * token lane; the fallbacks below are the standing grammar, not a
+ * temporary state); the semantic fallbacks render the frame-measured
+ * stops to within Δ≤6/255 per channel (accent.tinted == #371f06 exactly;
+ * accent-strong #ab6314 ≈ end #a5621a) — no raw hex needed in the sheet.
+ *
+ * w26.k03 (j03 P1-1): the fill carries the inset-2 anatomy — it starts 2px
+ * in and spans (100% - 4px)·p, so it ends at 2px + (100% - 4px)·p, the
+ * exact edge the L8 thumb formula below places the handle's right edge on.
+ * Pre-fix it was `left: 0; width: p%` while the thumb already carried the
+ * g16-P2-3 inset travel — live-measured on /settings/video that mismatch
+ * put the thumb +2px past the fill at p=0 and 2px short at p=100
+ * (err = 2 − 4p/100), and 6px outside the track at Home. Settings frames
+ * §C0 pin the same inset-2 fill (12px rx4 inset 2), so the base grammar
+ * and every settings/subtitles consumer agree with the frames. */
 .lumen-slider__fill {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
-  width: calc(var(--lumen-slider-fill, 0) * 1%);
+  left: 2px; /* inset-2 anatomy (frame: EQ.svg / settings §C0) */
+  width: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
   background: linear-gradient(
     90deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
@@ -80,10 +94,13 @@
   width: 8px;
   height: 20px;
 
-  /* w26.g16 P2-3 Lead fix: the thumb's RIGHT edge must sit flush with the
-   * fill's right edge (every reference frame paints them flush). Fill ends
-   * at 2px + (100% - 4px)·p; an 8px thumb flush there needs its left edge
-   * 6px further left than the old (100% - 8px)·p travel placed it. */
+  /* w26.g16 P2-3 Lead fix (fill side landed by w26.k03, j03 P1-1): the
+   * thumb's RIGHT edge must sit flush with the fill's right edge (every
+   * reference frame paints them flush). Fill ends at 2px + (100% - 4px)·p;
+   * an 8px thumb flush there needs its left edge 6px further left than the
+   * old (100% - 8px)·p travel placed it. At p=0 the handle overhangs the
+   * track's left edge by 6px — the frame anatomy (EQ.svg handles overhang
+   * the well; the hit area is sized to cover it). */
   left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   background: var(--color-accent-strong);
   border-radius: 4px;
@@ -93,7 +110,14 @@
 /* -------------------------------------------------- orientation: vertical */
 
 /* Vertical keeps the pill grammar rotated 90° (EQ.svg's classic band view):
- * 14px-wide pill track, bottom-anchored fill, 20×8 handle. */
+ * 14px-wide pill track, bottom-anchored fill, 20×8 handle. w26.k03 (j03
+ * P1-2/P3-12): the vertical mirror of the L8 flush contract — fill inset 2
+ * from the bottom spanning (100% - 4px)·p, handle TOP edge flush with the
+ * fill's TOP edge at every p (thumb top = H − 2 − (H − 4)·p/100 = fill top).
+ * The old `(100% - 8px)·p` travel left the handle overhanging the fill top
+ * by 6px → 2px across the range — the exact grammar the g16 fix killed
+ * horizontally; every vertical scope (base + EQ fader) now carries the
+ * corrected formula. */
 .lumen-slider--vertical {
   width: 24px;
   height: 160px; /* caller-sized extent */
@@ -106,9 +130,9 @@
 }
 
 .lumen-slider--vertical .lumen-slider__fill {
-  inset: auto 0 0; /* anchored to min (bottom): top auto, sides+bottom 0 */
+  inset: auto 0 2px; /* anchored to min (bottom), inset 2: top auto, sides 0, bottom 2px */
   width: auto;
-  height: calc(var(--lumen-slider-fill, 0) * 1%);
+  height: calc((100% - 4px) * var(--lumen-slider-fill, 0) / 100);
   background: linear-gradient(
     0deg,
     var(--color-eq-fill-start, var(--color-accent-tinted)),
@@ -122,7 +146,12 @@
   left: calc(50% - 10px);
   width: 20px;
   height: 8px;
-  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+
+  /* L8 vertical mirror (w26.k03, j03 P1-2): fill top sits at
+   * H − 2 − (H − 4)·p; an 8px handle flush there needs its bottom edge at
+   * (H − 4)·p − 6, i.e. 6px further down than the old (100% - 8px)·p
+   * travel placed it. */
+  bottom: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   transition: bottom 120ms ease, background-color 120ms ease;
 }
 
@@ -169,7 +198,10 @@
   /* w26.g16 P2-3 Lead fix: the thumb's RIGHT edge must sit flush with the
    * fill's right edge (every reference frame paints them flush). Fill ends
    * at 2px + (100% - 4px)·p; an 8px thumb flush there needs its left edge
-   * 6px further left than the old (100% - 8px)·p travel placed it. */
+   * 6px further left than the old (100% - 8px)·p travel placed it.
+   * w26.k03: the base fill now carries the matching inset-2 anatomy, so
+   * this scope and the base agree at every p (pinned by the pixel-math
+   * tests in Slider.test/EQSlider.test). */
   left: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   background: var(--color-accent-strong); /* frame: #AB6314 */
   border-radius: var(--radius-inset); /* frame: rx4 */
@@ -368,7 +400,13 @@
   left: calc(50% - 12px);
   width: 24px; /* frame: 24×8 handle in the vertical view */
   height: 8px;
-  bottom: calc((100% - 8px) * var(--lumen-slider-thumb, 0) / 100);
+
+  /* w26.k03 (j03 P1-2): the vertical L8 mirror — fill top sits at
+   * H − 2 − (H − 4)·p; an 8px handle flush there needs its bottom edge at
+   * (H − 4)·p − 6. Live-measured pre-fix: the handle top overhung the fill
+   * top 2.8px @p=80, 4px @p=50 (6px → 2px across the range); now flush at
+   * every p (pinned by the EQSlider pixel-math test). */
+  bottom: calc((100% - 4px) * var(--lumen-slider-thumb, 0) / 100 - 6px);
   background: var(--color-accent-strong); /* frame: #AB6314 */
   border-radius: var(--radius-inset); /* frame: rx4 */
   transition: bottom 120ms ease, background-color 120ms ease;
