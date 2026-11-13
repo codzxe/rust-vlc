@@ -10,14 +10,11 @@
 // player.menu.app, player.empty.open, menu.file.open-network-stream,
 // menu.help.keyboard-shortcuts, menu.view.settings.
 export const keys = {
+  // w26.k18 (j18 F4): player.controls.fullscreen/exit-fullscreen/cast pruned from this lane file — verified dead
+  // (unreferenced by any source; grandfathered in ui/i18n-dead-keys.json)
+  // so a future Lead prune of the catalog cannot resurrect them via re-merge.
   /** Player.svg Frame 10 — the next-track transport glyph (right of the pill). */
   "player.controls.next": "Next",
-  /** Fullscreen toggle, entering (exits reuse the same control). */
-  "player.controls.fullscreen": "Enter fullscreen",
-  /** Fullscreen toggle, exiting. */
-  "player.controls.exit-fullscreen": "Exit fullscreen",
-  /** Remote-playback control; honestly not-available until a surface exists. */
-  "player.controls.cast": "Cast",
   /** aria group name for the output cluster (fullscreen/cast/gear/menu). */
   "player.controls.group-output": "Player controls",
 } as const;
