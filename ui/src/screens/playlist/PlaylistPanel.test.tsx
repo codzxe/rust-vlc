@@ -220,6 +220,18 @@ describe("PlaylistPanel — queue controls + entry actions (dispatch spy)", () =
     const move = transport.sent.find((r) => r.cmd === "playlist.move");
     expect(move && "args" in move ? move.args : null).toEqual({ id: 3, toIndex: 0 });
   });
+
+  // w26.k14 (j14 #9): an external drag with an empty text payload used to
+  // decode to row 0 (Number("") === 0) and move it spuriously.
+  it("an external drop with an empty text payload is a no-op — never row 0", async () => {
+    const { transport } = setup();
+    await waitFor(() => expect(transport.sent.length).toBeGreaterThan(0));
+    const rows = screen.getAllByRole("row");
+    const target = rows[1]!.querySelector<HTMLElement>(".lumen-plrow")!;
+    fireEvent.drop(target, { dataTransfer: { getData: () => "" } });
+    fireEvent.drop(target, { dataTransfer: { getData: () => "   " } });
+    expect(transport.sent.filter((r) => r.cmd === "playlist.move")).toHaveLength(0);
+  });
 });
 
 describe("PlaylistPanel — queue-row context menu (w26.c6, playlist context menu.svg)", () => {
@@ -347,5 +359,93 @@ describe("PlaylistPanel — queue-row context menu (w26.c6, playlist context men
     const menu = await openRowMenu("Big Buck Bunny");
     fireEvent.click(within(menu).getByText("Media info"));
     expect(await screen.findByText("media-info-screen")).toBeInTheDocument();
+  });
+});
+
+// w26.k14 (j14 P2-2) — the "+" enqueue affordance: the panel's consumer
+// path over the shared seam (useEnqueueSources/enqueueEntries — the
+// module's own branching is covered in enqueueSources.test.tsx; the
+// MiniPlayer consumer path lives in variants.test.tsx).
+describe("PlaylistPanel — the + enqueue affordance (w26.i16 shared seam)", () => {
+  const openAdd = async (): Promise<{ add: HTMLElement; menu: HTMLElement }> => {
+    const add = screen.getByRole("button", { name: "Add to queue" });
+    expect(add).toHaveAttribute("aria-haspopup", "menu");
+    expect(add).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(add);
+    expect(add).toHaveAttribute("aria-expanded", "true");
+    const menu = await screen.findByRole("menu", { name: "Add to queue" });
+    return { add, menu };
+  };
+
+  it("opens the shared-seam popup: the four demo clips + separator + open-media footer", async () => {
+    setup();
+    const { menu } = await openAdd();
+    for (const label of [
+      "Big Buck Bunny (1080p, 10 min)",
+      "Ambient loop (music, 3 min)",
+      "Live edge (HLS stream)",
+      "Night radio (audio stream)",
+    ]) {
+      expect(within(menu).getByRole("menuitem", { name: label })).toBeInTheDocument();
+    }
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(1);
+    expect(within(menu).getByRole("menuitem", { name: "Open media" })).toBeInTheDocument();
+  });
+
+  it("picking a source dispatches playlist.enqueue (playLater) and closes with focus restored", async () => {
+    const { transport } = setup();
+    await waitFor(() => expect(transport.sent.length).toBeGreaterThan(0));
+    const { add, menu } = await openAdd();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Live edge (HLS stream)" }));
+    const enqueued = transport.sent.find((r) => r.cmd === "playlist.enqueue");
+    expect(enqueued && "args" in enqueued ? enqueued.args : null).toEqual({
+      source: { kind: "url", url: "https://demo.lumen.dev/live/edge-hsl.m3u8" },
+      title: "Live edge (HLS stream)",
+    });
+    // closeAdd() semantics: popup gone, focus back on the trigger.
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(add).toHaveFocus();
+  });
+
+  it("empty seam: no sources → the honest disabled empty row, no separator/footer", async () => {
+    // Desktop shell (Tauri internals present): clips are hidden and the
+    // non-demo transport has no recents — the real app's empty case.
+    const host = globalThis as { __TAURI_INTERNALS__?: unknown };
+    host.__TAURI_INTERNALS__ = { invoke: () => Promise.resolve({}), transformCallback: () => 0 };
+    try {
+      setup();
+      const { menu } = await openAdd();
+      const empty = within(menu).getByRole("menuitem", { name: "Nothing to add yet" });
+      expect(empty).toHaveAttribute("aria-disabled", "true");
+      expect(within(menu).queryByRole("separator")).toBeNull();
+      expect(within(menu).queryByRole("menuitem", { name: "Open media" })).toBeNull();
+    } finally {
+      delete host.__TAURI_INTERNALS__;
+    }
+  });
+
+  it("the Open media footer fires the shell-wide event and closes the popup", async () => {
+    setup();
+    const seen: string[] = [];
+    const onEvent = (event: DomEvent): void => {
+      seen.push(event.type);
+    };
+    window.addEventListener(OPEN_MEDIA_EVENT, onEvent);
+    try {
+      const { menu } = await openAdd();
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Open media" }));
+    } finally {
+      window.removeEventListener(OPEN_MEDIA_EVENT, onEvent);
+    }
+    expect(seen).toEqual([OPEN_MEDIA_EVENT]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a pointerdown outside the panel dismisses the popup (e12 F8)", async () => {
+    setup();
+    await openAdd();
+    expect(screen.getByRole("menu", { name: "Add to queue" })).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 });
