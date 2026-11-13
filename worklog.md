@@ -1881,3 +1881,49 @@ Stage Summary:
   Next watch: the full CI set; then dispatch the release dry-run
   (proves the canonical-squish fix in the windows upgrade test) and
   the tauri-launch lane (the exec half on the current tree).
+---
+Task ID: w26.lead-round16
+Agent: Lead (orchestrator)
+Task: The MSI upgrade test's step-3 first live run — the 1619 class
+  (relative /-form path), the log-tail diagnostics, and the finally-
+  block cleanup's squished-name bug.
+
+Work Log:
+- Watched the round-15 dispatched set on 08727513 (CI GREEN -- the
+  first full set with the admission lane in it; Rust/UI/CodeQL/
+  clippy green; Tauri Launch Verdicts green on the same tree). The
+  release dry-run's windows job then carried the upgrade test further
+  than ever before: the canonical squish WORKED end to end --
+  predecessor install exit 0, exactly 1 ProductCode found under the
+  UpgradeCode, installed files present (asserts 1+2 of 4 all PASS).
+  The run died at the first live attempt at step 3: msiexec /i on the
+  CURRENT MSI exited 1619 (package open). Structural asymmetry named
+  the cause: the predecessor opened from an absolute Join-Path; the
+  current was passed the workflow's bash form "dist/lumen-...msi" --
+  RELATIVE with forward slashes.
+- Fixes (test-msi-upgrade.ps1 only; the workflow line stays and the
+  script is the single point of truth):
+  1. $CurrentMsi resolves to (Resolve-Path).ProviderPath -- absolute
+     backslash form -- before any use.
+  2. Invoke-MsiExec prints the verbose log's tail (bounded 20 lines)
+     before Fail-ing: 1619 by itself starved the round; the log names
+     the open/parse reason.
+  3. The finally-block cleanup ran msiexec /x on the SQUISHED value
+     name (1619 every attempt, WARNING in the live log). The squish
+     index map is an involution (verified in python: ORDER[ORDER[i]]
+     == i for all 32; round-trip identity PASS), so unsquish =
+     re-apply the map; cleanup now re-dashes to canonical
+     {8-4-4-4-12} and runs /x "{guid}" (end-to-end verified against
+     the OBSERVED squished code from the live log:
+     e3e73521dab6f2f4d9b36be38097f1e9 ->
+     {12537e3e-6bad-4f2f-9d3b-b63e08791f9e}).
+- ps1-sanity PASS (after ASCII normalization -- the em-dashes and
+  ellipsis in my first draft tripped the ASCII-only rule; caught
+  locally, never pushed).
+
+Stage Summary:
+- Round 16 pushed. The upgrade test's four asserts are now all
+  reachable with honest diagnostics at every failure site; expected:
+  the release dry-run's windows job green through install ->
+  replace -> uninstall-clean, which unblocks the release job and the
+  first tagged release (#66).

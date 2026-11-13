@@ -53,6 +53,15 @@ function Fail([string]$Message) {
 
 # --- Preconditions -----------------------------------------------------------
 if (-not (Test-Path $CurrentMsi)) { Fail "current MSI not found: $CurrentMsi" }
+# 1619-proofing (round 16): the workflow hands us the bash form
+# "dist/lumen-...-windows.msi" -- RELATIVE with forward slashes. The
+# first live run to reach step 3 (release 43457748820, windows job)
+# opened the predecessor fine from an absolute Join-Path and then died
+# "package could not be opened" (1619) on this one two lines later;
+# msiexec opens the package in its own context, so hand it an absolute
+# backslash path and never a relative /-form. The log-tail diagnostics
+# below name the reason if a 1619-class failure ever returns.
+$CurrentMsi = (Resolve-Path $CurrentMsi).ProviderPath
 
 foreach ($name in @(
         'PRODUCT_MSI_UPGRADE_CODE', 'MSI_VERSION', 'BIN_CLI', 'BIN_DESKTOP',
@@ -153,6 +162,13 @@ function Invoke-MsiExec([string]$Verb, [string]$MsiPath, [string]$LogFile) {
         -ArgumentList @("/$Verb", "`"$MsiPath`"", 'ALLUSERS=1', '/qn', "/L*v", "`"$LogFile`"") `
         -Wait -PassThru
     if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+        # Round 16: the exit code alone starves the next round -- the
+        # verbose log names the open/parse reason; 1619 by itself said
+        # nothing. Bounded tail, never the whole multi-MB log.
+        if (Test-Path $LogFile) {
+            Write-Output "  diagnostics: $LogFile tail:"
+            Get-Content $LogFile -Tail 20 | ForEach-Object { Write-Output "    $_" }
+        }
         Fail "msiexec /$Verb exited $($proc.ExitCode) (log: $LogFile)"
     }
     return $proc.ExitCode
@@ -250,10 +266,21 @@ finally {
     $codes = Get-InstalledProductCodes
     foreach ($code in $codes) {
         Write-Output "cleanup: removing leftover product $code"
+        # msiexec /x speaks the ProductCode GUID in canonical {8-4-4-4-12}
+        # braced form; $code is the registry value NAME (the SQUISHED
+        # ProductCode). The squish index map is an involution -- squishing
+        # the squished name returns the original GUID string -- so
+        # round-15's cleanup bug (msiexec /x on the raw squished name,
+        # 1619 every attempt, release 43457748820's finally block) is a
+        # squish + re-dash away.
+        $guid = Get-SquishedGuid $code
+        $braced = '{' + $guid.Substring(0, 8) + '-' + $guid.Substring(8, 4) + '-' +
+            $guid.Substring(12, 4) + '-' + $guid.Substring(16, 4) + '-' +
+            $guid.Substring(20, 12) + '}'
         $proc = Start-Process -FilePath 'msiexec.exe' `
-            -ArgumentList @('/x', "`"$code`"", '/qn') -Wait -PassThru
+            -ArgumentList @('/x', "`"$braced`"", '/qn') -Wait -PassThru
         if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-            Write-Warning "cleanup uninstall of $code exited $($proc.ExitCode)"
+            Write-Warning "cleanup uninstall of $braced exited $($proc.ExitCode)"
         }
     }
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
