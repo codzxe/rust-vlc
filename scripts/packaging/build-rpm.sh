@@ -22,9 +22,14 @@
 #   Release     <- PACKAGING_RPM_RELEASE (packaging.toml)
 #   Summary     <- PRODUCT_DESCRIPTION (locale catalog via product.toml)
 #   License     <- PACKAGING_RPM_LICENSE (mirrors the repo LICENSE)
+#   Requires    <- gtk3 + webkit2gtk4.1 (script-local: the tauri
+#                  admission shell's webview runtime — no rpm_requires
+#                  config key exists; same decision as build-deb.sh's
+#                  Depends rows)
 #   files       <- PACKAGING_LINUX_BINDIR / _DOCS_DIR /
 #                  _APPLICATIONS_DIR / _ICONS_DIR + BIN_CLI/BIN_DESKTOP
-#                  (cargo metadata) + PACKAGING_DESKTOP_CATEGORIES /
+#                  + BIN_TAURI (cargo metadata) +
+#                  PACKAGING_DESKTOP_CATEGORIES /
 #                  PACKAGING_DESKTOP_TERMINAL for the entry file
 #
 # HONEST LOCAL-PROOF BOUNDARY: this sandbox has no rpmbuild — the
@@ -45,6 +50,7 @@ set -eu
 : "${PRODUCT_ACCENT_COLOR:?build-rpm.sh: PRODUCT_ACCENT_COLOR not set}"
 : "${BIN_CLI:?build-rpm.sh: BIN_CLI not set}"
 : "${BIN_DESKTOP:?build-rpm.sh: BIN_DESKTOP not set}"
+: "${BIN_TAURI:?build-rpm.sh: BIN_TAURI not set}"
 : "${OS_ID:?build-rpm.sh: OS_ID not set}"
 : "${ARCH_ID:?build-rpm.sh: ARCH_ID not set}"
 : "${PACKAGING_LINUX_BINDIR:?build-rpm.sh: PACKAGING_LINUX_BINDIR not set}"
@@ -104,6 +110,7 @@ mkdir -p "$payload"
 files_list=""
 for entry in "/$PACKAGING_LINUX_BINDIR/$BIN_CLI" \
     "/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" \
+    "/$PACKAGING_LINUX_BINDIR/$BIN_TAURI" \
     "/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop" \
     "/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png"
 do
@@ -133,12 +140,22 @@ Summary:        ${PRODUCT_DESCRIPTION}
 License:        ${PACKAGING_RPM_LICENSE}
 Packager:       ${PRODUCT_PUBLISHER}
 Source0:        ${PRODUCT_LOWER}-${PRODUCT_VERSION}.tar.gz
+# Requires: the tauri admission shell (BIN_TAURI) links WebKitGTK 4.1
+# + GTK3 at run time; without these rows a clean Fedora host installs
+# an rpm whose tauri binary cannot launch. Fedora package names; gtk3
+# arrives transitively via webkit2gtk4.1 but is declared explicitly
+# (the tauri binary links it directly). Script-local rows — no
+# rpm_requires config key exists (same decision as the deb Depends;
+# see scripts/packaging/build-deb.sh + the w26.m.t2 report).
+Requires:       gtk3
+Requires:       webkit2gtk4.1
 
 %description
 ${PRODUCT_DESCRIPTION}
-Both shipped binaries (the engine-driven CLI and the desktop
-composition-root binary) install under /${PACKAGING_LINUX_BINDIR}; this
-package ships files only, no scriptlets.
+The shipped binaries (the engine-driven CLI, the desktop
+composition-root binary and the tauri admission shell) install under
+/${PACKAGING_LINUX_BINDIR}; this package ships files only, no
+scriptlets.
 
 %prep
 # The tarball's top-level dir is ${PRODUCT_LOWER}-${PRODUCT_VERSION}
@@ -178,6 +195,19 @@ validate_spec() { # $1 = spec path, $2 = staging payload dir
     case $(sed -n 's/^Version:[[:space:]]*//p' "$vspec") in
         *-*) echo "build-rpm.sh: spec validation FAILED — Version contains a dash" >&2; vfail=1 ;;
     esac
+    # The tauri shell's runtime-dep rows (the deb carries the same pair
+    # in Depends): a dropped row would ship an rpm that installs cleanly
+    # but cannot launch BIN_TAURI on a clean host — asserted here so the
+    # spec-only local proof (this sandbox + the gate) catches it, not
+    # the first CI rpmbuild.
+    if ! grep -Eq '^Requires:[[:space:]]+gtk3[[:space:]]*$' "$vspec"; then
+        echo "build-rpm.sh: spec validation FAILED — missing 'Requires: gtk3'" >&2
+        vfail=1
+    fi
+    if ! grep -Eq '^Requires:[[:space:]]+webkit2gtk4\.1[[:space:]]*$' "$vspec"; then
+        echo "build-rpm.sh: spec validation FAILED — missing 'Requires: webkit2gtk4.1'" >&2
+        vfail=1
+    fi
     # Every %files path must exist in the staged payload. (The check
     # runs in $(...) — a subshell — so it COLLECTS failures and the
     # parent decides, never the reverse.)

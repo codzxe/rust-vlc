@@ -60,12 +60,39 @@ fail=0
 step() { printf 'gate.sh: %s\n' "$1"; }
 bad() { printf 'gate.sh: FAILED: %s\n' "$1" >&2; fail=1; }
 
+# BIN_TAURI bridge pair (w26.m.t2): the third shipped bin flows through
+# the same packaging-env.py bridge as BIN_CLI/BIN_DESKTOP, but the
+# bridge only exports it when the caller passes the --tauri pair, and
+# THAT interface exists only once the w26.m.t1 commit (product-env.py /
+# packaging-env.py subcrate-metadata resolution) is on main. The gate
+# therefore probes the bridge's own declared interface instead of
+# assuming it:
+#   * pair supported  -> pass it (BIN_TAURI joins the env; the stager
+#     in step 5 then exercises the full three-binary contract);
+#   * pair absent (pre-t1-merge main) -> honest label in step 1, and
+#     the stager's required-env guard stays BIN_TAURI's loud refusal.
+# Once the t1 commit is merged this probe is trivially true and the
+# branch flattens to a direct pass (Lead's reconcile note, w26.m.t2
+# report).
+bridge_tauri_args=""
+if python3 scripts/packaging/packaging-env.py --help 2>&1 | grep -q -- --tauri-package; then
+    bridge_tauri_args="--tauri-package lumen-desktop-tauri --tauri-manifest apps/desktop-tauri/Cargo.toml"
+fi
+
 # --- 1. config validation (schema + semantics + product bridge) --------------
 step "1. packaging.toml <-> packaging.schema.json + product bridge"
 if env_out=$(python3 scripts/packaging/packaging-env.py \
-        --cli-package lumen-cli --desktop-package desktop --print 2>&1); then
+        --cli-package lumen-cli --desktop-package desktop $bridge_tauri_args --print 2>&1); then
     varcount=$(printf '%s\n' "$env_out" | wc -l | tr -d ' ')
     step "   packaging-env.py: ${varcount} variables resolved (schema + semantic pass green)"
+    case "$env_out" in
+        *BIN_TAURI=*)
+            step "   bridge exports BIN_TAURI (third shipped bin wired end to end)"
+            ;;
+        *)
+            step "   bridge does NOT export BIN_TAURI yet (w26.m.t1's --tauri pair lands it; until then the stager's required-env guard is BIN_TAURI's loud refusal) [VERIFY at first live run]"
+            ;;
+    esac
 else
     bad "packaging-env.py validation failed:
 $env_out"
@@ -100,16 +127,21 @@ if [ $fail -eq 0 ]; then
     stage=$(mktemp -d) || { bad "mktemp failed"; exit 1; }
     # shellcheck disable=SC2016 — eval of packaging-env.py --shell output
     if eval "$(python3 scripts/packaging/packaging-env.py \
-            --cli-package lumen-cli --desktop-package desktop --shell)"; then
+            --cli-package lumen-cli --desktop-package desktop $bridge_tauri_args --shell)"; then
         # 5a. The stager must REFUSE LOUDLY when the release binaries are
         # absent (config-driven hard error, never a silent empty package).
+        # TWO refusal texts are the contract (w26.m.t2): the classic
+        # "missing packaging input" when the env carries BIN_* but the
+        # binaries are absent, and the BIN_TAURI required-env guard when
+        # the pre-t1-merge bridge has not exported it yet — both are
+        # loud, config-driven hard errors naming the missing input.
         if out=$(OS_ID=linux ARCH_ID=aarch64 TARGET_DIR=/nonexistent-gate-target \
                 sh scripts/packaging/stage-linux-payload.sh "$stage/payload" 2>&1); then
             bad "payload staging unexpectedly succeeded with no built binaries (should have failed loudly):
 $out"
         else
             case "$out" in
-                *"missing packaging input"*) step "   stager refuses loudly without built binaries (as designed)" ;;
+                *"missing packaging input"*|*"BIN_TAURI not set"*) step "   stager refuses loudly without built binaries (as designed)" ;;
                 *) bad "stager failed for an unexpected reason: $out" ;;
             esac
         fi
@@ -142,7 +174,7 @@ step "6. sign-windows.sh / sign-macos.sh .UNSIGNED fallback (credentials absent)
 if [ $fail -eq 0 ]; then
     stage=$(mktemp -d) || { bad "mktemp failed"; exit 1; }
     eval "$(python3 scripts/packaging/packaging-env.py \
-        --cli-package lumen-cli --desktop-package desktop --shell)" || fail=1
+        --cli-package lumen-cli --desktop-package desktop $bridge_tauri_args --shell)" || fail=1
     if [ $fail -eq 0 ]; then
         # Stand-in artifacts -- the sidecar paths only need real files.
         echo "stand-in artifact for the unsigned-sidecar contract" >"$stage/standin.msi"

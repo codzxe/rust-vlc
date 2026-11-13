@@ -15,6 +15,9 @@
 #   Section       <- PACKAGING_DEB_SECTION      (packaging.toml)
 #   Architecture  <- ARCH_ID mapped (x86_64->amd64, aarch64->arm64)
 #   Maintainer    <- PRODUCT_PUBLISHER
+#   Depends       <- libgtk-3-0 + libwebkit2gtk-4.1-0 (script-local:
+#                      the tauri admission shell's webview runtime — no
+#                      deb_depends config key exists; see below)
 #   Description   <- PRODUCT_DESCRIPTION (locale catalog via the key in
 #                     product.toml identity.description_key)
 #   files         <- stage-linux-payload.sh (the ONE shared FHS tree)
@@ -63,6 +66,22 @@ trap 'rm -rf "$stage"' EXIT INT TERM
 "$ROOT/scripts/packaging/stage-linux-payload.sh" "$stage/root"
 
 # 2. Control metadata (config-driven fields only).
+#
+# Depends (w26.m.t2): the FIRST runtime-dependency rows this package
+# declares. The tauri admission shell (BIN_TAURI, apps/desktop-tauri)
+# links WebKitGTK 4.1 + GTK3 and cannot launch without them — without
+# these rows a clean Ubuntu host would install a .deb whose tauri
+# binary dies on first run. Package names are the Debian/Ubuntu
+# webkit2gtk-4.1 ABI set: libwebkit2gtk-4.1-0 (the webview) and
+# libgtk-3-0 (the toolkit underneath it). gtk3 would arrive
+# transitively through webkit's own Depends; it is declared anyway
+# because the tauri binary links it directly — explicit over minimal,
+# the same honest style as the rest of this lane. The two rows are
+# script-local ON PURPOSE: build-deb.sh builds no Depends from config
+# today (packaging.toml [linux] has no deb_depends key), and inventing
+# that config row would have to touch packaging.toml + schema +
+# packaging-env.py (another lane's file) in one commit — flagged to the
+# Lead in the w26.m.t2 report instead.
 mkdir -p "$stage/root/DEBIAN"
 cat >"$stage/root/DEBIAN/control" <<EOF
 Package: ${PRODUCT_LOWER}
@@ -71,10 +90,12 @@ Section: ${PACKAGING_DEB_SECTION}
 Priority: optional
 Architecture: ${deb_arch}
 Maintainer: ${PRODUCT_PUBLISHER}
+Depends: libgtk-3-0, libwebkit2gtk-4.1-0
 Description: ${PRODUCT_DESCRIPTION}
- Both shipped binaries (the engine-driven CLI and the desktop
- composition-root binary) install under /${PACKAGING_LINUX_BINDIR};
- this package ships files only, no maintainer scripts.
+ The shipped binaries (the engine-driven CLI, the desktop
+ composition-root binary and the tauri admission shell) install under
+ /${PACKAGING_LINUX_BINDIR}; this package ships files only, no
+ maintainer scripts.
 EOF
 
 # 3. Pack (root-owner-group: ownership independent of the build user).

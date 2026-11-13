@@ -6,9 +6,19 @@
 # PACKAGING_LINUX_* — no directory literal in this script):
 #   <dest>/$PACKAGING_LINUX_BINDIR/$BIN_CLI            0755
 #   <dest>/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP        0755
+#   <dest>/$PACKAGING_LINUX_BINDIR/$BIN_TAURI          0755
 #   <dest>/$PACKAGING_LINUX_DOCS_DIR/$PRODUCT_LOWER/<each shipped doc>  0644
 #   <dest>/$PACKAGING_LINUX_APPLICATIONS_DIR/$PRODUCT_APPSTREAM_ID.desktop 0644
 #   <dest>/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png               0644
+#
+# BIN_TAURI (w26.m.t2): the THIRD shipped binary — the ADR-004 tauri
+# admission shell (apps/desktop-tauri, workspace-EXCLUDED, bin name
+# resolved by the env bridge from the subcrate's own metadata). It is
+# staged EXACTLY like BIN_DESKTOP: a filename from the environment,
+# installed from TARGET_DIR/release (the CI tauri build lands in the
+# same CARGO_TARGET_DIR as the other two). Required like the other two:
+# a missing tauri binary is the same loud "missing packaging input"
+# hard error — never a silently-two-binary package.
 #
 # The desktop entry comes from gen-desktop-entry.sh (the ONE writer,
 # shared with the AppImage lane). The icon prefers the real brand asset
@@ -28,6 +38,7 @@ set -eu
 : "${PRODUCT_ICON_PNG_512:?stage-linux-payload.sh: PRODUCT_ICON_PNG_512 not set}"
 : "${BIN_CLI:?stage-linux-payload.sh: BIN_CLI not set}"
 : "${BIN_DESKTOP:?stage-linux-payload.sh: BIN_DESKTOP not set}"
+: "${BIN_TAURI:?stage-linux-payload.sh: BIN_TAURI not set}"
 : "${OS_ID:?stage-linux-payload.sh: OS_ID not set}"
 : "${ARCH_ID:?stage-linux-payload.sh: ARCH_ID not set}"
 : "${PACKAGING_LINUX_BINDIR:?stage-linux-payload.sh: PACKAGING_LINUX_BINDIR not set (run packaging-env.py first)}"
@@ -48,8 +59,10 @@ dest=$1
 
 cli_bin="$TARGET_DIR/release/$BIN_CLI"
 desktop_bin="$TARGET_DIR/release/$BIN_DESKTOP"
+tauri_bin="$TARGET_DIR/release/$BIN_TAURI"
 [ -f "$cli_bin" ] || die "missing packaging input: $cli_bin (build first: cargo build --release --locked)"
 [ -f "$desktop_bin" ] || die "missing packaging input: $desktop_bin"
+[ -f "$tauri_bin" ] || die "missing packaging input: $tauri_bin (the tauri admission shell builds separately: --manifest-path apps/desktop-tauri/Cargo.toml, same CARGO_TARGET_DIR)"
 
 mkdir -p \
     "$dest/$PACKAGING_LINUX_BINDIR" \
@@ -59,6 +72,7 @@ mkdir -p \
 
 install -m 0755 "$cli_bin" "$dest/$PACKAGING_LINUX_BINDIR/$BIN_CLI"
 install -m 0755 "$desktop_bin" "$dest/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP"
+install -m 0755 "$tauri_bin" "$dest/$PACKAGING_LINUX_BINDIR/$BIN_TAURI"
 
 # Shipped docs: the list lives in packaging.toml [shipped] docs (space
 # separated in PACKAGING_DOCS); existence was already asserted by
