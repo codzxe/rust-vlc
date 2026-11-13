@@ -21,15 +21,24 @@ caller passes back via `value` — never an optimistic jump (doc 08 §5).
 Hit areas are ≥16px on the interaction axis (roots 20–24px tall/wide over
 4–14px painted tracks).
 
-## Anatomy (slider.css; w26.a04)
+## Anatomy (slider.css; w26.a04 — geometry corrected w26.k03)
+
+L8 flush contract (every scope, pinned by pixel-math tests in
+Slider.test.tsx / EQSlider.test.tsx): the fill is INSET 2 from the min edge
+and spans `(track − 4)·p`; the 8px handle's leading edge sits flush with the
+fill's far edge at every p — horizontally `left = (100%−4px)·p − 6px`,
+vertically `bottom = (100%−4px)·p − 6px` (top edge flush with fill top).
+At p=0 the handle overhangs the well's min edge by 6px (frame anatomy;
+hit areas cover it). The base fill's old full-width `left:0; width:p%`
+(w26.k03 j03 P1-1) and the vertical `(100%−8px)·p` travel (P1-2) are gone.
 
 | Component | Track | Fill | Thumb |
 |---|---|---|---|
-| `Slider` (base, horizontal) | 14px r7 pill, `surface` (#090909 on the frames' #1b1b1b panels; frame: Audio - Equalizer.svg) | full-height pill, amber gradient `accent-tinted`→`accent-strong` (== frame #371f06→#a5621a to Δ≤6/255 per channel; SVG rects are flat #371f06 — gradient per W25 spec §2/brief VLM measurement), width = value | 8×20 r4 `accent-strong`, overhangs track |
-| `Slider` vertical | 14px-wide pill | bottom-anchored, gradient to-top | 20×8 r4 |
-| `EQSlider` (additive) | base pill, full width | base gradient | base handle |
-| `Seekbar` | 4px pill-ended, `surface-deep` (brief/W25 §1 recessed well) | `accent`, pill ends, width = engine position | circular 12px `accent`, opacity 0 at rest |
-| `VolumeSlider` | 4px pill-ended, `surface-deep` (seekbar grammar), compact 96px | level fill: `--gradient-volume-level` token if present, else `accent` | circular 12px `accent`, opacity 0 at rest |
+| `Slider` (base, horizontal) | 14px r7 pill, `surface` (#090909 on the frames' #1b1b1b panels; frame: Audio - Equalizer.svg) | full-height pill inset 2, amber gradient `accent-tinted`→`accent-strong` (== frame #371f06→#a5621a to Δ≤6/255 per channel; SVG rects are flat #371f06 — gradient per W25 spec §2/brief VLM measurement), width = (100%−4px)·p | 8×20 r4 `accent-strong`, L8 flush (right edge = fill end), overhangs track at the min end |
+| `Slider` vertical | 14px-wide pill | bottom-anchored inset 2, gradient to-top, height = (100%−4px)·p | 20×8 r4, L8 vertical mirror (top edge = fill top) |
+| `EQSlider` (additive) | base pill, full width | inset 2 (flat `accent-tinted` in this scope), (100%−4px)·p | base handle |
+| `Seekbar` | 4px pill-ended, `surface-deep` (brief/W25 §1 recessed well) | `accent`, pill ends, inherits the base inset-2 travel | circular 12px `accent`, opacity 0 at rest |
+| `VolumeSlider` | 4px pill-ended, `surface-deep` (seekbar grammar), compact 96px | level fill: `--gradient-volume-level` token if present, else `accent`; inherits the base inset-2 travel | circular 12px `accent`, opacity 0 at rest |
 
 Value chip (EQ rows, audio value.svg) is rendered by CONSUMERS — outside
 the slider primitive.
@@ -62,6 +71,10 @@ slider role to the bar itself). The component never invents buffer data.
 
 ## Token gaps logged for the token lane (do not hand-code in consumers)
 
+Status w26.k03 (j03 P3-10): BOTH gaps are still open after 10 waves —
+re-logged for the token lane with the w26.k03 lane log. The fallbacks below
+are the standing grammar, not a temporary state.
+
 - `--color-eq-fill-start` / `--color-eq-fill-end` — EQ amber gradient stops
   (spec/brief: `#371f06` → `#a5621a`; the SVG rect fills are FLAT `#371F06`
   with an `#AB6314` handle — EQ.svg / Audio - Equalizer.svg source rects; the
@@ -71,7 +84,9 @@ slider role to the bar itself). The component never invents buffer data.
   equivalent, tokens only.
 - `--gradient-volume-level` — the volume signal gradient
   (`#95D318 → #B2A918 → #D37918 → #FF3737`, revealed to the level;
-  Player.svg/volume.svg). slider.css falls back to `--color-accent`.
+  Player.svg/volume.svg). slider.css falls back to `--color-accent`
+  (the ControlBar wedge paints the frame gradient with a `frame:` pin).
+  ALSO still pending: `--color-slider-tick` (setting-field.css:260 pin).
 
 ## Structural values without tokens (raw px in slider.css)
 
