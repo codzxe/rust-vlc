@@ -42,7 +42,8 @@
 // dispatch, never a semantic change). New controls are additive seams on
 // the same honest pattern: disabled-with-reason, never fabricated state.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import type { ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
 import { Button, IconButton, Icon, Seekbar, SegmentedControl, VolumeSlider } from "../../../components";
@@ -51,12 +52,10 @@ import { identityResolveLabel } from "../../../components/menu/types";
 import type { MenuEntry } from "../../../components";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
-import { keys as f13Keys } from "../../../i18n/keys/w26.f13";
-import { keys as gfixCKeys } from "../../../i18n/keys/w26.gfixC";
-import { keys as i03Keys } from "../../../i18n/keys/w26.i03";
-import { keys as i16Keys } from "../../../i18n/keys/w26.i16";
+import { keys as k07Keys } from "../../../i18n/keys/w26.k07";
 import { buildProfileFlyout, createProfile, selectProfile, useMediaProfiles } from "../../../components/menu";
 import { useClient } from "../../../client/ClientProvider";
+import type { PlaybackState } from "../../../client/transport";
 import { isDemoTransport } from "../../../client/demo-transport";
 import { openPathRequest, openPathRoute } from "../../../client/open-path";
 import { HOTKEY_BINDINGS } from "../../settings/areas/hotkeys/generated/bindings";
@@ -71,7 +70,7 @@ import { mapTransportControls, seekDisableReason } from "./state-mapping";
 import { SettingsPanel } from "./SettingsPanel";
 import type { SettingsPanelTab } from "./SettingsPanel";
 import {
-  PanelRadioRow,
+  PanelRadioGroup,
   PanelReasonRow,
   PanelSection,
   PanelToggleRow,
@@ -81,31 +80,24 @@ import {
 import "./controls.css";
 
 /**
- * w26.f13 lane keys (the app menu's frame-exact labels) — contract §4.5:
- * catalog first, lane copy while the Lead's post-wave merge is pending
- * (PlayerScreen's c6/f09 seam-first pattern; identical before/after).
+ * w26.k07 lane keys (the queue meta composition, j07 P2-4) — contract §4.5:
+ * catalog first once the Lead registers them, lane copy until then. This is
+ * the LIVE pre-registration seam (the b15 useNetworkStreamMsg pattern),
+ * typed over the WHOLE k07 key union — unlike the dead f13/gfixC/i03/i16
+ * resolvers this lane deleted (j07 P1: every one of those keys was already
+ * registered in messages.ts, so their fallbacks were unreachable and the
+ * LaneMessageKey union lied about the catalog merge). After the Lead
+ * registers the k07 keys, both paths return the same string and the next
+ * cleanup pass can delete this seam the same way.
  */
-const f13Catalog: Readonly<Record<string, string>> = { ...f13Keys, ...i16Keys };
+const k07Catalog: Readonly<Record<string, string>> = k07Keys;
 
-/** w26.f13 lane key ids (typed for the seam resolver below). */
-type F13LaneKey = keyof typeof f13Keys | keyof typeof i16Keys;
+type K07LaneKey = keyof typeof k07Keys;
 
-/** w26.gfixC lane keys (the gfix-C labels, since merged into the catalog) +
- * the w26.i03 panel labels — same seam-first pattern. */
-const laneCatalog: Readonly<Record<string, string>> = { ...gfixCKeys, ...i03Keys };
-
-/** w26.i03 lane key ids (typed for the seam resolver below). */
-type I03LaneKey = keyof typeof i03Keys;
-
-/** A resolver key: a registered MessageKey or one of this lane's ids. */
-type LaneMessageKey = MessageKey | I03LaneKey;
-
-/** The lane-key resolver factory (contract §4.5): catalog first, lane copy
- * while unregistered — identical before/after the Lead's merge. */
-const laneResolver =
-  (m: (key: MessageKey) => string, catalog: Readonly<Record<string, string>>) =>
-  (key: LaneMessageKey): string =>
-    m(key as MessageKey) ?? catalog[key as string];
+const k07Resolver =
+  (m: (key: MessageKey) => string) =>
+  (key: K07LaneKey): string =>
+    m(key as MessageKey) ?? k07Catalog[key];
 
 /**
  * Binding-id → accelerator display string from keymap DATA (HOTKEY_BINDINGS
@@ -165,10 +157,14 @@ function NavigationSeam({
 }: {
   children: (navigate: (to: string) => void) => ReactNode;
 }): ReactNode {
+  // w26.k07 (j07 P2-5): stable identity — the bare-mount fallback feeds the
+  // memo'd AppMenuButton as a prop, so a per-tick root re-render must not
+  // mint a fresh navigate (the routed arm's useNavigate is already stable).
+  const fallbackNavigate = useCallback((to: string) => window.location.assign(to), []);
   return useInRouterContext() ? (
     <RoutedNavigation>{children}</RoutedNavigation>
   ) : (
-    <>{children((to) => window.location.assign(to))}</>
+    <>{children(fallbackNavigate)}</>
   );
 }
 
@@ -187,14 +183,22 @@ export interface ControlBarProps {
 }
 
 export function ControlBar({ className = "" }: ControlBarProps) {
-  const { state } = usePlayerControls();
+  const { state, actions } = usePlayerControls();
   return (
     <div
       className={["lumen-controls", className].filter(Boolean).join(" ")}
       data-playback-state={state.playbackState}
       data-engine-reported={state.engineReported}
     >
-      <TransportCluster />
+      {/* w26.k07 (j07 P2-5): the transport cluster takes PRIMITIVE props so
+       * the memo below holds across position ticks (the only per-tick state
+       * change — the root + the seek/duration readouts re-render, the
+       * transport cluster does not). */}
+      <TransportCluster
+        playbackState={state.playbackState}
+        pendingToggle={state.pendingToggle}
+        onTogglePlayPause={actions.togglePlayPause}
+      />
       {/* w26.i05's cross-lane wiring (h07 defect 1's last mile, taken
        * verbatim from its lane log): the saved customize band rendered in
        * the real strip, directly after the transport — frame -7's position.
@@ -258,12 +262,30 @@ function trackRows(
   ];
 }
 
-/** previous · play pill · next (Player.svg Frame 8 → play → Frame 10). */
-function TransportCluster() {
-  const { state, actions } = usePlayerControls();
+/** previous · play pill · next (Player.svg Frame 8 → play → Frame 10).
+ * w26.k07 (j07 P2-5): memo'd on primitive props — the play mapping reads
+ * only playbackState/pendingToggle (state-mapping.ts §5.1), so a position
+ * tick never re-renders this cluster. Its other inputs (the playlist
+ * context, useMsg) change only on playlist/locale events, never per tick. */
+const TransportCluster = memo(function TransportCluster({
+  playbackState,
+  pendingToggle,
+  onTogglePlayPause,
+}: {
+  readonly playbackState: PlaybackState;
+  readonly pendingToggle: boolean;
+  readonly onTogglePlayPause: () => void;
+}) {
   const playlist = usePlaylist();
   const m = useMsg();
-  const mapped = mapTransportControls(state);
+  // The cluster renders only the PLAY mapping; seekable/durationSeconds feed
+  // the SEEK mapping (state-mapping.ts), which this cluster does not render.
+  const mapped = mapTransportControls({
+    playbackState,
+    seekable: null,
+    durationSeconds: null,
+    pendingToggle,
+  });
 
   const playLabel =
     mapped.play.glyph === "pause" ? m("player.controls.pause") : m("player.controls.play");
@@ -311,7 +333,7 @@ function TransportCluster() {
         label={label}
         loading={mapped.play.pending}
         disabled={mapped.play.disabled}
-        onClick={actions.togglePlayPause}
+        onClick={onTogglePlayPause}
       >
         <Icon name={mapped.play.glyph} size={PLAY_ICON_SIZE} />
       </IconButton>
@@ -325,7 +347,7 @@ function TransportCluster() {
       </IconButton>
     </div>
   );
-}
+});
 
 /** current timecode · seekbar (doc 08 §5.2/§5.3 honest).
  * w26.f13 (e02 F6): Player.svg shows exactly TWO timecodes — position left
@@ -338,7 +360,6 @@ function TransportCluster() {
 function SeekCluster() {
   const { state, actions } = usePlayerControls();
   const m = useMsg();
-  const tm = laneResolver(m, laneCatalog);
   const mapped = mapTransportControls(state);
   const reason = seekDisableReason(state);
   const [editing, setEditing] = useState(false);
@@ -352,8 +373,8 @@ function SeekCluster() {
         data-editing={editing ? "" : undefined}
         aria-label={
           reason !== null
-            ? `${tm("player.controls.time-current")} (${m(reason)})`
-            : tm("player.controls.time-current")
+            ? `${m("player.controls.time-current")} (${m(reason)})`
+            : m("player.controls.time-current")
         }
         disabled={mapped.seek.disabled}
         onClick={() => setEditing(true)}
@@ -402,7 +423,6 @@ function RightCluster() {
 function DurationTimecode() {
   const { state } = usePlayerControls();
   const m = useMsg();
-  const tm = laneResolver(m, laneCatalog);
   const [remaining, setRemaining] = useState(false);
   const known = state.durationSeconds !== null && state.durationSeconds > 0;
   const face = !known
@@ -416,7 +436,7 @@ function DurationTimecode() {
       className="lumen-controls__time"
       data-time="duration"
       data-remaining={remaining || undefined}
-      aria-label={tm(remaining ? "player.controls.time-remaining" : "player.controls.time-duration")}
+      aria-label={m(remaining ? "player.controls.time-remaining" : "player.controls.time-duration")}
       aria-pressed={known ? remaining : undefined}
       disabled={!known}
       onClick={() => setRemaining((prev) => !prev)}
@@ -475,7 +495,9 @@ function VolumeCluster() {
  * menus — see the header comment and SettingsPanel.tsx. */
 function OutputCluster() {
   const m = useMsg();
-  const tm = laneResolver(m, laneCatalog);
+  // w26.k07 (j07 P2-4): the queue meta composition's lane seam — the ONLY
+  // live pre-registration resolver left in this file (see k07Resolver).
+  const km = k07Resolver(m);
   const controls = usePlayerControls();
   const playlist = usePlaylist();
 
@@ -487,16 +509,16 @@ function OutputCluster() {
   const trackTabs: SettingsPanelTab[] = [
     { id: "video", label: m("player.canvas.menu.video"), icon: "tv" },
     { id: "audio", label: m("player.canvas.menu.audio"), icon: "audio" },
-    { id: "subtitle", label: tm("player.controls.tab.subtitles"), icon: "subtitles" },
+    { id: "subtitle", label: m("player.controls.tab.subtitles"), icon: "subtitles" },
   ];
   const settingsTabs: SettingsPanelTab[] = [
     { id: "playback", label: m("menu.playback"), icon: "playback" },
     ...trackTabs,
   ];
   const queueTabs: SettingsPanelTab[] = [
-    { id: "queue", label: tm("player.controls.queue"), icon: "queue" },
-    { id: "bookmarks", label: tm("player.controls.tab.bookmarks"), icon: "bookmark" },
-    { id: "chapters", label: tm("player.controls.tab.chapters"), icon: "chapters" },
+    { id: "queue", label: m("player.controls.queue"), icon: "queue" },
+    { id: "bookmarks", label: m("player.controls.tab.bookmarks"), icon: "bookmark" },
+    { id: "chapters", label: m("player.controls.tab.chapters"), icon: "chapters" },
   ];
 
   /** The Playback tab — the REAL playback seams the bar owns (playlist
@@ -516,9 +538,9 @@ function OutputCluster() {
           className="lumen-controls__panel-segmented"
           label={m("menu.playback.repeat")}
           options={[
-            { value: "off", label: tm("player.controls.repeat.off") },
-            { value: "all", label: tm("player.controls.repeat.all") },
-            { value: "one", label: tm("player.controls.repeat.one") },
+            { value: "off", label: m("player.controls.repeat.off") },
+            { value: "all", label: m("player.controls.repeat.all") },
+            { value: "one", label: m("player.controls.repeat.one") },
           ]}
           value={playlist.repeat ?? ""}
           disabled={playlist.repeat === null}
@@ -544,26 +566,21 @@ function OutputCluster() {
     const selected = selectedTrackId(controls.state.tracks, controls.state.selections, kind);
     const selectedTrack = tracks.find((track) => track.id === selected) ?? null;
     const noMedia = rows.length === 0;
+    // w26.k07 (j07 P2-2): the rows ride ONE radiogroup named by the section
+    // title (roving tabindex + arrow keys — SettingsPanel's PanelRadioGroup).
     const trackSection = (
-      <PanelSection title={tm("player.controls.section.embedded-tracks")}>
+      <PanelSection title={m("player.controls.section.embedded-tracks")}>
         {noMedia ? (
           <PanelReasonRow reason={m("player.controls.reason.no-media")} />
         ) : (
-          rows.map((row) => (
-            <PanelRadioRow
-              key={row.key}
-              label={row.label}
-              checked={row.checked}
-              onSelect={row.onSelect}
-            />
-          ))
+          <PanelRadioGroup label={m("player.controls.section.embedded-tracks")} options={rows} />
         )}
       </PanelSection>
     );
     return (
       <>
         {withDefaults && kind !== "video" ? (
-          <PanelSection title={tm("player.controls.section.defaults")}>
+          <PanelSection title={m("player.controls.section.defaults")}>
             <PanelValueRow
               label={m(`player.track.${kind}`)}
               value={
@@ -575,7 +592,7 @@ function OutputCluster() {
               }
             />
             <PanelValueRow
-              label={tm(
+              label={m(
                 kind === "subtitle"
                   ? "player.controls.row.subtitle-language"
                   : "player.controls.row.audio-language",
@@ -592,7 +609,7 @@ function OutputCluster() {
            * glyph (audio variant, Vector 19/20 x1870–1890) rides the header
            * inert — no seam to wire. */
           <PanelSection
-            title={tm("player.controls.section.output-device")}
+            title={m("player.controls.section.output-device")}
             trailingIcon="refresh"
           >
             <PanelReasonRow reason={m("player.controls.reason.unknown")} />
@@ -601,7 +618,7 @@ function OutputCluster() {
         {kind === "subtitle" ? (
           /* External sidecar tracks have no engine seam either (the Add
            * Subtitles flow is the playlist dialogs lane's surface). */
-          <PanelSection title={tm("player.controls.section.external-tracks")}>
+          <PanelSection title={m("player.controls.section.external-tracks")}>
             <PanelReasonRow reason={m("player.controls.reason.unknown")} />
           </PanelSection>
         ) : null}
@@ -620,36 +637,45 @@ function OutputCluster() {
     if (queueEmpty) {
       return (
         <PanelReasonRow
-          reason={tm(
+          reason={m(
             playlist.notExposed ? "player.controls.reason.unknown" : "player.controls.queue-empty",
           )}
         />
       );
     }
     // "4 items - 2h 3m": the count + the queue's known total (nulls are
-    // skipped — a partial total would read as the whole truth).
+    // skipped — a partial total would read as the whole truth). w26.k07
+    // (j07 P2-4): the composition rides i18n keys (w26.k07.ts) — unit
+    // grammar, join and word order are localizable, never hardcoded English.
     const knownSeconds = playlist.entries
       .map((entry) => entry.durationSeconds)
       .filter((seconds): seconds is number => seconds !== null);
     const total = knownSeconds.reduce((sum, seconds) => sum + seconds, 0);
-    const hours = Math.floor(total / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
+    const count = String(playlist.entries.length);
     const meta =
       knownSeconds.length === playlist.entries.length && total > 0
-        ? `${playlist.entries.length} ${tm("player.controls.queue-items")} - ${hours}h ${minutes}m`
-        : `${playlist.entries.length} ${tm("player.controls.queue-items")}`;
+        ? km("player.controls.queue-meta-total")
+            .replace("{count}", count)
+            .replace(
+              "{duration}",
+              km("player.controls.queue-total")
+                .replace("{hours}", String(Math.floor(total / 3600)))
+                .replace("{minutes}", String(Math.floor((total % 3600) / 60))),
+            )
+        : km("player.controls.queue-meta").replace("{count}", count);
+    // The queue rows are one radiogroup (j07 P2-2) named by the tab — arrow
+    // keys move focus + play the picked entry (click parity).
+    const queueOptions = playlist.entries.map((entry) => ({
+      key: `queue-${entry.id}`,
+      label: entry.title ?? m("playlist.entry.unknown-title"),
+      checked: playlist.currentId === entry.id,
+      value: formatDuration(entry.durationSeconds) ?? undefined,
+      onSelect: () => playlist.playItem(entry.id),
+    }));
     return (
       <>
         <div className="lumen-controls__panel-meta">{meta}</div>
-        {playlist.entries.map((entry) => (
-          <PanelRadioRow
-            key={`queue-${entry.id}`}
-            label={entry.title ?? m("playlist.entry.unknown-title")}
-            checked={playlist.currentId === entry.id}
-            value={formatDuration(entry.durationSeconds) ?? undefined}
-            onSelect={() => playlist.playItem(entry.id)}
-          />
-        ))}
+        <PanelRadioGroup label={m("player.controls.queue")} options={queueOptions} />
       </>
     );
   };
@@ -670,7 +696,7 @@ function OutputCluster() {
    * A/V tools surface (w26.c5). */
   const renderTrackFooter = (tab: string, close: () => void): ReactNode => (
     <QuietButton
-      label={tm("player.controls.advanced-settings")}
+      label={m("player.controls.advanced-settings")}
       onClick={() => {
         close();
         openToolsDialog(tab === "video" ? "video" : "audio");
@@ -681,7 +707,7 @@ function OutputCluster() {
     tab === "playback" ? null : (
       <QuietButton
         bare
-        label={tm("player.controls.advanced-settings")}
+        label={m("player.controls.advanced-settings")}
         onClick={() => {
           close();
           openToolsDialog(tab === "video" ? "video" : "audio");
@@ -697,7 +723,7 @@ function OutputCluster() {
     >
       <PanelPopover
         dataControl="audio"
-        label={tm("player.controls.audio-tracks")}
+        label={m("player.controls.audio-tracks")}
         idPrefix="lumen-controls-audio"
         initialTab="audio"
         tabs={trackTabs}
@@ -708,7 +734,7 @@ function OutputCluster() {
       </PanelPopover>
       <PanelPopover
         dataControl="subtitles"
-        label={tm("player.controls.subtitle-tracks")}
+        label={m("player.controls.subtitle-tracks")}
         idPrefix="lumen-controls-subtitles"
         initialTab="subtitle"
         tabs={trackTabs}
@@ -734,7 +760,7 @@ function OutputCluster() {
       </PanelPopover>
       <PanelPopover
         dataControl="queue"
-        label={tm("player.controls.queue")}
+        label={m("player.controls.queue")}
         idPrefix="lumen-controls-queue"
         initialTab="queue"
         tabs={queueTabs}
@@ -855,8 +881,17 @@ function PanelPopover({
  * w26.f13 Lead ruling: the app menu lives in the ControlBar FOR NOW —
  * f08/AppShell may relocate the trigger into the shell title bar (MenuBar);
  * this content moves with it unchanged (logged in the lane log).
+ *
+ * w26.k07 (j07 P2-5): memo'd — the entry array + flyout rebuild was the
+ * per-tick re-render hotspot while the menu is closed; the only prop
+ * (navigate) is identity-stable (NavigationSeam), so a position tick now
+ * re-renders neither this button nor its 13 MenuEntry objects.
  */
-function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }) {
+const AppMenuButton = memo(function AppMenuButton({
+  navigate,
+}: {
+  readonly navigate: (to: string) => void;
+}) {
   const m = useMsg();
   const client = useClient();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -864,9 +899,6 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
   const nextRequestId = useRef(0);
   const [open, setOpen] = useState(false);
 
-  // Lane resolver (contract §4.5): catalog first, w26.f13 lane copy while
-  // unregistered — identical before/after the Lead's merge.
-  const tm = (key: F13LaneKey): string => m(key as MessageKey) ?? f13Catalog[key];
   // w26.i16 — the profile store feed for the flyout rows (see profile entry).
   const profiles = useMediaProfiles();
 
@@ -913,13 +945,14 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
         });
 
   // The frame's 12 rows (menu.png / analysis §A1). Labels are pre-resolved
-  // through useMsg/lane seam (dynamic recent titles arrive as strings — the
+  // through useMsg (w26.k07: every key is registered in the catalog — the
+  // f13/i16 lane seam is gone; dynamic recent titles arrive as strings — the
   // Dropdown identity pattern), so the popup resolves with the identity
   // seam.
   const entries: MenuEntry<string>[] = [
     {
       id: "open-files",
-      labelKey: tm("player.appmenu.open-files"),
+      labelKey: m("player.appmenu.open-files"),
       icon: "open-file",
       accelerator: acceleratorOf("media.open-file"),
       onSelect: () => window.dispatchEvent(new CustomEvent("lumen:open-media")),
@@ -965,7 +998,7 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
     },
     {
       id: "open-recent",
-      labelKey: tm("player.appmenu.open-recent"),
+      labelKey: m("player.appmenu.open-recent"),
       icon: "recent",
       submenu: recentSubmenu,
     },
@@ -977,20 +1010,20 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
       // No engine profile command exists — local device data, the
       // playlistsStore precedent (i16's ruling, Lead-landed).
       id: "profile",
-      labelKey: tm("player.appmenu.profile"),
+      labelKey: m("player.appmenu.profile"),
       icon: "profile",
       iconAccent: true, // menu.svg: person glyph, two-tone orange head dot
       submenu: buildProfileFlyout({
         profiles: profiles.profiles,
         selectedId: profiles.selectedId,
         onSelect: selectProfile,
-        onCreate: () => createProfile(tm("player.appmenu.profile.auto-name")),
-        newLabel: tm("player.appmenu.profile.new"),
+        onCreate: () => createProfile(m("player.appmenu.profile.auto-name")),
+        newLabel: m("player.appmenu.profile.new"),
       }),
     },
     {
       id: "keyboard-shortcuts",
-      labelKey: tm("player.appmenu.keyboard-shortcuts"),
+      labelKey: m("player.appmenu.keyboard-shortcuts"),
       icon: "keyboard-shortcuts",
       onSelect: () => navigate("/keyboard-shortcuts"),
     },
@@ -998,7 +1031,7 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
       // The customize surface's real trigger — f09's lumen:open-customize
       // seam (see OPEN_CUSTOMIZE_EVENT above).
       id: "customize-player",
-      labelKey: tm("player.appmenu.customize"),
+      labelKey: m("player.appmenu.customize"),
       icon: "customize-player",
       iconAccent: true, // menu.svg: wand with the orange tip
       onSelect: () => window.dispatchEvent(new CustomEvent(OPEN_CUSTOMIZE_EVENT)),
@@ -1014,7 +1047,7 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
       // The About panel's real home: settings/global (the settings
       // registry's about→global fold) — no standalone about dialog exists.
       id: "about",
-      labelKey: tm("player.appmenu.about"),
+      labelKey: m("player.appmenu.about"),
       icon: "about",
       accelerator: acceleratorOf("window.about"),
       onSelect: () => navigate("/settings/global"),
@@ -1055,7 +1088,7 @@ function AppMenuButton({ navigate }: { readonly navigate: (to: string) => void }
       ) : null}
     </div>
   );
-}
+});
 
 /** Typed-error surface (doc 08 §5.4): stage-named, dismissible, honest.
  * W26 restyle: a compact r12 panel chip (surface-panel + hairline border)
