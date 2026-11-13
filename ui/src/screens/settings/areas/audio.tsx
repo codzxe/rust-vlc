@@ -39,20 +39,18 @@
 //     copy (ui/src/i18n/keys/w26.i14.ts). The screen stays schema-driven:
 //     sections/entries/order come from the generated seed.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Dropdown } from "../../../components/menu/Dropdown";
 import { useClient } from "../../../client/ClientProvider";
 import type { CommandResponse } from "../../../client/transport";
-import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.gfixB";
 import { keys as i14Keys } from "../../../i18n/keys/w26.i14";
-import type { SettingEntry } from "../generated/schema";
-import { schemaSectionsOf } from "../SettingsSections";
 import { SettingField } from "../SettingField";
 import { SettingInfoDot } from "../SettingField";
-import { useSettingsSearch } from "../search";
+import { makeAreaMsg } from "./shared";
+import { schemaSectionViews } from "./shared";
 import "./audio.css";
 
 // Wire types derived through the transport seam (transport.ts is the only
@@ -79,16 +77,10 @@ const reasonFor = (code: string): MessageKey =>
 /** The frame's fallback trigger value (C6: dropdown "System default"). */
 const SYSTEM_DEFAULT = "system-default";
 
-type FixerKey = keyof typeof fixerKeys;
 type I14Key = keyof typeof i14Keys;
-/** Pre-registration seam (w26.gfixB: the fallback value copy). */
-const laneCatalog: Readonly<Record<string, string>> = fixerKeys;
-
-/** useAreaMsg — useMsg + this lane's pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | FixerKey | I14Key): string => m(key as MessageKey) ?? laneCatalog[key];
-}
+/** Pre-registration seam (w26.gfixB: the fallback value copy; w26.k13: the
+ * shared makeAreaMsg factory — the j13 ruling 1 dedup). */
+const useAreaMsg = makeAreaMsg(fixerKeys, i14Keys);
 
 /** The ⓘ hint msgid cast through the registry seam (the laneMsg precedent). */
 const hintMsg = (key: I14Key): MessageKey => key as string as MessageKey;
@@ -107,19 +99,30 @@ const AUDIO_HINTS: Readonly<Record<string, MessageKey>> = {
   "audio.replay-gain-preamp": hintMsg("settings.hint.audio.replay-gain-preamp"),
 };
 
-/** The hand row's search terms (SettingsSections' SettingRowNode contract). */
-const OUTPUT_DEVICE_KEYWORDS = ["Output device", "System default"] as const;
+/** The hand row's search terms are gone with the in-area filter (w26.k12,
+ * j12 P2-2) — the Output device row always renders in the Output section
+ * (frame order); it stays invisible to cross-area search by design (the
+ * capability-backed hand row is not a schema entry). */
 
 /**
  * Engine-enumerated output-device picker (audio.list-devices /
  * audio.set-device) in the settings row grammar: a closed compact Dropdown
  * (320×36) — the frame's control, never a stacked radio list or a collapsed
  * stub (g12-P1-5).
+ *
+ * w26.k13 (j13 P2-3): the row's ⓘ is OPERABLE — the one SettingInfoDot
+ * grammar (expanded/onToggle + the reveal caption), like every other ⓘ on
+ * the screen; it was a focusable button that did nothing (the worst of both
+ * worlds — keyboard users could reach it but never learn the reason). The
+ * caption carries the honest reason while not ready, the row's plain hint
+ * once the enumeration is live.
  */
 export function AudioDeviceControl(): ReactElement {
   const m = useAreaMsg();
   const client = useClient();
   const [query, setQuery] = useState<DeviceQuery>({ status: "loading" });
+  const [hintOpen, setHintOpen] = useState(false);
+  const hintCaptionId = useId();
   const nextRequestId = useRef(1);
 
   useEffect(() => {
@@ -200,7 +203,13 @@ export function AudioDeviceControl(): ReactElement {
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
-          <SettingInfoDot note={infoNote} label={m("settings.field.more-info")} />
+          <SettingInfoDot
+            note={infoNote}
+            label={m("settings.field.more-info")}
+            expanded={hintOpen}
+            onToggle={() => setHintOpen((open) => !open)}
+            controlsId={hintCaptionId}
+          />
           {reasonText !== null ? (
             <span className="settings-area-audio-reason" role="note" data-capability-reason={query.status}>
               {reasonText}
@@ -219,6 +228,11 @@ export function AudioDeviceControl(): ReactElement {
           />
         </div>
       </div>
+      {hintOpen ? (
+        <p id={hintCaptionId} role="note" className="settings-field__hinttext">
+          {infoNote}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -231,32 +245,19 @@ export function AudioDeviceControl(): ReactElement {
  */
 export function AudioArea(): ReactElement {
   const m = useAreaMsg();
-  const { query, matches } = useSettingsSearch();
-  const needle = query.trim().toLowerCase();
-  const deviceRowMatches =
-    needle === "" ||
-    OUTPUT_DEVICE_KEYWORDS.some((keyword) => keyword.toLowerCase().includes(needle));
-
   return (
     <div className="settings-sections" data-settings-area="audio">
-      {schemaSectionsOf("audio").map((section) => {
-        // Pure-schema sections (the Output device hand row is rendered by
-        // this module, not spliced into the section data): narrow the row
-        // union so the schema-entry fields type-check below.
-        const entries = section.entries
-          .filter((row): row is SettingEntry => "key" in row)
-          .filter((entry) => entry.featureExposed && matches(entry));
-        // The Output device row (frame C6 y156) rides the Output section's
-        // own visibility while a query is live (its keywords are its filter)
-        // and sits right after Enable audio in frame order — or first when a
-        // live query has filtered the schema sibling out.
-        const showDeviceRow = section.id === "output" && deviceRowMatches;
-        if (entries.length === 0 && !showDeviceRow) return null;
+      {schemaSectionViews("audio").map(({ section, visible }) => {
+        // The Output device row (frame C6 y156) sits right after Enable
+        // audio in frame order; hand rows always render in the normal flow
+        // (w26.k12, j12 P2-2 — no in-area filter could ever execute).
+        const showDeviceRow = section.id === "output";
+        if (visible.length === 0 && !showDeviceRow) return null;
         const deviceAt = showDeviceRow
-          ? entries.findIndex((entry) => entry.key === "audio.enable") + 1
-          : entries.length;
-        const head = entries.slice(0, deviceAt);
-        const tail = entries.slice(deviceAt);
+          ? visible.findIndex((entry) => entry.key === "audio.enable") + 1
+          : visible.length;
+        const head = visible.slice(0, deviceAt);
+        const tail = visible.slice(deviceAt);
         return (
           <section key={section.id} className="settings-section" data-section={section.id}>
             <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
