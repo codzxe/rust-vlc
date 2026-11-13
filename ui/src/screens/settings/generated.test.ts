@@ -16,6 +16,7 @@ import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.b02";
 import { keys as seedKeys } from "../../i18n/keys/w26.f01";
 import { keys as gfixKeys } from "../../i18n/keys/w26.gfixB";
+import { keys as i14Keys } from "../../i18n/keys/w26.i14";
 import { SETTINGS_AREAS, SETTINGS_ENTRIES, SETTINGS_MSGIDS } from "./generated/schema";
 
 interface NodeFs {
@@ -66,6 +67,26 @@ const runGenerator = async (args: string[]): Promise<number> => {
   }
 };
 
+/** Same subprocess run, but capturing stderr so failure MODES are
+ * assertable (drift says "stale"; a model violation says its own message —
+ * w26.k14, j14 #4). */
+const runGeneratorOutput = async (args: string[]): Promise<{ status: number; stderr: string }> => {
+  const { cp, proc } = await loadNode();
+  try {
+    cp.execFileSync(proc.execPath, [scriptPath, ...args], {
+      cwd: uiRootPath,
+      stdio: "pipe",
+    });
+    return { status: 0, stderr: "" };
+  } catch (err) {
+    const e = err as { status?: number; stderr?: unknown };
+    return {
+      status: e.status ?? 1,
+      stderr: typeof e.stderr === "string" ? e.stderr : String(e.stderr ?? ""),
+    };
+  }
+};
+
 const mutateSchemaCopy = async (mutate: (original: string) => string): Promise<void> => {
   const { fs, os } = await loadNode();
   const original = fs.readFileSync(schemaPath, "utf8");
@@ -98,6 +119,23 @@ describe("generated settings screens detect schema drift (4.E1 AC)", () => {
       s.replace(/\[\[setting\]\]\nkey = "playback\.start-paused"[\s\S]*?since = "0\.1\.0"\n/, ""),
     );
     expect(await runGenerator(["--check", "--input", mutatedInputPath])).toBe(1);
+  });
+
+  // w26.k14 (j14 #4): the sanitizer is lossy — two enum values that map to
+  // the same msgid segment ("16:10" and "16-10") used to share a msgid
+  // silently. The generator must throw, and the test asserts the failure
+  // MODE (the collision message), not just a non-zero exit (drift also
+  // exits 1).
+  it("FAILS when two enum values sanitize to the same msgid (collision guard)", async () => {
+    await mutateSchemaCopy((s) =>
+      s.replace(
+        'enumeration = ["automatic", "1:1", "4:3", "16:9", "16:10", "2.35:1", "2.39:1"]',
+        'enumeration = ["automatic", "1:1", "4:3", "16:9", "16:10", "16-10", "2.35:1", "2.39:1"]',
+      ),
+    );
+    const out = await runGeneratorOutput(["--check", "--input", mutatedInputPath]);
+    expect(out.status).toBe(1);
+    expect(out.stderr).toContain("collide on msgid");
   });
 });
 
@@ -176,18 +214,43 @@ describe("generated schema data (committed snapshot sanity)", () => {
     // only POST-WAVE (contract §4.5; ui/src/i18n/keys/w26.b02.ts and
     // w26.f01.ts carry them until then). Coverage = registered catalog entry
     // OR lane-key entry.
+    const laneFiles = {
+      "w26.b02": laneKeys,
+      "w26.f01": seedKeys,
+      "w26.gfixB": gfixKeys, // w26.gfix-B: the re-seed's relabels/moves pre-registration
+      "w26.i14": i14Keys, // w26.i14: the settings-area lane copies (ratio msgids)
+    } as const;
     const laneCatalog: Readonly<Record<string, string>> = {
       ...laneKeys,
       ...seedKeys,
-      ...gfixKeys, // w26.gfix-B: the re-seed's relabels/moves pre-registration
+      ...gfixKeys,
+      ...i14Keys,
     };
     const covered = (msgid: string): boolean =>
       isMessageKey(msgid) ? m(msgid as MessageKey).length > 0 : msgid in laneCatalog;
-    // SETTINGS_MSGIDS carries all 108 entries incl. ui=false engine fields
+    // w26.k14 (j14 #8): a key registered in BOTH the catalog and a lane
+    // file must carry the SAME copy — the ratio msgids existed in three
+    // copies and a divergent relabel passed silently while coverage
+    // accepted catalog OR lane. Equality is now pinned (verified: all
+    // four lane files currently match the catalog byte-for-byte).
+    for (const [lane, keys] of Object.entries(laneFiles)) {
+      for (const key of Object.keys(keys)) {
+        if (isMessageKey(key)) {
+          expect(m(key as MessageKey), `catalog/lane copy diverged for ${key} (${lane})`).toBe(
+            (keys as Record<string, string>)[key],
+          );
+        }
+      }
+    }
+    // SETTINGS_MSGIDS carries all 121 entries incl. ui=false engine fields
     // (CLI --help territory, dev-facing English); coverage must hold for
-    // every RENDERED label: the 97 ui entries + their enum options + the
-    // section titles.
-    expect(SETTINGS_MSGIDS.length).toBeGreaterThanOrEqual(SETTINGS_ENTRIES.length);
+    // every RENDERED label: the 102 ui entries + their enum options + the
+    // section titles. Counts repinned to the actual seed (w26.k14, j14 #3 —
+    // the old 108/97 comments were stale; `npm run settings:check` prints
+    // the live pair, 121 total / 102 ui). Bump both when the schema grows.
+    expect(SETTINGS_MSGIDS).toHaveLength(121);
+    expect(new Set(SETTINGS_MSGIDS).size).toBe(SETTINGS_MSGIDS.length); // D4: no dup msgids
+    expect(SETTINGS_MSGIDS).toEqual(expect.arrayContaining(SETTINGS_ENTRIES.map((e) => e.description)));
     for (const entry of SETTINGS_ENTRIES) {
       expect(covered(entry.description), `missing catalog/lane entry for ${entry.description}`).toBe(true);
       for (const option of entry.enumeration) {
