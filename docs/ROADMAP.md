@@ -12,13 +12,15 @@ blocked.
   links PENDING first push (`docs/gates/phase1-exit.md`).
 - **Phase 2 — COMPLETE** — PASS 2026-10-21, local-evidence
   (`docs/gates/phase2-exit.md`).
-- **Phase 3 — complete in conduct** — gate evidence record
-  `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); its verdict line
-  still reads **PENDING LEAD SIGNATURE** while Phases 4–6 proceeded on its
-  evidence — the signature line is owed a Lead square-up, not a re-run.
-- **Phase 4 — complete in conduct** — same shape:
-  `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V), verdict line
-  PENDING LEAD SIGNATURE.
+- **Phase 3 — COMPLETE** — PASS, evidence record `docs/gates/phase3-exit.md`
+  (2026-10-24, card 3.F2-V); the PENDING LEAD SIGNATURE line was squared up
+  with a dated Lead sign-off on 2026-11-13 (issue #59) — administrative
+  ratification, no re-run; the gate's named debts (soak, oracle, clippy)
+  were discharged by the phases that own them.
+- **Phase 4 — COMPLETE** — PASS, same shape: `docs/gates/phase4-exit.md`
+  (2026-10-24, card 4.I1-V), signed by the Lead on 2026-11-13 (issue #59);
+  its named follow-ups (3-OS matrix breadth, CI-nightly escalation) are
+  discharged by the hosted CI now running the full set.
 - **Phase 5 — COMPLETE** — **PASS WITH REGISTERED CAVEATS**, Lead sign-off
   2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards resolved;
   "Phase 5 is closed. The Lead authorizes Phase 6.").
@@ -36,10 +38,33 @@ blocked.
   parity 0/252, and the 6.H1 Medium security finding remain owed at gate
   time). Open tails: #38 (ogg fix in flight), #39 (TLS activation
   follow-up).
-- **Phases 7–8 — NOT STARTED** (no worklog task IDs, no gate records).
+- **Phase 7 — Platform & Advanced — COMPLETE (exit verdict PASS via the
+  wave-24 square-up)** — gate evidence `docs/gates/phase7-exit.md`
+  (2026-11-10, card 7.L1-V): the gate ran NOT PASSED at `c339ee8` with 5
+  bounded findings (OF-1..OF-5, no design work), per its own valid gate
+  outcome; all five closed at the wave-24 integration merge `903d618c`
+  (OF-1 via lane `w24/a`, OF-2..OF-5 via `w24/g` SHIP-verified by review
+  W24-R5), and the per-card Phase-7 substance (platform adapters,
+  hw-decode honesty labels, hotplug+discovery, recording/remux, crash
+  isolation, web pillars, control-server first-pass security, browser
+  matrix #49) is on main and green in the hosted CI set.
+- **Phase 8 — Hardening & release — complete in conduct; exit gate
+  8.H1-V in the Lead's final pass (issue #59)** — the substance landed
+  across wave-22/24/26: security sweeps (`docs/security/sweep-*.md` +
+  SBOM), the 252-row feature-matrix ledger with the finalized honest
+  parity statement (`docs/PARITY-REPORT.md`, issue #57), soak/perf
+  reports (`docs/perf/`), packaging lanes per platform
+  (`scripts/packaging/**`, first real 3-OS release dry-runs executed
+  2026-11-13 — macOS lanes green incl. the tauri admission build; Linux/
+  Windows converging round by round), docs sweep + release checklist
+  (8.G1/8.G2 via W24-E). The program-exit record lands at
+  `docs/gates/phase8-exit.md` when the release lane is green and the
+  first tagged release ships (#66).
 
-Header last refreshed: 2026-11-09 (issue #21; same-day wave-closeout refresh —
-final governance pass, agent W17-HH).
+Header last refreshed: 2026-11-13 (wave-26 orchestration; Phase 3/4
+sign-off square-ups landed — `docs/gates/phase3-exit.md`,
+`docs/gates/phase4-exit.md`; this block supersedes the 2026-11-09
+"Phases 7–8 NOT STARTED" note, which predated the phase7-exit record).
 
 ## 1. Phase gates (MASTER-PROMPT §16)
 
@@ -52,8 +77,8 @@ from `docs/13-agent-wave-program.md` (200 cards / 77 waves).
 | 0 — Audit | Pin VLC 3.0.23, full feature inventory, feasibility report, ADR-001/002/003 decided | 0.A–0.D | 17 | `docs/baseline/` pinning records; `docs/feature-matrix.toml` populated with schema frozen; `docs/feasibility-report.md`; ADR-001/002/003 status=accepted; [VERIFY-P0] ledger cleared or converted to risks | 02, 04, 11, 14 |
 | 1 — Foundation | Workspace, config system, schemas, lints, CI, command layer, plugin API, settings generator, token pipeline | 1.A–1.F | 20 | **PASS 2026-10-20 — local-evidence; 3-OS CI PENDING (workflows-disabled, PAT repo-scope only; phase1-exit.md:6-8)**: local gate green (exact commands, doc 10 §2; 529/0/3); CI merge-blocking jobs written + locally validated, first push owed; rebrand acceptance test passes; boundary check active; `cargo xtask gate` exists | 01, 05, 06, 07, 10, 15 |
 | 2 — First vertical | One real file open→decode→audio+video on screen via command layer, from CLI and UI; video-in-webview prototype; Figma token proof | 2.A–2.E | 17 | **PASS 2026-10-21 — local-evidence; 3-OS CI PENDING (same PAT cause; phase2-exit.md §4.1)**: demo fixture plays end-to-end through the command layer, CLI-hosted, with byte-stable mock-labeled evidence (real-hardware tier + per-OS runs pending); webview prototype delivered — variant-B protocol core proven at virtual-time level, PROVISIONAL-B, per-OS matrix pending desktop runtimes; token pipeline renders Player screen from tokens (landed 1.B4) | 03, 04, 05, 08 |
-| 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting — **gate record: `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 03, 10, 12 |
-| 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host — **gate record: `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V); verdict line reads PENDING LEAD SIGNATURE (see Status block above)** | 07, 08, 05 |
+| 3 — Reliable engine | Clocks, queues, generations, seeking, source replacement, A/V sync, recovery | 3.A–3.F | 19 | All 16 integration scenarios (doc 10 §6) green incl. error paths; property suites green; soak 8h no-growth; differential-vs-VLC harness v1 reporting — **gate record: `docs/gates/phase3-exit.md` (2026-10-24, card 3.F2-V); Lead-signed 2026-11-13 (issue #59)** | 03, 10, 12 |
+| 4 — Desktop product | Figma-exact UI, layouts from config, themes, localization, playlists, settings, plugins, rebrand test | 4.A–4.I | 25 | Screenshot diffs within tolerance vs design exports at defined sizes/DPI; all 13 settings areas driven by settings-schema; i18n lint zero violations; conformance suite green on Tauri host — **gate record: `docs/gates/phase4-exit.md` (2026-10-24, card 4.I1-V); Lead-signed 2026-11-13 (issue #59)** | 07, 08, 05 |
 | 5 — Breadth | Containers, audio+video codecs, subtitles, filters — one verified increment at a time | 5.A–5.R | 45 | Per-format records complete for every shipped format; conformance kit + fuzz target per parser plugin; corpus coverage; feature-matrix statuses updated by evidence only — **PASS WITH REGISTERED CAVEATS, Lead sign-off 2026-10-24 (`docs/gates/phase5-exit.md`; 47/47 parent cards incl. delta cards 5.X1/5.X2; caveats honestly registered there §4)** | 04, 06, 10 |
 | 6 — Network & streaming | HTTP(S), HLS, DASH, RTSP-where-possible, buffering, reconnect, auth, fuzzing | 6.A–6.I | 17 | Network scenarios (interrupted/redirect/auth) green; protocol fuzzers in CI; blocked items (raw UDP/RTSP etc.) recorded with reasons — **SUBSTANTIALLY COMPLETE 2026-11-09: gate ledger drafted** (`docs/gates/phase6-exit.md`, verdict PENDING LEAD DECISION; see Status block) | 03, 04, 11 |
 | 7 — Platform & advanced | Devices, hw decode (per ADR-001), recording, conversion, stream output, WASM extensions, web parity | 7.A–7.L | 24 | Hw-decode active-decoder truthfulness test green per OS; WASM sandbox conformance + crash isolation green; web build plays real media via same command layer on Chrome/Firefox/Safari (recorded matrix) | 09, 06, 03, 11 |
