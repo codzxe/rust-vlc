@@ -121,4 +121,24 @@ describe("IconButton state styling consumes semantic tokens (Icon Wrapper.svg, W
     expect(rule).toContain("--color-stroke-icon: var(--color-content-tertiary)");
     expect(rule).toContain("pointer-events: none");
   });
+
+  // j01-12: `loading` now has a real pending cue — the promised spinner
+  // (was: dim only). The glyph swaps for a 14px currentcolor ring; motion
+  // respects prefers-reduced-motion like Button's spinner.
+  it("j01-12: loading shows the spinner — aria-busy ring replaces the glyph + reduced-motion honored", () => {
+    const busy = cssRule('.lumen-icon-button[aria-busy="true"]');
+    expect(busy).toContain("opacity: var(--opacity-emphasis)");
+    expect(busy).toContain("pointer-events: none");
+    const spinner = cssRule('.lumen-icon-button[aria-busy="true"]::before');
+    expect(spinner).toContain("width: 14px");
+    expect(spinner).toContain("border: 2px solid currentcolor");
+    expect(spinner).toContain("animation: lumen-button-spin");
+    // the glyph keeps its layout box but hides while pending (no resize)
+    expect(cssRule('.lumen-icon-button[aria-busy="true"] > *')).toContain("visibility: hidden");
+    // §4.5: motion off under prefers-reduced-motion (Button's spinner rule
+    // extended to the icon-button spinner in w26.k01)
+    expect(buttonCss).toMatch(
+      /\.lumen-button\[aria-busy="true"\]::before,\s*\.lumen-icon-button\[aria-busy="true"\]::before\s*\{\s*animation: none/,
+    );
+  });
 });
