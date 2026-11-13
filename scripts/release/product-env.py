@@ -3,7 +3,7 @@
 
 The release workflow and every scripts/release/*.sh packaging script read
 product identity (name, version, publisher, per-OS ids, description,
-accent color) and the two shipped bin names from HERE — never from
+accent color) and the shipped bin names from HERE — never from
 hard-coded literals. Sources, in order of authority:
 
   * product.toml          — identity, ids, brand accent, default locale
@@ -12,9 +12,15 @@ hard-coded literals. Sources, in order of authority:
   * locales/<locale>.toml — the description prose, via
                             identity.description_key (doc 07 §6.1: prose
                             lives in the locale catalog, never in code)
-  * cargo metadata        — bin names of the two shipped packages
-                            (apps/cli, apps/desktop), so a bin rename
-                            needs no packaging edit
+  * cargo metadata        — bin names of the shipped packages, so a bin
+                            rename needs no packaging edit. apps/cli and
+                            apps/desktop resolve from the ROOT workspace
+                            metadata; apps/desktop-tauri (the tauri
+                            admission shell) is workspace-EXCLUDED
+                            (root Cargo.toml `exclude`), so root
+                            metadata cannot see it — when --tauri-* are
+                            given, a SECOND metadata run scoped to the
+                            subcrate's own manifest/lockfile resolves it
 
 Anything missing is a hard error with an actionable message — never a
 silent fallback (same posture as product.schema.json validation).
@@ -37,7 +43,14 @@ Also derives:
 Usage (from the repo root):
   python3 scripts/release/product-env.py \
       --cli-package lumen-cli --desktop-package desktop \
+      [--tauri-package lumen-desktop-tauri \
+       --tauri-manifest apps/desktop-tauri/Cargo.toml] \
       [--print | --github-env-file "$GITHUB_ENV"]
+
+The --tauri pair is optional and must be passed together (the
+workspace-excluded crate has no root-metadata entry to lean on); omit
+it and BIN_TAURI is simply not emitted — same posture as BIN_*: the
+release-notes job runs without a toolchain and needs only identity.
 """
 
 from __future__ import annotations
@@ -103,6 +116,12 @@ def main() -> None:
                     help="cargo package name of the CLI app (its [[bin]] name -> BIN_CLI)")
     ap.add_argument("--desktop-package",
                     help="cargo package name of the desktop app (its [[bin]] name -> BIN_DESKTOP)")
+    ap.add_argument("--tauri-package",
+                    help="cargo package name of the tauri shell (its [[bin]] name -> BIN_TAURI; "
+                         "workspace-excluded crate, pass together with --tauri-manifest)")
+    ap.add_argument("--tauri-manifest",
+                    help="path to the tauri subcrate's Cargo.toml (e.g. apps/desktop-tauri/Cargo.toml; "
+                         "its own metadata resolves the bin name the root cannot see)")
     ap.add_argument("--print", dest="mode", action="store_const", const="print", default="print")
     ap.add_argument("--github-env", dest="mode", action="store_const", const="github-env")
     ap.add_argument("--github-env-file", dest="github_env_file")
@@ -115,7 +134,7 @@ def main() -> None:
     # --cli-package/--desktop-package are optional in this mode: the
     # release-notes job runs on a bare runner without a Rust toolchain
     # and needs only the identity fields (BIN_* come from cargo metadata
-    # and are simply omitted then).
+    # and are simply omitted then — the --tauri pair likewise).
 
     product = load_toml(REPO_ROOT / "product.toml", "product.toml")
 
@@ -190,6 +209,39 @@ def main() -> None:
             env["BIN_CLI"] = cargo_bin_name(args.cli_package, metadata)
         if args.desktop_package:
             env["BIN_DESKTOP"] = cargo_bin_name(args.desktop_package, metadata)
+
+    # The tauri admission shell is EXCLUDED from the root workspace (root
+    # Cargo.toml `exclude`: --all-features lanes must not drag the tauri
+    # graph into the main build), so the root metadata above has no
+    # lumen-desktop-tauri entry — its bin name has to come from a SECOND
+    # metadata run scoped to the subcrate's own manifest and lockfile.
+    # Same flags and error posture as the root call; cargo metadata is a
+    # metadata-only read, nothing is built. Half a pair is a hard error,
+    # not a silent omission (no-fallback posture).
+    if (args.tauri_package is None) != (args.tauri_manifest is None):
+        die("--tauri-package and --tauri-manifest are a pair — pass both "
+            "or neither (the workspace-excluded crate resolves only from "
+            "its own manifest)")
+    if args.tauri_package and args.tauri_manifest:
+        tauri_manifest = Path(args.tauri_manifest)
+        if not tauri_manifest.is_absolute():
+            tauri_manifest = REPO_ROOT / tauri_manifest
+        if not tauri_manifest.is_file():
+            die(f"--tauri-manifest not found at {tauri_manifest} (pass the "
+                f"workspace-excluded crate's Cargo.toml, e.g. "
+                f"apps/desktop-tauri/Cargo.toml)")
+        try:
+            tauri_meta_raw = subprocess.run(
+                ["cargo", "metadata", "--no-deps", "--format-version", "1",
+                 "--locked", "--manifest-path", str(tauri_manifest)],
+                cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+            ).stdout
+        except FileNotFoundError:
+            die("cargo not found on PATH (needed to resolve bin names)")
+        except subprocess.CalledProcessError as exc:
+            die(f"cargo metadata failed: {exc.stderr.strip()}")
+        env["BIN_TAURI"] = cargo_bin_name(args.tauri_package,
+                                          json.loads(tauri_meta_raw))
 
     for key, val in env.items():
         if "\n" in val or "\r" in val:

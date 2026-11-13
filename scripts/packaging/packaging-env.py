@@ -37,7 +37,16 @@ identity keys).
 
 Usage (from anywhere; the repo root is resolved from this file):
   python3 scripts/packaging/packaging-env.py \
-      --cli-package lumen-cli --desktop-package desktop --shell
+      --cli-package lumen-cli --desktop-package desktop \
+      --tauri-package lumen-desktop-tauri \
+      --tauri-manifest apps/desktop-tauri/Cargo.toml \
+      --shell
+
+The --tauri pair is an optional passthrough for the tauri admission
+shell: apps/desktop-tauri is workspace-EXCLUDED (root Cargo.toml
+`exclude`), so product-env.py resolves its bin name from the subcrate's
+OWN metadata, not the root's. Omit the pair and BIN_TAURI is simply not
+emitted (the release-notes job runs without a toolchain).
 """
 
 from __future__ import annotations
@@ -167,13 +176,16 @@ def validate(value, schema: dict, where: str) -> None:
 # ---------------------------------------------------------------------------
 
 def product_identity_env(cli_package: str | None,
-                         desktop_package: str | None) -> dict[str, str]:
+                         desktop_package: str | None,
+                         tauri_package: str | None = None,
+                         tauri_manifest: str | None = None) -> dict[str, str]:
     """Run scripts/release/product-env.py and parse its KEY=VALUE lines.
 
-    Identity derivation (including the cargo-metadata bin-name lookup
-    and the numeric MSI version) stays owned by that wave-22 tool; this
-    lane re-uses it rather than duplicating it. Its absence or failure
-    is fatal.
+    Identity derivation (including the cargo-metadata bin-name lookup —
+    root workspace for cli/desktop, the subcrate's own metadata for the
+    workspace-excluded tauri shell — and the numeric MSI version) stays
+    owned by that wave-22 tool; this lane re-uses it rather than
+    duplicating it. Its absence or failure is fatal.
     """
     if not PRODUCT_ENV.is_file():
         die(f"product-env.py not found at {PRODUCT_ENV} "
@@ -183,6 +195,10 @@ def product_identity_env(cli_package: str | None,
         cmd += ["--cli-package", cli_package]
     if desktop_package:
         cmd += ["--desktop-package", desktop_package]
+    if tauri_package:
+        cmd += ["--tauri-package", tauri_package]
+    if tauri_manifest:
+        cmd += ["--tauri-manifest", tauri_manifest]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         die(f"product-env.py failed:\n{proc.stderr.strip()}")
@@ -201,6 +217,12 @@ def main() -> None:
                     help="cargo package name of the CLI app (passthrough to product-env.py)")
     ap.add_argument("--desktop-package",
                     help="cargo package name of the desktop app (passthrough to product-env.py)")
+    ap.add_argument("--tauri-package",
+                    help="cargo package name of the tauri shell (passthrough to product-env.py; "
+                         "pass together with --tauri-manifest)")
+    ap.add_argument("--tauri-manifest",
+                    help="path to the tauri subcrate's Cargo.toml (passthrough to product-env.py; "
+                         "pass together with --tauri-package)")
     ap.add_argument("--print", dest="mode", action="store_const",
                     const="print", default="print")
     ap.add_argument("--shell", dest="mode", action="store_const", const="shell")
@@ -212,7 +234,8 @@ def main() -> None:
         die("--github-env mode requires --github-env-file")
 
     # --- 1. product identity (via the wave-22 tool) -----------------------
-    env = product_identity_env(args.cli_package, args.desktop_package)
+    env = product_identity_env(args.cli_package, args.desktop_package,
+                               args.tauri_package, args.tauri_manifest)
 
     # Brand icon paths live in product.toml [brand] but are not exported
     # by product-env.py (the wave-22 scripts generate placeholder icons
