@@ -296,7 +296,23 @@ export function buildModel(schemaToml, productToml) {
         value: String(value),
         msgid: `settings.value.${String(raw.key).replace(/\./g, "-")}.${String(value).toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`, // w26 Lead: value-segment sanitization (doc 07 §6.1 grammar — colons/dots in values become hyphens; "16:10"→"16-10", "5.1"→"5-1")
       }));
-      if (!enumeration.some((o) => o.value === defaultValue)) {
+      // w26.k14 (j14 #4): collision guard — the sanitizer is lossy ("5.1"
+      // and "5:1" both become "5-1"), so two values of one enum can
+      // silently share a msgid (description msgids are D4-deduped; option
+      // msgids were not). A collision must throw, never half-register.
+      const seenOptionMsgids = new Set();
+      for (const option of enumeration) {
+        if (seenOptionMsgids.has(option.msgid)) {
+          throw new TomlError(
+            `${where}: enum values collide on msgid "${option.msgid}" after value sanitization (doc 07 §6.1) — disambiguate the values`,
+          );
+        }
+        seenOptionMsgids.add(option.msgid);
+      }
+      // String(defaultValue): a numeric TOML default (unquoted) must
+      // compare against the stringified enumeration values, not by strict
+      // identity (latent false "default not in enumeration" otherwise).
+      if (!enumeration.some((o) => o.value === String(defaultValue))) {
         throw new TomlError(`${where}: default "${defaultValue}" not in enumeration`);
       }
     } else if (type === "int" || type === "float" || type === "duration-ms" || type === "percent") {
