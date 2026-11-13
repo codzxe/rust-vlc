@@ -265,6 +265,129 @@ function screenByTop(container: HTMLElement, top: number): string | null {
   return container.querySelector<HTMLElement>(`[role="option"][style*="top: ${top}px"]`)?.textContent ?? null;
 }
 
+/* ------------------------------------------------------------------ */
+/* w26.k03 (j03 P2-3/4/5/6/7) — the half-delivered VirtualList grid API. */
+/* ------------------------------------------------------------------ */
+
+describe("VirtualList semantics — grid vs listbox (w26.k03, j03 P2-7: the grid branch had zero in-lane coverage)", () => {
+  it('semantics="grid": grid/row/gridcell + aria-rowcount + per-row aria-rowindex', () => {
+    const { container } = render(
+      <VirtualList data={["A", "B", "C"]} itemHeight={28} label="Grid list" semantics="grid" renderItem={(item) => <span>{item}</span>} />,
+    );
+    const grid = screen.getByRole("grid", { name: "Grid list" });
+    expect(grid).toHaveAttribute("aria-rowcount", "3");
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('[role="row"]'));
+    expect(rows).toHaveLength(3);
+    // APG: dynamically rendered rows of an aria-rowcount grid expose their
+    // 1-based position (w26.k03, j03 P2-5).
+    expect(rows.map((row) => row.getAttribute("aria-rowindex"))).toEqual(["1", "2", "3"]);
+    expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(3);
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it('default semantics="listbox": listbox/option — no row/gridcell/rowcount', () => {
+    const { container } = render(
+      <VirtualList data={["A"]} itemHeight={28} label="Plain list" renderItem={(item) => <span>{item}</span>} />,
+    );
+    const listbox = screen.getByRole("listbox", { name: "Plain list" });
+    expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[role="row"], [role="gridcell"]')).toHaveLength(0);
+    expect(listbox).not.toHaveAttribute("aria-rowcount");
+    expect(listbox).not.toHaveAttribute("aria-activedescendant");
+  });
+});
+
+describe("VirtualList selection + active-row API (w26.k03, j03 P2-3/P2-4 — additive)", () => {
+  it("isItemSelected drives aria-selected; unset omits the attribute entirely", () => {
+    // The pre-fix primitive pinned aria-selected={false} on every row —
+    // visually-selected rows (current queue track, open playlist) were
+    // announced unselected forever.
+    const { container: gridContainer, rerender } = render(
+      <VirtualList
+        data={["A", "B", "C"]}
+        itemHeight={28}
+        label="Grid"
+        semantics="grid"
+        isItemSelected={(item) => item === "B"}
+        renderItem={(item) => <span>{item}</span>}
+      />,
+    );
+    const rows = Array.from(gridContainer.querySelectorAll<HTMLElement>('[role="row"]'));
+    expect(rows.map((row) => row.getAttribute("aria-selected"))).toEqual(["false", "true", "false"]);
+
+    // unset (the default): the attribute is omitted, not false.
+    rerender(<VirtualList data={["A", "B", "C"]} itemHeight={28} label="Grid" semantics="grid" renderItem={(item) => <span>{item}</span>} />);
+    for (const row of gridContainer.querySelectorAll('[role="row"]')) {
+      expect(row).not.toHaveAttribute("aria-selected");
+    }
+
+    // listbox options carry the same truth.
+    const { container: listContainer } = render(
+      <VirtualList data={["x", "y"]} itemHeight={28} label="List" isItemSelected={(_item, index) => index === 1} renderItem={(item) => <span>{item}</span>} />,
+    );
+    const options = Array.from(listContainer.querySelectorAll<HTMLElement>('[role="option"]'));
+    expect(options.map((option) => option.getAttribute("aria-selected"))).toEqual(["false", "true"]);
+  });
+
+  it("activeIndex wires stable row ids + aria-activedescendant + data-active (replaces consumer DOM surgery)", () => {
+    const { container, rerender } = render(
+      <VirtualList data={["A", "B", "C"]} itemHeight={28} label="Grid" semantics="grid" activeIndex={1} renderItem={(item) => <span>{item}</span>} />,
+    );
+    const grid = screen.getByRole("grid", { name: "Grid" });
+    const gridId = grid.id;
+    expect(gridId).not.toBe("");
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('[role="row"]'));
+    // Stable scheme: <container id>-row-<absolute index> — the id survives
+    // window shifts because row keys are the absolute index.
+    expect(rows.map((row) => row.id)).toEqual([`${gridId}-row-0`, `${gridId}-row-1`, `${gridId}-row-2`]);
+    expect(grid).toHaveAttribute("aria-activedescendant", `${gridId}-row-1`);
+    expect(rows[1]).toHaveAttribute("data-active", "true");
+    expect(rows[0]).not.toHaveAttribute("data-active");
+
+    // null: nothing active, no dangling activedescendant.
+    rerender(<VirtualList data={["A", "B", "C"]} itemHeight={28} label="Grid" semantics="grid" activeIndex={null} renderItem={(item) => <span>{item}</span>} />);
+    expect(grid).not.toHaveAttribute("aria-activedescendant");
+    expect(container.querySelector("[data-active]")).toBeNull();
+
+    // out-of-range: omitted as well (never point at a row that cannot exist).
+    rerender(<VirtualList data={["A", "B", "C"]} itemHeight={28} label="Grid" semantics="grid" activeIndex={99} renderItem={(item) => <span>{item}</span>} />);
+    expect(grid).not.toHaveAttribute("aria-activedescendant");
+    expect(container.querySelector("[data-active]")).toBeNull();
+  });
+});
+
+describe("VirtualList re-render discipline (w26.k03, j03 P2-6)", () => {
+  it("a scroll event that does not change the window re-renders nothing", () => {
+    let renders = 0;
+    const { container } = render(
+      <VirtualList
+        data={makeRows(10_000)}
+        itemHeight={28}
+        label="Big list"
+        renderItem={(row) => {
+          renders += 1;
+          return <span>{row}</span>;
+        }}
+      />,
+    );
+    const viewport = container.querySelector<HTMLElement>('[role="listbox"]')!;
+    const afterMount = renders;
+    expect(afterMount).toBeGreaterThan(0);
+
+    // Same scrollTop ⇒ same window ⇒ the range object is kept (no state
+    // change ⇒ no re-render of ~30 row wrappers + consumer rows).
+    viewport.scrollTop = 0;
+    fireEvent.scroll(viewport);
+    expect(renders).toBe(afterMount);
+
+    // A real window change still re-renders — the bail-out must not
+    // swallow actual moves.
+    viewport.scrollTop = 500 * 28;
+    fireEvent.scroll(viewport);
+    expect(renders).toBeGreaterThan(afterMount);
+  });
+});
+
 describe("ListRow — Figma row grammar (W25 §2: playlist.svg / media.svg / menu.svg)", () => {
   it("renders the anatomy: icon · title/meta · duration · trailing · kebab", () => {
     const { container } = render(
@@ -482,11 +605,20 @@ describe("VirtualTable (windowed table semantics)", () => {
     { id: "hotkey", header: "Hotkey", renderCell: (_: string, i: number) => `Ctrl+${i}` },
   ];
 
-  it("renders table/row/columnheader/cell roles with sticky head", () => {
+  it("renders table/row/columnheader/cell roles; rows are APG-numbered (w26.k03, j03 P2-5)", () => {
     const { container } = render(<VirtualTable data={data} itemHeight={32} columns={columns} label="Shortcuts" />);
-    expect(screen.getByRole("table", { name: "Shortcuts" })).toHaveAttribute("aria-rowcount", "1000");
+    const table = screen.getByRole("table", { name: "Shortcuts" });
+    // w26.k03: the always-rendered header IS a row — aria-rowcount counts it
+    // (1000 data rows + 1 header), the header is row 1 and windowed body
+    // rows carry their unique 1-based position (old value "1000" omitted the
+    // header and body rows carried no rowindex at all).
+    expect(table).toHaveAttribute("aria-rowcount", "1001");
     expect(container.querySelectorAll('[role="columnheader"]')).toHaveLength(2);
-    expect(container.querySelector('[role="row"]')!.className).toContain("lumen-vtable__head");
+    const head = container.querySelector('[role="row"]')!;
+    expect(head.className).toContain("lumen-vtable__head");
+    expect(head).toHaveAttribute("aria-rowindex", "1");
+    const bodyRow = container.querySelector<HTMLElement>('.lumen-vtable__row[role="row"]')!;
+    expect(bodyRow).toHaveAttribute("aria-rowindex", "2"); // first data row
   });
 
   it("keeps the window bounded and correct while scrolling 1000 rows", () => {
@@ -499,6 +631,8 @@ describe("VirtualTable (windowed table semantics)", () => {
     expect(rows.length).toBeLessThan(100);
     expect(rows[0]!.textContent).toContain("Row 95"); // 100 - overscan 5
     expect(rows[0]!.textContent).toContain("Ctrl+95");
+    // windowed rows keep their absolute APG position (95 → row 97: header + 1)
+    expect(rows[0]).toHaveAttribute("aria-rowindex", "97");
     expect(container.querySelector<HTMLElement>(".lumen-vlist__spacer")!.style.height).toBe("32000px");
   });
 });
