@@ -23,30 +23,29 @@
 // `hint` props through SettingField, and ClearHistoryRow carries the shared
 // SettingInfoDot grammar (i12) with this lane's hint copy. The screen stays
 // schema-driven: sections/entries/order come from the generated seed.
+//
+// w26.k13 (j13 ruling 1): the seam hook + section loop ride the shared
+// areas layer (makeAreaMsg + schemaSectionViews). w26.k12 (j12 P2-2): no
+// search filter and no hand-row keywords — the shell swaps in cross-area
+// results while a query is live (an area-side filter could never execute),
+// and hand rows stay invisible to that search by design (it walks schema
+// entries only); the Clear-history row always renders in its section.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactElement } from "react";
 import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as i13Keys } from "../../../i18n/keys/w26.i13";
-import type { SettingEntry } from "../generated/schema";
-import { schemaSectionsOf } from "../SettingsSections";
 import { SettingField } from "../SettingField";
 import { SettingInfoDot } from "../SettingField";
-import { useSettingsSearch } from "../search";
+import { makeAreaMsg } from "./shared";
+import { schemaSectionViews } from "./shared";
 
-type I13Key = keyof typeof i13Keys;
-/** Pre-registration seam (see w26.i13.ts) — the hint copy for this area. */
-const laneCatalog: Readonly<Record<string, string>> = i13Keys;
-
-/** useAreaMsg — useMsg + this lane's pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | I13Key): string => m(key as MessageKey) ?? laneCatalog[key];
-}
+/** useAreaMsg — useMsg + this lane's pre-registration keys (w26.i13 hints). */
+const useAreaMsg = makeAreaMsg(i13Keys);
 
 /** ⓘ hint msgids per schema row (w26.i13, h08 #3 — every privacy row). */
-const PRIVACY_HINTS: Readonly<Record<string, I13Key>> = {
+const PRIVACY_HINTS: Readonly<Record<string, keyof typeof i13Keys>> = {
   "privacy.save-recent-items": "settings.hint.privacy.save-recent-items",
   "privacy.remember-playback-position": "settings.hint.privacy.remember-playback-position",
   "privacy.never-remember-matching": "settings.hint.privacy.never-remember-matching",
@@ -56,9 +55,6 @@ const PRIVACY_HINTS: Readonly<Record<string, I13Key>> = {
   "privacy.lastfm-password": "settings.hint.privacy.lastfm-password",
   "privacy.lastfm-submission-url": "settings.hint.privacy.lastfm-submission-url",
 };
-
-/** The hand row's search terms (SettingsSections' SettingRowNode contract). */
-const CLEAR_HISTORY_KEYWORDS = ["Clear history now", "Clear"] as const;
 
 /**
  * The "Clear history now" action row (frame C3 y244 — with its ⓘ circle at
@@ -73,6 +69,7 @@ export function ClearHistoryRow(): ReactElement {
   const m = useAreaMsg();
   const [hintOpen, setHintOpen] = useState(false);
   const reason = m("settings.privacy.clear-unavailable");
+  const hintCaptionId = useId();
   return (
     <div className="settings-field" data-kind="action" data-privacy-action="clear-history">
       <div className="settings-field__row">
@@ -83,6 +80,7 @@ export function ClearHistoryRow(): ReactElement {
             label={m("settings.field.more-info")}
             expanded={hintOpen}
             onToggle={() => setHintOpen((open) => !open)}
+            controlsId={hintCaptionId}
           />
         </div>
         <div className="settings-field__control">
@@ -97,7 +95,11 @@ export function ClearHistoryRow(): ReactElement {
           </button>
         </div>
       </div>
-      {hintOpen ? <p className="settings-field__hinttext">{m("settings.hint.privacy.clear-history")}</p> : null}
+      {hintOpen ? (
+        <p id={hintCaptionId} role="note" className="settings-field__hinttext">
+          {m("settings.hint.privacy.clear-history")}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -108,29 +110,18 @@ export function ClearHistoryRow(): ReactElement {
  * ⓘ hints (h08 #3), plus the Clear-history action row at History's end.
  */
 export function PrivacyArea(): ReactElement {
-  const m = useAreaMsg();
-  const { query, matches } = useSettingsSearch();
-  const needle = query.trim().toLowerCase();
-  const clearRowMatches =
-    needle === "" || CLEAR_HISTORY_KEYWORDS.some((keyword) => keyword.toLowerCase().includes(needle));
-
+  const m = useMsg();
   return (
     <div className="settings-sections" data-settings-area="privacy">
-      {schemaSectionsOf("privacy").map((section) => {
-        // Pure-schema sections (the Clear-history hand row is rendered by
-        // this module, not spliced into the section data): narrow the row
-        // union so the schema-entry fields type-check below.
-        const entries = section.entries
-          .filter((row): row is SettingEntry => "key" in row)
-          .filter((entry) => entry.featureExposed && matches(entry));
-        // History's action row (frame C3 y244) rides the section's own
-        // visibility while a query is live (its keywords are its filter).
-        const showClearRow = section.id === "history" && clearRowMatches;
-        if (entries.length === 0 && !showClearRow) return null;
+      {schemaSectionViews("privacy").map(({ section, visible }) => {
+        // History's action row (frame C3 y244) closes the section in frame
+        // order; hand rows always render in the normal flow (w26.k12).
+        const showClearRow = section.id === "history";
+        if (visible.length === 0 && !showClearRow) return null;
         return (
           <section key={section.id} className="settings-section" data-section={section.id}>
             <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
-            {entries.map((entry) => (
+            {visible.map((entry) => (
               <SettingField key={entry.key} entry={entry} hint={PRIVACY_HINTS[entry.key]} />
             ))}
             {showClearRow ? (
