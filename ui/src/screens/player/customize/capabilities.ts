@@ -1,18 +1,22 @@
-// Capability seam for the customize catalog.
+// Capability seam for the customize family.
 //
-// The customize box renders an ENGINE-BOUND tile only when its command is
-// reported available. Source of truth: `system.list-commands` (doc 05 §3)
-// — the engine's own listing of supported command ids. The scaffold's
-// MockTransport answers with an EMPTY listing, which maps honestly to "no
-// capabilities" → every engine-bound tile hidden (no dead controls).
-// UI-owned toolbar items (command: null — Spacer, Go Home, the Name
-// pills, …) carry no engine surface and always render (w26.g07-P1-2's
-// catalog split: the frame's box is a 31-tile catalog, not a capability
-// report).
+// POLICY (rewritten w26.k08, j08 finding #4): the h07-defect-4
+// static-catalog ruling ships — the customize box renders the frame's FULL
+// 31-tile catalog against ANY `system.list-commands` listing (the box is a
+// catalog, never a capability report); engine truth governs DISPATCH only
+// (honest no-change on feature-not-exposed). The retired gating helpers
+// (tileVisible/visibleTiles) are deleted together with their re-exports and
+// their own test block, per the j08 suggested fix.
+//
+// The listing query below therefore has NO product consumer inside the
+// customize surface anymore; it stays exported (frozen barrel API —
+// removals are not additive) as the capability seam other designs cite
+// (convertQueue's comment) and is pinned by its own hook test. Deleting it
+// wholesale is a Lead call for a point where the API freeze allows
+// removals; until then this header documents the honest state.
 
 import { useEffect, useState } from "react";
 import type { CommandTransport } from "../../../client/transport";
-import type { CustomizeTile } from "./types";
 
 export interface CommandCapabilities {
   /** Command ids the engine listed as supported. */
@@ -54,21 +58,4 @@ export function useCommandCapabilities(wire: CommandTransport): CommandCapabilit
   }, [wire]);
 
   return caps;
-}
-
-/**
- * A tile renders when it is UI-owned (no engine command) OR its command is
- * reported available — the customize-surface policy: hidden, never a dead
- * control (contrast the settings seam's disabled-with-reason).
- */
-export function tileVisible(tile: CustomizeTile, caps: CommandCapabilities): boolean {
-  return tile.command === null || caps.available.has(tile.command);
-}
-
-/** The subset of the catalog that passes the capability gate. */
-export function visibleTiles(
-  tiles: readonly CustomizeTile[],
-  caps: CommandCapabilities,
-): readonly CustomizeTile[] {
-  return tiles.filter((tile) => tileVisible(tile, caps));
 }
