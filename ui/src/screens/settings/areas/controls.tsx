@@ -33,14 +33,13 @@ import { Switch } from "../../../components/form/Switch";
 import { TextField } from "../../../components/form/TextField";
 import { Icon } from "../../../components/icon/Icon";
 import { Dialog } from "../../../components/surface";
-import { useMsg } from "../../../i18n/messages";
-import type { MessageKey } from "../../../i18n/messages";
 import { keys as shellKeys } from "../../../i18n/keys/w26.b01";
 import { keys as registryKeys } from "../../../i18n/keys/w26.b02";
 import { keys as laneKeys } from "../../../i18n/keys/w26.b07";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.gfixB";
 import { keys as i15Keys } from "../../../i18n/keys/w26.i15";
 import { GENERATED_SCREENS } from "../generated/Screens";
+import { makeAreaMsg } from "./shared";
 import { HotkeysEditor } from "./hotkeys/HotkeysEditor";
 import { localStorageHotkeyOverrides } from "./hotkeys/overrides";
 import "./controls.css";
@@ -49,31 +48,13 @@ import "./controls.css";
  * duration-ms inputs, controls.mouse-* enums + reverse-scroll bool). */
 const GeneratedControlsScreen = GENERATED_SCREENS.controls;
 
-type LaneKey = keyof typeof laneKeys;
-type ShellKey = keyof typeof shellKeys;
-type RegistryKey = keyof typeof registryKeys;
-type FixerKey = keyof typeof fixerKeys;
-type I15Key = keyof typeof i15Keys;
-/** Pre-registration seam: registry (b02) + shell (b01) + b07 + this lane's
- * keys — the gfixB casing fixes (g13-P2-9: "Keyboard Shortcuts" / "Edit
- * Keyboard Shortcuts", frame-verbatim, consistent with the sibling title
- * case sections) win over b07's sentence-case exports until the Lead
- * registers the retitle; i15 carries the editor dialog's close label
- * (w26.i15, h11 #5). */
-const laneCatalog: Readonly<Record<string, string>> = {
-  ...registryKeys,
-  ...shellKeys,
-  ...laneKeys,
-  ...fixerKeys,
-  ...i15Keys,
-};
-
-/** useAreaMsg — useMsg + the settings lanes' pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | RegistryKey | ShellKey | LaneKey | FixerKey | I15Key): string =>
-    m(key as MessageKey) ?? laneCatalog[key];
-}
+/** Pre-registration seam: registry (b02) + shell (b01) + b07 + gfixB + i15
+ * (w26.k13: the shared makeAreaMsg factory — the j13 ruling 1 dedup; the
+ * gfixB casing fixes (g13-P2-9: "Keyboard Shortcuts" / "Edit Keyboard
+ * Shortcuts", frame-verbatim) win over b07's sentence-case exports until
+ * the Lead registers the retitle; i15 carries the editor dialog's close
+ * label, w26.i15 h11 #5). */
+const useAreaMsg = makeAreaMsg(registryKeys, shellKeys, laneKeys, fixerKeys, i15Keys);
 
 /**
  * One hand-authored action row (frame §C8: label left, full-width 320×32 r6
@@ -130,26 +111,38 @@ function RemotesSection(): ReactElement {
   // w26.i15 (h11 #3): the honest reason rides each row's tooltip — the 11px
   // visible staged note is gone (content the §C8 frame does not carry; one
   // staged grammar across the family: staged rows + tooltip, no note).
+  // w26.k13 (j13 P2-2): the reason is ALSO keyboard-reachable — the sr-only
+  // twin rides each row's lead (a disabled control is not focusable, so the
+  // title alone was unreachable for keyboard/AT users) and the disabled
+  // controls point at it via aria-describedby. The rows carry the shared
+  // data-staged-row marker (the staged.tsx grammar, j13 ruling 1).
   return (
     <section className="settings-section" data-section="remotes">
       <h2 className="settings-section__title">{t("settings.section.controls.remotes")}</h2>
-      {rows.map((row) => (
+      {rows.map((row) => {
+        const reasonNoteId = `${row.key}-staged-reason`;
+        return (
         <div
           key={row.key}
           className="settings-field"
           data-kind={row.kind}
           data-setting-key={`pending.${row.key}`}
           data-staged="control-server"
+          data-staged-row={row.key}
           title={staged}
         >
           <div className="settings-field__row">
             <div className="settings-field__lead">
               <span className="settings-field__label">{row.label}</span>
+              <span id={reasonNoteId} className="settings-vh">
+                {staged}
+              </span>
             </div>
             <div className="settings-field__control">
               {row.kind === "switch" ? (
                 <Switch
                   aria-label={row.label}
+                  aria-describedby={reasonNoteId}
                   checked={false}
                   disabled
                   onChange={() => undefined}
@@ -160,7 +153,8 @@ function RemotesSection(): ReactElement {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
     </section>
   );
 }
