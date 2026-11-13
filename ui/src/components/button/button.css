@@ -17,11 +17,15 @@
  *   IconButton — Icon Wrapper.svg: transparent rest, hover chip rx4 ≈
  *     white 6% ≈ surface-hover; 1.5px stroke glyphs default to 16px (Icon);
  *     hit areas 28/32/48 (≥ 28px).
- *   Toggle.svg — 68x32 rx6 track #090909 (surface); ON: 33x26 rx3
- *     accent-tinted fill + "ON" accent label (caption 11px; frame-measured
- *     ~12px type) + 26x26 rx3 accent-strong knob right; OFF: 26x26 rx3
- *     stroke-border knob left + 33x26 rx3 surface-panel segment with "OFF"
- *     label.
+ *   Switch core (Toggle.svg) — ONE frame control, two class grammars
+ *     (w26.k01 j01-3): `.lumen-toggle*` (button family, control-parts lane)
+ *     and `.lumen-switch*` (form family, settings rows — screens keep CSS
+ *     hooks on that set). Shared selector lists below style BOTH, so the
+ *     skin cannot diverge again (j01-9): 68x32 rx6 track #090909 (surface);
+ *     ON: 33x26 rx3 accent-tinted segment + "ON" accent label + 26x26 rx3
+ *     accent-strong knob right; OFF: 26x26 rx3 stroke-border knob left +
+ *     33x26 rx3 surface-panel segment with "OFF" label (secondary, 4.F4).
+ *     Labels are localized (i18n keys switch.on/off, w26.k01.ts).
  *   Heights compact per frames: 28 (sm) / 32 (md) / 36 (lg); type 12–13px
  *     medium via --font-size-body (token re-scale). Disabled = tertiary
  *     content. NO bubbles, NO shadows (no frame shows one).
@@ -230,16 +234,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .lumen-button {
-    transition: none;
-  }
-
-  .lumen-button[aria-busy="true"]::before {
-    animation: none;
-  }
-}
-
 /* IconButton — icon-only ghost action (Icon Wrapper.svg: transparent rest,
  * hover chip ≈ surface-hover; hit areas 28/32/48, glyphs 16px via Icon). */
 .lumen-icon-button {
@@ -314,6 +308,29 @@
 .lumen-icon-button[aria-busy="true"] {
   opacity: var(--opacity-emphasis);
   pointer-events: none;
+  position: relative; /* the spinner centers absolutely in the chip */
+}
+
+/* Pending cue (w26.k01 j01-12): the doc's promised spinner — a 14px
+ * currentcolor ring replaces the glyph (a 28–48px icon chip cannot carry
+ * spinner + glyph side by side; Button keeps label + spinner, the icon-only
+ * chip swaps). The glyph keeps its layout box (visibility, not display) so
+ * the chip never resizes while pending. */
+.lumen-icon-button[aria-busy="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%; /* functional circle, not a design radius */
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
+  animation: lumen-button-spin 800ms linear infinite;
+}
+
+.lumen-icon-button[aria-busy="true"] > * {
+  visibility: hidden;
 }
 
 .lumen-icon-button--sm {
@@ -326,17 +343,25 @@
   height: 48px;
 }
 
-/* Toggle — role=switch (doc 08 §4.5), 68x32 rx6 track on surface
- * (Toggle.svg #090909); 3px padding/radius/pitch are frame-measured
- * structural values with no token (states.md). */
-.lumen-toggle {
+/* Switch core — Toggle.svg (doc 08 §4.5), ONE frame control in two class
+ * grammars (w26.k01 j01-3, Lead ruling: both exported names stay, ONE core
+ * implementation): the button family's `.lumen-toggle*` (control-parts
+ * lane) and the form family's `.lumen-switch*` (settings rows keep CSS
+ * hooks on it — settings.css / effects.css / subtitles.css). Every rule
+ * below styles BOTH sets through shared selector lists, so the skin can
+ * never diverge again (j01-9: the form copy's OFF label had drifted to
+ * tertiary 4.57:1; both grammars are secondary now — the 4.F4 fix).
+ * 68x32 rx6 track #090909 (surface); 3px padding/radius/pitch are
+ * frame-measured structural values with no token (states.md). */
+.lumen-toggle,
+.lumen-switch {
   display: flex;
   align-items: center;
   gap: 3px; /* Toggle.svg segment pitch (35→64 with 33+26) */
   box-sizing: border-box;
-  width: 68px;
-  height: 32px;
-  padding: 3px; /* 26px knob inside the 32px track */
+  width: 68px; /* frame: Toggle.svg */
+  height: 32px; /* frame */
+  padding: 3px; /* 26px segments inside the 32px track */
   background: var(--color-surface);
   border: none;
   border-radius: var(--radius-control);
@@ -344,96 +369,144 @@
   transition: background-color var(--motion-duration-fast) ease;
 }
 
-.lumen-toggle:hover {
+.lumen-toggle:hover,
+.lumen-switch:hover {
   background: var(--color-surface-hover);
 }
 
-.lumen-toggle:focus-visible {
+.lumen-toggle:focus-visible,
+.lumen-switch:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
-/* ON segment — 33x26 rx3 accent-tinted well holding the ON micro label;
- * hidden while off (frame OFF = knob + panel segment, no tinted well). */
-.lumen-toggle__fill {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 33px;
-  height: 26px;
-  overflow: hidden;
-  background: var(--color-accent-tinted);
-  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (states.md) */
-}
-
-/* OFF segment — 33x26 rx3 surface-panel well holding the OFF micro label
- * (Toggle.svg Rectangle 11_2 #191919). */
-.lumen-toggle__off {
+/* Micro-label segments — the 33x26 rx3 wells (ON tinted / OFF panel).
+ * Labels (doc 08 §1.3 row 4.4 + §1.5 Toggle.svg): --font-size-caption (11px;
+ * frame-measured ON/OFF cap-height 9.0px ⇒ ~12px type — the doc-08 "micro"
+ * 6px was half-size, w26.a03 relaunch), localized through i18n keys
+ * (switch.on/off — j01-4), decorative (aria-hidden): the switch conveys
+ * state via aria-checked alone. overflow clips longer locale labels inside
+ * the 33px well instead of bleeding onto the track. */
+.lumen-toggle__fill,
+.lumen-toggle__off,
+.lumen-switch__text {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 33px;
-  height: 26px;
-  background: var(--color-surface-panel);
-  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (states.md) */
-}
-
-.lumen-toggle__knob {
+  box-sizing: border-box;
   flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (states.md) */
-  background: var(--color-stroke-border); /* Toggle.svg OFF knob #404040 */
-  transition: background-color var(--motion-duration-fast) ease;
-}
-
-/* micro labels (Toggle.svg ON/OFF paths: cap-height 9.0px => ~12px type;
- * w26.a03 relaunch measured — the doc-08 "micro" 6px was half-size).
- * --font-size-caption (11px) is the nearest semantic step. ON = accent.
- * OFF keeps content-secondary (4.F4 a11y fix): the frame's #6B6B6B tertiary
- * is 3.4:1 on the #191919 segment; secondary clears 4.5:1 in both themes.
- * Decorative: aria-hidden in TSX (state conveyed by aria-checked). */
-.lumen-toggle__label {
-  flex: none;
+  width: 33px; /* frame */
+  height: 26px; /* frame */
+  overflow: hidden;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-medium);
   line-height: 1;
   white-space: nowrap;
   user-select: none;
+  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (states.md) */
+  transition: background-color var(--motion-duration-fast) ease;
 }
 
-.lumen-toggle__label--on {
+/* ON segment — accent-tinted well + accent label; hidden while off (frame
+ * OFF = knob + panel segment, no tinted well). */
+.lumen-toggle__fill,
+.lumen-switch__text--on {
+  display: none;
+  background: var(--color-accent-tinted);
   color: var(--color-accent);
 }
 
-.lumen-toggle__label--off {
+/* OFF segment — surface-panel well (Toggle.svg Rectangle 11_2 #191919) +
+ * secondary label (4.F4 a11y fix): the frame's #6B6B6B tertiary is 3.4:1 on
+ * the #191919 segment; secondary clears 4.5:1 in both themes. */
+.lumen-toggle__off,
+.lumen-switch__text--off {
+  background: var(--color-surface-panel);
   color: var(--color-content-secondary);
 }
 
-/* ON: tinted fill (with label) left + accent-strong knob right;
+/* Knob — 26x26 rx3, stroke-border at rest (Toggle.svg OFF knob #404040). */
+.lumen-toggle__knob,
+.lumen-switch__fill {
+  box-sizing: border-box;
+  flex: none;
+  width: 26px; /* frame */
+  height: 26px; /* frame */
+  border-radius: 3px; /* rx3 per Toggle.svg — no 3px semantic token (states.md) */
+  background: var(--color-stroke-border);
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+/* ON: tinted segment (with label) left + accent-strong knob right;
  * OFF: stroke-border knob left + panel segment (with label) right. */
-.lumen-toggle[aria-checked="true"] .lumen-toggle__fill {
+.lumen-toggle[aria-checked="true"] .lumen-toggle__fill,
+.lumen-switch[aria-checked="true"] .lumen-switch__text--on {
   display: flex;
 }
 
-.lumen-toggle[aria-checked="true"] .lumen-toggle__off {
+.lumen-toggle[aria-checked="true"] .lumen-toggle__off,
+.lumen-switch[aria-checked="true"] .lumen-switch__text--off {
   display: none;
 }
 
-.lumen-toggle[aria-checked="true"] .lumen-toggle__knob {
+.lumen-toggle[aria-checked="true"] .lumen-toggle__knob,
+.lumen-switch[aria-checked="true"] .lumen-switch__fill {
   background: var(--color-accent-strong);
 }
 
-.lumen-toggle:disabled {
+/* Hover walks the knob (the w26.a06 form-port hover, shared by both
+ * grammars — the pre-k01 button-family Toggle lacked it). */
+.lumen-toggle[aria-checked="true"]:hover .lumen-toggle__knob,
+.lumen-switch[aria-checked="true"]:hover .lumen-switch__fill {
+  background: var(--color-accent-bright);
+}
+
+.lumen-toggle[aria-checked="false"]:hover .lumen-toggle__knob,
+.lumen-switch[aria-checked="false"]:hover .lumen-switch__fill {
+  background: color-mix(in srgb, var(--color-stroke-border) 55%, var(--color-content-secondary));
+}
+
+.lumen-toggle:disabled,
+.lumen-switch:disabled {
   opacity: var(--opacity-disabled);
   cursor: default;
   pointer-events: none;
 }
 
+/* w26.d2 light sweep (out-of-lane fix, flagged in the lane log): "accent
+ * ink on accent-tinted" (the switch ON label) is 4.7:1 in dark (#d37918 on
+ * #371f06) but 1.75:1 in light (#d37918 on the flipped #d8ba9a tint) —
+ * washed out. Light swaps the ink to content-primary (7.8:1 on the tint).
+ * (Moved from form.css in w26.k01 so the whole switch skin lives here.) */
+:root[data-theme="light"] .lumen-toggle__fill,
+:root[data-theme="light"] .lumen-switch__text--on {
+  color: var(--color-content-primary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lumen-toggle,
-  .lumen-toggle__knob {
+  .lumen-switch,
+  .lumen-toggle__fill,
+  .lumen-toggle__off,
+  .lumen-toggle__knob,
+  .lumen-switch__text,
+  .lumen-switch__fill {
     transition: none;
+  }
+}
+
+/* §4.5: motion off under prefers-reduced-motion — Button transitions +
+ * both busy-state spinners (Button's and IconButton's, w26.k01 j01-12) in
+ * one block at the end of the sheet so every busy rule is declared before
+ * its motion-off companion. */
+@media (prefers-reduced-motion: reduce) {
+  .lumen-button {
+    transition: none;
+  }
+
+  .lumen-button[aria-busy="true"]::before,
+  .lumen-icon-button[aria-busy="true"]::before {
+    animation: none;
   }
 }
