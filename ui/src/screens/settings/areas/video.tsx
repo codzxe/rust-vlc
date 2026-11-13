@@ -32,29 +32,22 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as fixerKeys } from "../../../i18n/keys/w26.gfixB";
 import { keys as i14Keys } from "../../../i18n/keys/w26.i14";
-import { Icon } from "../../../components/icon";
-import type { SettingEntry } from "../generated/schema";
-import { schemaSectionsOf } from "../SettingsSections";
+import { AdvancedDisclosure } from "../SettingsSections";
 import { SettingField } from "../SettingField";
-import { useSettingsSearch } from "../search";
+import { makeAreaMsg } from "./shared";
+import { schemaSectionViews } from "./shared";
 import { SETTING_VIDEO_BRIGHTNESS, SETTING_VIDEO_CONTRAST, SETTING_VIDEO_GAMMA, SETTING_VIDEO_HUE, SETTING_VIDEO_SATURATION } from "../generated/schema";
 import { useSettings } from "../SettingsProvider";
 import { CodecsArea } from "./codecs";
 
-type FixerKey = keyof typeof fixerKeys;
-type I14Key = keyof typeof i14Keys;
-/** Pre-registration seam (see w26.gfixB.ts). */
-const laneCatalog: Readonly<Record<string, string>> = fixerKeys;
+/** useAreaMsg — useMsg + this lane's pre-registration keys (w26.k13: the
+ * shared makeAreaMsg seam — the j13 ruling 1 dedup). */
+const useAreaMsg = makeAreaMsg(fixerKeys, i14Keys);
 
-/** useAreaMsg — useMsg + this lane's pre-registration keys. */
-function useAreaMsg() {
-  const m = useMsg();
-  return (key: MessageKey | FixerKey | I14Key): string => m(key as MessageKey) ?? laneCatalog[key];
-}
+type I14Key = keyof typeof i14Keys;
 
 /** The ⓘ hint msgid cast through the registry seam (the laneMsg precedent). */
 const hintMsg = (key: I14Key): MessageKey => key as string as MessageKey;
@@ -72,8 +65,11 @@ const VIDEO_HINTS: Readonly<Record<string, MessageKey>> = {
   "video.crop": hintMsg("settings.hint.video.crop"),
 };
 
-/** The hand row's search terms (SettingsSections' SettingRowNode contract). */
-const RESET_PICTURE_KEYWORDS = ["Reset picture", "Reset"] as const;
+/** The hand row's search terms — RETIRED (w26.k12, j12 P2-2): the in-area
+ * keyword filter could never execute (the shell renders cross-area results
+ * instead of the current area while a query is live); the Reset row now
+ * always renders in the Picture section (frame order) and hand rows stay
+ * invisible to cross-area search (it walks schema entries only). */
 
 /** The five Picture keys the Reset action restores (schema order). */
 const PICTURE_KEYS: readonly string[] = [
@@ -122,29 +118,19 @@ export function ResetPictureRow(): ReactElement {
  */
 export function VideoArea(): ReactElement {
   const m = useAreaMsg();
-  const { query, matches } = useSettingsSearch();
-  const needle = query.trim().toLowerCase();
-  const resetRowMatches =
-    needle === "" || RESET_PICTURE_KEYWORDS.some((keyword) => keyword.toLowerCase().includes(needle));
-
   return (
     <div className="settings-sections" data-settings-area="video">
-      {schemaSectionsOf("video").map((section) => {
-        // Pure-schema sections (the Reset picture hand row is rendered by
-        // this module, not spliced into the section data): narrow the row
-        // union so the schema-entry fields type-check below.
-        const entries = section.entries
-          .filter((row): row is SettingEntry => "key" in row)
-          .filter((entry) => entry.featureExposed && matches(entry));
-        // The Reset picture action row (frame C5 y551) rides the Picture
-        // section's own visibility while a query is live (its keywords are
-        // its filter) and closes the section in frame order.
-        const showResetRow = section.id === "picture" && resetRowMatches;
-        if (entries.length === 0 && !showResetRow) return null;
+      {schemaSectionViews("video").map(({ section, visible }) => {
+        // No search filter (w26.k12, j12 P2-2 — see the note above); the
+        // view's visible list is feature-gated in schema order.
+        // The Reset picture action row (frame C5 y551) closes the Picture
+        // section in frame order.
+        const showResetRow = section.id === "picture";
+        if (visible.length === 0 && !showResetRow) return null;
         return (
           <section key={section.id} className="settings-section" data-section={section.id}>
             <h2 className="settings-section__title">{m(section.title as MessageKey)}</h2>
-            {entries.map((entry) => (
+            {visible.map((entry) => (
               <SettingField key={entry.key} entry={entry} hint={VIDEO_HINTS[entry.key]} />
             ))}
             {showResetRow ? (
@@ -166,31 +152,19 @@ export function VideoArea(): ReactElement {
  * default so the video column ends at the frame's last row instead of
  * scrolling 270px past it. The rows below the bar keep their own section
  * headers (Decoding / Cache) once opened.
+ *
+ * w26.k12 (j12 P2-6): the THIRD hand copy is gone — this fold now rides the
+ * shell's ONE exported AdvancedDisclosure, so the i12 scrollIntoView fix
+ * (h08 #1, "expanding reveals nothing" near the fold) finally reaches this
+ * screen too; the custom "settings-codecs-rows" id and the unreferenced
+ * data-settings-fold marker retire with it (one exported constant,
+ * ADVANCED_ROWS_ID — mutually exclusive screens).
  */
 export function CodecsFold(): ReactElement {
-  const m = useMsg();
   const [open, setOpen] = useState(false);
   return (
-    <div className="settings-advanced" data-settings-fold="codecs">
-      <button
-        type="button"
-        className="settings-advanced__bar"
-        aria-expanded={open}
-        aria-controls="settings-codecs-rows"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="settings-advanced__label">{m("settings.advanced-options")}</span>
-        <Icon
-          name={open ? "chevron-down" : "chevron-right"}
-          size={14}
-          className="settings-advanced__chevron"
-        />
-      </button>
-      {open ? (
-        <div className="settings-advanced__rows" id="settings-codecs-rows">
-          <CodecsArea />
-        </div>
-      ) : null}
-    </div>
+    <AdvancedDisclosure open={open} onToggle={() => setOpen((value) => !value)}>
+      <CodecsArea />
+    </AdvancedDisclosure>
   );
 }
