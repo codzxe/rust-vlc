@@ -22,6 +22,11 @@ const ROUTES: ReadonlyArray<{ name: string; path: string; onboarded: boolean }> 
   { name: "miniplayer", path: "/miniplayer", onboarded: true },
   { name: "playlist", path: "/playlist", onboarded: true },
   { name: "media-info", path: "/media-info", onboarded: true },
+  // w26.k17 (j17 P3-9): the frameless working screens join the sweep —
+  // the harness existed; these three were absent.
+  { name: "discovery", path: "/discovery", onboarded: true },
+  { name: "convert", path: "/convert", onboarded: true },
+  { name: "not-found", path: "/no-such-route", onboarded: true },
   { name: "settings-global", path: "/settings/global", onboarded: true },
   { name: "settings-interface", path: "/settings/interface", onboarded: true },
   { name: "settings-privacy", path: "/settings/privacy", onboarded: true },
