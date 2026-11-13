@@ -4,7 +4,7 @@ import { SettingsProvider, useSettings } from "../../SettingsProvider";
 import { memorySettingsPersistence } from "../../persistence";
 import { SETTING_GLOBAL_LANGUAGE } from "../../generated/schema";
 import { LocalePicker } from "./LocalePicker";
-import { AVAILABLE_LOCALES, REFERENCE_LOCALE, localeLabel } from "./locales";
+import { AVAILABLE_LOCALES, localeLabel } from "./locales";
 import { useMsg } from "../../../../i18n/messages";
 
 // Card 4.E2 language area (w26.f03, e05 F5): the locale picker is a CLOSED
@@ -69,7 +69,9 @@ describe("LocalePicker (global.language)", () => {
 
   it("labels the reference locale through the i18n catalog", () => {
     const m = useMsg();
-    expect(localeLabel(REFERENCE_LOCALE, m)).toBe("English");
+    // w26.k13 (j13 P3-13): the reference tag is inlined — the test-only
+    // REFERENCE_LOCALE export is gone.
+    expect(localeLabel("en-US", m)).toBe("English");
     expect(localeLabel("fr-FR", m)).toBe("fr-FR"); // no catalog copy → raw tag
   });
 });
