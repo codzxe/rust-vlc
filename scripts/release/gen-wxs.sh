@@ -184,7 +184,12 @@ generate_wxs() {
         <Component Id="BinTauri" Guid="*">
           <File Id="BinTauriExe" Source="${BIN_TAURI}.exe" KeyPath="yes" />
         </Component>
-        <Component Id="Docs" Guid="*">
+        <!-- WiX v5 auto-guid rule (WIX0367, release round 4): a multi-file
+             component may use Guid="*" only when the keypath is a VERSIONED
+             file — the docs component's keypath is unversioned text, so it
+             carries a stable explicit GUID (uuid5 over the product upgrade
+             code namespace, component:docs — deterministic, committed). -->
+        <Component Id="Docs" Guid="798918a8-a4bf-5dde-aca0-6b77d90856b5">
 ${docs_xml}        </Component>
       </Directory>
     </StandardDirectory>

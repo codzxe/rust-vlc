@@ -181,11 +181,15 @@ scriptlets.
 %install
 # The setup macro left cwd INSIDE the extracted top-dir (= the payload
 # root: usr/, share/...); cp -a with a dot operand copies the CONTENTS
-# into the buildroot (verified locally: `cp -a . dest/` copies
-# children, not the dir itself). The old dir-prefixed path was written
-# for a buildroot-relative cwd and died "cannot stat" the moment the
-# prep cwd semantics changed (aarch64, run 43406493996). Comment stays
-# macro-free per the prep note above.
+# into the buildroot (the dot-operand semantics were verified locally:
+# it copies children, not the dir itself). The old dir-prefixed path
+# was written for a buildroot-relative cwd and died "cannot stat" the
+# moment the prep cwd semantics changed (aarch64, run 43406493996).
+# Comment stays macro-free AND backtick-free: the spec heredoc is
+# UNQUOTED, so backticks here would execute as command substitution at
+# generation time (round-4 dry run: a comment's sample command ran for
+# real inside the staging tree). Comments in this heredoc carry no
+# percent-tokens and no command substitutions, ever.
 cp -a . "%{buildroot}/"
 
 %files

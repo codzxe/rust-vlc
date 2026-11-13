@@ -170,7 +170,11 @@ function New-MsiWxs {
         <Component Id="BinTauri" Guid="*">
           <File Id="BinTauriExe" Source="$TauriExe" KeyPath="yes" />
         </Component>
-        <Component Id="Docs" Guid="*">
+        <!-- WiX v5 auto-guid rule (WIX0367): multi-file component with an
+             unversioned keypath needs a stable explicit GUID (uuid5 over the
+             product upgrade code namespace, component:docs). Kept in
+             lockstep with gen-wxs.sh (change both together). -->
+        <Component Id="Docs" Guid="798918a8-a4bf-5dde-aca0-6b77d90856b5">
 $docsXml
         </Component>
       </Directory>

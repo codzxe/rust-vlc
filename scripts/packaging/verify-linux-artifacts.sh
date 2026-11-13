@@ -121,12 +121,21 @@ if command -v rpmbuild >/dev/null 2>&1; then
     rpm_path="$dist_abs/${base}.rpm"
     [ -s "$rpm_path" ] || die "rpm missing after build: $rpm_path"
     # Header assertions, no root needed: the rpm IS what config says.
-    for field in "Name:$PRODUCT_LOWER" "Version:$(printf '%s' "$PRODUCT_VERSION" | sed 's/-/~/g')" \
-        "Release:$PACKAGING_RPM_RELEASE" "Summary:$PRODUCT_DESCRIPTION" \
-        "License:$PACKAGING_RPM_LICENSE" "Architecture:$ARCH_ID"; do
+    # The queryformat TAG is not always the display label uppercased:
+    # rpm's architecture tag is ARCH, not ARCHITECTURE (round-4 dry run
+    # 43410309730: %{ARCHITECTURE} expanded empty and the assert died on
+    # a perfectly good rpm). Explicit label->tag pairs below.
+    for field in "Name:NAME:$PRODUCT_LOWER" \
+        "Version:VERSION:$(printf '%s' "$PRODUCT_VERSION" | sed 's/-/~/g')" \
+        "Release:RELEASE:$PACKAGING_RPM_RELEASE" \
+        "Summary:SUMMARY:$PRODUCT_DESCRIPTION" \
+        "License:LICENSE:$PACKAGING_RPM_LICENSE" \
+        "Architecture:ARCH:$ARCH_ID"; do
         want_field=${field%%:*}
-        want_val=${field#*:}
-        got_val=$(rpm -qp --queryformat "%{$(printf '%s' "$want_field" | tr '[:lower:]' '[:upper:]')}" "$rpm_path" 2>/dev/null) ||
+        rest=${field#*:}
+        tag=${rest%%:*}
+        want_val=${rest#*:}
+        got_val=$(rpm -qp --queryformat "%{$tag}" "$rpm_path" 2>/dev/null) ||
             die "rpm -qp failed on $rpm_path"
         [ "$got_val" = "$want_val" ] ||
             die "rpm header field $want_field is '$got_val', config says '$want_val'"

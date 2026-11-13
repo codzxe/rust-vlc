@@ -243,12 +243,23 @@ jobs:
           #    0) has no driver under xvfb — that half stays with the
           #    human/GUI verdict.
           if [ "$survived" = "yes" ]; then
+            # The harness must SURVIVE its own kill: on the round-1 run
+            # (43410313414) both the linux and macos verdicts passed
+            # survival + receipts and then the STEP died with 143 — the
+            # group-TERM reached the harness shell too (the step script
+            # shares a process group with its background job when setsid
+            # is a no-op fork, and the harness's `wait` then reports the
+            # harness's own signal death instead of the app's). Ignoring
+            # TERM inside the harness makes the kill one-sided; the
+            # app's exit code still arrives via `wait`.
+            trap '' TERM
             kill -TERM -- "-$pgid" 2>/dev/null || true
             for i in $(seq 1 20); do
               kill -0 "$pgid" 2>/dev/null || break
               sleep 0.5
             done
             kill -KILL -- "-$pgid" 2>/dev/null || true
+            trap - TERM
           fi
           wait "$pgid" 2>/dev/null
           exit_code=$?
