@@ -43,11 +43,17 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     headless: true,
-    baseURL: "http://localhost:5173",
+    // 127.0.0.1, not localhost — contract §9 (the dev server binds 127.0.0.1
+    // explicitly; w26.k20, j20 P3-13).
+    baseURL: "http://127.0.0.1:5173",
   },
   webServer: {
     command: "npm run dev -- --port 5173 --strictPort",
-    url: "http://localhost:5173",
-    reuseExistingServer: true,
+    url: "http://127.0.0.1:5173",
+    // Reuse the already-running dev server locally (the Lead-owned 5173
+    // server during waves), never in CI — a stale CI server must fail, not
+    // be silently reused (Playwright's documented !process.env.CI pattern;
+    // w26.k20, j20 P3-13).
+    reuseExistingServer: !process.env.CI,
   },
 });
