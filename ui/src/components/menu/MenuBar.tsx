@@ -31,10 +31,11 @@ export interface MenuBarProps<K extends string = string> {
  * MenuBar (doc 08 §267 overlays: "MenuBar (app menu)") — horizontal
  * `role="menubar"`, WAI-ARIA menubar keyboard model: ArrowLeft/Right move
  * between top items (switching the open menu when one is open), ArrowDown /
- * Enter / Space open, Escape closes and restores focus to the trigger.
- * Open menus are role="menu" popups with roving tabindex, submenus and a Tab
- * focus trap (MenuPopup). Portal-free absolute positioning (doc 08 specifies
- * no portals).
+ * ArrowUp / Enter / Space open — ArrowDown focuses the menu's FIRST item,
+ * ArrowUp its LAST (w26.k02, j02 J02-9 — APG menubar) — and Escape closes
+ * and restores focus to the trigger. Open menus are role="menu" popups with
+ * roving tabindex, submenus and a Tab focus trap (MenuPopup). Portal-free
+ * absolute positioning (doc 08 specifies no portals).
  */
 export function MenuBar<K extends string>({
   menus,
@@ -50,6 +51,12 @@ export function MenuBar<K extends string>({
   const triggerRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  /* w26.k02 (J02-9): which end of the menu the OPEN path focuses — ArrowUp
+   * opens on the last item (APG); every other open path (ArrowDown/Enter/
+   * Space/click/menu-switch) keeps first-item focus. Read at the MenuPopup's
+   * mount render; resetting on each non-ArrowUp open keeps later switches on
+   * the first item. */
+  const [openFocus, setOpenFocus] = useState<"first" | "last">("first");
 
   const focusTrigger = (index: number): void => {
     triggerRefs.current[index]?.focus();
@@ -79,11 +86,24 @@ export function MenuBar<K extends string>({
       const next = (activeIndex + delta + menus.length) % menus.length;
       setActiveIndex(next);
       triggerRefs.current[next]?.focus();
-      if (openIndex !== null) setOpenIndex(next);
+      if (openIndex !== null) {
+        // Switching menus focuses the next menu's FIRST item (APG).
+        setOpenFocus("first");
+        setOpenIndex(next);
+      }
       event.preventDefault();
       return;
     }
     if (key === "ArrowDown" || key === "Enter" || key === " ") {
+      setOpenFocus("first");
+      setOpenIndex(activeIndex);
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowUp") {
+      // w26.k02 (j02 J02-9, APG menubar): ArrowUp opens the menu and focuses
+      // its LAST item (symmetric with ArrowDown's first-item focus).
+      setOpenFocus("last");
       setOpenIndex(activeIndex);
       event.preventDefault();
       return;
@@ -122,6 +142,7 @@ export function MenuBar<K extends string>({
             onFocus={() => setActiveIndex(index)}
             onClick={() => {
               setActiveIndex(index);
+              setOpenFocus("first");
               setOpenIndex(openIndex === index ? null : index);
             }}
           >
@@ -135,6 +156,7 @@ export function MenuBar<K extends string>({
               density={density}
               className="lumen-menubar__popup"
               ariaLabel={resolveLabel(menu.labelKey)}
+              autoFocusLastItem={openFocus === "last"}
               onRequestClose={() => closeMenu(index)}
               onDismissAll={() => closeMenu(index)}
             />
