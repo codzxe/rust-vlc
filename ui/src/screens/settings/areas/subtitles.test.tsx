@@ -145,7 +145,29 @@ describe("SubtitlesArea — the frame's three sections (Settings - subtitles.svg
   it("pins the ⓘ info glyph after the 7 labels the frame marks", () => {
     const { container } = renderArea();
     // Tracks & Languages ×3, Loading Subtitles ×2, Font + Size values.
-    expect(container.querySelectorAll(".settings-area-subtitles-info")).toHaveLength(7);
+    // w26.k13 (j13 P2-3): the shared SettingInfoDot button grammar — the
+    // local 14px twin class is gone.
+    expect(container.querySelectorAll(".settings-field__info")).toHaveLength(7);
+  });
+
+  it("carries the staged reason on the ⓘ-less rows as a visually hidden note (w26.k13, j13 P2-2)", () => {
+    const { container } = renderArea();
+    // The 7 rows the frame marks with no circle: the reason is still
+    // reachable for keyboard/AT users (sr-only twin in the row lead) —
+    // never a `title` on a non-focusable div alone. (The ⓘ rows reach it
+    // through their own operable reveal + the dot's description twin.)
+    const stagedRows = container.querySelectorAll("[data-staged-row]");
+    expect(stagedRows).toHaveLength(14);
+    expect(container.querySelectorAll(".settings-field__info")).toHaveLength(7);
+    const bare = [...stagedRows].filter(
+      (row) => !row.querySelector(".settings-field__info"),
+    );
+    expect(bare).toHaveLength(7);
+    for (const row of bare) {
+      expect(row.querySelector(".settings-vh")?.textContent).toContain(
+        "controls activate when the subtitles settings seed lands",
+      );
+    }
   });
 });
 
@@ -172,9 +194,17 @@ describe("SubtitlesArea — honest staged surface (config-never-invents)", () =>
       expect(button).toHaveAttribute("aria-expanded", "false");
     }
     // Activation reveals the honest note under the row (real behavior).
+    // w26.k13: the caption is queried directly — the shared SettingInfoDot
+    // also carries the note as its sr-only description twin (w26.k12,
+    // j12 P2-3), so a bare getByText would match both.
     fireEvent.click(infoButtons[0]!);
     expect(infoButtons[0]).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText(/controls activate when the subtitles settings seed lands/)).toBeInTheDocument();
+    const caption = infoButtons[0]!.closest(".settings-field")?.querySelector(
+      ".settings-field__hinttext",
+    );
+    expect(caption?.textContent).toContain(
+      "controls activate when the subtitles settings seed lands",
+    );
   });
 
   it("never touches the transport (no engine seam exists for these rows)", () => {
