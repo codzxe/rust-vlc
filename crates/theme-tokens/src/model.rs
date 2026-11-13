@@ -180,7 +180,9 @@ impl TokenSet {
         &self.default_accent
     }
 
-    /// All semantic tokens, in token-file order (emission order).
+    /// All semantic tokens, in sorted-key order — deterministic (BTreeMap;
+    /// j18 F12: serde_json carries no `preserve_order` feature here, so this
+    /// is NOT token-file order, but it is stable across runs/platforms).
     pub fn semantic(&self) -> &[SemanticToken] {
         &self.semantic
     }
