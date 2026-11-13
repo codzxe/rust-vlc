@@ -54,6 +54,14 @@ export interface MenuPopupProps<K extends string = string> {
   depth?: number;
   /** Focus the first item on mount (menubar/context menus). @default true */
   autoFocusFirstItem?: boolean;
+  /**
+   * w26.k02 (j02 J02-9, APG menubar): focus the LAST non-separator item on
+   * mount — the menubar's ArrowUp open path. Takes precedence over
+   * `autoFocusFirstItem` (mount-time only; both default to first-focus
+   * semantics for every existing host). Additive.
+   * @default false
+   */
+  autoFocusLastItem?: boolean;
   /** Row scale (W26 figma grammar): comfortable = big player menus,
   *  compact = ~40px rows. @default "comfortable" */
   density?: MenuDensity;
@@ -77,6 +85,7 @@ export function MenuPopup<K extends string>({
   onDismissAll,
   depth = 0,
   autoFocusFirstItem = true,
+  autoFocusLastItem = false,
   density = "comfortable",
   className = "",
   style,
@@ -147,8 +156,19 @@ export function MenuPopup<K extends string>({
     [],
   );
 
-  // Focus first item on mount (WAI-ARIA: opening a menu moves focus in).
+  // Focus the opening item on mount (WAI-ARIA: opening a menu moves focus
+  // in). w26.k02 (J02-9): ArrowUp-opened menubar menus land on the LAST
+  // non-separator item (APG menubar); every other path keeps first-item
+  // focus.
   useEffect(() => {
+    if (autoFocusLastItem) {
+      const last = lastIndex();
+      if (last >= 0) {
+        setActiveIndex(last);
+        itemRefs.current[last]?.focus();
+      }
+      return;
+    }
     if (!autoFocusFirstItem) return;
     const first = entries.findIndex((entry) => entry.kind !== "separator");
     if (first >= 0) {
