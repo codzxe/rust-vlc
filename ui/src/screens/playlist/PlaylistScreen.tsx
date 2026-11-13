@@ -35,7 +35,7 @@
 // seam (names only), so the browse views render them as presentation, never
 // dead play buttons.
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useInRouterContext, useNavigate } from "react-router-dom";
 import { useMsg } from "../../i18n/messages";
 import { Button } from "../../components/button";
@@ -96,28 +96,45 @@ const cancelFrame = (handle: number): void => {
 };
 
 /**
- * The arrow-key grid controller (see the block comment above). `itemHeight`
- * resolves a rendered row's absolute index from its pinned `style.top` — the
- * window renders consecutive indices, and the shared VirtualList keys row
- * nodes BY INDEX, so the imperative ids stay consistent across window
- * shifts (a reused node always is its key's index).
+ * The arrow-key grid controller (see the block comment above). w26.k14
+ * (j14 #6): the sync pass no longer runs after EVERY host commit (dialog
+ * state, unrelated re-renders) — it runs when the active index, the dataset
+ * size, the grid identity (the wrap node's mount epoch) or the host's reset
+ * key (a view-mode switch) changes, plus on the grid's own scroll events
+ * (window shifts re-stamp the newly rendered rows). Row indices are read
+ * from the primitive's `aria-rowindex` (the APG row numbering the shared
+ * VirtualList pins on every row), never recovered by parsing
+ * `style.top / itemHeight` — the old math silently skipped rows (NaN) the
+ * day the primitive changed its positioning.
  */
 function useGridRoving({
   count,
   itemHeight,
+  resetKey,
   onActivate,
 }: {
   count: number;
   itemHeight: number;
+  /** Host key that recreates the grid's rows without moving the wrap node
+   * (the browse view's list ↔ grid switch). */
+  resetKey: string;
   /** The active row's real seam (Enter/Space). */
   onActivate: (index: number, grid: HTMLElement) => void;
 }): {
-  wrapRef: RefObject<HTMLDivElement | null>;
+  wrapRef: (node: HTMLDivElement | null) => void;
   onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
 } {
   const wrapRef = useRef<HTMLDivElement>(null);
   const gridId = useId();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // Remount epoch: the wrap div can unmount/remount (library ↔ browse)
+  // with count/activeIndex unchanged — the stable callback ref bumps on
+  // every (re)mount so the sync pass re-runs over the fresh grid.
+  const [wrapEpoch, setWrapEpoch] = useState(0);
+  const setWrapRef = useCallback((node: HTMLDivElement | null): void => {
+    wrapRef.current = node;
+    setWrapEpoch((epoch) => epoch + 1);
+  }, []);
 
   // Keep the active index inside the dataset (Remove / set changes shrink
   // it; identical values bail out of the re-render).
@@ -126,12 +143,13 @@ function useGridRoving({
   }, [count]);
 
   // Sync pass: id + data-active over the rendered rows, aria-activedescendant
-  // on the grid container. Runs after EVERY commit (no dep array — the grid
-  // can remount without the index changing: library ↔ browse switch, list ↔
-  // grid view switch), retrying a few frames while the active row sits
+  // on the grid container. Runs when the inputs below change and on the
+  // grid's scroll events, retrying a few frames while the active row sits
   // outside the rendered window (the scroll nudge below re-renders it
-  // asynchronously). The writes are idempotent DOM attributes React never
-  // manages (the shared VirtualList pins no ids), so re-running is free.
+  // asynchronously; jsdom never fires scroll on programmatic scrollTop, so
+  // the retry is the jsdom path). The writes are idempotent DOM attributes
+  // React never manages (the shared VirtualList pins no ids), so re-running
+  // is free.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (wrap === null) return;
@@ -139,35 +157,44 @@ function useGridRoving({
     let attempts = 0;
     const sync = (): void => {
       const grid = wrap.querySelector<HTMLElement>('[role="grid"]');
-      if (grid !== null) {
-        let found = false;
-        for (const row of Array.from(grid.querySelectorAll<HTMLElement>('[role="row"]'))) {
-          const top = Number.parseFloat(row.style.top);
-          if (!Number.isFinite(top)) continue;
-          const index = Math.round(top / itemHeight);
-          if (index >= count) continue;
-          row.id = `${gridId}-row-${index}`;
-          if (index === activeIndex) {
-            found = true;
-            row.setAttribute("data-active", "true");
-          } else {
-            row.removeAttribute("data-active");
-          }
+      if (grid === null) return;
+      let found = false;
+      for (const row of Array.from(grid.querySelectorAll<HTMLElement>('[role="row"]'))) {
+        const rowindex = row.getAttribute("aria-rowindex");
+        const index = rowindex === null ? Number.NaN : Number(rowindex) - 1;
+        if (!Number.isInteger(index) || index < 0 || index >= count) continue;
+        row.id = `${gridId}-row-${index}`;
+        if (index === activeIndex) {
+          found = true;
+          row.setAttribute("data-active", "true");
+        } else {
+          row.removeAttribute("data-active");
         }
-        if (activeIndex === null) {
-          grid.removeAttribute("aria-activedescendant");
-        } else if (found) {
-          grid.setAttribute("aria-activedescendant", `${gridId}-row-${activeIndex}`);
-        }
-        if (activeIndex !== null && !found && attempts < GRID_SYNC_RETRIES) {
-          attempts += 1;
-          frame = requestFrame(sync);
-        }
+      }
+      if (activeIndex === null) {
+        grid.removeAttribute("aria-activedescendant");
+      } else if (found) {
+        grid.setAttribute("aria-activedescendant", `${gridId}-row-${activeIndex}`);
+      }
+      if (activeIndex !== null && !found && attempts < GRID_SYNC_RETRIES) {
+        attempts += 1;
+        frame = requestFrame(sync);
       }
     };
     sync();
-    return () => cancelFrame(frame);
-  });
+    // Window shifts arrive as scroll events on the grid itself — re-stamp
+    // there (the effect no longer rides every host commit).
+    const onScroll = (): void => {
+      attempts = 0;
+      sync();
+    };
+    const grid = wrap.querySelector<HTMLElement>('[role="grid"]');
+    grid?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelFrame(frame);
+      grid?.removeEventListener("scroll", onScroll);
+    };
+  }, [activeIndex, count, gridId, wrapEpoch, resetKey]);
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const wrap = wrapRef.current;
@@ -214,7 +241,9 @@ function useGridRoving({
     }
   };
 
-  return { wrapRef, onKeyDown };
+  // `wrapRef` is the stable callback ref (bumps the remount epoch) — hosts
+  // attach it exactly like a ref object.
+  return { wrapRef: setWrapRef, onKeyDown };
 }
 
 /**
@@ -281,6 +310,7 @@ export function PlaylistScreen() {
   const libraryRoving = useGridRoving({
     count: sorted.length,
     itemHeight: ROW_HEIGHTS.comfortable,
+    resetKey: "library",
     onActivate: (index) => {
       const target = sorted[index];
       if (target !== undefined) openBrowse(target.id);
@@ -346,6 +376,7 @@ export function PlaylistScreen() {
         <PlaylistOptionsProvider entries={openedEntries}>
           <PlaylistBrowse
             opened={opened}
+            entries={openedEntries}
             otherPlaylists={playlists.filter((p) => p.id !== opened.id)}
             onBack={() => setOpenId(null)}
             onOpenSubtitles={() => openSubtitles(opened.id)}
@@ -375,11 +406,17 @@ export function PlaylistScreen() {
  */
 function PlaylistBrowse({
   opened,
+  entries,
   otherPlaylists,
   onBack,
   onOpenSubtitles,
 }: {
   opened: SavedPlaylist;
+  /** The opened playlist's view-model rows — passed down by the parent
+   * (which already computed them for PlaylistOptionsProvider); the child
+   * used to re-run savedPlaylistEntries on the same object (w26.k14,
+   * j14 #10). */
+  entries: readonly PlaylistEntry[];
   otherPlaylists: readonly SavedPlaylist[];
   onBack: () => void;
   onOpenSubtitles: () => void;
@@ -388,7 +425,6 @@ function PlaylistBrowse({
   const t = usePlaylistMsg();
   const optionsT = useOptionsMsg();
   const options = usePlaylistOptions();
-  const entries = useMemo(() => savedPlaylistEntries(opened), [opened]);
   // The file-scoped Add-Subtitles flow (file context menu row 10): the
   // dialog opens on the ONE file, Folder-2's "To This File" destination.
   const [subsEntryName, setSubsEntryName] = useState<string | null>(null);
@@ -408,13 +444,15 @@ function PlaylistBrowse({
   // the active row's file context menu — the row's one real seam in the
   // saved-playlist scope (rows are presentation; the ••• is the action). In
   // the thumbnail grid view there is no role=grid — the controller no-ops.
+  // w26.k14 (j14 #6): resetKey rides the view switch (the wrap node
+  // persists while its rows are recreated), and the active row is located
+  // through the primitive's aria-rowindex — never style.top math.
   const viewRoving = useGridRoving({
     count: options.sortedEntries.length,
     itemHeight: MEDIA_ROW_HEIGHT,
+    resetKey: options.viewMode,
     onActivate: (index, grid) => {
-      const row = Array.from(grid.querySelectorAll<HTMLElement>('[role="row"]')).find(
-        (element) => Math.round(Number.parseFloat(element.style.top) / MEDIA_ROW_HEIGHT) === index,
-      );
+      const row = grid.querySelector<HTMLElement>(`[aria-rowindex="${index + 1}"]`);
       row?.querySelector<HTMLElement>(".lumen-plo-mrow__menu")?.click();
     },
   });
