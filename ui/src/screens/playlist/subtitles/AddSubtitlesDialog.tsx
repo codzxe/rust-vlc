@@ -20,21 +20,25 @@
 // ∨ chevrons) · body rows on the overlay · footer Cancel 100×32 r6 #1B1B1B
 // left + Save 100×32 r6 #371F06 (tinted) right at 20px insets.
 //
-// HONESTY: the engine catalog has no subtitle-attach command and no
-// folder-scan / OpenSubtitles service (doc 05 §2 gap) — media names and
-// candidates arrive through props (the host wires the seams), Save reports
-// the selection through `onSave` and never fakes persistence. Mount recipe
-// (Lead): inside the /playlist tree, `<AddSubtitlesDialog open={…}
+// HONESTY: the engine catalog has no folder-scan / OpenSubtitles service
+// (doc 05 §2). `subtitle.add-file` DOES exist (doc 05 §280) but needs a
+// host-filesystem `path` the web UI cannot produce (the web Blob param
+// variant is [PROPOSAL], absent from the generated schema) and attaches to
+// the CURRENT session only — so no shipped host can produce candidates or
+// commit a selection yet. Media names and candidates arrive through props
+// (the host wires the seams); Save reports the selection through `onSave`
+// and never fakes persistence — without `onSave` Save renders
+// honest-disabled (w26.k15, j15 P2-3). Mount recipe (Lead): inside the
+// /playlist tree, `<AddSubtitlesDialog open={…}
 // onClose={…} mediaNames={playlist.entries.map(entryDisplayTitle)}
 // candidates={…} onSave={…} />` — see docs/waves/w26/logs/w26.b11.md.
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button, IconButton } from "../../../components/button";
 import { Icon } from "../../../components/icon";
 import { Dropdown } from "../../../components/menu";
 import { Dialog } from "../../../components/surface";
-import type { SurfaceCloseReason } from "../../../components/surface";
 import { naturalSort } from "../../../components/list";
 import {
   DEFAULT_MATCH_MODE,
@@ -98,12 +102,29 @@ export function AddSubtitlesDialog({
 }: AddSubtitlesDialogProps): ReactElement | null {
   const t = useSubtitlesMsg();
   const titleId = useId();
-  const windowRef = useRef<HTMLDivElement | null>(null);
   const [destination, setDestination] = useState<SubtitleDestination>(initialDestination);
-  const [source, setSource] = useState<SubtitleSource>(initialSource);
+  // w26.k15 (j15 P3-9): the online source composes ONLY with the file
+  // destination (Folder-3) — an invalid host mount (online + playlist/folder,
+  // a frame-unsupported composition) coerces to the computer source.
+  const [source, setSource] = useState<SubtitleSource>(() =>
+    initialDestination === "file" ? initialSource : "computer",
+  );
   const [matchMode, setMatchMode] = useState<MatchMode>(initialMatchMode);
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [search, setSearch] = useState("");
+
+  // w26.k15 (j15 P3-1): the dialog stays MOUNTED while closed (returns null
+  // below), so `selected`/`search` used to survive a close→reopen and leak
+  // across modes (a stale multi-pick rode into the pairs payload). The
+  // closed→open transition resets both — a reopen starts a fresh flow.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setSelected([]);
+      setSearch("");
+    }
+    wasOpen.current = open;
+  }, [open]);
 
   // The body mode per the frames: review pairs for folder/playlist-wide
   // computer adds (Folder.svg), multi-pick for one file from the computer
@@ -127,50 +148,37 @@ export function AddSubtitlesDialog({
 
   if (!open) return null;
 
-  // w26.gfix-E (g19 P1-2, scoped seam): the Dialog focus-trap listens for
-  // Escape with a NATIVE keydown listener on the dialog node — a bubble-phase
-  // ancestor of React's delegated root — so it fires BEFORE the shared
-  // Dropdown's React handler (the Lead's stopPropagation fix never runs
-  // inside a Dialog) and one Escape closed the dropdown AND the whole dialog.
-  // Guard: while any dropdown list is open in this window, an escape-dismiss
-  // is redirected to that dropdown (its trigger click IS the Dropdown's own
-  // close-and-restore path — list closes, focus returns to the trigger); the
-  // dialog closes only once no list is open. Root cause lives in the shared
-  // surface/menu primitives (logged for the Lead); this seam is scoped here.
-  const guardedClose = (reason: SurfaceCloseReason): void => {
-    const openList = windowRef.current?.querySelector(".lumen-dropdown__list") ?? null;
-    if (openList !== null) {
-      openList
-        .closest(".lumen-dropdown")
-        ?.querySelector<HTMLButtonElement>(".lumen-dropdown__trigger")
-        ?.click();
-      return;
-    }
-    void reason; // the host seam is reason-less (matches AddSubtitlesDialogProps)
-    onClose();
-  };
+  // w26.gfix-E (g19 P1-2) → w26.k15 (j15 P3-7, RETIRED): the Dialog
+  // focus-trap used to close the whole dialog on the first Escape while a
+  // pill dropdown was open (the trap's NATIVE keydown listener fired before
+  // the shared Dropdown's React handler), and this dialog carried a
+  // class-scraping redirect (`.lumen-dropdown__list` → trigger click) as a
+  // scoped seam for it. k04's Surface fix moved the first-Escape yield into
+  // the shared trap itself (popupOwnsFirstEscape, Surface.tsx), making that
+  // redirect dead code — the dialog now closes plainly and the surface
+  // yields to any open popup first. The two g19 regression tests in
+  // AddSubtitlesDialog.test.tsx still pin the behavior end-to-end.
 
   const save = (): void => {
     // Commit in NATURAL order regardless of the click order (the v2 flow
     // brief's natural-sort fix extends to the committed selection).
+    // w26.k15 (j15 P3-1): pairs mode commits the PAIRS — the candidate
+    // picker never ran in that mode, so a stale `selected` from an earlier
+    // mode must not ride along (the type doc pins `selected` as the
+    // candidate-mode payload).
     onSave?.({
       destination,
       source,
       matchMode,
-      selected: naturalSort(selected, (name) => name),
+      selected: pairsMode ? [] : naturalSort(selected, (name) => name),
       pairs,
     });
     onClose();
   };
 
   return (
-    <Dialog open={open} onClose={guardedClose} labelledBy={titleId} closeOnOutsideClick className="lumen-plsubs">
-      <div
-        className="lumen-plsubs__window"
-        ref={(node) => {
-          windowRef.current = node;
-        }}
-      >
+    <Dialog open={open} onClose={onClose} labelledBy={titleId} closeOnOutsideClick className="lumen-plsubs">
+      <div className="lumen-plsubs__window">
         {/* Header band — frame: #090909 path 0–96px with the panel's r14
          * top corners; title row then the control pills. */}
         <header className="lumen-plsubs__head">
@@ -195,7 +203,15 @@ export function AddSubtitlesDialog({
                 labelKey: `playlist.subtitles.destination.${value}` as const,
               }))}
               value={destination}
-              onChange={(next) => setDestination(next as SubtitleDestination)}
+              onChange={(next) => {
+                const target = next as SubtitleDestination;
+                setDestination(target);
+                // w26.k15 (j15 P3-9): leaving the file destination drops
+                // the online source (see the source option gate below).
+                if (target !== "file") {
+                  setSource((current) => (current === "online" ? "computer" : current));
+                }
+              }}
               label={t("playlist.subtitles.destination")}
               resolveLabel={t}
             />
@@ -204,6 +220,10 @@ export function AddSubtitlesDialog({
               options={SOURCES.map((value) => ({
                 value,
                 labelKey: `playlist.subtitles.source.${value}` as const,
+                // w26.k15 (j15 P3-9): "From OpenSubtitles" composes only
+                // with "To This File" (Folder-3) — the option is GATED, not
+                // removed, so it stays discoverable for the file scope.
+                disabled: value === "online" && destination !== "file",
               }))}
               value={source}
               onChange={(next) => setSource(next as SubtitleSource)}
@@ -286,7 +306,14 @@ export function AddSubtitlesDialog({
           {pairsMode && <FilenameMatchControl value={matchMode} onChange={setMatchMode} />}
           <Button
             variant="tinted"
-            disabled={pairsMode ? pairs.length === 0 : selected.length === 0}
+            disabled={
+              // w26.k15 (j15 P2-3): Save commits through `onSave` — without
+              // the host seam there is nothing to commit (a clickable Save
+              // that silently discards the selection would fake success),
+              // and each mode needs its own payload present: pairs for the
+              // review mode, a selection for the candidate modes.
+              onSave === undefined || (pairsMode ? pairs.length === 0 : selected.length === 0)
+            }
             onClick={save}
           >
             {t("playlist.subtitles.save")}
