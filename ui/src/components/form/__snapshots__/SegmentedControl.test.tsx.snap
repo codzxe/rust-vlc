@@ -4,12 +4,13 @@ exports[`SegmentedControl (Values.svg, wave 26) > DOM snapshot 1`] = `
 <div
   aria-label="Theme"
   class="lumen-segmented"
+  id="_r_8_"
   role="radiogroup"
 >
   <button
     aria-checked="false"
     class="lumen-segmented__segment"
-    id="_r_5_-light"
+    id="_r_8_-light"
     role="radio"
     tabindex="-1"
     type="button"
@@ -20,7 +21,7 @@ exports[`SegmentedControl (Values.svg, wave 26) > DOM snapshot 1`] = `
   <button
     aria-checked="true"
     class="lumen-segmented__segment"
-    id="_r_5_-dark"
+    id="_r_8_-dark"
     role="radio"
     tabindex="0"
     type="button"
@@ -31,7 +32,7 @@ exports[`SegmentedControl (Values.svg, wave 26) > DOM snapshot 1`] = `
   <button
     aria-checked="false"
     class="lumen-segmented__segment"
-    id="_r_5_-system"
+    id="_r_8_-system"
     role="radio"
     tabindex="-1"
     type="button"
