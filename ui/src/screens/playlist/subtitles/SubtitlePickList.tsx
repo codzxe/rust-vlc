@@ -1,8 +1,10 @@
 // w26.b11 — the candidate listbox mounting SubtitlePickRow
-// (APG listbox: roving tabindex, aria-activedescendant, arrows/Home/End,
-// Enter/Space toggles; multi-select in the "From Computer + To This File"
-// mode (Folder-2 — two rows checked), single-select for the online source
-// (Folder-3).
+// (APG listbox: ROVING TABINDEX only — arrows/Home/End, Enter/Space toggles;
+// multi-select in the "From Computer + To This File" mode (Folder-2 — two
+// rows checked), single-select for the online source (Folder-3).
+// w26.k15 (j15 P3-10): aria-activedescendant was REMOVED — the APG lets a
+// listbox pick activedescendant OR roving tabindex, never both; roving
+// (implemented + tested since b11) stays the one model.
 //
 // w26.gfix-E (g19 P3-4): candidates render in HOST order — Folder-2.svg
 // pins the given order (English, Spanish, Japanese, German, Dutch, French,
@@ -10,6 +12,13 @@
 // rows scattered to positions 2 & 6). Hosts that want natural order pass
 // natural-ordered candidates (the v2 brief's "S01E2 before S01E10" concern
 // belongs to the seam that PRODUCES the list, not the picker).
+//
+// w26.k15 (j15 P2-1): the reset is keyed on a CONTENT SIGNATURE
+// (length + first/last names), not the `candidates` ARRAY IDENTITY —
+// identity churn (a host re-rendering without memoizing, exactly the
+// documented mount-recipe shape) no longer resets roving focus, and the
+// focus effect never yanks focus OUT of the listbox (the Folder-3 search
+// field keeps its caret while the filtered list resets under it).
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
@@ -45,22 +54,44 @@ export function SubtitlePickList({
   const t = useSubtitlesMsg();
   const autoId = useId();
   const rootId = id ?? autoId;
+  const listRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  // w26.k15 (j15 P2-1): mount-transition flag — the FIRST focus pass moves
+  // focus into the listbox (APG: the widget takes focus when it appears);
+  // every later activeIndex change refocuses only while the listbox subtree
+  // already owns focus, so a reset can never steal the caret from the search
+  // field (or any other host control).
+  const tookInitialFocus = useRef(false);
 
   const ordered = candidates;
   const isSelected = (name: string): boolean => selected.includes(name);
 
-  // Keep the active row focusable (roving tabindex) and in view.
+  // Focus the active row (roving tabindex). On mount the first row takes
+  // focus; afterwards ONLY while focus already sits inside the listbox — a
+  // programmatic activeIndex reset (filtered/replaced candidates) must not
+  // yank focus from wherever the user parked it (j15 P2-1 repro A).
   useEffect(() => {
+    if (tookInitialFocus.current) {
+      const root = listRef.current;
+      if (root === null || !root.contains(document.activeElement)) return;
+    }
+    tookInitialFocus.current = true;
     rowRefs.current[activeIndex]?.focus({ preventScroll: true });
   }, [activeIndex]);
 
-  // Reset the active row when the candidate set changes identity (mode/source
-  // switch) so the list never focuses a removed row.
+  // Reset the active row when the candidate CONTENT changes (mode/source
+  // switch, search filter) so the list never focuses a removed row — keyed
+  // on a stable signature, NOT array identity (j15 P2-1 repro B: a
+  // non-memoized host array with the same content must not reset roving
+  // focus on every render).
+  const signature = `${ordered.length}|${ordered[0] ?? ""}|${ordered[ordered.length - 1] ?? ""}`;
+  const prevSignature = useRef(signature);
   useEffect(() => {
+    if (prevSignature.current === signature) return;
+    prevSignature.current = signature;
     setActiveIndex(0);
-  }, [candidates]);
+  }, [signature]);
 
   const toggle = (name: string): void => {
     if (!multiple) {
@@ -120,15 +151,15 @@ export function SubtitlePickList({
     );
   }
 
-  const activeName = ordered[activeIndex];
-
   return (
     <div
+      ref={(node) => {
+        listRef.current = node;
+      }}
       id={rootId}
       role="listbox"
       aria-label={label ?? t("playlist.subtitles.list-label")}
       aria-multiselectable={multiple || undefined}
-      aria-activedescendant={activeName === undefined ? undefined : `${rootId}-opt-${activeIndex}`}
       className={["lumen-plsubs-list", className].filter(Boolean).join(" ")}
       onKeyDown={onKeyDown}
     >
