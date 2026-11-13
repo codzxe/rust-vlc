@@ -19,9 +19,18 @@ Chromium computed-style proof.
 
 NumberField adds pointer steppers: `+`/`−` SVG glyphs, `tabIndex=-1` +
 `aria-hidden` (keyboard users have native arrow/Home/End), disabled at
-min/max bounds, values clamped — never fabricated out of range. The W26
-package has no stepper frame (Values.svg became the segmented control), so
-steppers reuse the panel/well language.
+min/max bounds, values clamped — never fabricated out of range. **w26.k01
+j01-1: min/max/step are forwarded to the native `<input type="number">`**, so
+the "never fabricated out-of-range" promise now holds for the KEYBOARD path
+too (native arrows respect bounds + step; before, the mouse clamped while
+arrows stepped freely past the limits). **j01-11:** numeric-string values
+step as well (`value` is `string | number` per InputHTMLAttributes — a
+controlled "7" used to no-op the steppers silently); empty/non-numeric text
+still means "no value → no fabricated step". Stepper events are synthetic
+(target/currentTarget carry value + valueAsNumber, no event metadata) —
+documented on the `onChange` prop. The W26 package has no stepper frame
+(Values.svg became the segmented control), so steppers reuse the panel/well
+language.
 
 ## Checkbox / Radio
 
@@ -33,24 +42,42 @@ accent/icon language (doc 08 §2 interim).
 
 RadioGroup: `role="radiogroup"` + `aria-label`, roving tabindex (selected
 option tabbable), arrow keys (all four) move selection with wrap-around,
-per-option disabled supported.
+per-option disabled supported. **w26.k01:** the roving keydown handler is
+ONE shared hook (`useRadiogroupKeyboard.ts`) across RadioGroup /
+SegmentedControl / SwatchGroup (j01-2 — it was copy-pasted ×3), and the `id`
+prop lands on the group host element so consumers can
+aria-describedby/aria-labelledby the group (j01-7).
 
-## Switch (W26: Toggle.svg port — local component)
+`hideLabel` is ONE mechanism since w26.k01 (j01-8): every field (TextField,
+BrowseField, NumberField's `labelHidden`) renders aria-label on the input
+and NO label text node — the row-grammar contract (hosts print their own
+visible label; exactly one text node, w26.f02). BrowseField's old
+visually-hidden-label variant (and form.css's `.lumen-field__label--hidden`
+rule) is gone.
+
+## Switch (W26: shared switch core since w26.k01 — j01-3)
 
 68×32 rx6 surface track; ON = accent-tinted 33×26 text segment ("ON" in
 accent) + 26×26 accent-strong fill right; OFF = 26×26 stroke-border fill
-left + panel 33×26 text segment ("OFF" tertiary). State matrix: hover →
-surface-hover track (fill brightens on ON), focus-visible → 2px accent
-ring, disabled → `--opacity-disabled`. Micro labels are aria-hidden;
-`role="switch"` + `aria-checked` carry state. (Pre-W26 this re-exported the
-button-family Toggle; wave 26 ships the local port — the button family
-keeps its own for the control-parts lane.)
+left + panel 33×26 text segment ("OFF" **secondary** — j01-9: was tertiary
+4.57:1 on #191919; the button family's 4.F4 analysis now applies to BOTH
+grammars because the skin is ONE selector-list block in button.css).
+State matrix: hover → surface-hover track (fill walks too), focus-visible →
+2px accent ring, disabled → `--opacity-disabled`. Micro labels are
+aria-hidden but LOCALIZED (`switch.on`/`switch.off` via the shared
+`useSwitchLabels()` seam — j01-4); `role="switch"` + `aria-checked` carry
+state. The implementation is `button/switchCore.tsx` behind this
+`.lumen-switch*` class grammar (settings CSS keeps hooks on it); the
+button family's Toggle is the same core in `.lumen-toggle*`.
 
 ## SegmentedControl / SwatchGroup / ValueChip (W26)
 
 - SegmentedControl (Values.svg): rx6 surface track, `--space-track-inset`
   2px inset, 104×32 `--radius-inset` segments; active = accent-tinted +
   accent text; inactive = panel + tertiary; hover → raised + secondary.
+  **w26.k01 j01-6:** `invalid` now has the same fidelity as RadioGroup —
+  the `lumen-choice--error` modifier swaps the segment focus ring to
+  `--color-record` (message text stays with the host row, like RadioGroup).
 - SwatchGroup (Settings - global.svg): same track grammar, 32×32 hit
   targets, 20×20 rx1 dots; rest dots at `--opacity-swatch-rest` (0.7, frame
   opacity), hover lifts to 1; selected = accent-tinted rx4 slot. Radiogroup
@@ -98,8 +125,19 @@ open, dragging, pending (§5)."
 - Pre-W26 gap "Export rx5 mapped to --radius-control" is closed: the W26
   grammar is r6 (`--radius-control`) everywhere on these controls.
 - NumberField steppers synthesize a ChangeEvent (no `stepUp/stepDown` in
-  jsdom); values still flow through the single controlled `onChange`.
+  jsdom); values still flow through the single controlled `onChange` —
+  documented on the prop (j01-11).
 - DOM snapshots embed React `useId` values — stable per file order, but a
   future snapshot re-pin may be needed if test order changes.
 - i18n: labels/errors are caller-supplied strings (no literals in
-  components); wiring to useMsg() MessageKeys happens at screen composition.
+  components); wiring to useMsg() MessageKeys happens at screen composition
+  — EXCEPT the switch micro labels, which resolve through the shared
+  `useSwitchLabels()` seam (`switch.on`/`switch.off`, lane file
+  `ui/src/i18n/keys/w26.k01.ts` until the Lead registers them — j01-4).
+- w26.k01 deferred to other lanes (j01-10): the `--color-surface-input` /
+  `--color-stroke-input` token seam is still open — the frame-marked raw
+  fallbacks stay until the token lane lands them (then they drop
+  automatically). Also noted for the settings lane: settings.css
+  `.settings-field__bare .lumen-field__label` clip rule is dead — no field
+  renders a label node under hideLabel since the aria-label mechanism is
+  the one grammar (it can be deleted next time that file is touched).
