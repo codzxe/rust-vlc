@@ -45,7 +45,9 @@ export function useEnqueueSources(): EnqueueSource[] {
 }
 
 export function enqueueEntries(
-  sources: EnqueueSource[],
+  /** w26.k14: readonly — consumers hand the hook's frozen result straight
+   * through; the builder only maps over it. */
+  sources: readonly EnqueueSource[],
   playLater: (source: EnqueueSource["source"], title: string | null | undefined) => void,
   emptyLabel: string,
   openMediaLabel: string,
