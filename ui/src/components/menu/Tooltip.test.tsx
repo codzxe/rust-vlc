@@ -72,18 +72,38 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  it("links trigger and bubble via aria-describedby while open", () => {
+  it("links the FOCUSABLE TRIGGER (not the wrapper) to the bubble via aria-describedby while open (w26.k02, j02 J02-1)", () => {
     render(
       <Tooltip content="Play/Pause">
         <button type="button">Go</button>
       </Tooltip>,
     );
     const trigger = screen.getByRole("button", { name: "Go" });
-    const wrapper = trigger.parentElement as HTMLElement;
-    expect(wrapper).not.toHaveAttribute("aria-describedby");
+    // Closed: no tooltip wiring on the trigger (the a11y bug was a
+    // wrapper-level describedby that no SR ever announced — focus lands on
+    // the child, so the wiring must ride the child).
+    expect(trigger).not.toHaveAttribute("aria-describedby");
     fireEvent.focus(trigger);
     const bubble = screen.getByRole("tooltip");
-    expect(wrapper).toHaveAttribute("aria-describedby", bubble.id);
+    expect(trigger).toHaveAttribute("aria-describedby", bubble.id);
+  });
+
+  it("merges the tooltip id into an aria-describedby the trigger already carries (never clobbers host wiring)", () => {
+    render(
+      <Tooltip content="Play/Pause">
+        <button type="button" aria-describedby="external-hint">
+          Go
+        </button>
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole("button", { name: "Go" });
+    // Closed: the child's own description survives untouched.
+    expect(trigger).toHaveAttribute("aria-describedby", "external-hint");
+    fireEvent.focus(trigger);
+    const bubble = screen.getByRole("tooltip");
+    const described = trigger.getAttribute("aria-describedby") ?? "";
+    expect(described.split(" ")).toContain("external-hint");
+    expect(described.split(" ")).toContain(bubble.id);
   });
 
   it("Escape hides the tooltip while the trigger is focused", () => {
@@ -97,6 +117,28 @@ describe("Tooltip", () => {
     expect(screen.getByRole("tooltip")).toBeInTheDocument();
     fireEvent.keyDown(trigger, { key: "Escape" });
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("w26.k02 (j02 J02-13): Escape on an OPEN tooltip stays scoped — a listening host dialog does not close; closed-state Escape passes through", () => {
+    const hostKeyDown = vi.fn();
+    render(
+      <div onKeyDown={hostKeyDown}>
+        <Tooltip content="Play/Pause">
+          <button type="button">Go</button>
+        </Tooltip>
+      </div>,
+    );
+    const trigger = screen.getByRole("button", { name: "Go" });
+    fireEvent.focus(trigger);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    // The tooltip consumed this Escape — the host (e.g. a dialog scrim
+    // closing on Escape) must not also fire.
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(hostKeyDown).not.toHaveBeenCalled();
+    // Closed tooltip: Escape is not consumed — the host still receives it.
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(hostKeyDown).toHaveBeenCalledTimes(1);
   });
 
   it("honors custom show/hide delays from props", async () => {
