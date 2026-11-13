@@ -45,18 +45,18 @@
 //     docs/waves/w26/logs/w26.f04.md.
 
 import type { CSSProperties, ReactElement } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Switch } from "../../../components/form";
 import { SegmentedControl } from "../../../components/form";
 import { TextField } from "../../../components/form";
-import { Icon } from "../../../components/icon";
 import { Dropdown } from "../../../components/menu";
 // Direct-module import (the ShortcutsScreen/ConvertScreen pattern): the
 // area only needs the base Slider, not the slider barrel's EQ tooling.
 import { Slider } from "../../../components/slider/Slider";
-import { useMsg } from "../../../i18n/messages";
 import type { MessageKey } from "../../../i18n/messages";
 import { keys as laneKeys } from "../../../i18n/keys/w26.f04";
+import { SettingInfoDot } from "../SettingField";
+import { makeAreaMsg } from "./shared";
 import "./subtitles.css";
 
 type LaneKey = keyof typeof laneKeys;
@@ -66,17 +66,20 @@ type LaneKey = keyof typeof laneKeys;
  * lane file is the fallback reference). */
 export type SubtitlesLabelKey = MessageKey | LaneKey;
 
-export function useSubtitlesMsg() {
-  const m = useMsg();
-  return (key: SubtitlesLabelKey): string => m(key as MessageKey) ?? (laneKeys as Record<string, string>)[key];
-}
+/** w26.k13: the shared makeAreaMsg factory (the j13 ruling 1 dedup). */
+export const useSubtitlesMsg = makeAreaMsg(laneKeys);
 
 /** One staged row shell — label (+ optional ⓘ) left, control right in the
  * 320px column, the frame's row grammar (settings.css owns the classes).
  * w26.gfix-B (g13-P2-3): rows render FULL-STRENGTH while inert (the
  * frame's live-looking controls; the honesty lives in the disabled state +
  * the ⓘ note), and carry data-kind so the row pitch follows the frame's
- * per-control heights (g13-P1-1). */
+ * per-control heights (g13-P1-1).
+ * w26.k13 (j13 P2-3 + ruling 1): the ⓘ is the SHARED SettingInfoDot
+ * button (the local 14px twin is gone — one ⓘ grammar across the areas),
+ * and every staged row carries the shared data-staged-row marker; the
+ * reason on ⓘ-less rows rides a visually hidden note in the lead (j13
+ * P2-2 — keyboard/AT users can read why the row is inert). */
 function StagedRow({
   labelKey,
   pendingKey,
@@ -101,32 +104,40 @@ function StagedRow({
   // reason without a mouse hover. Closed by default: the 815px single-view
   // fit (g13-P1-1) is untouched until the user asks.
   const [hintOpen, setHintOpen] = useState(false);
+  const hintCaptionId = useId();
+  const reasonNoteId = `${pendingKey}-staged-reason`;
   return (
     <div
       className="settings-field"
       data-kind={kind}
       data-setting-key={`pending.${pendingKey}`}
       data-staged="subtitles-settings-seed"
+      data-staged-row={`subtitles.${pendingKey}`}
     >
       <div className="settings-field__row">
         <div className="settings-field__lead">
           <span className="settings-field__label">{label}</span>
           {info ? (
-            <button
-              type="button"
-              className="settings-field__info settings-area-subtitles-info"
-              aria-expanded={hintOpen}
-              aria-label={note}
-              title={note}
-              onClick={() => setHintOpen((open) => !open)}
-            >
-              <Icon name="info" size={14} />
-            </button>
-          ) : null}
+            <SettingInfoDot
+              note={note}
+              label={note}
+              expanded={hintOpen}
+              onToggle={() => setHintOpen((open) => !open)}
+              controlsId={hintCaptionId}
+            />
+          ) : (
+            <span id={reasonNoteId} className="settings-vh">
+              {note}
+            </span>
+          )}
         </div>
         <div className="settings-field__control">{children}</div>
       </div>
-      {hintOpen ? <p className="settings-field__hinttext">{note}</p> : null}
+      {info && hintOpen ? (
+        <p id={hintCaptionId} role="note" className="settings-field__hinttext">
+          {note}
+        </p>
+      ) : null}
     </div>
   );
 }
