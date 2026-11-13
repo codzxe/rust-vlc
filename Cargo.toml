@@ -39,6 +39,16 @@ resolver = "2"
 # broke the arch gate; restored to the reader's shape with the same
 # membership (the 2.E1 pre-announced edit, unchanged in content).
 members = ["crates/*", "apps/*", "tools/xtask", "tests/integration/first-vertical", "tools/mem-audit", "tools/sweep"]
+# ADR-004 admission (issue #67, 2026-11-13): the tauri webview crate is
+# EXCLUDED — `apps/*` would otherwise pull it into every workspace lane
+# (with --all-features flipping its would-be feature on everywhere and
+# dragging webkit2gtk + a built ui/dist into the main graph). Its own
+# lockfile (apps/desktop-tauri/Cargo.lock) carries the tauri closure;
+# its dedicated CI lanes compile it on webview-equipped hosts. An
+# excluded crate cannot resolve [lints] workspace = true (the note
+# above) — the policy is mirrored inline in its Cargo.toml. Lead
+# decision with the ADR-004 record (records/tauri-wry-2.x.md).
+exclude = ["apps/desktop-tauri"]
 
 [workspace.lints.rust]
 unsafe_code = "deny"

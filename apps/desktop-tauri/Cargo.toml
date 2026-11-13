@@ -1,0 +1,68 @@
+# apps/desktop-tauri — the ADR-004 admission crate (issue #67, 2026-11-13).
+#
+# WHY A WORKSPACE-EXCLUDED CRATE (and not a `tauri` feature inside
+# apps/desktop): `--all-features` in every existing lane would flip the
+# feature on and drag webkit2gtk + a built ui/dist into the main graph
+# (tauri-codegen embeds frontendDist at compile time). Excluded here
+# instead, the main workspace graph stays exactly the pre-admission
+# posture the dependency record requires ("NOT imported in the
+# workspace lockfile" — records/tauri-wry-2.x.md), while THIS crate's
+# own lockfile carries the tauri closure for its dedicated lanes
+# (webview-equipped hosts only).
+#
+# Edges (this crate only — boundaries.toml governs workspace members;
+# this one is excluded, so its edges are declared here):
+#   desktop  (path, L6) — the shell: ShellRuntime, files, window config
+#   commands (path, L3) — the shared wire envelope (WireRequest etc.);
+#     the same types every host speaks; no engine crate is touched
+#   tauri    (registry, E1 exception under ADR-004 — the OS webview)
+#
+# Lints: `[lints] workspace = true` cannot resolve for an excluded
+# crate (root Cargo.toml note) — the policy is mirrored inline below.
+
+[package]
+name = "lumen-desktop-tauri"
+version = "0.1.0"
+edition = "2024"
+description = "Lumen desktop webview shell — the ADR-004 admission build (tauri/wry, one command, embedded ui/dist)."
+publish = false
+
+[[bin]]
+name = "lumen-tauri"
+path = "src/main.rs"
+
+[lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+await_holding_lock = "deny"
+
+[dependencies]
+# The shell library (apps/desktop): the composition root of engine +
+# session wiring (host.rs via lumen-cli, ARCH-5); the tauri half lives
+# HERE, never in the workspace graph.
+desktop = { path = "../desktop" }
+# The shared wire envelope (the single command's request/response types;
+# the same types the web/CLI/control-server hosts speak).
+commands = { path = "../../crates/commands" }
+# ADR-004 admission (records/tauri-wry-2.x.md): the OS webview. Version
+# "2" per the record's admission range; wry + tao ride its own graph
+# in THIS crate's lockfile.
+tauri = "2"
+# ShellError (src/app.rs): the transport-level failure envelope.
+serde = { version = "1", features = ["derive"] }
+
+[build-dependencies]
+# Standard tauri v2 build script: embeds tauri.conf.json + capabilities
+# into the context generate_context!() reads. This crate is the only
+# place it runs; a build-time file processor, links nothing extra.
+tauri-build = "2"

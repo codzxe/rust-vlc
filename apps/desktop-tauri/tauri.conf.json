@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "dev.lumen.desktop",
   "build": {
-    "frontendDist": "../../../ui/dist"
+    "frontendDist": "../../ui/dist"
   },
   "app": {
     "withGlobalTauri": false,
@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; worker-src 'self' blob:; base-uri 'self'; form-action 'none'; object-src 'none'; frame-src 'none'"
     }
   },
   "bundle": {

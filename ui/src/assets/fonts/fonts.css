@@ -1,0 +1,34 @@
+/* Bundled type (2026-11-13) — the host-parity fix for the visual lanes.
+ *
+ * The token stack declares "Inter" first
+ * (ui/src/tokens/generated/tokens.css --font-family-sans), but since the
+ * k-wave font-asset purge NO face was bundled: every host resolved the
+ * stack through its own `sans-serif` default, and the visual baseline
+ * parity (sandbox-pinned PNGs vs runner renders) broke on text-heavy
+ * screens — CI run 43378741271, visual PR-lite lane: 13/50 failed
+ * (media-info/discovery/convert/onboarding/not-found/dev-tokens dark +
+ * player/playlist/media-info/discovery/convert light), while the
+ * settings screens (same layout, sparser text) stayed pixel-exact.
+ *
+ * Bundling restores the documented parity guarantee (MATRIX-20261109.md:
+ * "repo-bundled type — no host font dependency"), so baselines are
+ * portable again: the face travels with the app on every OS and
+ * `sans-serif` only matters for glyphs Inter lacks (none on the
+ * audited screens).
+ *
+ * Inter v4.1 variable (opsz+wght 100..900, latin+latin-ext coverage),
+ * SIL Open Font License 1.1 — LICENSE.txt alongside. The OFL is
+ * OSI-approved and GPL-compatible; the copy requirement is satisfied
+ * by this repository (LICENSE.txt ships in the same directory).
+ *
+ * `font-display: block` on purpose: first paint never shows a fallback
+ * face — the visual harness (and real users) see Inter from the first
+ * frame, which is what the baselines pin. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("./InterVariable.woff2") format("woff2-variations");
+}

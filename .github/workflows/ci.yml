@@ -224,7 +224,14 @@ jobs:
 
       - name: "3. test — incl. scenarios_b + soak (full_gate.sh #3)"
         if: always()
-        run: cargo test --workspace --all-features
+        run: |
+          # cargo test never emits un-hashed bin files (cargo build does),
+          # and first-vertical's evidence suite shells out to
+          # target/debug/lumen — the failure text says exactly this. The
+          # Rust workflow's order (build, then test) is the proven shape;
+          # run 43378741286 gate step 3 died without it.
+          cargo build --workspace --all-features --locked
+          cargo test --workspace --all-features
 
       - name: "4. check-architecture (full_gate.sh #4)"
         if: always()
@@ -661,3 +668,91 @@ jobs:
             target/wasm32-unknown-unknown/debug/*.wasm
           retention-days: 90
           if-no-files-found: error
+
+  # ------------------------------------------------------------------------
+  # ADR-004 admission lane (issue #67, 2026-11-13). The tauri webview crate
+  # is workspace-EXCLUDED (root Cargo.toml `exclude`) — this is its only
+  # compile lane on push. Linux + webkit2gtk here; the 3-OS bundling runs
+  # in release.yml (the tauri lane added there follows this one going
+  # green first). The lane needs the UI built because tauri-codegen embeds
+  # ui/dist (frontendDist) at compile time.
+  # ------------------------------------------------------------------------
+  tauri-check:
+    name: tauri-check (ADR-004 admission — one command, embedded ui/dist)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@d124f86f28ff42855784ff3319f48ac182c248f8 # 1.99.1 branch — matches rust-toolchain.toml
+      - name: Assert toolchain pin (rust-toolchain.toml == action == effective rustc)
+        run: |
+          pin="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          inst="${{ steps.toolchain.outputs.name }}"
+          eff="$(rustc --version | sed -n 's/^rustc \([^ ]*\) (.*)$/\1/p')"
+          echo "rust-toolchain.toml channel : ${pin}"
+          echo "workflow action installed    : ${inst}"
+          echo "effective rustc              : ${eff}"
+          if [ "${pin}" != "${inst}" ] || [ "${pin}" != "${eff}" ]; then
+            echo "::error::toolchain mismatch - bump the dtolnay/rust-toolchain ref in .github/workflows/ci.yml to match rust-toolchain.toml, and check for a RUSTUP_TOOLCHAIN override on the runner"
+            exit 1
+          fi
+      # webkit2gtk for the Linux webview (tauri/wry): the §C recipe's dep
+      # set (apps/desktop-tauri/INFRA-BLOCKED.md §B.1). A DISPLAY is NOT
+      # needed for compile/test — only for launch verdicts (later lane).
+      - name: Install webkit2gtk + GTK dev packages (the admission build deps)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev libsoup-3.0-dev librsvg2-dev libxdo-dev \
+            libssl-dev build-essential
+          pkg-config --exists webkit2gtk-4.1 \
+            || { echo "::error::webkit2gtk-4.1 still absent after install"; exit 1; }
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      # frontendDist is embedded at COMPILE time — the UI build must land
+      # before cargo touches the crate (the lane's whole ordering rule).
+      - name: Build the embedded UI (ui/dist for tauri-codegen)
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+          test -f ui/dist/index.html \
+            || { echo "::error::ui/dist/index.html missing after vite build"; exit 1; }
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            .
+            apps/desktop-tauri
+      - name: Test the admission crate (incl. the §7.4 anti-bypass audit)
+        run: cargo test --manifest-path apps/desktop-tauri/Cargo.toml --locked --all-targets
+      - name: Clippy the admission crate
+        run: cargo clippy --manifest-path apps/desktop-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      # The subcrate's OWN lockfile carries the tauri closure — the same
+      # repo-root deny.toml governs it (run from the root so the config
+      # resolves; --manifest-path selects the subcrate graph). The scoped
+      # libloading wrapper (deny.toml [bans]) covers the tray-icon edge.
+      - name: cargo-deny the admission crate (bans/licenses/advisories)
+        run: |
+          # Pinned binary identical to the cargo-deny job's (G3/G4):
+          # reuses the same download; see that job's pin block.
+          "${DENY_BIN:-cargo-deny}" --version >/dev/null 2>&1 || cargo install cargo-deny --version 0.20.2 --locked
+          cargo deny --manifest-path apps/desktop-tauri/Cargo.toml --exclude-dev-deps --disable-duplicate-version-warning check bans licenses advisories
+      - name: "Smoke — the admission binary reports its typed launch posture"
+        run: |
+          # No DISPLAY on this lane: the binary is not launched here (the
+          # launch-verdict lane does, with xvfb). What IS provable now:
+          # the binary links, loads, and exits with the honest pending
+          # state rather than crashing on the webview path.
+          set +e
+          timeout 30s ./apps/desktop-tauri/target/debug/lumen-tauri 2>&1 | head -3
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit code: ${code} (0 = window served; 86 = webview-pending; anything else = a real failure)"
+          case "${code}" in
+            0|86) exit 0 ;;
+            *) echo "::error::unexpected exit ${code}"; exit 1 ;;
+          esac

@@ -91,6 +91,26 @@ tree-diff gate (doc 11 §3.6) is what automates detection; until it exists the
 same-PR rule is procedural: any `Cargo.lock` delta must co-occur with an edit
 to this file.
 
+### 3a. The desktop-tauri subcrate (own lockfile — ADR-004 admission, issue #67, 2026-11-13)
+
+`apps/desktop-tauri` is workspace-EXCLUDED (root Cargo.toml `exclude`);
+these rows govern ITS lockfile (apps/desktop-tauri/Cargo.lock), not the
+main one above. The workspace graph stays tauri-free (§3 unchanged) —
+the admission's whole design (see the crate's Cargo.toml header and
+records/tauri-wry-2.x.md for the R1–R9 refreshes). Enforced by the
+`tauri-check` lane's cargo-deny step with this same repo-root table.
+
+| crate | locked | version-range | license | purity-class | verdict / evidence |
+|---|---|---|---|---|---|
+| tauri | 2.12.5 | >=2.12.5, <2.13.0 | MIT OR Apache-2.0 | E1 OS-webview exception (ADR-004) | **pass** — records/tauri-wry-2.x.md R1–R9 refresh (2026-11-13); no default features beyond the shell's needs |
+| tauri-build | 2.7.4 | >=2.7.4, <2.8.0 | MIT OR Apache-2.0 | build-time file processor | **pass** — links nothing; embeds tauri.conf.json + capabilities only |
+| wry | via tauri-runtime-wry 2.12.3 | <2.13.0 | MIT OR Apache-2.0 | E1 OS-webview exception | **pass** — the webview host abstraction (WebView2/WKWebView/WebKitGTK) |
+| tao | 0.37.2 | >=0.37.2, <0.38.0 | MIT OR Apache-2.0 | E1 OS-webview exception | **pass** — tauri's windowing crate, rides the same envelope |
+| libloading | 0.7.4 | <0.8.0 | ISC | dlopen crate — BANNED in the main graph | **scoped exception** — reached ONLY via the INACTIVE `tray-icon` optional edge (tray-icon → libappindicator → libappindicator-sys); feature NOT enabled anywhere in this repo; deny.toml wraps it to libappindicator-sys so any other path still trips (see deny.toml [bans] note) |
+
+Re-audit triggers: same as §3 (version change, new transitive closure
+under tauri/wry/tao, RustSec advisory touching the subcrate lock).
+
 ## 4. Workspace-local packages (not allowlist rows)
 
 9 path packages (`codec-api`, `localization`, `media-types`,

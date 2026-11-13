@@ -10,8 +10,11 @@
 > **Exception class: E1 — OS webview, UI shell** (doc 11 §1.2), reserved to
 > **ADR-004** — now accepted (`docs/adr/ADR-004-os-webview.md`).
 > **Final acceptance and the allowlist row are Lead decisions (doc 11 §3.1).**
-> This record's verdict: **exception-ADR-004, NOT imported** — the desktop
-> skeleton implements the typed seam without the dependency.
+> This record's verdict (2026-11-13, issue #67 admission): **imported in
+> the workspace-EXCLUDED subcrate `apps/desktop-tauri` (own lockfile)** —
+> the main workspace graph stays tauri-free. The 4.H1 "NOT imported"
+> posture below is kept as the historical record of the pre-admission
+> state.
 
 ## What and why
 
@@ -149,3 +152,45 @@ listed in §5 "Approved-but-not-imported"). The honest state:
 crates.io fetch (2026-10-19, preaudit §4), a repository artifact
 (apps/desktop, ADR-004, the prototype report), or an explicit [VERIFY-P1].
 Nothing here has been built or executed against a webview.*
+
+---
+
+## Admission record (2026-11-13, issue #67) — the [VERIFY-P1] refreshes
+
+Filled at the admission build; evidence per AGENTS §3.4 (fetches,
+in-repo artifacts, or the named CI run):
+
+- **R1 (tarball purity)**: the tauri closure carries NO `*.c/*.h`
+  sources and no `bindgen` crate — the Linux surface is the gtk crate
+  family's PRE-GENERATED FFI (atk/gtk/webkit2gtk `*-sys` with
+  `pkg-config` probes at build time, R3) — and `libloading` appears
+  only on the inactive tray-icon edge (see the allowlist §3a row).
+  Verified from the fetched registry sources
+  (~/.cargo/registry/src, tauri 2.12.5 / tauri-build 2.7.4 / tao 0.37.2).
+- **R2 (graph)**: `cargo tree -p desktop-tauri -e normal,build` (its
+  lockfile): the closure adds tauri/tauri-build/wry/tao + gtk family +
+  `webview2-com` (Windows target: static windows-core bindings, no
+  libloading there) — no deny.toml-banned name beyond the scoped
+  libloading wrapper (deny.toml [bans]); cargo-deny runs per-push on
+  the subcrate lock (the `tauri-check` lane).
+- **R3 (build scripts)**: pkg-config probes for webkit2gtk-4.1 /
+  javascriptcoregtk-4.1 / gtk+-3.0 / soup-3.0 — the same class as
+  cpal's alsa-sys probe (recorded, not hidden); the CI lane installs
+  them explicitly (`tauri-check`).
+- **R7 (licenses)**: tauri/wry/tao/tauri-build all MIT OR Apache-2.0
+  (registry manifests); cargo-deny licenses green per-push on the
+  subcrate lock.
+- **R8 (maintenance/RustSec)**: tauri 2.12.5 released 2026-11-03
+  (registry); advisories re-checked per-push (cargo-deny advisories,
+  the `tauri-check` lane). Bus factor unchanged (Tauri org).
+- **R9 (provenance)**: crates.io sparse-index fetch 2026-11-13
+  (CARGO_HOME cache, checksums pinned in the subcrate Cargo.lock);
+  the 2026-10-19 preaudit fetch is the prior record.
+
+**Still PENDING (the launch half — see
+apps/desktop-tauri/INFRA-BLOCKED.md §B):** 3-OS bundling in release.yml,
+launch verdicts (window/file/playback+settings round-trip), the
+`[VERIFY]` frame-shape marker in ui/src/client/tauri-transport.ts
+(clears only on a proven event round-trip), bundle icons, the dialog
+plugin row, ADR-004 per-OS verdicts + the TB3 security review. No
+verdict there flips without real runs.

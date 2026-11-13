@@ -143,7 +143,18 @@ deny = [
     "ffmpeg-sys",        # meh/rust-ffmpeg-sys, 4.3.3 (unmaintained)
     # No native dynamic loading of media engines (doc 06 §6 WASM/plugin
     # host: no dlopen path into C code); libloading is the dlopen crate.
-    "libloading",        # nagisa/rust_libloading, 0.9.0
+    #
+    # ADR-004 admission exception (issue #67, 2026-11-13): ONE scoped
+    # wrapper. libloading enters the LOCKFILE only through
+    # tray-icon -> libappindicator -> libappindicator-sys (Linux tray
+    # support), which is tauri's OPTIONAL `tray-icon` feature edge —
+    # NOT enabled in this workspace (no trayIcon config anywhere, and
+    # desktop builds with `default-features` off that path). The
+    # libappindicator family dlopens the OS tray library at runtime;
+    # that is the OS-shell E1 path (records/tauri-wry-2.x.md §R4), not
+    # a media-engine dlopen. Any OTHER path to libloading still trips
+    # the ban — this is a scoped allow, never a blanket lift.
+    { name = "libloading", wrappers = ["libappindicator-sys"] },  # nagisa/rust_libloading
     # Bindings-generation implies C headers (F3 signal, doc 11 §1.1).
     "bindgen",           # rust-lang/rust-bindgen, 0.73.2
 

@@ -215,6 +215,11 @@ jobs:
                       print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
           PYEOF
           ); do
+            # Python on Windows writes \r\n to stdout; $(...) strips the
+            # \n but NOT the \r — the guard's indirect expansion then dies
+            # with "invalid variable name" (run 43378757248, MSI lane,
+            # line-24 failure). Strip the CR before any use of $cfg.
+            cfg="${cfg%$'\r'}"
             name="${!cfg-}"
             if [ -z "$name" ]; then
               echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
@@ -347,6 +352,11 @@ jobs:
                       print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
           PYEOF
           ); do
+            # Python on Windows writes \r\n to stdout; $(...) strips the
+            # \n but NOT the \r — the guard's indirect expansion then dies
+            # with "invalid variable name" (run 43378757248, MSI lane,
+            # line-24 failure). Strip the CR before any use of $cfg.
+            cfg="${cfg%$'\r'}"
             name="${!cfg-}"
             if [ -z "$name" ]; then
               echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
@@ -452,6 +462,11 @@ jobs:
                       print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
           PYEOF
           ); do
+            # Python on Windows writes \r\n to stdout; $(...) strips the
+            # \n but NOT the \r — the guard's indirect expansion then dies
+            # with "invalid variable name" (run 43378757248, MSI lane,
+            # line-24 failure). Strip the CR before any use of $cfg.
+            cfg="${cfg%$'\r'}"
             name="${!cfg-}"
             if [ -z "$name" ]; then
               echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"
@@ -713,6 +728,11 @@ jobs:
                       print(f"PACKAGING_SIGNING_{section.upper()}_{key.upper()}")
           PYEOF
           ); do
+            # Python on Windows writes \r\n to stdout; $(...) strips the
+            # \n but NOT the \r — the guard's indirect expansion then dies
+            # with "invalid variable name" (run 43378757248, MSI lane,
+            # line-24 failure). Strip the CR before any use of $cfg.
+            cfg="${cfg%$'\r'}"
             name="${!cfg-}"
             if [ -z "$name" ]; then
               echo "::error::$cfg is not exported — packaging.toml [signing.*] and scripts/packaging/packaging-env.py are out of sync (the bridge must export every [signing.*] *_env key)"

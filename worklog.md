@@ -1615,3 +1615,21 @@ Work Log:
 
 Stage Summary:
 - Wave L green line submitted (issues #65/#68 work). Next: watch the 507e69c+1 CI set; then wave M releases (issue #66) + Tauri admission (#67).
+
+---
+Task ID: w26.lead-adr004-admission
+Agent: Lead (wave-26 orchestration)
+Task: ADR-004 admission code half + the second CI-green iteration (issues #65/#67)
+
+Work Log:
+- CI run 43378741271/43378741286/43378757248 triage (the first full real execution of all five workflows):
+  1. UI visual lane 13/50 on the runner: settings screens pixel-exact, text-dense screens (media-info/discovery/convert/onboarding/not-found/dev-tokens) drifted — host-font divergence. Root cause one level deeper: the k-wave font purge left the token stack ("Inter", …, sans-serif) with NO bundled face, so every host rendered its own sans-serif default; the 2026-11-09 parity guarantee was "repo-bundled type — no host font dependency". Fix: Inter v4.1 variable bundled (ui/src/assets/fonts/InterVariable.woff2, SIL OFL, LICENSE.txt; fonts.css @font-face font-display:block imported first in main.tsx). 4th re-pin same day: nightly 216/216 --update (7.2m); compare verify PR 50/50 (1.6m) + nightly 216/216 (7.1m); MATRIX-20261113.md addendum records the whole diagnosis. Tolerance untouched.
+  2. gate step 3 (cargo test --workspace) died in first-vertical's evidence suite: "the lumen binary is not built at target/debug/lumen" — cargo test never emits un-hashed bin files. Fix: cargo build --workspace --all-features --locked before the test (the Rust workflow's proven order).
+  3. Release dry-run (first real execution): 4 lanes died — (a) all scripts/packaging+release/*.sh lacked the executable bit in the git index (fresh checkouts: Permission denied); chmod +x across 39 scripts via git update-index; (b) the windows MSI guard loop: python on Windows writes \r\n, $(...) strips \n but NOT \r — the guard's indirect expansion died "invalid variable name"; all four guard loops now strip the CR first.
+- ADR-004 admission (issue #67, the code half): apps/desktop-tauri as a WORKSPACE-EXCLUDED crate (root Cargo.toml exclude) — the design note in its Cargo.toml header: a tauri feature inside apps/desktop would have let --all-features flip it in every main lane, dragging webkit2gtk + a built ui/dist into the workspace graph (tauri-codegen embeds frontendDist at compile time). The subcrate carries its own lockfile (468 packages incl. the tauri closure); edges: desktop (path shell), commands (path envelope), tauri (registry, E1).
+  - src/app.rs: the verbatim lumen_dispatch wrapper (State<ShellState> + WireRequest → Result<WireResponse, ShellError>), the 40ms event pump, apply_window_spec from product.toml [window], drag-drop + argv through the production PathDragDrop, one Mutex serialization point (doc 05 §4.3 guarantee 2).
+  - tests/single_command.rs: the §7.4 anti-bypass audit (reads the registration site, comment-stripped; unique-site check). Local simulation PASS (sandbox lacks webkit; CI compiles it for real).
+  - Real CSP in tauri.conf.json (csp: null gone): default-src 'self', tauri IPC connect-src, media/blob for playback, hard none's for form/object/frame; style-src 'unsafe-inline' for the UI's dynamic inline styles.
+  - CI lane tauri-check (ci.yml): webkit2gtk dev packages + ui/dist build + cargo test --locked --all-targets + clippy -D warnings + cargo-deny (bans/licenses/advisories) on the subcrate lock + a link/exit smoke (0|86 ok).
+  - deny.toml: scoped libloading wrapper (tray-icon→libappindicator-sys, the INACTIVE optional edge — never blanket); records/tauri-wry-2.x.md verdict flipped to "imported in the excluded subcrate" with the R1/R2/R3/R7/R8/R9 refreshes; allowlist §3a (the subcrate's own rows); INFRA-BLOCKED.md rewritten as the admission close package (§B: the launch half — bundling in release.yml, 3-OS launch verdicts, the tauri-transport [VERIFY] clears only on a proven event round-trip, icons, dialog plugin, TB3 security review).
+- Next: watch the CI set on this push (visual parity with bundled Inter is the proof), then the release-lane integration for desktop-tauri (BIN_TAURI through product-env.py + the packaging payload lists), then the launch-verdict lane.

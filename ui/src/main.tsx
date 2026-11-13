@@ -1,3 +1,8 @@
+// Bundled type FIRST (assets/fonts/fonts.css): the face must be loaded
+// before any component paints — the visual baselines pin Inter's
+// glyphs, and font-display:block in the @font-face holds first paint
+// until it is ready (the host-parity fix, 2026-11-13).
+import "./assets/fonts/fonts.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
