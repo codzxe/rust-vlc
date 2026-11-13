@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
     "lint": "eslint .",
-    "lint:css": "npx -p stylelint@18.0.0 -p stylelint-config-standard@41.0.0 stylelint 'src/**/*.css'",
+    "lint:css": "node scripts/lint-css.mjs 'src/**/*.css'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -25,7 +26,8 @@
     "hotkeys:generate": "node scripts/gen-hotkeys-data.mjs",
     "hotkeys:check": "node scripts/gen-hotkeys-data.mjs --check",
     "l10n:check": "node scripts/l10n-check.mjs",
-    "l10n:pseudo-probe": "node scripts/l10n-pseudo-probe.mjs"
+    "l10n:pseudo-probe": "node scripts/l10n-pseudo-probe.mjs",
+    "dev-shots:check": "node scripts/dev-shots-drift-check.mjs"
   },
   "dependencies": {
     "react": "19.3.1",
