@@ -162,7 +162,40 @@ describe("ColorsTool — local state", () => {
     render(<ColorsTool defaultOpen />);
     const similarity = screen.getByRole("slider", { name: "Similarity" });
     fireEvent.keyDown(similarity, { key: "ArrowRight" });
-    expect(similarity).toHaveAttribute("aria-valuetext", "23 %");
+    // w26.k11 (j11 P2-2): step is 0.05, so one arrow moves 21.6 → 21.65 and
+    // the whole-percent readout stays "22 %". The pre-fix step-1 lattice
+    // read "23 %" here (+1.4 up vs −0.6 down — asymmetric, see the
+    // on-lattice regression test below).
+    expect(similarity).toHaveAttribute("aria-valuetext", "22 %");
+  });
+
+  it("keyboard steps are on-lattice and symmetric (j11 P2-2 regression)", () => {
+    // w26.k11: the three Colors initials (21.6 / 21.6 / 34.55) sit exactly
+    // on the 0.05 lattice, so ArrowRight/ArrowLeft move ±0.05 in BOTH
+    // directions and undo each other. The pre-fix step-1 lattice quantized
+    // asymmetrically (21.6 → 23 up / 21 down; 34.55 → 36 up / 34 down) — a
+    // keyboard/SR user got a different-sized step per direction.
+    render(<ColorsTool defaultOpen />);
+    const valuenow = (slider: HTMLElement): number =>
+      Number(slider.getAttribute("aria-valuenow"));
+
+    const saturation = screen.getByRole("slider", { name: "Saturation" });
+    fireEvent.keyDown(saturation, { key: "ArrowRight" });
+    expect(valuenow(saturation)).toBeCloseTo(21.65, 9);
+    fireEvent.keyDown(saturation, { key: "ArrowLeft" });
+    expect(valuenow(saturation)).toBe(21.6); // steps undo exactly
+    fireEvent.keyDown(saturation, { key: "ArrowLeft" });
+    expect(valuenow(saturation)).toBeCloseTo(21.55, 9);
+
+    const sepia = screen.getByRole("slider", { name: "Sepia Intensity" });
+    fireEvent.keyDown(sepia, { key: "ArrowRight" });
+    expect(valuenow(sepia)).toBeCloseTo(34.6, 9);
+    fireEvent.keyDown(sepia, { key: "ArrowLeft" });
+    expect(valuenow(sepia)).toBeCloseTo(34.55, 9);
+
+    const similarity = screen.getByRole("slider", { name: "Similarity" });
+    fireEvent.keyDown(similarity, { key: "ArrowLeft" });
+    expect(valuenow(similarity)).toBeCloseTo(21.55, 9);
   });
 
   it("the Gradient sub-dropdown opens and selects a mode", () => {
