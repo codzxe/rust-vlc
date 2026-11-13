@@ -28,8 +28,10 @@
   color: var(--color-content-bright);
 }
 
-/* stylelint-disable no-descending-specificity -- state rules read base → feedback → selection → disabled; :hover/:active carry higher specificity and still win when both match, so the cascade is order-independent */
-.lumen-icon-host--selected .lumen-icon,
+/* stylelint-disable no-descending-specificity -- state rules read base → feedback → open → disabled; :hover/:active carry higher specificity and still win when both match, so the cascade is order-independent.
+ * w26.k04 (j04-6): the selected and disabled HOST variants were pruned —
+ * zero producers anywhere (only --open is ever applied, ControlBar.tsx:814/1040);
+ * the leaf disabled rule below stays (public `disabled` prop). */
 .lumen-icon-host--open .lumen-icon {
   color: var(--color-accent-icon);
 }
@@ -54,6 +56,11 @@
 
 :root[data-theme="light"] .lumen-icon--two-tone .lumen-icon__detail {
   color: var(--color-accent-icon); /* frame: Player - Light.svg accent tints #C2711A */
+
+  /* w26.k04 (j04-8, logged): exists ONLY because the light theme block in
+   * tokens.css does not override --color-accent-strong. Token-lane handoff:
+   * once light gains --color-accent-strong, delete this component override
+   * (theme-layer knowledge should not live in this sheet). */
 }
 
 /* Bright detail — the frame's rare #D37918 icon marks (right-click menu.svg
@@ -69,7 +76,9 @@
  * matching numeric attribute (1.5/2/3) so the SVG is self-describing; the CSS
  * rule wins over presentation attributes and keeps the width token-driven
  * (--stroke-icon-strong / --stroke-icon-max). Default variant carries no
- * class — pre-issue-#35 behaviour is unchanged. */
+ * class — pre-issue-#35 behaviour is unchanged.
+ * w26.k04 (j04-12): "max" is catalog-reserved — production uses strong only;
+ * kept as frozen-compatible additive API (tests pin it). */
 .lumen-icon--strong {
   stroke-width: var(--stroke-icon-strong);
 }
@@ -78,7 +87,8 @@
   stroke-width: var(--stroke-icon-max);
 }
 
-.lumen-icon-host--disabled .lumen-icon,
+/* w26.k04 (j04-6): only the LEAF rule remains — no host ever applies
+ * --disabled (the Icon `disabled` prop does). */
 .lumen-icon--disabled {
   color: var(--color-stroke-icon);
   opacity: var(--opacity-disabled);
