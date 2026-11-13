@@ -16,7 +16,9 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   size?: IconButtonSize;
   /** The icon glyph (SVG) — 16px line glyphs per the W26 icon frames. */
   children: ReactNode;
-  /** Pending state — inert + `aria-busy` + spinner styling hook. */
+  /** Pending state — inert + `aria-busy` + the CSS spinner (the glyph swaps
+   * for a 14px currentcolor ring; w26.k01 j01-12 — the promised hook is
+   * real now, see button.css). */
   loading?: boolean;
 }
 
