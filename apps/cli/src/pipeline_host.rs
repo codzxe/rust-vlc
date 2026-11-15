@@ -60,6 +60,7 @@ use codecs::audio::opus::OpusDecoder;
 use codecs::audio::vorbis::VorbisDecoder;
 use codecs::video::av1::Av1Decoder;
 use codecs::video::dnx::DnxDecoder;
+use codecs::video::h264::H264SwDecoder;
 use codecs::video::vp9::Vp9Decoder;
 use media_clock::{MediaClock, PlaybackClock};
 use media_types::frame::{
@@ -307,6 +308,22 @@ impl DecoderProvider for HostDecoderProvider {
                 decoder.configure(config)?;
                 Ok(Box::new(decoder))
             }
+            // H.264 (the ADR-001 software track, Lead-admitted
+            // 2026-11-15 — `rust_h264` 0.6.1 behind the codec-api
+            // contract; admission record
+            // docs/dependencies/records/rust_h264-0.6.1.md, differential
+            // evidence crates/codecs/tests/h264_sw_differential.rs:
+            // bit-exact vs ffmpeg 7.1.5 on six lanes × both entry
+            // forms). Requires the container's `avcC` record in
+            // `extra_data` for ISO-BMFF tracks (the framing switch);
+            // Annex-B `CodecPrivate` and in-band parameter sets
+            // configure lazily — seeded from the facts (the mkv/mp4
+            // hosts' `config_blob` harvest). The hw lane
+            // (`H264Decoder::from_setting`, `playback.hw-decode-policy`)
+            // stays the opt-in Phase-7 path: the shipped
+            // `software-only` default resolves here, and the decoder's
+            // own `configure` gate stays the honest authority.
+            "h264" | "avc1" => self.seeded(track, config, H264SwDecoder::new),
             codec if codec.starts_with("pcm_") => {
                 // The strf facts the open path harvested (2.B5's
                 // with_format seam — the engine passes no extra_data).
@@ -337,7 +354,7 @@ impl DecoderProvider for HostDecoderProvider {
                 "cli.codec_unavailable",
                 format!(
                     "no decoder for `{other}` in this build (landed: mjpeg, pcm, flac, \
-                     mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1)"
+                     mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1, h264)"
                 ),
             )),
         }
@@ -1250,28 +1267,99 @@ fn accept_video(
 }
 
 // ---------------------------------------------------------------------------
-// I420 → RGBA (BT.601 full range, the JFIF equations)
+// I420 → RGBA (the frame's own tagged colorimetry)
 // ---------------------------------------------------------------------------
 
-/// Convert one 4:2:0 I420 frame to RGBA8 using the JFIF conversion
-/// (BT.601 full-range — the codec's own tagged colorimetry). The
-/// chroma planes are box-upsampled (nearest co-located sample), the
-/// same v0 convention the codec's non-planar outputs use.
+/// One (matrix, range) pair's YCbCr→RGB coefficient set, Q16 fixed
+/// point: `R = (ys·(Y−yo) + rCr·Cr + 2^15) >> 16`,
+/// `G = (ys·(Y−yo) − gCb·Cb − gCr·Cr + 2^15) >> 16`,
+/// `B = (ys·(Y−yo) + bCb·Cb + 2^15) >> 16` (chroma centered −128).
+struct YuvToRgb {
+    /// Luma scale (1.0 full-range, ≈1.164383 studio).
+    y_scale: i32,
+    /// Luma offset (0 full-range, 16 studio).
+    y_offset: i32,
+    r_cr: i32,
+    g_cb: i32,
+    g_cr: i32,
+    b_cb: i32,
+}
+
+/// BT.601 full range (the JFIF equations — the first vertical's
+/// tagged case): R = Y + 1.402·Cr; G = Y − 0.344136·Cb − 0.714136·Cr;
+/// B = Y + 1.772·Cb.
+const BT601_FULL: YuvToRgb = YuvToRgb {
+    y_scale: 65_536,
+    y_offset: 0,
+    r_cr: 91_881,
+    g_cb: 22_553,
+    g_cr: 46_802,
+    b_cb: 116_130,
+};
+
+/// BT.601 limited range (ITU-R BT.601-7 §2.5.3 studio swing):
+/// Y' = 1.164383·(Y−16); R = Y' + 1.596027·Cr;
+/// G = Y' − 0.391762·Cb − 0.812968·Cr; B = Y' + 2.017232·Cb.
+const BT601_LIMITED: YuvToRgb = YuvToRgb {
+    y_scale: 76_309,
+    y_offset: 16,
+    r_cr: 104_597,
+    g_cb: 25_675,
+    g_cr: 53_279,
+    b_cb: 132_201,
+};
+
+/// BT.709 full range: R = Y + 1.5748·Cr;
+/// G = Y − 0.1873·Cb − 0.4681·Cr; B = Y + 1.8556·Cb.
+const BT709_FULL: YuvToRgb = YuvToRgb {
+    y_scale: 65_536,
+    y_offset: 0,
+    r_cr: 103_206,
+    g_cb: 12_275,
+    g_cr: 30_677,
+    b_cb: 121_609,
+};
+
+/// BT.709 limited range (ITU-R BT.709-6 §3, studio swing):
+/// Y' = 1.164383·(Y−16); R = Y' + 1.792741·Cr;
+/// G = Y' − 0.213249·Cb − 0.532909·Cr; B = Y' + 2.112402·Cb.
+const BT709_LIMITED: YuvToRgb = YuvToRgb {
+    y_scale: 76_309,
+    y_offset: 16,
+    r_cr: 117_489,
+    g_cb: 13_975,
+    g_cr: 34_925,
+    b_cb: 138_438,
+};
+
+/// Convert one 4:2:0 I420 frame to RGBA8 under the frame's own
+/// tagged colorimetry — the four (BT.601/BT.709 matrix × full/
+/// limited range) combinations the landed codecs carry (mjpeg's
+/// JFIF BT.601 full; vp9/av1/h264's BT.709 limited; the VUI-tagged
+/// variants of each). The chroma planes are box-upsampled (nearest
+/// co-located sample), the v0 convention. BT.2020 refuses typed
+/// (no landed lane carries it — the general color-conversion card
+/// owns it).
 ///
-/// `[PROPOSAL: the general color-conversion card owns every matrix /
-/// range / upsampler combination; the CLI hosts exactly the first
-/// vertical's tagged JFIF case, and refuses anything else honestly]`
+/// The 2026-11-15 extension (the h264 software lane's landing):
+/// this was the BT.601-full-only gate (`cli.i420_color_unsupported`
+/// parking vp9/av1/h264 sessions in `Error`); the four landed
+/// combinations convert now, and the typed refusal vocabulary stays
+/// for everything else.
 fn convert_i420_to_rgba(frame: &VideoFrame) -> Result<VideoFrame, EngineError> {
-    if frame.color.matrix != ColorMatrix::Bt601 || frame.color.range != ColorRange::Full {
-        return Err(host_error(
-            PipelineStage::Present,
-            "cli.i420_color_unsupported",
-            format!(
-                "I420 with {:?}/{:?} needs the color-conversion card (first vertical: BT.601 full)",
-                frame.color.matrix, frame.color.range
-            ),
-        ));
-    }
+    let coeffs = match (frame.color.matrix, frame.color.range) {
+        (ColorMatrix::Bt601, ColorRange::Full) => BT601_FULL,
+        (ColorMatrix::Bt601, ColorRange::Limited) => BT601_LIMITED,
+        (ColorMatrix::Bt709, ColorRange::Full) => BT709_FULL,
+        (ColorMatrix::Bt709, ColorRange::Limited) => BT709_LIMITED,
+        (ColorMatrix::Bt2020Ncl, _) => {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.i420_color_unsupported",
+                "I420 BT.2020 needs the color-conversion card (landed: BT.601/BT.709 × full/limited)".to_string(),
+            ));
+        }
+    };
     let (width, height) = (frame.size.0 as usize, frame.size.1 as usize);
     if width == 0 || height == 0 {
         return Err(EngineError::new(
@@ -1322,12 +1410,12 @@ fn convert_i420_to_rgba(frame: &VideoFrame) -> Result<VideoFrame, EngineError> {
             let chroma_column = column / 2;
             let cb = i32::from(u_plane[chroma_row * chroma_width + chroma_column]) - 128;
             let cr = i32::from(v_plane[chroma_row * chroma_width + chroma_column]) - 128;
-            // JFIF (ITU-R BT.601 full range):
-            //   R = Y + 1.402 Cr; B = Y + 1.772 Cb;
-            //   G = Y − 0.344136 Cb − 0.714136 Cr   (Q8 fixed point)
-            let r = clamp_u8(y + ((359 * cr + 128) >> 8));
-            let g = clamp_u8(y - ((88 * cb + 183 * cr + 128) >> 8));
-            let b = clamp_u8(y + ((453 * cb + 128) >> 8));
+            // The frame's own (matrix, range) pair in Q16 fixed point
+            // (the coefficient tables above carry the spec equations).
+            let luma = coeffs.y_scale * (y - coeffs.y_offset);
+            let r = clamp_u8((luma + coeffs.r_cr * cr + 32_768) >> 16);
+            let g = clamp_u8((luma - coeffs.g_cb * cb - coeffs.g_cr * cr + 32_768) >> 16);
+            let b = clamp_u8((luma + coeffs.b_cb * cb + 32_768) >> 16);
             rgba.extend_from_slice(&[r, g, b, 255]);
         }
     }
@@ -1427,6 +1515,7 @@ mod tests {
     use media_types::packet::SharedBytes;
     use media_types::time::Stamp;
     use media_types::{GenerationId, Packet, PixelFormat};
+    use testkit::Must;
 
     fn i420_frame(width: usize, height: usize, y: u8, cb: u8, cr: u8) -> VideoFrame {
         let chroma_w = width.div_ceil(2);
@@ -1510,6 +1599,112 @@ mod tests {
         assert_eq!(r, 128, "neutral Cr keeps red at luma (R has no Cb term)");
     }
 
+    /// The 2026-11-15 extension vectors: the studio-swing pairs
+    /// (BT.601/BT.709 limited) and BT.709 full convert under the
+    /// frame's own tag — computed from the same Q16 tables the
+    /// converter uses, cross-checked against the spec equations.
+    #[test]
+    fn i420_conversion_covers_the_landed_color_pairs() {
+        let tag = |matrix: ColorMatrix, range: ColorRange| ColorDescription {
+            primaries: media_types::frame::ColorPrimaries::Bt709,
+            transfer: media_types::frame::TransferCharacteristics::Bt709,
+            matrix,
+            range,
+        };
+        let frame = |color: ColorDescription| VideoFrame {
+            format: PixelFormat::I420,
+            size: (8, 8),
+            data: {
+                let mut data = vec![0u8; 8 * 8];
+                data.extend(vec![128u8; 16]);
+                data.extend(vec![128u8; 16]);
+                FrameStorage::Cpu(SharedBytes::from_vec(data))
+            },
+            pts: Stamp::Missing,
+            color,
+            interlaced: false,
+            generation: GenerationId::FIRST,
+        };
+        // Studio-swing black/white/gray map exactly on both matrices.
+        for matrix in [ColorMatrix::Bt601, ColorMatrix::Bt709] {
+            let black = {
+                let mut f = frame(tag(matrix, ColorRange::Limited));
+                let FrameStorage::Cpu(bytes) = &mut f.data else {
+                    unreachable!("cpu frame");
+                };
+                let bytes = media_types::packet::SharedBytes::get_mut(bytes).must();
+                for (i, b) in bytes.iter_mut().enumerate() {
+                    *b = if i < 64 { 16 } else { 128 };
+                }
+                match convert_i420_to_rgba(&f) {
+                    Ok(out) => out,
+                    Err(err) => unreachable!("{err}"),
+                }
+            };
+            assert_eq!(pixel(&black, 0, 0), [0, 0, 0, 255], "{matrix:?} black");
+            let white = {
+                let mut f = frame(tag(matrix, ColorRange::Limited));
+                let FrameStorage::Cpu(bytes) = &mut f.data else {
+                    unreachable!("cpu frame");
+                };
+                let bytes = media_types::packet::SharedBytes::get_mut(bytes).must();
+                for (i, b) in bytes.iter_mut().enumerate() {
+                    *b = if i < 64 { 235 } else { 128 };
+                }
+                match convert_i420_to_rgba(&f) {
+                    Ok(out) => out,
+                    Err(err) => unreachable!("{err}"),
+                }
+            };
+            assert_eq!(
+                pixel(&white, 7, 7),
+                [255, 255, 255, 255],
+                "{matrix:?} white"
+            );
+        }
+        // BT.709 limited mid-gray: Y=126 → (128,128,128) ±1 (Q16).
+        let gray = {
+            let mut f = frame(tag(ColorMatrix::Bt709, ColorRange::Limited));
+            let FrameStorage::Cpu(bytes) = &mut f.data else {
+                unreachable!("cpu frame");
+            };
+            let bytes = media_types::packet::SharedBytes::get_mut(bytes).must();
+            for (i, b) in bytes.iter_mut().enumerate() {
+                *b = if i < 64 { 126 } else { 128 };
+            }
+            match convert_i420_to_rgba(&f) {
+                Ok(out) => out,
+                Err(err) => unreachable!("{err}"),
+            }
+        };
+        let [r, g, b, _a] = pixel(&gray, 4, 4);
+        for channel in [r, g, b] {
+            assert!((i32::from(channel) - 128).abs() <= 1, "{channel}");
+        }
+        // BT.709 full-range gray passes luma through (the JFIF rule,
+        // 709 coefficients): Y=200 → (200,200,200).
+        let gray200 = {
+            let mut f = frame(tag(ColorMatrix::Bt709, ColorRange::Full));
+            let FrameStorage::Cpu(bytes) = &mut f.data else {
+                unreachable!("cpu frame");
+            };
+            let bytes = media_types::packet::SharedBytes::get_mut(bytes).must();
+            for (i, b) in bytes.iter_mut().enumerate() {
+                *b = if i < 64 { 200 } else { 128 };
+            }
+            match convert_i420_to_rgba(&f) {
+                Ok(out) => out,
+                Err(err) => unreachable!("{err}"),
+            }
+        };
+        assert_eq!(pixel(&gray200, 1, 6), [200, 200, 200, 255]);
+        // BT.2020 refuses typed (the honest not-yet vocabulary).
+        let err = convert_i420_to_rgba(&frame(tag(ColorMatrix::Bt2020Ncl, ColorRange::Limited)))
+            .err()
+            .must();
+        assert_eq!(err.context.code, "cli.i420_color_unsupported");
+    }
+
     /// Odd dimensions use ceil chroma geometry; the buffer length is
     /// validated (truncated planes are typed corruption, never OOB).
     #[test]
@@ -1542,15 +1737,25 @@ mod tests {
         }
     }
 
-    /// A limited-range or BT.709 tag is refused honestly (the
-    /// conversion card owns those).
+    /// The 2026-11-15 behavior flip, pinned: limited-range tags now
+    /// CONVERT (the pre-extension refusal was the honest gate; the
+    /// extended converter carries the studio-swing equations — the
+    /// only remaining typed refusal in the vocabulary is BT.2020,
+    /// asserted in `i420_conversion_covers_the_landed_color_pairs`).
     #[test]
-    fn i420_conversion_refuses_non_jfif_tags() {
+    fn i420_conversion_accepts_limited_range() {
         let mut frame = i420_frame(8, 8, 128, 128, 128);
         frame.color.range = ColorRange::Limited;
-        match convert_i420_to_rgba(&frame) {
-            Err(err) => assert_eq!(err.context.code, "cli.i420_color_unsupported"),
-            Ok(_) => unreachable!("limited range must be refused"),
+        let converted = match convert_i420_to_rgba(&frame) {
+            Ok(out) => out,
+            Err(err) => unreachable!("limited range must convert: {err}"),
+        };
+        assert_eq!(converted.format, PixelFormat::Rgba8);
+        // BT.601 limited, Y=128 neutral: ≈ (130,130,130) (studio
+        // swing: 1.164383·(128−16) ≈ 130.4; ±1 Q16).
+        let [r, g, b, _a] = pixel(&converted, 2, 2);
+        for channel in [r, g, b] {
+            assert!((i32::from(channel) - 130).abs() <= 1, "{channel}");
         }
     }
 

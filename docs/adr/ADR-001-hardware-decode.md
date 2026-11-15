@@ -75,3 +75,40 @@ they are active. Phase 0's codec audit (0.C1-I) found:
 - VA-API classification overruled → Linux row flips to blocked.
 - ADR-010 outcome forbids shipping hw-decode binaries → feature matrix marks
   hw rows blocked-by-legal and the software track priority rises.
+
+## Addendum (2026-11-15): the software track's first trigger fires — H.264
+
+The first revisit trigger fired. `rust_h264` 0.6.1 — the issue-#2 admission
+audits' recommended candidate — passed the conformance kit's requirements on
+the Lead's instruction: the differential suite
+(`crates/codecs/tests/h264_sw_differential.rs`) measured **bit-exact against
+ffmpeg 7.1.5** on six libx264-authored lanes (Constrained Baseline CAVLC,
+Main CABAC, Main/High with B-frames, odd-size SPS crop, single-IDR still) on
+BOTH entry forms (Annex-B ES and MP4/AVCC), plus the hostile battery
+(garbage recovery, truncation sweep, garbage-then-real) and the engine-level
+e2e lane (`mp4_h264_family_lane`: h264+aac plays to `Ended`, exit 0).
+Admission record: `docs/dependencies/records/rust_h264-0.6.1.md`.
+
+Decision consequences, recorded:
+
+1. **The software track is the shipped-default H.264 path** (decision 2's
+   gate passed; the `codec-video-h264-software` matrix row flips
+   `blocked` → `implemented`). The CLI provider dispatches
+   `sw::H264SwDecoder` for `h264`/`avc1` under the existing
+   `playback.hw-decode-policy = "software-only"` default — the policy's
+   meaning is now literally true.
+2. **The hw-first structure is unchanged**: `decode::H264Decoder` (the
+   parser → AU → hw-session lane) stays for `prefer-hardware`/
+   `hardware-only` consumers, with its typed `h264.hw.required` refusal
+   when no accelerator is present; the capability registry's H.264
+   fallback target flips `UnsupportedPending` → `Software` (the truthful
+   record). HEVC keeps `UnsupportedPending` until its own trigger fires.
+3. The boundary stays ours: NAL framing, EPB unescape, `avcC` parse and
+   damage accounting ride the in-house 5.F1 parser — the admitted engine
+   is fed through that bridge, never its own splitters (the rusty_vp9
+   admission's rule, applied again).
+4. Same session (the color-converter extension): the CLI present limb
+   converts I420 BT.601/BT.709 × full/limited — closing the
+   `cli.i420_color_unsupported` parking that kept vp9/av1/h264 sessions
+   in `Error` (the known W1-06-adjacent gap). BT.2020 still refuses
+   typed (no landed lane carries it).

@@ -133,20 +133,20 @@ fn mpegps_container_opens_and_accepts_the_session() {
     assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
-/// The Matroska parent fixture now OPENS end-to-end (card
-/// 6.OPW-mkv wired the family — the refusal this test used to pin
-/// is the re-targeted one above): the real binary demuxes the
-/// h264+aac fixture, and the h264 track's codec refusal surfaces
-/// typed and named (the engine's honest open answer for a session
-/// whose video limb cannot decode — exit 65). With `--no-video`
-/// the deselected session accepts on the aac limb (exit 0).
+/// The Matroska parent fixture (h264+aac): since the 2026-11-15
+/// H.264 software-track landing the h264 limb DECODES (the mkv
+/// host's `config_blob` passes the avcC `CodecPrivate` verbatim —
+/// the pre-landing exit-65 `cli.codec_unavailable` shape is
+/// closed), and the session accepts on both limbs.
 #[test]
-fn matroska_container_opens_and_the_h264_refusal_is_typed() {
+fn matroska_container_opens_and_decodes_h264() {
     let (out, err, code) = run(&[&fixture("generated/valid/mkv_h264_aac.mkv")], "quit\n");
-    assert_eq!(code, 65, "stdout:\n{out}\nstderr:\n{err}");
-    assert!(out.contains("event: error [decode.unsupported]"), "{out}");
-    assert!(err.contains("no decoder for `h264`"), "{err}");
-    assert!(err.contains("cli.codec_unavailable"), "{err}");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
+    assert!(
+        !err.contains("no decoder for `h264`"),
+        "the pre-landing refusal shape is closed:\n{err}"
+    );
     let (out, err, code) = run(
         &[
             "open",

@@ -50,6 +50,7 @@ default = [
     "codec-av1",
     "codec-dnx",
     "codec-flac",
+    "codec-h264-sw",
     "codec-mp2",
     "codec-mp3",
     "codec-opus",
@@ -65,6 +66,11 @@ codec-alac = ["dep:symphonia-codec-alac", "dep:symphonia-core"]
 codec-av1 = ["dep:rav1d"]
 codec-dnx = ["dep:filmcraft-dnx"]
 codec-flac = ["dep:claxon"]
+# The H.264 software-decode engine (rust_h264 0.6.1, the Lead-admitted
+# ADR-001 software track — see the dependency comment below for the
+# record chain). The in-house parser/hw modules stay unconditional;
+# only the rust_h264-backed software decode path rides this gate.
+codec-h264-sw = ["dep:rust_h264"]
 # Layer II rides the bundle-mp3 family engine AND mp3's sync/header glue
 # (src/audio/mp2/header.rs imports crate::audio::mp3) — one feature, one
 # engine, two decoders.
@@ -137,8 +143,7 @@ ruopus = { version = "=0.1.2", optional = true, default-features = false, featur
 # record's R8 (0.x API-churn risk — a bump re-triggers the record).
 # The error taxonomy and codec-api contract surface stay ours.
 rusty_vp9 = { version = "=0.1.3", optional = true }
-# 6.M-dnx (Lead admission, docs/dependencies/records/
-# filmcraft-dnx-0.9.0.md + the 6.VTA-DNX-RATIFY tolerance): the
+# 6.M-dnx (Lead admission, docs/dependencies/records/filmcraft-dnx-0.1.0.md):
 # DNxHD/DNxHR (SMPTE ST 2019-1 VC-3) decode engine. Purity verified
 # in the record BEFORE this edit (pure safe Rust,
 # `unsafe_code = "forbid"`, zero unsafe tokens in the whole measured
@@ -151,6 +156,22 @@ rusty_vp9 = { version = "=0.1.3", optional = true }
 # (doc 11 §3.7). The CBR truncation gate, output-format mapping and
 # error taxonomy stay ours.
 filmcraft-dnx = { version = "=0.9.0", optional = true, default-features = false }
+# The H.264 software-decode track (Lead admission 2026-11-15 on the
+# user's explicit instruction — ADR-001's conformance-gated software
+# lane, unblocking the P0 `codec-video-h264-software` matrix row):
+# `rust_h264` 0.6.1 — the audited candidate of issue #2's admission
+# audits (docs/dependencies/records/h264-software-decoder-audits.md,
+# verdict RECOMMEND) with this admission's own differential evidence
+# recorded in docs/dependencies/records/rust_h264-0.6.1.md. Pure Rust,
+# ZERO dependencies (default `std` only), no build.rs, no FFI; the
+# SIMD/once/picture-sync unsafe is crate-internal and unreachable from
+# the public API (audit R5, re-verified against the 0.6.1 tarball).
+# Exact pin per the record (0.x line — a bump re-triggers it). The NAL
+# framing, EPB unescape, damage accounting and codec-api contract
+# surface stay OURS: the crate is fed through the in-house parser's
+# AnnexBNals/AvcNals/unescape_rbsp_into bridge, never its own
+# splitters, so damage accounting keeps the project's rules.
+rust_h264 = { version = "=0.6.1", optional = true }
 
 [dev-dependencies]
 # The randomized-corpus vertical (ED-FIX-5; user directive 2026-10-22):

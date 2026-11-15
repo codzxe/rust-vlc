@@ -408,39 +408,90 @@ fn m4a_family_lane() {
 }
 
 // ---------------------------------------------------------------------------
-// MKV / WebM (the matroska registry id): the corpus mkv lane is the
-// video-refusal row (h264 has no decoder — the typed exit-65 shape
-// the matrix owes); the committed webm fixture is the playing row,
-// with the color-conversion gap surfacing as the typed present-limb
-// refusal (i420 through the software compositor).
+// MKV / WebM (the matroska registry id): the corpus mkv lane and the
+// committed webm fixture both DECODE since the 2026-11-15 landings
+// (the H.264 software track + the color-converter extension) — the
+// rows assert the playing shape (the pre-landing video-refusal /
+// color-gate shapes are closed).
 // ---------------------------------------------------------------------------
 
-/// MKV row (corpus 0003, h264 + mp3 + vorbis + subs): the open
-/// refuses typed on the h264 limb (exit 65, the landed-codec list
-/// named); `--no-video` accepts on the surviving mp3+vorbis limbs;
-/// `--no-audio` still refuses (the h264 limb remains); the seek
-/// composes with the deselection (prefix pin: the vorbis recovery
-/// measured 0.501557 s vs 0.501369 s across identical runs).
+/// MP4/H.264 row (committed h264+aac fixture, 1.533 s): the
+/// 2026-11-15 software-track landing's own lane — full play-out on
+/// both limbs (the `rust_h264` engine behind the codec-api
+/// contract, the avcC-seeded `extra_data` path, I420 +
+/// BT.709-limited present through the extended converter), the
+/// seek lands at the anchor, and `--no-video`/`--no-audio` keep
+/// their limbs.
+#[test]
+fn mp4_h264_family_lane() {
+    let file = fixture("generated/valid/mp4_h264_aac.mp4");
+    let (out, err, code) = run(&["open", &file], "advance 512\ntime\nquit\n");
+    assert_accepted(&out, code, "mp4-h264");
+    assert!(err.is_empty(), "lane mp4-h264 stderr:\n{err}");
+    assert!(out.contains("event: end-of-media"), "{out}");
+    assert!(out.contains("state-changed Playing → Ended"), "{out}");
+    assert!(out.contains("ok: time 1.532517s (100.0%)"), "{out}");
+    assert!(
+        !out.contains("cli.codec_unavailable"),
+        "the h264 limb must resolve to the software decoder:\n{out}"
+    );
+    assert!(
+        !out.contains("cli.i420_color_unsupported"),
+        "BT.709-limited I420 presents through the extended converter:\n{out}"
+    );
+
+    let (out, _err, code) = run(&["open", &file, "--no-video"], "quit\n");
+    assert_accepted(&out, code, "mp4-h264 --no-video");
+
+    let (out, _err, code) = run(&["open", &file, "--no-audio"], "quit\n");
+    assert_accepted(&out, code, "mp4-h264 --no-audio");
+
+    let (out, err, code) = run(&["open", &file, "--start-time", "500ms"], "time\nquit\n");
+    assert_accepted(&out, code, "mp4-h264 --start-time");
+    assert!(err.is_empty(), "lane mp4-h264 --start-time stderr:\n{err}");
+    assert!(
+        out.contains("ok: time 0.50"),
+        "the anchor lands past 500 ms (jitter tail):\n{out}"
+    );
+}
+
+/// MKV row (corpus 0003, h264 + mp3 + vorbis + subs): since the
+/// 2026-11-15 software-track landing the h264 limb DECODES (the
+/// pre-landing exit-65 refusal shape is closed — the lane was the
+/// `cli.codec_unavailable` pin); the open accepts on all limbs, the
+/// audio-led playback reaches its end. Exact position pins stay
+/// [VERIFY] until a corpus-enabled run re-measures them (the corpus
+/// regenerates with fresh seeds; this tree self-skips without it).
 #[test]
 fn mkv_family_lane() {
     let Some(file) = corpus_file("0003-multi-av.mkv") else {
         eprintln!("SKIP mkv lane: corpus dir absent");
         return;
     };
-    let (out, err, code) = run(&["open", &file], "quit\n");
-    assert_eq!(code, 65, "the h264 refusal is exit 65:\n{out}\n{err}");
-    assert!(out.contains("event: error [decode.unsupported]"), "{out}");
-    assert!(out.contains("cli.codec_unavailable"), "{out}");
-    assert!(err.contains("no decoder for `h264`"), "{err}");
-    assert!(!out.contains("ok: accepted"), "{out}");
+    let (out, err, code) = run(&["open", &file], "advance 4096\ntime\nquit\n");
+    assert_accepted(&out, code, "mkv");
+    assert!(
+        !out.contains("cli.codec_unavailable"),
+        "the h264 limb resolves to the software decoder:\n{out}"
+    );
+    assert!(
+        !err.contains("no decoder for `h264`"),
+        "the pre-landing refusal shape is closed:\n{err}"
+    );
+    assert!(out.contains("state-changed Buffering → Playing"), "{out}");
+    assert!(out.contains("event: end-of-media"), "{out}");
+    assert!(out.contains("state-changed Playing → Ended"), "{out}");
 
     let (out, err, code) = run(&["open", &file, "--no-video"], "quit\n");
     assert_accepted(&out, code, "mkv --no-video");
     assert!(err.is_empty(), "lane mkv --no-video stderr:\n{err}");
 
     let (out, err, code) = run(&["open", &file, "--no-audio"], "quit\n");
-    assert_eq!(code, 65, "the h264 limb remains:\n{out}\n{err}");
-    assert!(err.contains("no decoder for `h264`"), "{err}");
+    assert_accepted(&out, code, "mkv --no-audio");
+    assert!(
+        !err.contains("no decoder for `h264`"),
+        "the h264 video limb carries the session without audio:\n{err}"
+    );
 
     let (out, err, code) = run(
         &["open", &file, "--no-video", "--start-time", "500ms"],
@@ -457,21 +508,41 @@ fn mkv_family_lane() {
     );
 }
 
-/// WebM row (committed vp9+opus fixture, 2.008 s): the open accepts
-/// and both flags accept, but the present limb refuses the decoded
-/// i420 frames typed (`cli.i420_color_unsupported` — the
-/// color-conversion card has not landed), which parks the engine in
-/// `Error` from `Buffering`; the seek still lands at the anchor
-/// (prefix pin: vp9 recovery jitter).
+/// WebM row (committed vp9+opus fixture, 2.008 s): since the
+/// 2026-11-15 color-converter extension the I420 BT.709-limited
+/// frames PRESENT (the pre-extension shape — the
+/// `cli.i420_color_unsupported` refusal parking the engine in
+/// `Error` — is closed): full play-out to the end on both limbs,
+/// and the seek still lands at the anchor (prefix pin: vp9 recovery
+/// jitter).
 #[test]
 fn webm_family_lane() {
     let file = fixture("generated/valid/webm_vp9_opus.webm");
-    let (out, err, code) = run(&["open", &file], "advance 512\ntime\nquit\n");
+    // The audio-master null sink advances on real time — the pumps
+    // are repeated until the 2.008 s media plays out (each `advance`
+    // drives the render loop while wall time passes).
+    let mut script = String::new();
+    for _ in 0..40 {
+        script.push_str("advance 512\n");
+    }
+    script.push_str("time\nquit\n");
+    let (out, err, code) = run(&["open", &file], &script);
     assert_accepted(&out, code, "webm");
     assert!(err.is_empty(), "lane webm stderr:\n{err}");
-    assert!(out.contains("[renderer.unsupported]"), "{out}");
-    assert!(out.contains("cli.i420_color_unsupported"), "{out}");
-    assert!(out.contains("state-changed Buffering → Error"), "{out}");
+    assert!(out.contains("event: end-of-media"), "{out}");
+    assert!(out.contains("state-changed Playing → Ended"), "{out}");
+    assert!(
+        out.contains("ok: time 2.013500s"),
+        "the audio-master clock runs the media to its end:\n{out}"
+    );
+    assert!(
+        !out.contains("cli.i420_color_unsupported"),
+        "BT.709-limited I420 presents through the extended converter:\n{out}"
+    );
+    assert!(
+        !out.contains("state-changed Buffering → Error"),
+        "the pre-extension parked-Error shape is closed:\n{out}"
+    );
 
     let (out, _err, code) = run(&["open", &file, "--no-video"], "quit\n");
     assert_accepted(&out, code, "webm --no-video");
@@ -529,10 +600,13 @@ fn mpegts_family_lane() {
 
 // ---------------------------------------------------------------------------
 // IVF (av1 + vp9): video-only rows — `--no-video` empties the
-// session (the typed refusal); the decoded i420 frames refuse at
-// the present limb exactly like the webm row, parking the engine in
-// `Error`; `--start-time` lands at the anchor (prefix pins: the
-// rav1d/vp9 mid-GOP recovery jitter).
+// session (the typed refusal). Since the 2026-11-15 color-converter
+// extension the decoded i420 frames PRESENT (the pre-extension
+// `cli.i420_color_unsupported` refusal parking the engine in `Error`
+// is closed); the wall-clock pacing of a video-only session keeps
+// the row at the playing boundary (end-of-media is the webm twin's
+// audio-master assertion); `--start-time` lands at the anchor
+// (prefix pins: the rav1d/vp9 mid-GOP recovery jitter).
 // ---------------------------------------------------------------------------
 
 /// The shared IVF row body (both committed fixtures measured the
@@ -541,10 +615,19 @@ fn ivf_row(file: &str, lane: &str) {
     let (out, err, code) = run(&["open", file], "advance 512\ntime\nquit\n");
     assert_accepted(&out, code, lane);
     assert!(err.is_empty(), "lane {lane} stderr:\n{err}");
-    assert!(out.contains("[renderer.unsupported]"), "{out}");
-    assert!(out.contains("cli.i420_color_unsupported"), "{out}");
-    assert!(out.contains("state-changed Buffering → Error"), "{out}");
-    assert!(out.contains("state: Error (position "), "{out}");
+    assert!(out.contains("state-changed Buffering → Playing"), "{out}");
+    assert!(
+        out.contains("state: Playing (position "),
+        "the video limb plays through the extended converter:\n{out}"
+    );
+    assert!(
+        !out.contains("cli.i420_color_unsupported"),
+        "BT.709-limited I420 presents (the pre-extension gate is closed):\n{out}"
+    );
+    assert!(
+        !out.contains("state-changed Buffering → Error"),
+        "the pre-extension parked-Error shape is closed:\n{out}"
+    );
 
     let (out, err, code) = run(&["open", file, "--no-video"], "quit\n");
     assert_no_decodable_track(&out, &err, code, "ivf", &format!("{lane} --no-video"));

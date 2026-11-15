@@ -125,6 +125,7 @@ dependencies = [
  "plugin-api",
  "rav1d",
  "ruopus",
+ "rust_h264",
  "rusty_vp9",
  "symphonia-bundle-mp3",
  "symphonia-codec-aac",
@@ -763,6 +764,12 @@ name = "ruopus"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcfcd963c83fc1ada2180ccdac7f1568d87fb0f2ad7236b266fdc9fb9122fbfd"
+
+[[package]]
+name = "rust_h264"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49a852e1544c48fba7d072620420c602f195092e3774655584ef5e4e6fd056a9"
 
 [[package]]
 name = "rustls"

@@ -30,15 +30,16 @@
 //!
 //! # Honesty contract (never fake hardware decode)
 //!
-//! For the H.264 family there is **no software decoder** (ADR-001
-//! §1: the conformance-gated software track is open but empty), so
-//! every fallback here lands on
-//! [`FallbackTarget::UnsupportedPending`] — the typed
-//! `h264.hw.required` configure error of [`super::decode`], never a
-//! fabricated frame. [`FallbackTarget::Software`] exists in the
-//! vocabulary because the same negotiation will serve the
-//! software-first families (MJPEG/AV1/…) when their optional hw
-//! lanes land; this module keeps the vocabulary honest for both.
+//! Since the 2026-11-15 software-track landing (the Lead-admitted
+//! `rust_h264` lane, ADR-001's conformance-gated track), a
+//! no-hardware outcome for the H.264 family falls back to
+//! **software truthfully** ([`FallbackTarget::Software`] —
+//! [`super::sw::H264SwDecoder`]); the hw-only
+//! [`super::decode::H264Decoder`] still answers the typed
+//! `h264.hw.required` for its own consumers. HEVC keeps
+//! [`FallbackTarget::UnsupportedPending`] — no software decoder
+//! exists there yet, and the typed `Unsupported` configure error is
+//! the honest outcome, never a fabricated frame.
 
 use std::fmt;
 use std::sync::Arc;
@@ -240,12 +241,13 @@ impl std::error::Error for HwPolicyError {}
 /// Where control lands when hardware does not serve the stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FallbackTarget {
-    /// The codec family's software decoder takes over (the
-    /// software-first families; not H.264 today — ADR-001).
+    /// The codec family's software decoder takes over (H.264 since
+    /// the 2026-11-15 rust_h264 admission; MJPEG/AV1/… likewise).
     Software,
-    /// No software decoder exists for the family (H.264/HEVC under
-    /// ADR-001 hw-first): the typed `*.hw.required` `Unsupported`
-    /// configure error is the honest outcome — never a fake frame.
+    /// No software decoder exists for the family (HEVC under
+    /// ADR-001 hw-first today): the typed `*.hw.required`
+    /// `Unsupported` configure error is the honest outcome — never
+    /// a fake frame.
     UnsupportedPending,
 }
 
@@ -314,8 +316,8 @@ impl fmt::Debug for Negotiation {
 /// Pure: the probe has already happened by the time an accelerator
 /// exists; this function applies policy to facts and records the
 /// event trail. The H.264 caller passes
-/// [`FallbackTarget::UnsupportedPending`] (ADR-001: no software
-/// H.264 decoder exists — the honest refusal, never a fake frame).
+/// [`FallbackTarget::Software`] (the 2026-11-15 software-track
+/// landing); HEVC keeps the honest `UnsupportedPending` refusal.
 #[must_use = "the event trail is the hw-active report; use it"]
 pub fn negotiate(
     policy: HwDecodePolicy,

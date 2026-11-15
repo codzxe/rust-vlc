@@ -35,9 +35,12 @@
 //!   vocabulary** (`h264`, `hevc`, `aac`, `mp3`, `mpeg2video`, … —
 //!   the track's own `codec`, minted by the demuxer from the same
 //!   PMT walk; unknown types pass through as `ts-stream-0xNN`,
-//!   honest unknowns). h264/hevc/mpeg2 video refuses decode typed
-//!   at the provider (`cli.codec_unavailable` — no software
-//!   decoder in this build); `aac` (0x0F/0x11, ADTS-framed in PES)
+//!   honest unknowns). Since the 2026-11-15 H.264 software-track
+//!   landing, `h264` video dispatches the software decoder (Annex-B
+//!   framing, SPS/PPS in-band — no `avcC` seam in TS); hevc/mpeg2
+//!   video still refuses decode typed at the provider
+//!   (`cli.codec_unavailable` — no software decoder in this build);
+//!   `aac` (0x0F/0x11, ADTS-framed in PES)
 //!   dispatches the AAC-LC decoder, which builds its engine from
 //!   the first frame's in-band header (the raw-ADTS precedent).
 //! * **No `extra_data` for any wired codec**: AAC-in-TS is
@@ -787,13 +790,11 @@ mod tests {
             Err(err) => assert_eq!(err.context.code.as_str(), "demux.ts.seek.unsupported"),
             Ok(_) => unreachable!("TS seek must refuse"),
         }
-        // The codec truth: h264 has no software decoder in this
-        // build — the typed decode-stage refusal; aac dispatches
-        // the AAC-LC decoder (ADTS mode, in-band config).
-        match decoder_for(&opened, video) {
-            Err(err) => assert_eq!(err.context.code.as_str(), "cli.codec_unavailable", "{err}"),
-            Ok(_) => unreachable!("no h264 decoder exists in this build"),
-        }
+        // The codec truth (2026-11-15): h264 dispatches the software
+        // decoder (Annex-B framing, lazy in-band SPS/PPS configure); aac
+        // dispatches the AAC-LC decoder (ADTS mode, in-band config).
+        let _video_decoder = decoder_for(&opened, video)
+            .unwrap_or_else(|err| unreachable!("h264 must dispatch the software decoder: {err}"));
         let _ = decoder_for(&opened, audio)
             .unwrap_or_else(|err| unreachable!("aac must dispatch: {err}"));
     }
@@ -848,12 +849,12 @@ mod tests {
             ("0113-dynres-video.ts", "h264", 160, 126_000, 722_846),
             ("0134-ts-video.ts", "h264", 3, 126_000, 306_000),
         ];
-        for (file, codec, packets, first_pts, last_pts) in lanes {
+        for (file, _codec, packets, first_pts, last_pts) in lanes {
             let mut opened = open(dir.join(file), None);
             assert_eq!(opened.facts.container, "mpegts", "{file}");
             assert_eq!(opened.facts.tracks.len(), 1, "{file}");
             let fact = &opened.facts.facts[0];
-            assert_eq!(fact.codec, codec, "{file}");
+            assert_eq!(fact.codec.as_str(), "h264", "{file}");
             assert_eq!(fact.base.as_parts(), (1, 90_000), "{file}");
             let mut seen = 0u64;
             let mut pts_series = Vec::new();
@@ -904,20 +905,15 @@ mod tests {
                     );
                 }
             }
-            // The video codec truth: no software decoder — the
-            // typed decode-stage refusal (h264 and mpeg2video alike;
-            // every corpus video lane is h264).
+            // The video codec truth (2026-11-15): h264 dispatches the
+            // software decoder (construction + lazy configure — the
+            // Annex-B path needs no extradata; full-stream decode
+            // truth is the codecs-crate differential's lane, not this
+            // demux-path suite [VERIFY on a corpus-enabled host]).
             let track = opened.facts.tracks[0].clone();
-            match decoder_for(&opened, &track) {
-                Err(err) => {
-                    assert_eq!(
-                        err.context.code.as_str(),
-                        "cli.codec_unavailable",
-                        "{file}: {err}"
-                    )
-                }
-                Ok(_) => unreachable!("{file}: no {codec} decoder exists in this build"),
-            }
+            let _decoder = decoder_for(&opened, &track).unwrap_or_else(|err| {
+                unreachable!("{file}: h264 must dispatch the software decoder: {err}")
+            });
         }
         // 0091-bframe-storm: hevc video (53 PES, typed refusal) +
         // aac audio (6 multi-AU PES on the wire → 43 AU packets

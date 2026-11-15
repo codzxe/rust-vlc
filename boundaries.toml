@@ -323,8 +323,11 @@ dev_deps = ["testkit", "input", "demux", "plugin-api"]
 # bundle-mp3 + core are the family's own transitive surface), rav1d
 # (AV1, asm exception ADR-001-class), ruopus (Opus, 6.VTA/6.M-opus),
 # rusty_vp9 (VP9, 6.VTA/6.M-vp9), filmcraft-dnx (DNxHD/DNxHR,
-# 6.VTA/6.M-dnx, default-features OFF — rayon-free pin).
-external_allowlist = ["claxon", "symphonia-bundle-mp3", "symphonia-core", "symphonia-codec-vorbis", "symphonia-codec-aac", "symphonia-codec-alac", "rav1d", "ruopus", "rusty_vp9", "filmcraft-dnx"]
+# 6.VTA/6.M-dnx, default-features OFF — rayon-free pin), rust_h264
+# (H.264 software track, Lead admission 2026-11-15 on the user's
+# explicit instruction — ADR-001's conformance-gated lane, record
+# docs/dependencies/records/rust_h264-0.6.1.md, zero-dependency pin).
+external_allowlist = ["claxon", "symphonia-bundle-mp3", "symphonia-core", "symphonia-codec-vorbis", "symphonia-codec-aac", "symphonia-codec-alac", "rav1d", "ruopus", "rusty_vp9", "filmcraft-dnx", "rust_h264"]
 external_dev_allowlist = []
 
 # L3 — video presentation scheduling (doc 01 §2.2 registry row, card

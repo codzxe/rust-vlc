@@ -472,10 +472,13 @@ pub fn installed_bridges() -> Vec<Arc<dyn H264HwBridge>> {
 /// **nothing is touched**: no device node is scanned, no OS decode
 /// library is loaded — the trail records the typed
 /// [`HwUnavailableReason::DisabledByPolicy`] refusal and the
-/// accelerator is `None` (so [`super::decode`] answers the typed
-/// `h264.hw.required` — ADR-001 has no software H.264 fallback to
-/// catch it). Under an enabling policy the current OS's lane probe
-/// runs and [`capability::negotiate`] applies the facts.
+/// accelerator is `None` (the session resolves to
+/// [`super::sw::H264SwDecoder`] instead — the Lead-admitted software
+/// track, 2026-11-15; the hw-only [`super::decode::H264Decoder`]
+/// still answers the typed `h264.hw.required` for its own
+/// `hardware-only` consumers). Under an enabling policy the current
+/// OS's lane probe runs and [`capability::negotiate`] applies the
+/// facts.
 #[must_use = "the Negotiation carries the hw-active event trail; use it"]
 pub fn negotiate_lane(policy: HwDecodePolicy) -> capability::Negotiation {
     let (availability, accelerator) = if policy.probes() {
@@ -491,12 +494,11 @@ pub fn negotiate_lane(policy: HwDecodePolicy) -> capability::Negotiation {
             None,
         )
     };
-    capability::negotiate(
-        policy,
-        &availability,
-        accelerator,
-        FallbackTarget::UnsupportedPending,
-    )
+    // The software track landed 2026-11-15 (rust_h264, the
+    // Lead-admitted ADR-001 lane): a no-hardware outcome now falls
+    // back to software TRUTHFULLY — the recorded fallback target
+    // says so, and the refusal vocabulary stays for HEVC.
+    capability::negotiate(policy, &availability, accelerator, FallbackTarget::Software)
 }
 
 /// The lane label reported when no probe runs. On a target with a
@@ -577,10 +579,14 @@ mod tests {
     fn the_off_default_touches_nothing_and_says_so() {
         // The shipped default: no probe runs, no accelerator is
         // minted, and the trail records the typed policy refusal —
-        // deterministic on every host (nothing was touched).
+        // deterministic on every host (nothing was touched). Since
+        // the 2026-11-15 software-track landing the recorded
+        // fallback is the truthful `Software` (the session resolves
+        // to `sw::H264SwDecoder`), no longer the pre-landing
+        // `UnsupportedPending` refusal.
         let n = negotiate_lane(HwDecodePolicy::SoftwareOnly);
         assert!(n.accelerator.is_none(), "OFF must not mint an accelerator");
-        assert_eq!(n.fallback, Some(FallbackTarget::UnsupportedPending));
+        assert_eq!(n.fallback, Some(FallbackTarget::Software));
         match &n.events[..] {
             [
                 HwDecodeEvent::Probed {
@@ -588,7 +594,7 @@ mod tests {
                 },
                 HwDecodeEvent::Inactive {
                     reason: HwUnavailableReason::DisabledByPolicy,
-                    fallback: FallbackTarget::UnsupportedPending,
+                    fallback: FallbackTarget::Software,
                 },
             ] => {
                 assert_eq!(*reason, HwUnavailableReason::DisabledByPolicy);
@@ -602,7 +608,8 @@ mod tests {
         // Host-independent contract: the trail is well-formed and
         // every outcome is typed (an accelerator iff the lane
         // answered yes — both arms are honest; the probe itself is
-        // the lane's own tested surface).
+        // the lane's own tested surface). Absence falls back to the
+        // software track truthfully (2026-11-15).
         for policy in [HwDecodePolicy::PreferHardware, HwDecodePolicy::HardwareOnly] {
             let n = negotiate_lane(policy);
             assert!(
@@ -612,8 +619,8 @@ mod tests {
             if n.accelerator.is_none() {
                 assert_eq!(
                     n.fallback,
-                    Some(FallbackTarget::UnsupportedPending),
-                    "{policy:?}: absence lands typed, never silent"
+                    Some(FallbackTarget::Software),
+                    "{policy:?}: absence lands typed on the software track, never silent"
                 );
             }
         }
