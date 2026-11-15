@@ -7,9 +7,13 @@
 //!
 //! # The open path (doc 03 §4.2 — probe between access and demux)
 //!
-//! 1. `SourceSpec::File` → canonical absolute path → percent-encoded
-//!    `file:` URI (the `input` crate resolves it back through
-//!    `canonicalize` — the open path is symlink-safe by construction).
+//! 1. `SourceSpec::File` → canonical absolute path → the one shared
+//!    platform-aware `file:` URI constructor
+//!    (`SourceUri::from_file_path`); a `file:` URL source resolves
+//!    through `input` and runs the same canonical tail, every other
+//!    scheme is the honest Phase-6 host refusal (the `input` crate
+//!    resolves the URI back through `canonicalize` — the open path
+//!    is symlink-safe by construction).
 //! 2. `FileAccess::open` (the 2.A1 access stack) → seekable stream.
 //! 3. `probe_stream` (2.A2) over the builtin signature registry — the
 //!    bounded, non-consuming window read. A miss is the honest typed
@@ -274,31 +278,18 @@ pub struct OpenedMedia {
     pub uri: SourceUri,
 }
 
-/// The percent-encoding set for a `file:` URI path: keep RFC 3986
-/// unreserved characters plus `/`; escape everything else (space, `%`,
-/// `?`, `#`, non-ASCII) so [`SourceUri::parse`] accepts the result and
-/// `input`'s resolver round-trips it. `[PROPOSAL: minimal RFC 3986
-/// path-encoding; a full encoder joins `input` when a non-ASCII-path
-/// test matrix lands]`
-fn encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
-/// Canonicalize a user path and build its `file:` URI.
+/// Canonicalize a user path and build its `file:` URI through the one
+/// shared, platform-aware constructor
+/// ([`SourceUri::from_file_path`](media_types::SourceUri::from_file_path)
+/// — wave 30's Windows open fix). This file's former hand-rolled
+/// percent-encoder (`encode_path`) is retired here; its byte-exact
+/// vectors moved to media-types and pin the constructor there (w30.1).
 ///
 /// # Errors
 /// `inaccessible` when the path does not exist / cannot be resolved
 /// (the canonicalize failure is the truth — `input`'s own resolver
-/// would hit the same wall later); `unsupported` for non-UTF-8 paths.
+/// would hit the same wall later); the canonical tail below owns the
+/// rest.
 fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
     let canonical: PathBuf = std::fs::canonicalize(path).map_err(|err| {
         CommandError::new(
@@ -307,15 +298,30 @@ fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
             format!("cannot resolve {}: {err}", path.display()),
         )
     })?;
-    // A directory (or any non-regular file) is an input-truth
-    // refusal, not an unsupported-format one: there is nothing to
-    // read here (66 EX_NOINPUT, the unsupported-path suite's
-    // contract).
+    file_uri_from_canonical(&canonical)
+}
+
+/// The canonical tail every local open lane shares (audit B §4 D.3):
+/// the `is_file` host pre-check, the non-UTF-8 refusal, then the
+/// shared constructor. Split out so the `file:` URL arm of
+/// [`open_source`] — which reaches a canonical path through
+/// `input::resolve_file` instead of `std::fs::canonicalize` — runs
+/// the exact same checks and mints the exact same canonical URI:
+/// `open C:\x.mp4`, `open file:///C:/x.mp4` and
+/// `open file://localhost/C:/x.mp4` are one behavior.
+///
+/// # Errors
+/// `inaccessible` when the canonical path is not a regular file (a
+/// directory is an input-truth refusal, not an unsupported-format
+/// one — 66 EX_NOINPUT, the unsupported-path suite's contract);
+/// `unsupported` for non-UTF-8 paths and the constructor's typed
+/// refusals (UNC network paths are not local-file sources).
+fn file_uri_from_canonical(canonical: &Path) -> Result<SourceUri, CommandError> {
     if !canonical.is_file() {
         return Err(CommandError::new(
             Stage::Input,
             ErrorCode::Inaccessible,
-            format!("not a regular file: {}", path.display()),
+            format!("not a regular file: {}", canonical.display()),
         ));
     }
     let text = canonical.to_str().ok_or_else(|| {
@@ -325,12 +331,20 @@ fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
             "the path is not valid UTF-8",
         )
     })?;
-    SourceUri::parse(&format!("file://{}", encode_path(text))).map_err(|err| {
+    SourceUri::from_file_path(text).map_err(|err| {
+        // The constructor's refusals (`uri.file.unc-path`, the
+        // defensive `uri.file.invalid`) are engine-typed; bridge
+        // through the single EngineError→CommandError seam (stage
+        // Open → Input, Unsupported kind → Unsupported code) and
+        // name the offending path the way `access_refusal` names its
+        // URI (redaction-safe at construction).
+        let base = wire_error(&err);
         CommandError::new(
-            Stage::Input,
-            ErrorCode::Internal,
-            format!("the encoded file URI was rejected: {err}"),
+            base.stage,
+            base.code,
+            format!("{}: {}", base.message, canonical.display()),
         )
+        .with_detail("code", err.context.code.as_str())
     })
 }
 
@@ -349,12 +363,32 @@ pub fn open_source(
     let uri = match source {
         commands::catalog::types::SourceSpec::File { path } => file_uri(path)?,
         commands::catalog::types::SourceSpec::Url { url } => {
-            return Err(CommandError::new(
-                Stage::Input,
-                ErrorCode::UnsupportedForHost,
-                format!("URL sources need the streaming crate (Phase 6): {url}"),
-            )
-            .with_detail("scheme", url.split(':').next().unwrap_or("?")));
+            // The routing fix (audit B §4 D.3): a `file:` URL is a
+            // local-file source spelled as a URI — resolve it through
+            // the same `input` seam the access stack uses, then run
+            // the shared canonical tail so the session carries the
+            // constructor's canonical URI, not the URL spelling.
+            // Every other scheme keeps the honest host-capability
+            // refusal (the streaming crate's Phase-6 lane, exit 69 —
+            // the pins stay byte-exact).
+            let parsed = SourceUri::parse(url).map_err(|err| {
+                CommandError::new(
+                    Stage::Input,
+                    ErrorCode::InvalidArgument,
+                    format!("the URL source is not a valid URI: {err}"),
+                )
+                .with_detail("scheme", url.split(':').next().unwrap_or("?"))
+            })?;
+            if parsed.scheme().as_str() != "file" {
+                return Err(CommandError::new(
+                    Stage::Input,
+                    ErrorCode::UnsupportedForHost,
+                    format!("URL sources need the streaming crate (Phase 6): {url}"),
+                )
+                .with_detail("scheme", url.split(':').next().unwrap_or("?")));
+            }
+            let path = input::resolve_file(&parsed).map_err(|err| access_refusal(&err, &parsed))?;
+            file_uri_from_canonical(&path)?
         }
     };
     // 1. Access (the 2.A1 stack).
@@ -737,14 +771,47 @@ mod tests {
         }
     }
 
-    /// The path encoder escapes exactly the delimiter set the URI
-    /// grammar and the resolver require.
+    /// The `file:` URL open lane (audit B §4 D.3): a `file:` URL is a
+    /// local-file source — the Url arm resolves it through `input` and
+    /// runs the shared canonical tail, so it opens with the SAME facts
+    /// as the path-spelled pin above (`parent_fixture_opens…`) and the
+    /// session carries the constructor's canonical URI, not the URL
+    /// spelling. Both accepted spellings prove it: the empty-authority
+    /// form and the `localhost` form (RFC 8089 §E.3.1/C.1).
     #[test]
-    fn path_encoder_escapes_the_delimiters() {
-        assert_eq!(encode_path("/a b/c%d?e#f"), "/a%20b/c%25d%3Fe%23f");
-        assert_eq!(encode_path("/plain/path.avi"), "/plain/path.avi");
-        assert_eq!(encode_path("/üño"), "/%C3%BC%C3%B1o");
+    fn file_url_sources_open_like_path_sources() {
+        let canonical = std::fs::canonicalize(fixture("generated/valid/avi_mjpeg_pcm.avi"))
+            .unwrap_or_else(|e| unreachable!("fixture unreadable: {e}"));
+        let text = canonical
+            .to_str()
+            .unwrap_or_else(|| unreachable!("fixture path is UTF-8"));
+        let expected = SourceUri::from_file_path(text).unwrap_or_else(|e| unreachable!("{e}"));
+        for url in [
+            expected.raw().to_string(),
+            format!("file://localhost{text}"),
+        ] {
+            let opened = match open_source(
+                &commands::catalog::types::SourceSpec::Url { url },
+                None,
+                false,
+                false,
+            ) {
+                Ok(opened) => opened,
+                Err(err) => unreachable!("{err}"),
+            };
+            assert_eq!(opened.facts.container, "avi");
+            assert_eq!(opened.facts.tracks.len(), 2);
+            assert_eq!(opened.facts.duration_us(), Some(2_000_000));
+            // One behavior with the File arm: the canonical URI is the
+            // shared constructor's mint for the resolved path.
+            assert_eq!(opened.uri, expected);
+        }
     }
+
+    // The retired `encode_path`'s byte-exact vectors
+    // (`path_encoder_escapes_the_delimiters`, deleted by the wave-30
+    // routing fix) moved to media-types in w30.1 and now pin the
+    // shared constructor there (`from_file_path_is_byte_exact_for_posix`).
 
     /// The queue-plan join (card 3.B3): the shipped product figures
     /// build a plan; schema-range violations surface as typed

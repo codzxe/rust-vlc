@@ -490,10 +490,16 @@ pub fn open_command(
     no_video: bool,
     no_audio: bool,
 ) -> commands::Command {
-    // A URL-shaped source (scheme://…) stays a URL spec: the open
-    // path then refuses with unsupported-for-host (69) naming the
-    // streaming crate (Phase 6) — never a file-resolution error on
-    // the URL string.
+    // A URL-shaped source (scheme://…) stays a URL spec — including
+    // `file:///…`: the open path (demux_host::open_source) routes the
+    // `file` scheme to the local filesystem through
+    // `input::resolve_file` + the shared canonical constructor, so
+    // `open x.mp4` and `open file:///…/x.mp4` are one behavior; every
+    // other scheme refuses unsupported-for-host (69) naming the
+    // streaming crate (Phase 6). Re-classifying `file:` HERE would
+    // mean percent-decoding in the parser, duplicating the resolver
+    // (audit B §4 D.3) — never a file-resolution error on the URL
+    // string.
     let is_url = source.split_once("://").is_some_and(|(scheme, _)| {
         !scheme.is_empty()
             && scheme

@@ -190,6 +190,28 @@ fn url_source_is_unsupported_for_host() {
     assert!(err.contains("Phase 6"), "{err}");
 }
 
+/// The `file:` URL open lane (audit B §4 D.3), through the REAL
+/// binary: a `file:` URL naming a valid local fixture opens through
+/// the same resolve + canonical tail as a path-spelled source — exit
+/// 0, session accepted — while the non-file scheme beside it keeps
+/// the Phase-6 host refusal (the `https://` sibling pin above,
+/// restated here as the lane's contrast).
+#[test]
+fn file_url_opens_while_https_keeps_the_phase_named() {
+    let canonical = std::fs::canonicalize(fixture("generated/valid/avi_mjpeg_pcm.avi")).must();
+    let text = canonical.to_str().must();
+    let url = media_types::SourceUri::from_file_path(text)
+        .must()
+        .raw()
+        .to_string();
+    let (out, err, code) = run(&["open", &url], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
+    let (_out, err, code) = run(&["open", "https://example.org/x.mp4"], "quit\n");
+    assert_eq!(code, 69, "stderr:\n{err}");
+    assert!(err.contains("Phase 6"), "{err}");
+}
+
 /// A class-A command with no session: the honest not-ready (69).
 #[test]
 fn play_without_session_is_not_ready() {
