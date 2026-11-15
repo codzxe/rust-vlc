@@ -6,6 +6,12 @@
 > verdicts are the remaining half. This file supersedes the 4.H1
 > INFRA-BLOCKED handoff (same document, rewritten; the 4.H1 text lives
 > in git history at the move commit).
+>
+> **w30 progress (2026-11-15, this wave):** §B.1 is DONE (the real app
+> ships in every payload; the stub is gone), §B.2 is advanced (Windows
+> launch smokes ride the release lane; deep verdicts still manual), the
+> crash face + the playback pacer landed, and the WebView2 posture has
+> a visible-dialog/crash-log half — see the §B notes.
 
 ## A. DONE at admission (2026-11-13, issue #67)
 
@@ -46,19 +52,29 @@
 
 ## B. REMAINS (the launch half)
 
-1. **3-OS bundling in release.yml** — the webview app joins the release
+1. ~~**3-OS bundling in release.yml** — the webview app joins the release
    lanes (payload lists for zip/tar.gz/AppImage/deb/rpm/dmg/MSI + the
    `--features` build step... not a feature anymore: the lane builds
    `--manifest-path apps/desktop-tauri/Cargo.toml`; the existing
    packaging scripts gain the third binary (BIN_TAURI via
-   `product-env.py`).
+   `product-env.py`).~~ **DONE (w30.8/w30.9):** the webview app ships in
+   every release payload; the exit-86 `lumen-desktop` stub LEFT every
+   user payload (zip/tar.gz/AppImage/deb/rpm/dmg + the MSI, component
+   dropped in both twins), and the GUI payloads exec the real shell —
+   the AppImage `AppRun` and the macOS `CFBundleExecutable` launch
+   `lumen-tauri`, not the stub.
 2. **Launch verdicts** (ADR-004 decision 4 / the AC): window opens, file
    opens, playback + settings round-trip on Linux/Windows/macOS. Linux
    rides xvfb; macOS/Windows runners launch GUI apps natively. The
    `[VERIFY at the ADR-004 admission build]` marker in
    `ui/src/client/tauri-transport.ts` (the `plugin:event|listen` frame
    shape) clears ONLY when the launch lane proves an event frame
-   round-trip — no earlier.
+   round-trip — no earlier. **w30.8 progress:** the release lane now
+   carries the Windows launch smokes — the zip lane launches the
+   extracted `lumen-tauri.exe` (10 s survival + failure receipts) and
+   the MSI upgrade test launches the installed exe; the
+   `tauri-launch.yml` deep verdicts (window/file/playback/settings per
+   OS, the event-frame round-trip) remain manual.
 3. **Icons** (`bundle.icon: []`) + per-OS bundle metadata — a packaging
    follow-up (the existing lanes' icon pipeline owns it).
 4. **The dialog plugin** (`pick_and_open`): needs its own admission row
@@ -67,6 +83,13 @@
 5. **ADR-004 per-OS verdicts + the security review** (TB3: webview
    sandbox posture, IPC surface, navigation/content isolation) —
    execute against the real launched app, then flip the ADR rows.
+6. **WebView2 posture** (the audit's open decision): a missing/broken
+   WebView2 runtime was the top silent-exit candidate — **the failure
+   is visible now** (w30.6: panic hook + crash log under `<tmp>/lumen/`
+   + a Windows no-console native MessageBox carrying the WebView2
+   actionable hint). Still open: bundling the Evergreen bootstrapper in
+   the MSI vs. requiring the runtime — the no-bootstrapper assumption
+   is still a pinned comment in the twins; decide and record it.
 
 ## C. Recipe (the release half, in order)
 

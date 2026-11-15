@@ -19,9 +19,14 @@ hard-coded — see "Config-driven identity" below):
 | Linux arm64 | `linux-arm64` (best-effort) | `<slug>-<ver>-aarch64-linux.tar.gz`, `.deb`, `.AppImage` |
 | all | `release` | `SHA256SUMS.txt`, generated notes, `gh release create` |
 
-Every archive/installer contains **both** binaries — `lumen` (the CLI:
-the real engine surface) and `lumen-desktop` (the ADR-004 std-only
-composition-root skeleton) — plus `LICENSE` and `README.md`.
+Every archive/installer carries the payload binaries plus `LICENSE` and
+`README.md`. Through v0.1.2 the payload was three binaries — `lumen` (the
+CLI: the real engine surface), `lumen-desktop` (the std-only
+composition-root stub, exit 86) and `lumen-tauri` (the ADR-004 desktop
+app, shipped since v0.1.1). **From v0.1.3 the stub leaves every user
+payload (wave 30): `lumen` + `lumen-tauri` ship, the AppImage `AppRun` and
+the macOS `CFBundleExecutable` exec the real shell, and the MSI drops the
+stub component (both twins, one commit).**
 
 ## Cutting a release (Lead-only: tags and releases are Lead actions)
 
@@ -121,7 +126,12 @@ tag, `## Changes since <previous tag>` (bullet-per-commit, `git log
 --oneline` range; first tagged release lists the last 50 commits),
 `## Install` (points at the README Install section), `## Checksums`
 (`sha256sum --check SHA256SUMS.txt`), `## Known limits (honest)` (the
-three bullets below), and a generation footer pointing here.
+bullets below), and a generation footer pointing here.
+
+Curated skeletons live beside this file in `docs/release-notes/`:
+`skeleton-v0.1.0.md` (the first-release precedent, card 8.G2) and
+`skeleton-v0.1.3.md` (the wave-30 draft — headline: Windows actually
+works; user-facing, honest about sound / GUI video display / URLs).
 
 ## Known limits (honest register)
 
@@ -132,17 +142,18 @@ three bullets below), and a generation footer pointing here.
    (or `xattr -dr com.apple.quarantine`). The macOS arm64 binary
    carries only the linker's default ad-hoc signature, which is not a
    Developer ID.
-2. **The workflow has never executed.** CI billing is blocked on this
-   private repository (every Actions run dies at 0 steps; worklog
-   7.CLOSEOUT). Correctness is by construction: ci.yml-pattern mirroring
-   (SHA-pinned actions, toolchain assert, SHA-verified tool downloads),
-   actionlint 1.7.12 clean, `bash -n`/`sh -n` on all scripts, YAML
-   parse, and **real local dry-runs on Linux x86_64**: a genuine
-   `dpkg-deb`-built `.deb` (validated with `dpkg-deb --info/--contents`
-   + extraction) and a genuine `appimagetool`-built `.AppImage` that
-   was executed end-to-end. Windows/macOS packaging paths are
-   [VERIFY] at first live run — start with a `workflow_dispatch`
-   dry-run when billing is unblocked.
+2. **~~The workflow has never executed.~~ The workflow has executed
+   (v0.1.0–v0.1.2).** Billing was unblocked 2026-11-12
+   (`docs/release-checklist.md` §9); the first real tag run — with every
+   [VERIFY] cleared against real runner behavior, including the first
+   failed iteration — is recorded below ("First real run"). The
+   correctness-by-construction record that stood in for live evidence
+   before the unblock (ci.yml-pattern mirroring with SHA-pinned actions,
+   actionlint 1.7.12 clean, `bash -n`/`sh -n` on all scripts, YAML parse,
+   real local dry-runs on Linux x86_64) stands as history. Windows
+   packaging is now also live-run-proven: the release lane launches the
+   extracted-zip `lumen-tauri.exe` (10 s survival + failure receipts) and
+   the MSI upgrade test launches the installed exe (wave 30).
 3. **Linux arm64 is best-effort.** `ubuntu-24.04-arm` hosted-runner
    availability for private repos has varied; the job is
    `continue-on-error` and the release ships without arm64 artifacts
@@ -156,8 +167,11 @@ three bullets below), and a generation footer pointing here.
    `product.toml` do not exist yet, so Linux packaging ships a
    deterministic 512×512 PNG filled with `brand.accent_color`
    (`scripts/release/gen-icon.py`). No borrowed third-party artwork
-   (clean-room rule). The MSI ships no Start-Menu shortcut — the
-   desktop binary is a skeleton that opens no window.
+   (clean-room rule). ~~The MSI ships no Start-Menu shortcut — the
+   desktop binary is a skeleton that opens no window.~~ (Stale since
+   w28: the Start-Menu shortcut launches `lumen-tauri.exe`, the real
+   app; wave 30 adds the Desktop shortcut, twin-locked in
+   `gen-wxs.sh` + `build-msi.ps1`.)
 6. **MSI version sanitization**: `identity.display_version` pre-release
    suffixes (`-dev`) are stripped for the MSI (WiX rejects non-numeric
    `ProductVersion`); the zip/deb/dmg/AppImage names keep the full
@@ -166,6 +180,11 @@ three bullets below), and a generation footer pointing here.
 7. **Budget**: the pipeline runs only on `v*` tags (never per-PR) —
    ~5 jobs × 15–25 raw minutes at private-repo multipliers
    (Windows 2×, macOS 10×) per release.
+8. **MSI does not auto-launch after install** (wave 30): the installer
+   leaves shortcuts — Start Menu (w28) + Desktop (wave 30) — and does
+   not spawn the app; the post-install UX decision (no custom action;
+   shortcuts are the entry points) is recorded with the msi-twins
+   lane. Users launch from the shortcuts or the install directory.
 
 ## First real run (v0.1.0, 2026-11-13) — the record
 
@@ -209,3 +228,20 @@ real runner behavior:
   - macOS/Windows launch verdicts stay BEST-EFFORT-PENDING per
     ADR-004's own rule (a runner session is not a real desktop);
     the human/GUI confirmation half is owed on real hardware.
+
+## Follow-on releases (v0.1.1, v0.1.2) and the v0.1.3 draft
+
+- **v0.1.1** (2026-11-15, worklog w28): the normal-app release — GUI
+  subsystem (no terminal flash), frameless shell with real OS window
+  controls, the MSI Start-Menu shortcut; re-tagged once after the MSI
+  twin-parity hotfix (upgrade exit 1603; the heredoc-escape divergence
+  is pinned by self-tests in both twins + `scripts/twin_parity.py`).
+- **v0.1.2** (2026-11-15, worklog w29.2): stamps the cold-start fix
+  (the phantom "Playback error" chip on the empty player, w29.1).
+- **v0.1.3** (drafting, wave 30): the Windows-actually-works release —
+  the open-path/URI fix (w30.1/w30.2), the GUI crash face (w30.6), the
+  playback pacer (w30.7), launch-proven installers + the Desktop
+  shortcut (w30.8/w30.9), MP4 sample-table caps + PCM-in-MP4 (w30.3),
+  and the streaming auth hardening (w30.4). The curated notes draft is
+  `docs/release-notes/skeleton-v0.1.3.md`; version stamping per the RC
+  checklist §0 is the Lead's action, not this file's.

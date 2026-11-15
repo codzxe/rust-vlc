@@ -2130,3 +2130,132 @@ Work Log:
 
 Stage Summary:
 - v0.1.2 is stamped and smoke-proven: the cold-start "Playback error" chip fix ships, upgrades replace (MSI UpgradeCode frozen), version surfaces agree on both tracks. Watch the tag run; then the user's §6.7 sanity: download, sha256-check, install, launch — no error chip on the empty player.
+---
+Task ID: w30.10.docs-truth
+Agent: W2-J, the docs-truth lane (lane 2-j; Wave 2 of the remediation program, Lead-directed)
+Task: The docs catch up with w27-w30. The audit wave found the registers
+  lying in both directions: KNOWN-LIMITS still said "no H.264 software
+  decode" (false since w27) and "no tauri binary has ever been built"
+  (false since w28); the README still said no workflow executed / no
+  release published (false since 2026-11-12/13); and nothing admitted the
+  current honest limits. Strike the stale rows, admit the current ones,
+  draft the v0.1.3 notes, record the wave.
+
+Work Log:
+- Wave ledger (the record this entry owes the program):
+  - Wave 1 = 12 read-only audit agents over the post-v0.1.2 tree: the
+    roadmap master (phase gates promised vs built, the doc-staleness
+    register S-1..S-6), input-URI construction, streaming, session
+    engine, desktop-tauri startup, release/packaging, codecs, demux,
+    audio/video, UI, commands, tests/CI. Their reports live in the
+    gitignored tmp/ audit tree - described here, never referenced as
+    tracked files (they do not exist for a fresh clone).
+  - Wave 2 = 11 implementation lanes, all in this batch:
+    w30.1 urifix-core (the platform-aware SourceUri::from_file_path in
+    media-types: \\?\ stripped, /C:/->C:/ normalized, UNC typed-rejected,
+    streaming classify mirrored, device-discovery retargeted - the
+    Windows open blocker gone); w30.2 urifix-routing (file: URLs open
+    through the local-file path, C:\x == file:///C:/x ==
+    file://localhost/C:/x; non-file schemes keep the Phase-6 refusal);
+    w30.3 demux-dos-caps (AUD-01 stco/co64/stsc MAX_SAMPLES caps - the
+    4-byte-patch->1GB-alloc DoS is now a typed refusal; AUD-02
+    ipcm/fpcm ISO 23003-5 mapped so ffmpeg>=7 PCM-in-MP4 audio
+    demuxes; AUD-03 stss sorted + binary search; 8 tests, demux 606
+    green); w30.4 stream-auth-gate (https->http credential downgrade
+    refused typed as CrossSchemeRedirect in AuthFetch::follow; digest
+    parameter escaping; ureq allowlist row per the dependency culture);
+    w30.5 urifix-migration (the 6-copy encode_path family + 21 naive
+    test constructors on the shared constructor; the unreachable!()
+    guards deleted); w30.6 shell-face (panic hook + crash log under
+    <tmp>/lumen/ + a Windows no-console native MessageBox with the
+    WebView2 actionable hint - GUI startup failures visible);
+    w30.7 session-pacer (card 3.B3: ShellRuntime::pump_once driven by
+    the ~30 ms shell ticker - GUI playback actually progresses,
+    time-ticks, EOS; headless open->play->pump->Ended proof);
+    w30.8 release-smoke-payload (the Windows release lane launches the
+    extracted-zip lumen-tauri.exe - 10 s survival + failure receipts;
+    the MSI upgrade test launches the installed exe; the exit-86 stub
+    leaves every user payload; AppRun/CFBundleExecutable exec the real
+    shell); w30.9 msi-twins (the stub leaves the MSI; the Desktop
+    shortcut added twin-locked; the post-install UX decision recorded);
+    w30.10 docs-truth (this lane); plus the packaging-docs sibling lane
+    that owns docs/packaging/** (its own entry records it).
+- KNOWN-LIMITS.md (audit S-1/S-2/S-3 strikes, per the file's own §10
+  rule - struck in place, never silently deleted):
+  - S-1: "H.264 software decode: none" STRUCK - w27 landed rust_h264
+    0.6.1 (bit-exact 17/17 vs the ffmpeg 7.1.5 oracle, matrix row
+    blocked->implemented); open tails kept honestly (4:2:2/10-bit
+    vocabulary, hw-lane ADR-013-gated).
+  - S-3: "no tauri binary has ever been built or launched on any OS"
+    STRUCK - w28 shipped lumen-tauri.exe (GUI subsystem, frameless,
+    the real engine host) in v0.1.1/v0.1.2; w30.6 crash face + w30.7
+    pacer + w30.8 launch smokes recorded; the still-open half (deep
+    verdicts manual, per-OS human confirmation) stands.
+  - S-2 + the Windows path bug: "Only AVI opens through the command
+    layer" STRUCK - w27 wired MP4/MKV/TS/ES-H.264; w30.1/w30.2 made
+    every local form open on every OS (Windows canonical paths, file:
+    URLs through the local-file path); the honest residue stays
+    (flac/mp3/wav/ogg still unwired).
+  - Current limits ADMITTED: URL sources typed-refused at the open path
+    (streaming crate exists, enablement next wave); GUI video display
+    not wired (honest empty media surface - pinned by the no-fake-canvas
+    test - LUF1/CanvasBridge reference unported); the audio row
+    sharpened to say what it means for users: no sound on any OS yet.
+  - The §1 parity row's billing clause corrected (billing unblocked
+    2026-11-12, release workflow executed v0.1.0-v0.1.2; the
+    evidence-flip pass has not run, so verified parity stays 0/252 -
+    the 64->65 implemented recount is owed to PARITY-REPORT by its
+    owner, not claimed here). §9's release-register link list refreshed
+    (workflow record, MSI post-install).
+- README.md: Status refreshed to 2026-11-15/wave 30 - releases
+  v0.1.0-v0.1.2 published, the w27/w28/w30 landings summarized, format
+  count recomputed from the matrix (38/73: 14 containers, 7 video, 9
+  audio, 8 subtitle; the w27 h264 flip), the honest product-gap trio
+  stated (no sound, no GUI video display, URL refusal); the stale
+  docs-sweep-defects paragraph dropped (w27 verified both fixed);
+  Install rewritten (releases exist, SHA256SUMS, lumen + lumen-tauri
+  payloads from v0.1.3, stub gone, unsigned warning, build-from-source
+  kept); the ground-rules CI bullet un-lied (billing unblocked
+  2026-11-12, first real run recorded, CI lanes on main; verified
+  parity 0/252 residue kept honest).
+- RELEASE.md: What-ships payload truth (three binaries through v0.1.2;
+  lumen + lumen-tauri from v0.1.3, AppRun/CFBundleExecutable exec the
+  real shell, MSI drops the stub twin-locked); known-limit 2 STRUCK
+  (the workflow HAS executed - first-real-run record + the wave-30
+  Windows launch smokes); known-limit 5's stale shortcut sentence
+  struck (Start-Menu shortcut since w28, Desktop twin-locked in wave
+  30); new known-limit 8 (MSI does not auto-launch - shortcuts are the
+  entry points, the post-install decision); follow-on-release records
+  (v0.1.1 re-tag, v0.1.2) + the v0.1.3 draft pointer; the notes-template
+  section now points at both curated skeletons.
+- docs/release-notes/skeleton-v0.1.3.md: the curated v0.1.3 notes draft
+  following the skeleton-v0.1.0 structure exactly - headline "Windows
+  actually works", user-facing tone, no lane jargon in the published
+  body (the lane mapping lives in the RC-day-deleted curator note),
+  honest about what still doesn't work (sound, GUI video display,
+  URLs, no auto-launch, unsigned, web 0 rows).
+- apps/desktop-tauri/INFRA-BLOCKED.md: §B.1 STRUCK (the stub left every
+  user payload; GUI payloads exec the real shell); §B.2 annotated
+  (Windows zip-extract + installed-exe launch smokes ride the release
+  lane; the tauri-launch.yml deep verdicts remain manual); WebView2
+  posture note added (visible dialog + crash log now; bootstrapper
+  bundling still the open decision).
+- Verification: rg over README.md/KNOWN-LIMITS.md/RELEASE.md for the
+  stale claim set ("no workflow has ever", "no release has been
+  published", "no software H.264", "H.264 ... not ... decode",
+  "never executed", "no tauri binary", "Only AVI") - zero live hits,
+  every strike carries its closing evidence instead; the format-row
+  recount script-run against docs/feature-matrix.toml (38/73 claimed).
+
+Stage Summary:
+- The registers now match the tree: what w27-w30 built is claimed with
+  evidence, and the three lies the audit named (h264-sw, tauri binary,
+  the Windows open path) plus the README's release/CI claims are struck
+  in place per the maintenance rules. Honest caveats: this lane
+  verified claims against the wave change set and in-tree records, and
+  did NOT run the Windows GUI itself (launch evidence is the release
+  lane's smokes; the deep per-OS verdicts stay manual per ADR-004's own
+  rule); PARITY-REPORT's 64->65 implemented recount and the ROADMAP
+  phase-8 refresh are owed by their owning lanes; v0.1.3 is drafted,
+  not stamped - version stamping and the tag are the Lead's actions per
+  RELEASE.md; l10n untouched.
