@@ -31,7 +31,13 @@
 //!   443) made explicit, path defaults to `/`.
 //! * `file:` URIs: an empty or `localhost` authority folds away; the
 //!   path is percent-decoded; `file:/path` and `file:///path` are the
-//!   same resource.
+//!   same resource. Two rules mirror `input`'s resolver exactly
+//!   (RFC 8089 — wave 30's Windows open fix), so Phase-6 dispatch and
+//!   `input` cannot drift: the §E.3.1 drive form `/C:/…` strips its
+//!   empty-authority `/` to the drive-absolute `C:/…`, and a decoded
+//!   `//`-prefixed path (the UNC form, `file:////server/share`) is a
+//!   typed refusal — a network filesystem reference, not a local
+//!   file.
 //! * A single ASCII letter before the first `:` (the `c:` Windows
 //!   drive-letter shape) is a **local path**, not a scheme — the
 //!   one-look disambiguation rule, recorded in the scheme record.
@@ -376,7 +382,10 @@ fn split_scheme(source: &str) -> Option<(String, &str)> {
 
 /// Classify the `rest` of a `file:` URI (after `file:`, authority
 /// unstripped). RFC 8089 shapes: `file:///path`, `file://localhost/
-/// path`, `file:/path` — all fold to the same local path.
+/// path`, `file:/path` — all fold to the same local path. The two
+/// RFC 8089 rules `input`'s resolver applies after decode are
+/// mirrored here (drive-form strip, UNC refusal) so Phase-6 dispatch
+/// and `input` cannot drift.
 fn classify_file_uri(rest: &str) -> Result<AccessKind, SchemeError> {
     let path = if let Some(after) = rest.strip_prefix("//") {
         // An authority is present: empty or `localhost` folds away;
@@ -407,9 +416,41 @@ fn classify_file_uri(rest: &str) -> Result<AccessKind, SchemeError> {
         });
     }
     let decoded = percent_decode(&path)?;
+    // The mirrored UNC rule (input's `input.uri.unc-path`): an empty
+    // authority plus a `//`-prefixed decoded path
+    // (`file:////server/share`) names a network filesystem, not a
+    // local file — typed refusal, never a mis-opened path.
+    if decoded.starts_with("//") {
+        return Err(SchemeError::Malformed {
+            detail: "a file URI path may not name a UNC network host",
+            source: None,
+        });
+    }
+    // The mirrored §E.3.1 drive rule (input's resolver): `/C:/…`
+    // strips the empty-authority `/` so the strategy's path is the
+    // drive-absolute `C:/…` `PathBuf` needs on Windows.
     Ok(AccessKind::LocalFile {
-        path: PathBuf::from(decoded),
+        path: PathBuf::from(strip_drive_authority_slash(&decoded)),
     })
+}
+
+/// RFC 8089 §E.3.1 drive-form normalization — the mirrored rule from
+/// `input`'s resolver (`crates/input/src/uri.rs`, same condition,
+/// same tests): `/C:/…` (and `/C:\…`) is the Windows drive form; the
+/// leading `/` is the empty-authority separator, not a path root.
+/// Stripping it here keeps Phase-6 dispatch and `input` from drifting.
+fn strip_drive_authority_slash(decoded: &str) -> String {
+    let bytes = decoded.as_bytes();
+    if bytes.len() >= 3
+        && bytes[0] == b'/'
+        && bytes[1].is_ascii_alphabetic()
+        && bytes[2] == b':'
+        && (bytes.len() == 3 || bytes[3] == b'/' || bytes[3] == b'\\')
+    {
+        decoded[1..].to_string()
+    } else {
+        decoded.to_string()
+    }
 }
 
 /// Percent-decode a `file:` URI path (RFC 3986 §2.4).
@@ -537,6 +578,41 @@ mod tests {
                     assert_eq!(path, PathBuf::from(want), "{source:?} normalizes");
                 }
                 other => unreachable!("{source:?} must classify local: {other:?}"),
+            }
+        }
+    }
+
+    /// The mirrored RFC 8089 rules from `input`'s resolver (wave 30's
+    /// Windows open fix): the §E.3.1 drive form `/C:/…` strips its
+    /// empty-authority `/` (and the boundary is exact — `/C:x` stays
+    /// untouched), while the UNC form (`file:////server/share`) is a
+    /// typed refusal. Same rows as `input`'s
+    /// `windows_drive_forms_resolve_as_drives` and its UNC rejection
+    /// table — Phase-6 dispatch and `input` cannot drift.
+    #[test]
+    fn file_uri_drive_and_unc_forms_mirror_the_input_resolver() {
+        for (source, want) in [
+            ("file:///C:/Users/a", "C:/Users/a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:", "C:"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file://localhost/C:/x.mp4", "C:/x.mp4"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///c:/Media/a%20b.wav", "c:/Media/a b.wav"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:%5CUsers%5Ca", "C:\\Users\\a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:x", "/C:x"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        ] {
+            match SchemeRegistry::classify(source) {
+                Ok(AccessKind::LocalFile { path }) => {
+                    assert_eq!(path, PathBuf::from(want), "{source:?} mirrors input");
+                }
+                other => unreachable!("{source:?} must classify local: {other:?}"),
+            }
+        }
+        for source in [
+            "file:////server/share/a.mkv",
+            "file://localhost//server/share/a.mkv",
+        ] {
+            match SchemeRegistry::classify(source) {
+                Err(SchemeError::Malformed { .. }) => {}
+                other => unreachable!("{source:?} must refuse the UNC form: {other:?}"),
             }
         }
     }

@@ -77,6 +77,21 @@ const SECRET_QUERY_KEYS: [&str; 10] = [
 /// The redaction marker substituted for secret values and userinfo.
 const REDACTED: &str = "***";
 
+/// The Windows verbatim-path marker `std::fs::canonicalize` prefixes
+/// drive paths with on Windows (`\\?\C:\…`): not path components, just
+/// the OS API's "disable name processing" switch. Stripped before
+/// shape detection in [`SourceUri::from_file_path`].
+const VERBATIM_PREFIX: &str = "\\\\?\\";
+
+/// The verbatim UNC spelling (`\\?\UNC\server\share\…`): canonicalize's
+/// form for a network filesystem path — refused typed by
+/// [`SourceUri::from_file_path`] (UNC paths are not local-file
+/// sources).
+const VERBATIM_UNC_PREFIX: &str = "\\\\?\\UNC\\";
+
+/// Plain UNC paths start with two backslashes (`\\server\share\…`).
+const UNC_PREFIX: &str = "\\\\";
+
 /// A validated source URI.
 ///
 /// `Display`/`Debug` show a redacted form (MP §12): credentials and full
@@ -131,6 +146,90 @@ impl SourceUri {
             scheme,
             raw: s.to_string(),
         })
+    }
+
+    /// Build a `file:` URI from a local path's text — the one shared,
+    /// platform-aware path→URI constructor (wave 30's Windows open
+    /// fix; every former hand-rolled `encode + "file://{…}"` site
+    /// delegates here).
+    ///
+    /// **Pure** (the L0 charter, doc 01 §2.2): no I/O, no
+    /// canonicalization — callers canonicalize first and pass
+    /// `canonical.to_str()`; non-UTF-8 paths stay the caller's typed
+    /// refusal (this crate takes `&str`). The constructor never
+    /// guesses a base: relative input is refused, not absolutized.
+    ///
+    /// # Shape rules (RFC 8089; unit-tested against adversarial fixtures)
+    ///
+    /// 1. **Verbatim prefixes** (Windows `canonicalize` output): the
+    ///    `\\?\` drive-verbatim marker strips (`\\?\C:\Users\a` →
+    ///    `C:\Users\a`); `\\?\UNC\server\share\…` is a network path —
+    ///    typed refusal.
+    /// 2. **Drive forms are the only backslash gate**: a path matching
+    ///    `^[A-Za-z]:[/\]` (`C:\Users\a`, `C:/Users/a`) has its `\`
+    ///    rewritten to `/`, then gains the empty-authority leading `/`
+    ///    (`/C:/Users/a` — RFC 8089 §E.3.1's "local window" shape; the
+    ///    resolver-side mirror in `crates/input` strips it back). The
+    ///    drive letter and its colon are structural and stay verbatim;
+    ///    the percent-encoding keep-set never widens for them.
+    /// 3. **Everything else is POSIX and byte-exact**: only
+    ///    `ALPHA / DIGIT / '-' / '.' / '_' / '~' / '/'` survive
+    ///    verbatim; every other byte percent-encodes as `%HH` (RFC
+    ///    3986 §2.1). A legal `\` inside a POSIX filename is *data* —
+    ///    encoded `%5C`, decoding back to the same byte. Plain UNC
+    ///    (`\\server\share\…`) is refused typed, never mis-encoded.
+    ///
+    /// # Errors
+    /// [`EngineError`] with kind [`Unsupported`](ErrorKind::Unsupported)
+    /// and stage `Open`: `uri.file.unc-path` (UNC network path — not a
+    /// local-file source), `uri.file.relative-path` (the path is not
+    /// absolute; callers canonicalize), or the defensive
+    /// `uri.file.invalid` (the encoded form failed [`SourceUri::parse`]
+    /// — impossible by construction, never unwrapped). No constructor
+    /// carries caller text: `Display` stays structured and redaction
+    /// stays the host's job (MP §12).
+    pub fn from_file_path(path: &str) -> Result<SourceUri, EngineError> {
+        let refusal = |code: &'static str| {
+            EngineError::new(
+                PipelineStage::Open,
+                ErrorKind::Unsupported { format: None },
+                ErrorContext::new(code),
+            )
+        };
+        // 1. Verbatim prefixes: the UNC spelling is a network path;
+        //    the drive spelling drops its marker and continues.
+        let path = if path.starts_with(VERBATIM_UNC_PREFIX) {
+            return Err(refusal("uri.file.unc-path"));
+        } else {
+            path.strip_prefix(VERBATIM_PREFIX).unwrap_or(path)
+        };
+        // 2. Plain `\\server\share` is UNC — a network path, not a
+        //    local-file source.
+        if path.starts_with(UNC_PREFIX) {
+            return Err(refusal("uri.file.unc-path"));
+        }
+        // 3. Shape detection. The drive-letter form is the ONLY shape
+        //    whose backslashes are separators (a POSIX `\` is filename
+        //    data — byte-exact). Its `/C:` prefix is structural (RFC
+        //    8089 §E.3.1's `/C:/…` "local window" shape): this
+        //    normalization emits the letter and colon verbatim and the
+        //    frozen keep-set below never sees them, so POSIX encoding
+        //    is unchanged from the retired hand-rolls. POSIX absolutes
+        //    encode byte-exact; anything else is relative — the
+        //    constructor never guesses a base (callers canonicalize).
+        let encoded = if is_windows_drive(path) {
+            let normalized = path.replace('\\', "/");
+            let (drive, rest) = normalized.split_at(2);
+            format!("/{drive}{}", encode_file_path(rest))
+        } else if path.starts_with('/') {
+            encode_file_path(path)
+        } else {
+            return Err(refusal("uri.file.relative-path"));
+        };
+        // 4. Parse can only fail on an internal invariant break (all
+        //    spaces and control bytes were escaped in step 3): a
+        //    defensive typed mint, never an unwrap.
+        SourceUri::parse(&format!("file://{encoded}")).map_err(|_| refusal("uri.file.invalid"))
     }
 
     /// The validated scheme (open set — protocols are plugins, MP §6).
@@ -242,6 +341,40 @@ fn redact_query_values(text: &str) -> String {
         }
     }
     out.push_str(frag);
+    out
+}
+
+/// The Windows drive-letter shape `^[A-Za-z]:[/\]` — the only input
+/// whose backslashes are separators. Everything else is POSIX, where a
+/// `\` inside a filename is legal data (byte-exact through
+/// [`encode_file_path`]'s `%5C`).
+fn is_windows_drive(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes[2] == b'/' || bytes[2] == b'\\')
+}
+
+/// Percent-encode a path for a `file:` URI path slot (RFC 3986 §2.1 /
+/// §3.3): keep `unreserved` plus `/`; escape every other byte as `%HH`
+/// uppercase.
+///
+/// The keep-set is deliberately conservative and **frozen**: POSIX
+/// outputs are the byte-exactness contract every URI-equality pin rides
+/// on, so Windows handling lives in
+/// [`SourceUri::from_file_path`]'s pre-encoding normalization — never
+/// in a wider keep-set.
+fn encode_file_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
+        if keep {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
     out
 }
 
@@ -568,6 +701,208 @@ mod tests {
         let uri = SourceUri::parse("totally-new-protocol://host/path")
             .unwrap_or_else(|e| unreachable!("{e}"));
         assert_eq!(uri.scheme().as_str(), "totally-new-protocol");
+    }
+
+    // ---- SourceUri::from_file_path (the shared path→URI constructor) --------
+
+    #[test]
+    fn from_file_path_is_byte_exact_for_posix() {
+        // The exact vectors the CLI's retired hand-rolled encoder pinned
+        // (`path_encoder_escapes_the_delimiters`): space, `%`, `?`, `#`
+        // and non-ASCII all percent-encode; unreserved bytes and `/`
+        // survive verbatim. POSIX outputs are the compatibility
+        // contract — byte-identical to every former hand-roll.
+        let cases = [
+            ("/a b/c%d?e#f", "file:///a%20b/c%25d%3Fe%23f"),
+            ("/plain/path.avi", "file:///plain/path.avi"),
+            ("/üño", "file:///%C3%BC%C3%B1o"),
+            ("/media/My Volume", "file:///media/My%20Volume"),
+        ];
+        for (path, want) in cases {
+            let uri = SourceUri::from_file_path(path).unwrap_or_else(|e| unreachable!("{e}"));
+            assert_eq!(uri.raw(), want, "{path:?}");
+            assert_eq!(uri.scheme().as_str(), "file");
+        }
+    }
+
+    #[test]
+    fn from_file_path_encodes_a_posix_backslash_as_data() {
+        // A `\` inside a POSIX filename is NOT a separator: it
+        // percent-encodes to `%5C` and decodes back to the same byte —
+        // the reason backslash conversion is gated on the drive-letter
+        // shape alone (a POSIX `x\y` must never become `x/y`).
+        let uri = SourceUri::from_file_path("/tmp/a\\b x.mp4") // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(
+            uri.raw(),
+            "file:///tmp/a%5Cb%20x.mp4" // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        );
+        // Round-trip: the resolver's decode returns the original bytes.
+        let path = uri
+            .raw()
+            .strip_prefix("file://")
+            .unwrap_or_else(|| unreachable!("from_file_path mints file://"));
+        assert_eq!(
+            mirror_decode(path),
+            "/tmp/a\\b x.mp4" // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        );
+    }
+
+    #[test]
+    fn from_file_path_strips_the_windows_verbatim_prefix() {
+        // Windows canonicalize emits `\\?\C:\…`; the marker strips, the
+        // drive form slash-normalizes, the space percent-encodes, and
+        // the empty-authority `/` prefixes (RFC 8089 §E.3.1).
+        let uri = SourceUri::from_file_path("\\\\?\\C:\\Users\\a b\\x.mp4") // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            .unwrap_or_else(|e| unreachable!("{e}"));
+        assert_eq!(
+            uri.raw(),
+            "file:///C:/Users/a%20b/x.mp4" // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        );
+    }
+
+    #[test]
+    fn from_file_path_normalizes_drive_forms() {
+        // With and without content after the root; both slash spellings
+        // (`C:\` and `C:/x`); lowercase drive letters too.
+        let cases = [
+            ("C:\\", "file:///C:/"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("C:/x", "file:///C:/x"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("C:\\Users\\a", "file:///C:/Users/a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("e:\\Media\\film.mp4", "file:///e:/Media/film.mp4"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        ];
+        for (path, want) in cases {
+            let uri = SourceUri::from_file_path(path).unwrap_or_else(|e| unreachable!("{e}"));
+            assert_eq!(uri.raw(), want, "{path:?}");
+        }
+    }
+
+    #[test]
+    fn from_file_path_rejects_unc_paths_typed() {
+        // UNC network paths are not local-file sources: both the
+        // verbatim and the plain spelling refuse with the same typed
+        // code (never a mis-encoded URI that a resolver would have to
+        // reject later).
+        for path in [
+            "\\\\?\\UNC\\server\\share\\x.mp4", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            "\\\\server\\share\\x.mp4", // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        ] {
+            match SourceUri::from_file_path(path) {
+                Err(e) => {
+                    assert_eq!(e.context.code, "uri.file.unc-path", "{path:?}");
+                    assert_eq!(e.stage, PipelineStage::Open, "{path:?}");
+                    assert!(
+                        matches!(e.kind, ErrorKind::Unsupported { format: None }),
+                        "{path:?}: {e}"
+                    );
+                    assert_eq!(e.to_string(), "[open] unsupported (uri.file.unc-path)");
+                }
+                Ok(_) => unreachable!("{path:?} must be refused"),
+            }
+        }
+    }
+
+    #[test]
+    fn from_file_path_rejects_relative_paths_typed() {
+        // The constructor never guesses a base: callers canonicalize.
+        // `C:` without a separator is not the drive form (no boundary
+        // after the colon) and not absolute — refused the same way.
+        for path in ["relative/x.mkv", "", "C:", "\\no-slash"] {
+            match SourceUri::from_file_path(path) {
+                Err(e) => {
+                    assert_eq!(e.context.code, "uri.file.relative-path", "{path:?}");
+                    assert_eq!(e.stage, PipelineStage::Open, "{path:?}");
+                    assert!(
+                        matches!(e.kind, ErrorKind::Unsupported { .. }),
+                        "{path:?}: {e}"
+                    );
+                }
+                Ok(_) => unreachable!("{path:?} must be refused"),
+            }
+        }
+    }
+
+    #[test]
+    fn from_file_path_round_trips_through_the_resolver_rules() {
+        // Round-trip proof without a dev-dependency on `input` (L2 —
+        // the reverse edge is forbidden): the mirror below is input's
+        // decode + drive rule, and every constructed URI decodes back
+        // to the path the caller handed in (drive forms to their
+        // slash-normalized spelling — what `PathBuf` receives).
+        let cases = [
+            ("/tmp/a b/c%d.mp4", "/tmp/a b/c%d.mp4"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("/tmp/100%.mkv", "/tmp/100%.mkv"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("\\\\?\\C:\\Users\\a b\\x.mp4", "C:/Users/a b/x.mp4"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("C:\\Users\\a", "C:/Users/a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("E:\\", "E:/"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        ];
+        for (path, want) in cases {
+            let uri = SourceUri::from_file_path(path).unwrap_or_else(|e| unreachable!("{e}"));
+            assert_eq!(mirror_resolve(&uri), want, "{path:?}");
+        }
+    }
+
+    /// Test-only mirror of `input`'s resolver (`crates/input/src/uri.rs`):
+    /// empty/`localhost` authority folds away, the path percent-decodes,
+    /// then the RFC 8089 §E.3.1 drive rule strips `/C:/…` back to
+    /// `C:/…`. Kept in lockstep by
+    /// `from_file_path_round_trips_through_the_resolver_rules`.
+    fn mirror_resolve(uri: &SourceUri) -> String {
+        let after_scheme = uri
+            .raw()
+            .strip_prefix("file:")
+            .unwrap_or_else(|| unreachable!("from_file_path mints the file scheme"));
+        let path = match after_scheme.strip_prefix("//") {
+            Some(rest) => {
+                let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+                let authority = &rest[..end];
+                assert!(
+                    authority.is_empty() || authority.eq_ignore_ascii_case("localhost"),
+                    "from_file_path never mints an authority: {authority:?}"
+                );
+                &rest[end..]
+            }
+            None => after_scheme,
+        };
+        let decoded = mirror_decode(path);
+        // input's exact condition: `/C:/…` (and `/C:\…`) — leading `/`
+        // plus drive letter plus `:` plus a boundary — drops the `/`.
+        let bytes = decoded.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0] == b'/'
+            && bytes[1].is_ascii_alphabetic()
+            && bytes[2] == b':'
+            && (bytes.len() == 3 || bytes[3] == b'/' || bytes[3] == b'\\')
+        {
+            decoded[1..].to_string()
+        } else {
+            decoded
+        }
+    }
+
+    /// Test-only RFC 3986 percent-decoder (input's, mirrored). The
+    /// constructor's output always carries well-formed `%HH` escapes.
+    fn mirror_decode(text: &str) -> String {
+        let bytes = text.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'%' {
+                let hi = bytes.get(i + 1).and_then(|b| (*b as char).to_digit(16));
+                let lo = bytes.get(i + 2).and_then(|b| (*b as char).to_digit(16));
+                match (hi, lo) {
+                    (Some(hi), Some(lo)) => {
+                        out.push((hi * 16 + lo) as u8);
+                        i += 3;
+                    }
+                    _ => unreachable!("from_file_path emits well-formed escapes"),
+                }
+            } else {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+        String::from_utf8(out).unwrap_or_else(|e| unreachable!("{e}"))
     }
 
     // ---- SourceUri: redaction (MP §12 — adversarial) ----------------------------

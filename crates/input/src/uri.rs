@@ -7,9 +7,24 @@
 //! is opened is the stream that was validated (symlinks resolved — MP
 //! §12 safe path handling, doc 01 §2.4 "no symlink escapes").
 //!
+//! # Windows drive forms (RFC 8089 §E.3.1, the w30 open fix)
+//!
+//! The shared constructor (`media_types::SourceUri::from_file_path`)
+//! mints Windows drive paths in RFC 8089 §E.3.1's "local window"
+//! shape — `file:///C:/Users/…` — where the leading `/` is the
+//! empty-authority separator, not a path root. After percent-decoding,
+//! `/C:/…` (and `/C:\…`) therefore strips to `C:/…` so `PathBuf`
+//! receives a drive-absolute path on Windows. **Unconditional on
+//! platform** — the recorded trade-off: on POSIX a literal `/C:/…`
+//! filesystem path is pathological, and RFC 8089 defines the shape as
+//! the drive form, so the rule cannot wait for a platform check (the
+//! URI grammar is platform-blind; only the constructor's input path
+//! carries platform shape).
+//!
 //! Everything this module cannot serve — non-`file` schemes, remote
-//! authorities, relative paths, query/fragment suffixes, malformed
-//! escapes, NUL bytes, non-UTF-8 bytes — is a typed rejection, never a
+//! authorities, UNC network paths (`//`-prefixed decoded paths),
+//! relative paths, query/fragment suffixes, malformed escapes, NUL
+//! bytes, non-UTF-8 bytes — is a typed rejection, never a
 //! best-effort guess (MP §8: no silent failure). Non-`file` schemes
 //! reuse [`plugin_api::access::scheme_not_served`]: one vocabulary for
 //! "this access implementation does not serve that scheme".
@@ -74,7 +89,33 @@ fn parse_file_path(uri: &SourceUri) -> Result<String, EngineError> {
     if decoded.contains(&0) {
         return Err(error::nul_in_path());
     }
-    String::from_utf8(decoded).map_err(|_| error::not_utf8_path())
+    let decoded = String::from_utf8(decoded).map_err(|_| error::not_utf8_path())?;
+    // RFC 8089's UNC form: an empty authority plus a `//`-prefixed
+    // path (`file:////server/share`) names a network filesystem, not
+    // a local file — a typed refusal, mirroring the constructor side
+    // (`uri.file.unc-path`) so neither layer can mint what the other
+    // rejects late. `file://server/share` (the authority form) is
+    // already refused as `input.uri.remote-host` above.
+    if decoded.starts_with("//") {
+        return Err(error::unc_path());
+    }
+    // RFC 8089 §E.3.1: `/C:/…` (and `/C:\…`) is the Windows drive
+    // form — the leading `/` is the empty-authority separator, not a
+    // path root. Normalize to `C:/…` so `PathBuf` sees a
+    // drive-absolute path on Windows. Unconditional on platform (the
+    // recorded trade-off, see the module docs).
+    let bytes = decoded.as_bytes();
+    let decoded = if bytes.len() >= 3
+        && bytes[0] == b'/'
+        && bytes[1].is_ascii_alphabetic()
+        && bytes[2] == b':'
+        && (bytes.len() == 3 || bytes[3] == b'/' || bytes[3] == b'\\')
+    {
+        decoded[1..].to_string()
+    } else {
+        decoded
+    };
+    Ok(decoded)
 }
 
 /// RFC 3986 percent-decoding over the path bytes: `%HH` with ASCII hex
@@ -210,6 +251,8 @@ mod tests {
             ("file:///a%1", "input.uri.percent-decode"),
             ("file:///a%00b", "input.uri.nul-in-path"),
             ("file:///a%FFb", "input.uri.not-utf8-path"),
+            ("file:////server/share/a.mkv", "input.uri.unc-path"),
+            ("file://localhost//server/share/a.mkv", "input.uri.unc-path"),
         ];
         for (uri, code) in cases {
             let err = testkit::assert_err(path_of(uri), uri);
@@ -218,6 +261,28 @@ mod tests {
                 matches!(err.kind, ErrorKind::Unsupported { .. }),
                 "{uri}: {err}"
             );
+        }
+    }
+
+    /// RFC 8089 §E.3.1 drive forms resolve as drives (pure
+    /// `parse_file_path` rows — no filesystem): `/C:/…` and the
+    /// percent-encoded backslash spelling `/C:\…` both strip the
+    /// empty-authority `/`, so `PathBuf` receives `C:/…` on Windows.
+    /// The strip is exact: only `/` + drive letter + `:` + a boundary
+    /// (`/`, `\`, or end) matches — `/C:x` and every POSIX row above
+    /// stay untouched.
+    #[test]
+    fn windows_drive_forms_resolve_as_drives() {
+        let cases = [
+            ("file:///C:/Users/a", "C:/Users/a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:", "C:"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file://localhost/C:/x.mp4", "C:/x.mp4"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///c:/Media/a%20b.wav", "c:/Media/a b.wav"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:%5CUsers%5Ca", "C:\\Users\\a"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+            ("file:///C:x", "/C:x"), // lumen-allow-literal: path/URI test vector — data under test, not a compiled-in path
+        ];
+        for (uri, want) in cases {
+            assert_eq!(path_of(uri).must(), want, "{uri}: the drive rule is exact");
         }
     }
 

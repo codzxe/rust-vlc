@@ -111,25 +111,34 @@ pub struct Volume {
 
 impl Volume {
     /// The volume as a browsable [`Device`] (doc 01 §2.4 vocabulary):
-    /// a percent-encoded `file://` URI of the mount root.
+    /// a `file://` URI of the mount root, built by the shared
+    /// platform-aware constructor
+    /// ([`SourceUri::from_file_path`](media_types::SourceUri::from_file_path)
+    /// — wave 30's Windows open fix).
     ///
-    /// Encoding: mount roots can contain spaces and non-ASCII (a
-    /// Linux automounter derives directories from labels); a raw
-    /// `file://{root}` would fail [`SourceUri::parse`]'s printable-
-    /// remainder rule and produce an unopenable URI. Bytes outside
-    /// the conservative path set (`ALPHA / DIGIT / '-' / '.' / '_' /
-    /// '~' / '/'`) are percent-encoded per RFC 3986 §2.1.
+    /// Mount roots can contain spaces and non-ASCII (a Linux
+    /// automounter derives directories from labels); the constructor
+    /// percent-encodes exactly those bytes (POSIX outputs are
+    /// byte-exact) and normalizes Windows drive roots to the RFC 8089
+    /// drive form — `E:\` becomes `file:///E:/`, openable by the
+    /// resolver, where the retired local encoder produced
+    /// `file://E%3A%5C` (a percent-encoded authority — the Windows
+    /// open blocker). UNC roots (`\\server\share`) are a typed
+    /// refusal here: a network mount is not a local-file source, and
+    /// fabricating a URI the resolver must reject later would hide
+    /// that (MP §8).
     ///
     /// # Errors
-    /// [`DiscoveryError::MalformedResponse`] — the root failed to
-    /// encode into a parseable URI (the platform integration handed
-    /// us something that is not a path).
+    /// [`DiscoveryError::MalformedResponse`] — the root is not an
+    /// absolute local path (relative, UNC) or failed URI construction
+    /// (the platform integration handed us something that is not a
+    /// path).
     pub fn to_device(&self) -> Result<Device, DiscoveryError> {
-        let encoded = percent_encode_path(&self.root);
-        let uri_text = format!("file://{encoded}");
-        let uri = SourceUri::parse(&uri_text).map_err(|err| DiscoveryError::MalformedResponse {
-            protocol: "volume-root",
-            detail: format!("mount root did not encode into a URI: {err}"),
+        let uri = SourceUri::from_file_path(&self.root).map_err(|err| {
+            DiscoveryError::MalformedResponse {
+                protocol: "volume-root",
+                detail: format!("mount root is not a local-file source: {err}"),
+            }
         })?;
         Ok(Device {
             uri,
@@ -137,24 +146,6 @@ impl Volume {
             kind: DeviceKind::Volume(self.kind),
         })
     }
-}
-
-/// Percent-encode a path for a URI path slot (RFC 3986 §2.1 / §3.3;
-/// conservative: only `unreserved` + `/` survive verbatim, so a
-/// space-bearing or non-ASCII mount root round-trips through
-/// [`SourceUri`] and back).
-#[must_use = "pure encoding"]
-pub fn percent_encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(char::from(byte));
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
 }
 
 /// The volume seam: enumerate the volumes visible right now.
@@ -315,13 +306,46 @@ mod tests {
     }
 
     #[test]
-    fn percent_encoder_handles_non_ascii_and_windows_roots() {
-        assert_eq!(percent_encode_path("/media/Üsb"), "/media/%C3%9Csb");
-        // ':' and '\' are not in the conservative keep-set (RFC 3986
-        // reserves ':' for the scheme separator) — a Windows drive
-        // root encodes fully; still a valid, round-trippable URI path.
-        assert_eq!(percent_encode_path("E:\\"), "E%3A%5C");
-        assert_eq!(percent_encode_path("/plain"), "/plain");
+    fn windows_drive_roots_construct_through_the_shared_constructor() {
+        // The w30 retarget of the old `percent_encoder_handles_non_ascii_
+        // and_windows_roots` pin, which asserted the FALSE belief that
+        // `E:\` → `E%3A%5C` was "a valid, round-trippable URI path":
+        // prefixed with `file://` that tail reads as a non-local
+        // authority and cannot open on Windows. The shared constructor
+        // yields the RFC 8089 drive form — and non-ASCII still
+        // percent-encodes (POSIX byte-exactness).
+        let volume = removable("usb-2", "Data", "E:\\");
+        let device = match volume.to_device() {
+            Ok(d) => d,
+            Err(e) => unreachable!("a drive root must construct: {e}"),
+        };
+        assert_eq!(device.uri.raw(), "file:///E:/");
+        let volume = removable("usb-3", "Üsb", "/media/Üsb");
+        let device = match volume.to_device() {
+            Ok(d) => d,
+            Err(e) => unreachable!("non-ASCII root must construct: {e}"),
+        };
+        assert_eq!(device.uri.raw(), "file:///media/%C3%9Csb");
+    }
+
+    #[test]
+    fn unc_roots_are_a_typed_refusal_not_a_fake_uri() {
+        // A network mount's root is not a local-file source: the old
+        // encoder fabricated `file://%5C%5Cserver%5Cshare` (a
+        // percent-encoded authority the resolver had to reject); the
+        // shared constructor refuses typed, and the pass fails loud
+        // (MP §8) instead of shipping an unopenable Device.
+        let volume = removable("nas-1", "NAS", "\\\\server\\share");
+        let err = match volume.to_device() {
+            Err(e) => e,
+            Ok(d) => unreachable!("a UNC root must not construct: {d:?}"),
+        };
+        match err {
+            DiscoveryError::MalformedResponse { protocol, .. } => {
+                assert_eq!(protocol, "volume-root");
+            }
+            other => unreachable!("wrong refusal: {other:?}"),
+        }
     }
 
     #[test]

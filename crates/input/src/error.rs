@@ -162,6 +162,19 @@ pub fn not_utf8_path() -> EngineError {
     )
 }
 
+/// A percent-decoded path starting `//` — the RFC 8089 UNC form
+/// (`file:////server/share`: empty authority plus a `//`-prefixed
+/// path): a network filesystem reference, not a local file. Mirrors
+/// the constructor-side refusal `uri.file.unc-path`
+/// (media-types' `SourceUri::from_file_path`) so neither side can
+/// mint what the other would have to reject late.
+pub fn unc_path() -> EngineError {
+    mint(
+        ErrorKind::Unsupported { format: None },
+        "input.uri.unc-path",
+    )
+}
+
 /// A buffer capacity of zero: a value this crate does not support.
 pub fn capacity_zero() -> EngineError {
     mint(
@@ -246,7 +259,7 @@ mod tests {
     /// claims — the whole vocabulary, one table.
     #[test]
     fn constructors_mint_stage_open_kinds_and_codes() {
-        let cases: [(EngineError, ErrorKind, &str); 14] = [
+        let cases: [(EngineError, ErrorKind, &str); 15] = [
             (
                 missing(),
                 inaccessible(AccessDenied::NotFound),
@@ -316,6 +329,11 @@ mod tests {
                 not_utf8_path(),
                 ErrorKind::Unsupported { format: None },
                 "input.uri.not-utf8-path",
+            ),
+            (
+                unc_path(),
+                ErrorKind::Unsupported { format: None },
+                "input.uri.unc-path",
             ),
             (
                 capacity_zero(),
