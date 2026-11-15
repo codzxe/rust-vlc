@@ -19,12 +19,15 @@
 #                               .msi_upgrade_code: frozen, stable across
 #                               versions so upgrades replace, not
 #                               co-install)
-#   BIN_CLI / BIN_DESKTOP / BIN_TAURI
-#                            -> the three shipped exe file names (the
+#   BIN_CLI / BIN_TAURI     -> the two shipped exe file names (the
 #                               tauri admission crate's bin is
 #                               workspace-excluded: CI's release workflow
 #                               builds it separately and hands it over
-#                               exactly like the other two)
+#                               exactly like the CLI's). BIN_DESKTOP is
+#                               deliberately NOT read anymore (w30.9: the
+#                               exit-86 skeleton left the MSI) — the env
+#                               var still exists for the other payload
+#                               lanes; do NOT re-require it here.
 # and the DOCS LIST is injected from packaging.toml [shipped] docs by
 # scripts/packaging/packaging-env.py (the W24-C bridge):
 #   PACKAGING_DOCS           -> one <File> row per doc in the Docs
@@ -50,20 +53,34 @@
 # `a&b.md` used to yield malformed XML — a loud wix-build failure, but
 # a broken one; File/@Id stays identifier-sanitized instead).
 #
-# Honest scope: the three binaries + the [shipped] docs list under
-# Program Files, PLUS a Start-Menu shortcut to the tauri app (w28 fix 4
-# — the "normal app" install). The wave-22 posture shipped no shortcut
-# because the desktop shell was the ADR-004 std-only skeleton ("shipping
-# a menu entry for a binary that opens no window would be a false
-# affordance — revisit when the webview seam lands"); the webview seam
-# HAS landed (lumen-tauri.exe opens the real UI), so the false-affordance
-# reason is gone and the shortcut points at the app binary, never the
-# skeleton or the CLI. The tauri exe runs its UI on WebView2, a SYSTEM
-# component on Win10/11 (preinstalled on Win11, Evergreen-distributed
-# on Win10) — this installer stages no WebView2 runtime and carries no
-# extra dependency row for it; the assumption is pinned in the
-# generated XML beside the BinTauri component so an auditor sees it
-# without opening this script.
+# Honest scope: TWO binaries (the CLI + the tauri app) and the
+# [shipped] docs list under Program Files, PLUS Start-Menu AND Desktop
+# shortcuts to the tauri app (w28 fix 4 + w30.9 — the "normal app"
+# install). The wave-22 posture shipped no shortcut because the desktop
+# shell was the ADR-004 std-only skeleton ("shipping a menu entry for a
+# binary that opens no window would be a false affordance — revisit
+# when the webview seam lands"); the webview seam HAS landed
+# (lumen-tauri.exe opens the real UI), so the shortcuts point at the
+# app binary, never the skeleton or the CLI. w30.9 also DROPS the
+# exit-86 skeleton exe (lumen-desktop.exe, the old BinDesktop
+# component) from the package: it can never open a window, so shipping
+# it beside the real app was pure payload confusion (audit E, §A.4
+# candidate 4 — a user who ran it saw a console flash and exit 86,
+# indistinguishable from "the app is broken"). The tauri exe runs its
+# UI on WebView2, a SYSTEM component on Win10/11 (preinstalled on
+# Win11, Evergreen-distributed on Win10) — this installer stages no
+# WebView2 runtime and carries no extra dependency row for it; since
+# w30.6 the app itself surfaces a visible dialog + a crash log when
+# the runtime is absent (the silent-exit face is closed app-side), and
+# bundling/bootstrapping the runtime stays a recorded option for a
+# future packaging lane; the assumption is pinned in the generated XML
+# beside the BinTauri component so an auditor sees it without opening
+# this script. Post-install launch: NONE, by design — see the decision
+# comment in the generated XML beside the Feature (the WixUI ExitDialog
+# launch checkbox was evaluated and skipped: build-time UI library
+# references the wix build invocations do not carry). After any twin
+# change run BOTH self-tests AND scripts/twin_parity.py (the offline
+# parity proof from the w28.1 hotfix).
 #
 # Usage: gen-wxs.sh <output.wxs>
 #        gen-wxs.sh --self-test   (regression test: hostile filenames
@@ -108,8 +125,10 @@ generate_wxs() {
     : "${MSI_VERSION:?gen-wxs.sh: MSI_VERSION not set}"
     : "${PRODUCT_MSI_UPGRADE_CODE:?gen-wxs.sh: PRODUCT_MSI_UPGRADE_CODE not set}"
     : "${BIN_CLI:?gen-wxs.sh: BIN_CLI not set}"
-    : "${BIN_DESKTOP:?gen-wxs.sh: BIN_DESKTOP not set}"
-    : "${BIN_TAURI:?gen-wxs.sh: BIN_TAURI not set (the tauri admission bin — required like BIN_CLI/BIN_DESKTOP)}"
+    # BIN_DESKTOP deliberately NOT required (w30.9: the exit-86 skeleton
+    # left the MSI — this generator consumes only the CLI + tauri bins;
+    # the env var still exists for the other payload lanes).
+    : "${BIN_TAURI:?gen-wxs.sh: BIN_TAURI not set (the tauri admission bin — required like BIN_CLI)}"
     : "${PACKAGING_DOCS:?gen-wxs.sh: PACKAGING_DOCS not set (run packaging-env.py first — the docs list is packaging.toml [shipped] docs; a hardcoded LICENSE/README pair here would silently ignore docs-list changes)}"
 
     esc_name=$(xml_escape "$PRODUCT_NAME")
@@ -176,14 +195,15 @@ generate_wxs() {
         <Component Id="BinCli" Guid="*">
           <File Id="BinCliExe" Source="${BIN_CLI}.exe" KeyPath="yes" />
         </Component>
-        <Component Id="BinDesktop" Guid="*">
-          <File Id="BinDesktopExe" Source="${BIN_DESKTOP}.exe" KeyPath="yes" />
-        </Component>
         <!-- WebView2 assumption: the tauri exe renders through the
              WebView2 Evergreen Runtime, a system component on
              Win10/11 (preinstalled on Win11; distributed by the
              Evergreen setup on Win10). No runtime is bundled or
-             bootstrapped here. Kept in lockstep with the twin
+             bootstrapped here — w30.6 closes the silent-failure face
+             app-side (a missing runtime now surfaces a visible dialog
+             + a crash log instead of a silent exit), and a
+             bootstrapper/detection row stays a recorded option for a
+             future packaging lane. Kept in lockstep with the twin
              generator (change both together). -->
         <Component Id="BinTauri" Guid="*">
           <File Id="BinTauriExe" Source="${BIN_TAURI}.exe" KeyPath="yes" />
@@ -217,12 +237,51 @@ ${docs_xml}        </Component>
         </Component>
       </Directory>
     </StandardDirectory>
+    <!-- Desktop shortcut (w30.9 — the findability fix: a Start-Menu-only
+         install reads as "nothing was installed" to a user who looks
+         only at the desktop). Same shape as the Start-Menu component
+         above: one shortcut to the REAL app, keyed by an HKLM registry
+         value with a DIFFERENT Name than the menu component (two
+         components may never share a keypath registry value); the
+         stable GUID follows the same rule (uuid5 over the product
+         upgrade code namespace, component:shortcut-desktop-lumen).
+         RemoveFolder targets the DesktopFolder itself and only ever
+         removes an EMPTY folder — the real desktop never is one (the
+         standard WiX idiom, belt and braces). Per-machine install: the
+         shortcut lands on the all-users desktop. Kept in lockstep with
+         the twin generator (change both together). -->
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="5364ccd7-f70b-5d8b-9a1f-f008062bc09a">
+        <Shortcut Id="DesktopAppShortcut" Name="${esc_name}" Description="${esc_description}"
+                  Target="[INSTALLDIR]${BIN_TAURI}.exe" WorkingDirectory="INSTALLDIR" />
+        <RemoveFolder On="uninstall" />
+        <RegistryValue Root="HKLM" Key="Software\\${esc_manufacturer}\\${esc_name}"
+                       Name="desktop-shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+    <!-- Post-install launch: NONE, by design (the w30.9 decision).
+         This package authors NO UI at all — standard WiX posture:
+         msiexec lays down the files + the two shortcuts above and
+         finishes. The WixUI ExitDialog "Launch Lumen" optional
+         checkbox (WIXUI_EXITDIALOGOPTIONALCHECKBOX + a WixShellExec
+         CustomAction published on the Finish button, gated NOT
+         Installed so silent installs and upgrades never fire it) was
+         evaluated for w30.9 and SKIPPED: the WixUI dialog set and the
+         WixShellExec custom action live in WiX build-time libraries
+         the wix build invocations (build-msi.sh on CI, this script's
+         callers) do not reference today, and a UI surface this tree
+         has never exercised on the real Windows runner is exactly the
+         risk the twin discipline exists to avoid. After install,
+         discovery = the Start-Menu + Desktop shortcuts. Revisit only
+         as a deliberate bootstrapper/UI card with a live Windows
+         verdict. Kept in lockstep with the twin generator (change
+         both together). -->
     <Feature Id="Main" Level="1" Title="${esc_name}">
       <ComponentRef Id="BinCli" />
-      <ComponentRef Id="BinDesktop" />
       <ComponentRef Id="BinTauri" />
       <ComponentRef Id="Docs" />
       <ComponentRef Id="AppMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
     </Feature>
   </Package>
 </Wix>
@@ -262,8 +321,11 @@ self_test() {
     MSI_VERSION="1.2.3"
     PRODUCT_MSI_UPGRADE_CODE="11111111-2222-3333-4444-555555555555"
     BIN_CLI=selftest-cli
-    BIN_DESKTOP=selftest-desktop
     BIN_TAURI=selftest-tauri
+    # BIN_DESKTOP deliberately left UNSET (w30.9: the exit-86 skeleton
+    # left the MSI — the generator must not require it), and the
+    # explicit unset pins this against a leaking outer environment.
+    unset BIN_DESKTOP
     PACKAGING_DOCS="a&b<c>\"d\".md it's.md"
 
     generate_wxs
@@ -278,6 +340,8 @@ root = ET.parse(path).getroot()  # malformed XML -> parser death = test failure
 ns = "{http://wixtoolset.org/schemas/v4/wxs}"
 files = root.findall(f".//{ns}File")
 assert files, "no File elements generated"
+assert len(files) == 4, (
+    f"expected 4 File rows (2 exes + 2 docs), got {len(files)}")
 
 sources = [f.get("Source") for f in files]
 for hostile in ("a&b<c>\"d\".md", "it's.md"):
@@ -285,15 +349,20 @@ for hostile in ("a&b<c>\"d\".md", "it's.md"):
         f"doc basename did not round-trip through the XML escaping: "
         f"{hostile!r} not in {sources!r}")
 
-# The three shipped exe rows (CLI, desktop, tauri) must all be present,
-# each as its component's KeyPath (the w26.m.t3 payload added BinTauri).
-exe_rows = ('selftest-cli.exe', 'selftest-desktop.exe', 'selftest-tauri.exe')
+# The two shipped exe rows (CLI, tauri) must both be present, each as
+# its component's KeyPath (w30.9: the exit-86 desktop stub left the
+# MSI — the old BinDesktop row and its fixture are gone with it).
+exe_rows = ('selftest-cli.exe', 'selftest-tauri.exe')
 for exe in exe_rows:
     assert exe in sources, f"shipped exe row missing from the generated .wxs: {exe!r}"
 for f in files:
     if f.get("Source") in exe_rows:
         assert f.get("KeyPath") == "yes", (
             f"exe File row is not its component's KeyPath: {f.get('Source')!r}")
+# The stub stays GONE (w30.9 regression pin): shipping the exit-86
+# skeleton beside the real app was pure payload confusion.
+assert "selftest-desktop.exe" not in sources, (
+    "the exit-86 skeleton exe must not ship in the MSI payload (w30.9)")
 
 # Every component must be referenced by the Feature, by Id= (a RefId=
 # typo would silently ship a component outside the feature — exactly
@@ -308,44 +377,99 @@ for r in root.findall(f".//{ns}ComponentRef"):
     assert r.get("Id") and "RefId" not in r.attrib, (
         "ComponentRef must carry Id= (never a RefId= attribute)")
 assert "BinTauri" in comp_ids, "the BinTauri component row is missing"
+assert "BinDesktop" not in comp_ids, (
+    "the BinDesktop component must stay GONE (w30.9: the exit-86 "
+    "skeleton left the MSI)")
 
-# The Start-Menu shortcut (w28 fix 4): the "normal app" install surface.
-# One Shortcut row, aimed at the TAURI exe (never the skeleton/CLI), keyed
-# by an HKLM registry value (a Shortcut cannot be a KeyPath), inside a
-# ProgramMenuFolder directory the uninstall clears (RemoveFolder row).
+# The TWO shortcuts (w28 fix 4 Start-Menu + w30.9 Desktop): the
+# "normal app" install surface. Every Shortcut row aims at the TAURI
+# exe (never the skeleton/CLI), keyed by an HKLM registry value (a
+# Shortcut cannot be a KeyPath), each inside a folder the uninstall
+# clears (RemoveFolder row).
 shortcuts = root.findall(f".//{ns}Shortcut")
-assert len(shortcuts) == 1, (
-    f"exactly one Start-Menu Shortcut expected (the app entry), "
+assert len(shortcuts) == 2, (
+    f"exactly two Shortcuts expected (Start-Menu + Desktop), "
     f"found {len(shortcuts)}")
-shortcut = shortcuts[0]
-assert shortcut.get("Target") == "[INSTALLDIR]selftest-tauri.exe", (
-    f"shortcut must target the tauri app exe, got {shortcut.get('Target')!r}")
-assert shortcut.get("WorkingDirectory") == "INSTALLDIR", (
-    "shortcut must launch with the install dir as working directory")
-assert "AppMenuShortcut" in comp_ids, "the AppMenuShortcut component row is missing"
-shortcut_component = [c for c in root.findall(f".//{ns}Component")
-                      if c.get("Id") == "AppMenuShortcut"][0]
-assert shortcut_component.find(f"{ns}RemoveFolder") is not None, (
-    "the menu folder must be removed on uninstall (RemoveFolder row)")
-keypath = shortcut_component.find(f"{ns}RegistryValue")
-assert keypath is not None and keypath.get("KeyPath") == "yes", (
-    "the shortcut component's KeyPath must be its registry value")
-assert keypath.get("Root") == "HKLM", (
-    "per-machine install: the shortcut keypath registry value is HKLM")
-# TWIN-PARITY PIN (the w28.1 hotfix): the registry Key must interpolate
-# the identity values (Software\<publisher>\<name>) — a literal
-# "${esc_manufacturer}" here means the heredoc swallowed the backslash
-# (`\$` → literal $), the .sh twin then diverges from the .ps1 twin's
-# Key, and the SAME component GUID carries two different keypaths
-# across products = component-rule violation = upgrade exit 1603
-# (release run 43729218652, windows job). XML-escaped hostile values:
-# manufacturer P&Q, name A&B "C" <D>.
-assert keypath.get("Key") == (
-    "Software\\P&Q\\A&B \"C\" <D>"
-), (
-    f"shortcut keypath registry Key must be the INTERPOLATED "
-    f"Software\\<publisher>\\<name> (twin parity with build-msi.ps1), "
-    f"got {keypath.get('Key')!r}")
+shortcut_components = {}
+for cid in ("AppMenuShortcut", "DesktopShortcut"):
+    assert cid in comp_ids, f"the {cid} component row is missing"
+    shortcut_components[cid] = [c for c in root.findall(f".//{ns}Component")
+                                if c.get("Id") == cid][0]
+for shortcut in shortcuts:
+    assert shortcut.get("Target") == "[INSTALLDIR]selftest-tauri.exe", (
+        f"shortcut must target the tauri app exe, got {shortcut.get('Target')!r}")
+    assert shortcut.get("WorkingDirectory") == "INSTALLDIR", (
+        "shortcut must launch with the install dir as working directory")
+shortcut_keypaths = {}
+for cid, comp in shortcut_components.items():
+    assert comp.find(f"{ns}RemoveFolder") is not None, (
+        f"the {cid} folder must be cleared on uninstall (RemoveFolder row)")
+    keypath = comp.find(f"{ns}RegistryValue")
+    assert keypath is not None and keypath.get("KeyPath") == "yes", (
+        f"the {cid} component's KeyPath must be its registry value")
+    assert keypath.get("Root") == "HKLM", (
+        f"per-machine install: the {cid} keypath registry value is HKLM")
+    # TWIN-PARITY PIN (the w28.1 hotfix, extended to BOTH shortcuts in
+    # w30.9): the registry Key must interpolate the identity values
+    # (Software\<publisher>\<name>) — a literal
+    # "${esc_manufacturer}" here means the heredoc swallowed the
+    # backslash (`\$` → literal $), the .sh twin then diverges from
+    # the .ps1 twin's Key, and the SAME component GUID carries two
+    # different keypaths across products = component-rule violation =
+    # upgrade exit 1603 (release run 43729218652, windows job).
+    # XML-escaped hostile values: manufacturer P&Q, name A&B "C" <D>.
+    assert keypath.get("Key") == (
+        "Software\\P&Q\\A&B \"C\" <D>"
+    ), (
+        f"{cid} keypath registry Key must be the INTERPOLATED "
+        f"Software\\<publisher>\\<name> (twin parity with build-msi.ps1), "
+        f"got {keypath.get('Key')!r}")
+    shortcut_keypaths[cid] = keypath
+# The two shortcut components must key DIFFERENT registry value Names
+# (two components sharing one keypath value is the component-rule
+# hazard the w28.1 hotfix class is made of; the Names are the w30.9
+# contract).
+assert (shortcut_keypaths["AppMenuShortcut"].get("Name")
+        != shortcut_keypaths["DesktopShortcut"].get("Name")), (
+    "AppMenuShortcut and DesktopShortcut must key DIFFERENT registry "
+    "value Names")
+assert shortcut_keypaths["AppMenuShortcut"].get("Name") == "appmenu-shortcut", (
+    "the Start-Menu keypath value Name is appmenu-shortcut")
+assert shortcut_keypaths["DesktopShortcut"].get("Name") == "desktop-shortcut", (
+    "the Desktop keypath value Name is desktop-shortcut")
+# The stable GUIDs: uuid5 over the product upgrade code namespace
+# (component:appmenu-shortcut / component:shortcut-desktop-lumen) —
+# pinned as literals so a GUID change is a conscious act (a changed
+# component GUID breaks the component rule across upgrades exactly
+# like the w28.1 keypath divergence did).
+appmenu_guid = shortcut_components["AppMenuShortcut"].get("Guid")
+desktop_guid = shortcut_components["DesktopShortcut"].get("Guid")
+assert appmenu_guid == "44134d88-f11f-52bb-a65d-68a087ac0ad2", (
+    f"AppMenuShortcut GUID must stay the uuid5-stable literal, "
+    f"got {appmenu_guid!r}")
+assert desktop_guid == "5364ccd7-f70b-5d8b-9a1f-f008062bc09a", (
+    f"DesktopShortcut GUID must stay the uuid5-stable literal (uuid5 "
+    f"over the product upgrade code namespace, "
+    f"component:shortcut-desktop-lumen), got {desktop_guid!r}")
+assert desktop_guid != appmenu_guid, (
+    "the two shortcut components must not share a GUID")
+# Placement (w30.9): the menu shortcut under
+# ProgramMenuFolder/<Product>/AppMenuDir, the desktop shortcut directly
+# under the DesktopFolder standard directory (per-machine install: the
+# all-users desktop).
+std_by_id = {d.get("Id"): d for d in root.findall(f".//{ns}StandardDirectory")}
+assert {"ProgramMenuFolder", "DesktopFolder"} <= set(std_by_id), (
+    f"both shortcut standard directories must exist, got {sorted(std_by_id)!r}")
+assert {c.get("Id") for c in std_by_id["DesktopFolder"].findall(f"{ns}Component")} == {
+    "DesktopShortcut"}, (
+    "DesktopShortcut must be THE component under the DesktopFolder "
+    "standard directory")
+menu_dirs = std_by_id["ProgramMenuFolder"].findall(f"{ns}Directory")
+assert len(menu_dirs) == 1 and menu_dirs[0].get("Id") == "AppMenuDir", (
+    "the Start-Menu shortcut lives under AppMenuDir")
+assert {c.get("Id") for c in menu_dirs[0].findall(f"{ns}Component")} == {
+    "AppMenuShortcut"}, (
+    "AppMenuShortcut must be THE component under AppMenuDir")
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,
@@ -369,7 +493,9 @@ assert root.find(f"{ns}Package").get("Name") == 'A&B "C" <D>', (
 print(f"gen-wxs.sh: --self-test PASS "
       f"({len(files)} File rows parsed; hostile basenames + identity "
       f"round-trip; escape set pinned on raw text; ids sanitized; "
-      f"exe rows KeyPath; Feature refs cover every component by Id=)")
+      f"exe rows KeyPath; Feature refs cover every component by Id=; "
+      f"2 shortcuts pinned: Start-Menu + Desktop, both tauri-targeted, "
+      f"HKLM-keyed with twin-parity Keys and uuid5-stable GUIDs)")
 PYEOF
 }
 
