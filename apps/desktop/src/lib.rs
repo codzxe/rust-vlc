@@ -23,6 +23,13 @@
 //! - [`host`]      — the command-layer correlation seam (doc 05 §4,
 //!   host-side half) + ADR-003's per-OS landing as queryable data.
 //!
+//! Beyond the prototype core, [`diagnostics`] (w30.6, the
+//! "shell-face" lane) carries the GUI-failure face the desktop
+//! binaries need wherever they run: the deterministic crash-log sink
+//! under the OS temp dir and the process panic hook that turn a
+//! silent GUI-subsystem exit into a diagnosable artifact (audit E
+//! §A.2/§F.2 — std-only, no webview involved).
+//!
 //! # What this crate is not (the honest deferral)
 //!
 //! **No webview is compiled.** `tauri`/`wry` are allowlist §5
@@ -69,6 +76,7 @@
 //! dependencies (std-only by C5 until ADR-004 changes that).
 
 pub mod bridge;
+pub mod diagnostics;
 pub mod dispatch;
 pub mod error;
 pub mod files;
