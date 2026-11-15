@@ -37,7 +37,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use commands::envelope::RequestId;
-use commands::{WireEvent, WireRequest, WireResponse};
+use commands::{Command, CommandOutcome, CommandResult, WireEvent, WireRequest, WireResponse};
 
 use crate::dispatch::BoundedEventSink;
 use crate::dispatch::EventQueueStats;
@@ -102,6 +102,16 @@ pub struct ShellRuntime {
     host: DesktopHost,
     shell: ShellHost,
     events: BoundedEventSink,
+    /// The webview frame tap (w31.1, lane `luf1-channel`): installed
+    /// on the first `session.set-frame-channel` bind and reused for
+    /// every later bind (the mailbox drains between; one tap, one
+    /// bridge, one decoder — the D-1/D-8 discipline).
+    frame_tap: Option<std::sync::Arc<crate::frame_tap::FrameTap>>,
+    /// The bound channel id (tauri's `__CHANNEL__:<id>` reference,
+    /// the bare number on the wire) — taken ONCE by the wrapper's
+    /// ticker to build its `tauri::ipc::Channel`, then None (a
+    /// re-bind — e.g. a reloaded webview — lands a new id here).
+    frame_channel: Option<u32>,
 }
 
 impl Default for ShellRuntime {
@@ -118,6 +128,8 @@ impl ShellRuntime {
             host: DesktopHost::new(),
             shell: ShellHost::new(),
             events: BoundedEventSink::with_capacity(event_capacity),
+            frame_tap: None,
+            frame_channel: None,
         }
     }
 
@@ -139,10 +151,76 @@ impl ShellRuntime {
     /// new engine event (§4.2 filter first) into the bounded queue —
     /// the wrapper's per-invoke body.
     pub fn dispatch(&mut self, request: &WireRequest) -> WireResponse {
+        // The shell-owned interception (w31.1): the frame-channel bind
+        // is SHELL state, never engine state — the CLI host would
+        // refuse it unsupported-for-host (correctly: the pure CLI has
+        // no webview), so the runtime answers it HERE, before the
+        // delegation, installing/refreshing the presented-frame tap.
+        // Every other command flows to the engine untouched.
+        if let Command::SessionSetFrameChannel { channel } = &request.command {
+            return self.bind_frame_channel(request.request_id, *channel);
+        }
         let response = lumen_dispatch(&mut self.shell, request);
         let _ = self.host.observe_response(&response);
         self.pump_events();
         response
+    }
+
+    /// The `session.set-frame-channel` answer (the intercepted half;
+    /// see [`Self::dispatch`]): install the tap (first bind constructs
+    /// it — `CliHost::set_present_tap` is state-safe, so a bind BEFORE
+    /// the first open stashes and a mid-session bind installs live),
+    /// record the channel id for the wrapper's ticker, answer the
+    /// class-S `Unit` completion.
+    fn bind_frame_channel(&mut self, request_id: RequestId, channel: u32) -> WireResponse {
+        let tap = match &self.frame_tap {
+            Some(tap) => std::sync::Arc::clone(tap),
+            None => {
+                let tap = std::sync::Arc::new(
+                    crate::frame_tap::FrameTap::new()
+                        .unwrap_or_else(|err| unreachable!("the default config is valid: {err}")),
+                );
+                self.frame_tap = Some(std::sync::Arc::clone(&tap));
+                tap
+            }
+        };
+        self.shell.engine_host().set_present_tap(tap);
+        self.frame_channel = Some(channel);
+        WireResponse {
+            request_id,
+            session: None,
+            generation: commands::envelope::Generation(0),
+            result: Ok(CommandOutcome::Completed(CommandResult::Unit)),
+        }
+    }
+
+    /// The bound channel id, if one has not been taken yet (the
+    /// wrapper's ticker calls this once per bind to build its
+    /// `tauri::ipc::Channel` via `JavaScriptChannelId`; a None answer
+    /// means "nothing new to build").
+    #[must_use = "the wrapper's one-shot bind handshake"]
+    pub fn take_frame_channel_binding(&mut self) -> Option<u32> {
+        self.frame_channel.take()
+    }
+
+    /// Whether a frame channel is bound (the ticker skips the drain
+    /// when not — no mailbox work, no allocations, an unbound shell
+    /// is exactly the pre-w31.1 shell).
+    #[must_use = "the ticker's cheap guard"]
+    pub fn frame_channel_bound(&self) -> bool {
+        self.frame_channel.is_some() || self.frame_tap.is_some()
+    }
+
+    /// Drain the frame tap's mailbox into `out` as complete LUF1
+    /// records (oldest first; the ticker ships the LAST and drops the
+    /// rest — one frame per tick keeps the webview at the pacer's own
+    /// cadence). Returns how many records were appended (0 when no
+    /// tap exists — the unbound shell's steady state).
+    pub fn take_frame_records(&mut self, out: &mut Vec<Vec<u8>>) -> usize {
+        match &self.frame_tap {
+            Some(tap) => tap.drain_records(out),
+            None => 0,
+        }
     }
 
     /// Drain new engine events through the §4.2 staleness filter into
@@ -270,8 +348,6 @@ fn refusal_response(request_id: RequestId, error: &HostError) -> WireResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use commands::Command;
-    use commands::CommandOutcome;
     use commands::ErrorCode;
     use commands::EventKind;
     use commands::PlaybackState;
@@ -538,6 +614,103 @@ mod tests {
             ended,
             "the pacer must reach Ended within {PROOF_PUMP_BOUND} pumps \
              ({pumps} pumped, {time_ticks} time-ticks)"
+        );
+        // The egress accounting conserves end to end.
+        assert!(runtime.event_stats().conserves());
+    }
+
+    /// The frame-channel bind intercepts before the engine (w31.1):
+    /// the shell-owned command answers the class-S `Unit` completion
+    /// itself, the channel id lands in the one-shot bind handshake,
+    /// and the engine host NEVER sees the command (the CLI would
+    /// refuse it unsupported-for-host — correctly: it has no webview).
+    #[test]
+    fn frame_channel_bind_is_intercepted_by_the_shell() {
+        let mut runtime = ShellRuntime::default();
+        let id = runtime.next_request_id();
+        let response =
+            runtime.dispatch(&request(id, Command::SessionSetFrameChannel { channel: 7 }));
+        match response.result {
+            Ok(CommandOutcome::Completed(commands::CommandResult::Unit)) => {}
+            other => unreachable!("the bind must complete Unit: {other:?}"),
+        }
+        assert_eq!(runtime.take_frame_channel_binding(), Some(7));
+        assert_eq!(runtime.take_frame_channel_binding(), None, "one-shot");
+        assert!(runtime.frame_channel_bound());
+    }
+
+    /// THE w31.1 proof — the GUI's own funnel, end to end with frames:
+    /// bind the channel FIRST (the real UI's startup order: the
+    /// webview registers its consumer before opening anything), open
+    /// the fixture, play, then ONLY `pump_once` ticks drive the
+    /// session — and LUF1 frame records flow out of the same pacer
+    /// the w30.7 proof drives. Before w31.1 the GUI decoded and
+    /// dropped; this is the regression bar for "the GUI shows video".
+    #[test]
+    fn frame_channel_proof_pump_once_ships_luf1_records() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/generated/valid/avi_mjpeg_pcm.avi"
+        );
+        let mut runtime = ShellRuntime::default();
+        // Bind first: the pre-open stash rides the first consumer.
+        let bind_id = runtime.next_request_id();
+        let bind = runtime.dispatch(&request(
+            bind_id,
+            Command::SessionSetFrameChannel { channel: 1 },
+        ));
+        assert!(matches!(
+            bind.result,
+            Ok(CommandOutcome::Completed(commands::CommandResult::Unit))
+        ));
+        assert_eq!(runtime.take_frame_channel_binding(), Some(1));
+
+        let open = match runtime.open_path(&std::path::PathBuf::from(fixture)) {
+            Some(response) => response,
+            None => unreachable!("a media file must classify"),
+        };
+        match open.result {
+            Ok(CommandOutcome::Accepted { .. }) => {}
+            other => unreachable!("a real media file must open: {other:?}"),
+        }
+        let play_id = runtime.next_request_id();
+        let play = runtime.dispatch(&request(play_id, Command::PlaybackPlay));
+        assert!(
+            matches!(play.result, Ok(CommandOutcome::Accepted { .. })),
+            "play must be accepted: {:?}",
+            play.result
+        );
+
+        // The pacer loop — the ticker's exact body, plus the frame
+        // drain the ticker performs after each pump.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let mut frames = Vec::new();
+        let mut records = 0usize;
+        let mut ended = false;
+        for _ in 0..PROOF_PUMP_BOUND {
+            runtime.pump_once();
+            for event in runtime.take_pending_events() {
+                if matches!(event.kind, commands::EventKind::PlaybackEndOfMedia) {
+                    ended = true;
+                }
+            }
+            records += runtime.take_frame_records(&mut frames);
+            if ended {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the frame pacer loop must not hang"
+            );
+        }
+        assert!(ended, "the session must end ({records} frame records)");
+        assert!(
+            records > 0,
+            "LUF1 frame records must flow through the pacer (the GUI-shows-video bar)"
+        );
+        assert!(
+            frames.iter().all(|record| record.starts_with(b"LUF1")),
+            "every record carries the LUF1 magic"
         );
         // The egress accounting conserves end to end.
         assert!(runtime.event_stats().conserves());

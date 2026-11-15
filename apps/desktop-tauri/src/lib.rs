@@ -5,3 +5,4 @@
 //! and `tests/single_command.rs` for the §7.4 anti-bypass audit.
 
 pub mod app;
+pub mod frame_channel;

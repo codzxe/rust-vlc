@@ -159,7 +159,7 @@ pub struct EventSpec {
 }
 
 /// The full command table, in doc 05 §2.1 order (61 rows + the issue #32
-/// bookmark trio).
+/// bookmark trio + the w31.1 frame-channel bind).
 pub const fn catalog_data() -> &'static [CommandSpec] {
     &[
         // ---- session (§2.3) ----
@@ -177,6 +177,14 @@ pub const fn catalog_data() -> &'static [CommandSpec] {
             target: CommandTarget::Engine,
             gen_bumping: true,
             args: PayloadDesc::None,
+            result: PayloadDesc::Type("Unit"),
+        },
+        CommandSpec {
+            id: CommandId::SessionSetFrameChannel,
+            class: CompletionClass::S,
+            target: CommandTarget::Shell,
+            gen_bumping: false,
+            args: PayloadDesc::Type("channel: u32"),
             result: PayloadDesc::Type("Unit"),
         },
         // ---- playback (§2.4) ----
@@ -995,18 +1003,25 @@ mod tests {
     /// §1.1.3 + §2.7: `video.set-fullscreen` is the only shell-routed
     /// command in v1; everything else targets the engine.
     #[test]
-    fn only_fullscreen_targets_the_shell() {
+    fn shell_targeted_commands_are_the_shell_owned_surface() {
         let shell: Vec<CommandId> = catalog_data()
             .iter()
             .filter(|spec| spec.target == CommandTarget::Shell)
             .map(|spec| spec.id)
             .collect();
-        assert_eq!(shell, [CommandId::VideoSetFullscreen]);
+        assert_eq!(
+            shell,
+            [
+                CommandId::SessionSetFrameChannel,
+                CommandId::VideoSetFullscreen
+            ]
+        );
     }
 
     /// §1.5's classification policy consequences, as counts: the doc's
     /// tables classify 19 commands A and 42 S; issue #32 adds the three
-    /// class-S bookmark commands (19 A / 45 S / 64 total).
+    /// class-S bookmark commands; w31.1 adds the class-S shell-owned
+    /// frame-channel bind (19 A / 46 S / 65 total).
     #[test]
     fn class_counts_match_the_doc_05_tables() {
         let a = catalog_data()
@@ -1018,8 +1033,8 @@ mod tests {
             .filter(|spec| spec.class == CompletionClass::S)
             .count();
         assert_eq!(a, 19, "class-A count");
-        assert_eq!(s, 45, "class-S count");
-        assert_eq!(a + s, 64);
+        assert_eq!(s, 46, "class-S count (+1 frame-channel bind, w31.1)");
+        assert_eq!(a + s, 65);
     }
 
     /// §3.2's "gen" column: exactly the 13 pipeline-scoped events.

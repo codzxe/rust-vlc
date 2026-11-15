@@ -80,6 +80,7 @@ pub mod diagnostics;
 pub mod dispatch;
 pub mod error;
 pub mod files;
+pub mod frame_tap;
 pub mod host;
 pub mod mailbox;
 pub mod shell;

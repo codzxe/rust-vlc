@@ -410,6 +410,34 @@
           ]
         },
         {
+          "description": "`session.set-frame-channel` — bind the webview's frame channel\n(w31.1, class S, shell-targeted): the UI's LUF1 consumer\nregisters its tauri ipc channel id so presented frames ship to\nthe canvas. Shell-owned: the engine never sees it — the desktop\nhost intercepts it before the CLI delegation (the pure CLI\nanswers the typed unsupported-for-host refusal).",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "description": "The channel callback id the webview registered (tauri's\n`__CHANNEL__:<id>` reference, carried as the bare number —\nthe shell rehydrates it through `JavaScriptChannelId`).",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "channel"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "session.set-frame-channel"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
           "description": "`playback.play` — play / resume / restart-from-ended (class A).",
           "type": "object",
           "properties": {
@@ -1892,7 +1920,7 @@
       "description": "The completed payload of a class-S command (doc 05 §2 tables'\n*Result* column; class-A commands never produce one — §1.4 C2/C3).\n\nInternally tagged (`\"kind\"`) so the wire form is\n`{ \"completed\": { \"kind\": \"audio-volume\", \"volume\": 0.8 } }` inside\n[`CommandOutcome::Completed`](crate::envelope::CommandOutcome).\nVariants are shared by shape across commands (see the module docs).",
       "oneOf": [
         {
-          "description": "Nothing to report (`session.close`, playlist model edits).",
+          "description": "Nothing to report (`session.close`, playlist model edits,\n`session.set-frame-channel`).",
           "type": "object",
           "properties": {
             "kind": {

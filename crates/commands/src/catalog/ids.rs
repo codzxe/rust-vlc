@@ -97,6 +97,7 @@ stable_id_enum! {
         // session (§2.3)
         SessionOpen => "session.open",
         SessionClose => "session.close",
+        SessionSetFrameChannel => "session.set-frame-channel",
         // playback (§2.4)
         PlaybackPlay => "playback.play",
         PlaybackPause => "playback.pause",
@@ -271,10 +272,11 @@ mod tests {
     #[test]
     fn catalog_sizes_match_doc_05() {
         // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
-        // media.*-bookmark commands (64 total). Doc 05 §3.2 lists 23
-        // events; issue #42 adds the 7.C1/7.D1 additive trio (26 total,
-        // doc 05 §6.2 additive rules).
-        assert_eq!(CommandId::ALL.len(), 64);
+        // media.*-bookmark commands (64); w31.1 adds the shell-owned
+        // frame-channel bind (65 total). Doc 05 §3.2 lists 23 events;
+        // issue #42 adds the 7.C1/7.D1 additive trio (26 total, doc 05
+        // §6.2 additive rules).
+        assert_eq!(CommandId::ALL.len(), 65);
         assert_eq!(EventId::ALL.len(), 26);
     }
 

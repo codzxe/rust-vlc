@@ -86,6 +86,19 @@ pub enum Command {
     /// idempotent).
     #[serde(rename = "session.close")]
     SessionClose,
+    /// `session.set-frame-channel` — bind the webview's frame channel
+    /// (w31.1, class S, shell-targeted): the UI's LUF1 consumer
+    /// registers its tauri ipc channel id so presented frames ship to
+    /// the canvas. Shell-owned: the engine never sees it — the desktop
+    /// host intercepts it before the CLI delegation (the pure CLI
+    /// answers the typed unsupported-for-host refusal).
+    #[serde(rename = "session.set-frame-channel")]
+    SessionSetFrameChannel {
+        /// The channel callback id the webview registered (tauri's
+        /// `__CHANNEL__:<id>` reference, carried as the bare number —
+        /// the shell rehydrates it through `JavaScriptChannelId`).
+        channel: u32,
+    },
 
     // ---- playback (§2.4) ----
     /// `playback.play` — play / resume / restart-from-ended (class A).
@@ -476,7 +489,8 @@ fn default_true() -> bool {
     rename_all_fields = "camelCase"
 )]
 pub enum CommandResult {
-    /// Nothing to report (`session.close`, playlist model edits).
+    /// Nothing to report (`session.close`, playlist model edits,
+    /// `session.set-frame-channel`).
     Unit,
     /// `playback.set-rate` — the applied rate.
     AppliedRate {

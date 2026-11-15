@@ -93,7 +93,9 @@ use playback_engine::{
 };
 
 use crate::demux_host::{MediaFacts, OpenedMedia, open_source, wire_error};
-use crate::pipeline_host::{AudioSession, CliFrameConsumer, HostDecoderProvider, RENDER_QUANTUM};
+use crate::pipeline_host::{
+    AudioSession, CliFrameConsumer, HostDecoderProvider, PresentTap, RENDER_QUANTUM,
+};
 
 /// The pump bound for "await one observable" (receipts, states) —
 /// generous against the fixture's shape (≈10 pumps to full drain).
@@ -151,6 +153,12 @@ pub struct CliHost {
     engine: Engine,
     handle: Option<SessionHandle>,
     consumer: Option<Arc<CliFrameConsumer>>,
+    /// The presented-frame tap stash (w31.1): installed into the
+    /// consumer at open time when no session exists yet — the desktop
+    /// binds its webview frame channel BEFORE the first `session.open`
+    /// lands, and the tap must ride the first session's consumer from
+    /// its first present (never missing the opening frames).
+    pending_present_tap: Option<Arc<dyn PresentTap>>,
     device: Option<NullDevice>,
     clock: Option<Arc<MediaClock>>,
     facts: Option<Arc<MediaFacts>>,
@@ -196,6 +204,7 @@ impl CliHost {
             engine: Engine::new(),
             handle: None,
             consumer: None,
+            pending_present_tap: None,
             device: None,
             clock: None,
             facts: None,
@@ -222,6 +231,22 @@ impl CliHost {
     /// unset and get the real clock.
     pub fn set_event_throttle(&mut self, source: Arc<dyn MonotonicSource>) {
         self.event_throttle = Some(source);
+    }
+
+    /// Install the presented-frame tap (w31.1, lane `luf1-channel`):
+    /// every frame the renderer presents is mirrored to `tap` from
+    /// that moment on. State-safe at ANY point — before the first
+    /// session the tap stashes and rides the first consumer from its
+    /// first present; mid-session it installs live (the consumer
+    /// reads it per scheduler tick, so a playing session picks it up
+    /// on the next pump). The pure CLI binary never calls this
+    /// (byte-identical behavior with the seam inert); the desktop
+    /// shell binds its webview frame channel through it.
+    pub fn set_present_tap(&mut self, tap: Arc<dyn PresentTap>) {
+        match &self.consumer {
+            Some(consumer) => consumer.set_present_tap(tap),
+            None => self.pending_present_tap = Some(tap),
+        }
     }
 
     // -- observation ------------------------------------------------------
@@ -734,6 +759,13 @@ impl CliHost {
             Arc::clone(&facts),
             Arc::clone(&clock),
         ));
+        // The pre-open stash rides the first session's consumer from
+        // its first present (the desktop binds its frame channel
+        // before opening; a later bind installs mid-session via the
+        // same seam — CliFrameConsumer::set_present_tap is state-safe).
+        if let Some(tap) = self.pending_present_tap.clone() {
+            consumer.set_present_tap(tap);
+        }
         let mut provider = HostDecoderProvider::new(Arc::clone(&facts));
         // The drain-gate probe: the PCM decoder's `Drained` answer
         // waits on the null device's ring actually emptying (see

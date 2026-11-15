@@ -26,7 +26,9 @@
 //!   this exact "converts upstream" slot) → the `PresentationScheduler`
 //!   (2.C4) → the bounded `PresentationQueue` → the software `Renderer`
 //!   (2.D1) on a headless surface. RGBA-native frames pass through
-//!   unconverted.
+//!   unconverted. Since w31.1 an optional [`PresentTap`] mirrors every
+//!   request the renderer presents (the desktop's webview frame
+//!   channel; `None` in the pure CLI — byte-identical behavior).
 //!
 //! The device half of the null audio session and the scheduler's
 //! tick/present driving live in [`crate::host`]'s pump — the consumer
@@ -638,6 +640,32 @@ impl AudioLimb {
     }
 }
 
+/// The presented-frame tap (w31.1, lane `luf1-channel`): the additive
+/// seam through which a host that wants the frames (the desktop's
+/// webview) mirrors every frame the renderer presents — WITHOUT the
+/// pure CLI ever constructing one (the slot defaults to `None` and
+/// the CLI binary constructs no tap, so its behavior stays
+/// byte-identical with this seam in place).
+///
+/// The tap is called on the pump thread, immediately after the
+/// renderer took the request (success path only — a stale or failed
+/// present never taps), with the scheduler's own repeat bit so the
+/// honest `PresentAction` entry is available (fresh present vs
+/// `RepeatLast`). Implementations must not block the pump (the
+/// reference desktop tap is the `CanvasBridge`→`FrameMailbox` path,
+/// bounded latest-wins — `desktop::frame_tap::FrameTap`); failures
+/// are the presenter's typed errors and ride the existing degrade
+/// path (audio continues — doc 03 §4.10 d).
+pub trait PresentTap: Send + Sync {
+    /// Mirror one successfully presented request (`repeat` set for
+    /// the scheduler's `PresentAction::RepeatLast`).
+    ///
+    /// # Errors
+    /// The implementor's typed failure (surfaced by the pump like any
+    /// present-path error; audio continues).
+    fn tap_present(&self, request: &PresentRequest, repeat: bool) -> Result<(), EngineError>;
+}
+
 /// The video half: scheduler + queue + renderer.
 pub struct VideoLimb {
     scheduler: PresentationScheduler,
@@ -665,10 +693,21 @@ pub struct VideoLimb {
 /// A [`Presenter`] seam that records the last request the renderer
 /// took — the latch above is written exactly when a frame really
 /// reaches the screen, through the queue's drain (batches included)
-/// and the direct-render path alike (F3, issue #16).
+/// and the direct-render path alike (F3, issue #16). The optional
+/// [`PresentTap`] rides the same two paths: every request the
+/// renderer took is also mirrored to the tap, after the latch (the
+/// latch is the position truth; a tap failure must not unwrite it).
 struct LatchingPresenter<'a> {
     renderer: &'a mut Renderer,
     latch: &'a mut Option<(GenerationId, i64)>,
+    /// The presented-frame tap (w31.1) — `None` in the pure CLI.
+    tap: Option<&'a Arc<dyn PresentTap>>,
+    /// This tick's `PresentAction` repeat bit. The queue holds at
+    /// most the tick's own request in this wiring (one push per tick
+    /// + a full drain), so the action's bit describes every drained
+    /// request; a future wiring that batches mixed actions must ride
+    /// the bit per-request instead `[PROPOSAL]`.
+    repeat: bool,
 }
 
 impl Presenter for LatchingPresenter<'_> {
@@ -678,41 +717,50 @@ impl Presenter for LatchingPresenter<'_> {
     ) -> Result<video_engine::sink::PresentInfo, EngineError> {
         let info = self.renderer.present(request)?;
         *self.latch = Some((request.generation, request.when.ticks));
+        if let Some(tap) = self.tap {
+            tap.tap_present(request, self.repeat)?;
+        }
         Ok(info)
     }
 }
 
 impl VideoLimb {
     /// One scheduler tick: enqueue the action's request and drain the
-    /// queue to the renderer.
+    /// queue to the renderer, mirroring what presented to the tap
+    /// (w31.1 — `None` in the pure CLI: nothing is mirrored).
     ///
     /// # Errors
     /// The present path's typed errors (surface loss, upload refusal)
     /// — the pump surfaces them and degrades honestly.
-    fn tick_once(&mut self) -> Result<(), EngineError> {
+    fn tick_once(&mut self, tap: Option<&Arc<dyn PresentTap>>) -> Result<(), EngineError> {
         let TickOutcome { action, .. } = self.scheduler.tick();
         match action {
-            PresentAction::Present(request) | PresentAction::RepeatLast(request) => {
-                self.enqueue_and_drain(request)
-            }
+            PresentAction::Present(request) => self.enqueue_and_drain(request, false, tap),
+            PresentAction::RepeatLast(request) => self.enqueue_and_drain(request, true, tap),
             PresentAction::Background => Ok(()),
         }
     }
 
-    fn enqueue_and_drain(&mut self, request: PresentRequest) -> Result<(), EngineError> {
+    fn enqueue_and_drain(
+        &mut self,
+        request: PresentRequest,
+        repeat: bool,
+        tap: Option<&Arc<dyn PresentTap>>,
+    ) -> Result<(), EngineError> {
         match self.queue.try_push(request) {
             EnqueueOutcome::Enqueued => {}
             EnqueueOutcome::Full { request, .. } => {
                 // One slot per tick with spare capacity: unreachable
                 // in this wiring; honored honestly by presenting the
                 // refused request directly rather than dropping it.
-                return self.render_request(request);
+                return self.render_request(request, tap, repeat);
             }
             EnqueueOutcome::Stale { request, .. } => {
                 // The generation moved between tick and drain (a
                 // stop/seek landed): the request fell behind the
                 // published generation — dropped at the boundary and
-                // counted by the queue, never presented stale.
+                // counted by the queue, never presented stale (and
+                // never tapped: the webview must not see it either).
                 let _ = request;
                 return Ok(());
             }
@@ -722,7 +770,12 @@ impl VideoLimb {
             &mut self.last_presented,
             &mut self.queue,
         );
-        let delivered = match queue.drain_to(&mut LatchingPresenter { renderer, latch }) {
+        let delivered = match queue.drain_to(&mut LatchingPresenter {
+            renderer,
+            latch,
+            tap,
+            repeat,
+        }) {
             Ok(count) => count,
             Err(error) => {
                 // The delivered-before-failure count is the queue's own
@@ -736,10 +789,18 @@ impl VideoLimb {
         Ok(())
     }
 
-    fn render_request(&mut self, request: PresentRequest) -> Result<(), EngineError> {
+    fn render_request(
+        &mut self,
+        request: PresentRequest,
+        tap: Option<&Arc<dyn PresentTap>>,
+        repeat: bool,
+    ) -> Result<(), EngineError> {
         self.renderer.present(&request)?;
         self.last_presented = Some((request.generation, request.when.ticks));
         self.presented = self.presented.saturating_add(1);
+        if let Some(tap) = tap {
+            tap.tap_present(&request, repeat)?;
+        }
         Ok(())
     }
 
@@ -882,6 +943,13 @@ pub struct ConsumerState {
     /// the boundary's own semantics, like the scheduler's stale
     /// drops; never an error).
     pub audio_stale_dropped: u64,
+    /// The presented-frame tap (w31.1, lane `luf1-channel`): `None`
+    /// in the pure CLI (the inert default — the CLI binary constructs
+    /// no tap, byte-identical behavior); the desktop shell installs
+    /// its bridge→mailbox tap so the webview's frames ride the same
+    /// presents the renderer takes. Read per scheduler tick, so an
+    /// install at ANY session state takes effect on the next pump.
+    present_tap: Option<Arc<dyn PresentTap>>,
 }
 
 impl ConsumerState {
@@ -900,13 +968,19 @@ impl ConsumerState {
     /// Tick the video scheduler once (the pump's per-quantum step),
     /// then retry the window-full hold: the tick presented (or
     /// backgrounded) and the window may have room for the frames the
-    /// decode burst stashed.
+    /// decode burst stashed. The presented-frame tap (w31.1) rides
+    /// the tick — every request the renderer took is mirrored to it
+    /// (`None` in the pure CLI: nothing is mirrored).
     ///
     /// # Errors
     /// The present path's typed errors (recorded, not swallowed).
     pub fn tick_video(&mut self) -> Result<(), EngineError> {
-        if let Some(video) = self.video.as_mut() {
-            video.tick_once()?;
+        // Split borrows: the tap rides BESIDE the limb, not inside it
+        // (the limb is built lazily from the frames themselves, so a
+        // tap installed after the limb exists needs no rebuild).
+        let (video, tap) = (&mut self.video, &mut self.present_tap);
+        if let Some(video) = video.as_mut() {
+            video.tick_once(tap.as_ref())?;
         }
         self.retry_video_hold();
         Ok(())
@@ -1072,6 +1146,7 @@ impl CliFrameConsumer {
                 audio_written_at_change: 0,
                 audio_floor: GenerationId::FIRST,
                 audio_stale_dropped: 0,
+                present_tap: None,
             }),
             facts,
             clock,
@@ -1086,6 +1161,14 @@ impl CliFrameConsumer {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         }
+    }
+
+    /// Install (or replace) the presented-frame tap (w31.1). Safe at
+    /// any session state: the tap is read per scheduler tick, so a
+    /// live video limb picks it up on the next pump — the desktop
+    /// shell binds its webview frame channel mid-playback this way.
+    pub fn set_present_tap(&self, tap: Arc<dyn PresentTap>) {
+        self.lock().present_tap = Some(tap);
     }
 
     /// A present-path failure, once (surfaced by the pump).

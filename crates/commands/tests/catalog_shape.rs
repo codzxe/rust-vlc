@@ -73,8 +73,8 @@ fn schema_event_tags(schema: &Value) -> Vec<String> {
 
 /// The committed schema is valid JSON with the §5.1 document shape and
 /// the doc 05 table counts: 61 command entries (64 with the issue #32
-/// bookmark trio) + 26 event entries (23 §3.2 rows + the issue #42
-/// additive trio).
+/// bookmark trio + the w31.1 frame-channel bind = 65) + 26 event
+/// entries (23 §3.2 rows + the issue #42 additive trio).
 #[test]
 fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
     let schema = committed_schema()?;
@@ -93,12 +93,13 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         );
     }
     // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
-    // media.*-bookmark commands (64); §3.2 lists 23 events + issue #42's
+    // media.*-bookmark commands (64); w31.1 adds the shell-owned
+    // frame-channel bind (65); §3.2 lists 23 events + issue #42's
     // additive trio (26).
     assert_eq!(
         schema_command_tags(&schema).len(),
-        64,
-        "§2.1 count (+3 bookmarks, issue #32)"
+        65,
+        "§2.1 count (+3 bookmarks, issue #32; +1 frame channel, w31.1)"
     );
     assert_eq!(
         schema_event_tags(&schema).len(),
@@ -117,8 +118,8 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         .count();
     assert_eq!(
         (a, s),
-        (19, 45),
-        "§1.5 classification counts (+3 S bookmarks, issue #32)"
+        (19, 46),
+        "§1.5 classification counts (+3 S bookmarks, issue #32; +1 S frame channel, w31.1)"
     );
     // §3.2's "gen" column: exactly the 13 pipeline-scoped events.
     let scoped = event_catalog_data()
@@ -174,8 +175,8 @@ fn every_id_parses_and_follows_the_grammar() -> Result<(), Box<dyn Error>> {
     }
     assert_eq!(
         CommandId::ALL.len(),
-        64,
-        "§2.1: 61 commands + issue #32 bookmark trio"
+        65,
+        "§2.1: 61 commands + issue #32 bookmark trio + w31.1 frame-channel bind"
     );
     assert_eq!(EventId::ALL.len(), 26, "§3.2: 23 events + issue #42 trio");
     Ok(())

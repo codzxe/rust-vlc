@@ -169,14 +169,28 @@ fn forward_pending(app: &AppHandle, runtime: &mut ShellRuntime) {
 /// The session pacer ticker (card 3.B3): every [`PUMP_INTERVAL`] it
 /// locks the runtime, advances the engine one FULL pump
 /// ([`ShellRuntime::pump_once`] — poll + time advance + end-tail
-/// play-out, the CLI host's own semantics) and then emits what the
-/// drain queued. This thread IS the session thread — between invokes
-/// nothing else pumps, so playback progresses only while this loop
-/// runs. Pause-safe unconditionally (a frozen clock pulls nothing).
-/// Stops silently when the state is poisoned (the app is dying
-/// anyway).
+/// play-out) and then emits what the drain queued. This thread IS
+/// the session thread — between invokes nothing else pumps, so
+/// playback progresses only while this loop runs. Pause-safe
+/// unconditionally (a frozen clock pulls nothing).
+///
+/// w31.1: the ticker is also the frame shipper. After each pump it
+/// takes the webview's channel bind (if the UI sent a fresh
+/// `session.set-frame-channel` since the last tick) and builds the
+/// send-side [`FrameChannel`], then drains the frame tap's mailbox
+/// and ships the NEWEST record as one raw binary message (the
+/// one-frame-per-tick contract — the webview composites at the
+/// pacer's own cadence; the mailbox's latest-wins bound absorbed
+/// anything older). Both halves run OUTSIDE the runtime lock: the
+/// channel build and the send are webview-side work, never engine
+/// work. Stops silently when the state is poisoned (the app is
+/// dying anyway).
 fn spawn_event_pump(app: AppHandle) {
     std::thread::spawn(move || {
+        // The send side of the webview's frame channel — rebuilt on
+        // every bind (a webview reload invalidates the old callback
+        // id; the UI re-binds and the next tick takes the new one).
+        let mut frame_channel: Option<crate::frame_channel::FrameChannel> = None;
         loop {
             std::thread::sleep(PUMP_INTERVAL);
             let state = app.state::<ShellState>();
@@ -187,6 +201,32 @@ fn spawn_event_pump(app: AppHandle) {
             // AND records the events; forward_pending ships them.
             runtime.pump_once();
             forward_pending(&app, &mut runtime);
+            // w31.1: take the bind + the drained records under the
+            // lock, ship after releasing it (webview-side work).
+            let bind = runtime.take_frame_channel_binding();
+            let mut records = Vec::new();
+            if frame_channel.is_some() {
+                runtime.take_frame_records(&mut records);
+            }
+            drop(runtime);
+            if let Some(id) = bind {
+                match crate::frame_channel::frame_channel(&app, id) {
+                    Ok(channel) => frame_channel = Some(channel),
+                    Err(error) => {
+                        // lumen-allow-literal: diagnostic text (the bind failure notice the CI launch smokes grep), not identity wiring
+                        eprintln!("frame channel bind failed: {error}");
+                    }
+                }
+            }
+            if let Some(channel) = &frame_channel {
+                if let Some(record) = records.last() {
+                    if let Err(error) = crate::frame_channel::send_record(channel, record) {
+                        // lumen-allow-literal: diagnostic text (the ship failure notice), not identity wiring
+                        eprintln!("frame channel send failed (dropping until the next bind): {error}");
+                        frame_channel = None;
+                    }
+                }
+            }
         }
     });
 }
