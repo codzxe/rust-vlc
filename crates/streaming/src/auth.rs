@@ -609,8 +609,10 @@ impl AuthFetch {
                 let next = url.join(&location)?;
                 // Scheme-downgrade refusal (AUD-07 — the 6.H1 F1
                 // residual; the transport's wave-19 gate,
-                // `client.rs::is_scheme_downgrade`, mirrored inline
-                // the same way the mock client mirrors it): this loop
+                // `client.rs::is_scheme_downgrade`, now shared
+                // `pub(crate)` with this loop instead of mirrored
+                // inline — the mock client keeps its inline mirror
+                // as the test-double parity style): this loop
                 // follows redirects **manually**, so the main client's
                 // unconditional https→http refusal never engages here
                 // — without this gate a same-host 302 down to http
@@ -619,7 +621,7 @@ impl AuthFetch {
                 // Refused before the cross-host check and with no
                 // policy opt-in, exactly like the transport:
                 // transport safety outranks host policy.
-                if url.scheme == "https" && next.scheme == "http" {
+                if crate::client::is_scheme_downgrade(&url, &next) {
                     return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
                 }
                 let cross_host = !next.host.eq_ignore_ascii_case(&url.host);

@@ -391,9 +391,43 @@ impl HttpRequest {
     }
 
     /// Add a header (builder style).
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.headers.push((name.into(), value.into()));
-        self
+    ///
+    /// The port validates what it carries (AUD-15a): the name must be
+    /// non-empty ASCII without control bytes or `:` (a colon in a
+    /// name would smuggle a second header onto the wire), and the
+    /// value must contain no control bytes (`< 0x20` or `0x7F`) — a
+    /// CR/LF-bearing value is header-injection-shaped, and the port
+    /// contract must not rely on the transport's own validation to
+    /// contain it (the URL and `Location` paths already reject
+    /// control bytes typed; headers join them).
+    ///
+    /// # Errors
+    /// [`NetworkError::ProtocolViolation`] — a static, structured
+    /// detail, never the offending bytes (MP §12) — for an invalid
+    /// name or value. The request is returned unmodified.
+    pub fn with_header(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Result<Self, NetworkError> {
+        let name = name.into();
+        let value = value.into();
+        if name.is_empty()
+            || name
+                .bytes()
+                .any(|byte| byte < 0x20 || byte == 0x7F || byte == b':' || byte >= 0x80)
+        {
+            return Err(NetworkError::ProtocolViolation {
+                detail: "header name must be non-empty ASCII without ':' or control bytes",
+            });
+        }
+        if value.bytes().any(|byte| byte < 0x20 || byte == 0x7F) {
+            return Err(NetworkError::ProtocolViolation {
+                detail: "header value contains control bytes (header injection)",
+            });
+        }
+        self.headers.push((name, value));
+        Ok(self)
     }
 
     /// Set the byte range (builder style).
@@ -626,5 +660,71 @@ mod tests {
         assert_eq!(req.response_limit, DEFAULT_RESPONSE_LIMIT);
         assert!(req.headers.is_empty());
         assert!(req.range.is_none());
+    }
+
+    /// AUD-15a: the header builder validates what the port carries —
+    /// a CR/LF-bearing value (the header-injection shape), any other
+    /// control byte (`< 0x20`, `0x7F`), a `:`/control/non-ASCII/empty
+    /// name are typed refusals. The port contract does not rely on
+    /// the transport's own validation to contain these.
+    #[test]
+    fn with_header_rejects_control_bytes_and_bad_names_typed() {
+        let base = "http://example.com/a"; // lumen-allow-literal: URL parse/redaction test vector — data under test
+
+        // The header-injection shape: a value smuggling a second
+        // header onto the wire.
+        let err = HttpRequest::get(base).with_header("X-Evil", "value\r\nHost: evil.example");
+        assert!(
+            matches!(err, Err(NetworkError::ProtocolViolation { .. })),
+            "CR/LF in a value must be a typed refusal"
+        );
+        match HttpRequest::get(base).with_header("X-Evil", "v\r\nx") {
+            Err(err) => assert_eq!(err.code(), "streaming.net.protocol-violation"),
+            Ok(_) => unreachable!("CR/LF in a value must be a typed refusal"),
+        }
+
+        // Every other control byte in a value, both boundaries.
+        for bad_value in ["x\u{0}y", "x\u{7f}y", "tab\there", "line\nfeed"] {
+            assert!(
+                matches!(
+                    HttpRequest::get(base).with_header("X-Test", bad_value),
+                    Err(NetworkError::ProtocolViolation { .. })
+                ),
+                "{bad_value:?} in a value must be a typed refusal"
+            );
+        }
+
+        // Names: ':' would smuggle a second header, control bytes are
+        // injection-shaped, non-ASCII is outside the field-name
+        // grammar, and the empty name is not a field at all.
+        for bad_name in ["X-Evil: injected", "X-Evil\r\nX-Other", "X-Évil", ""] {
+            assert!(
+                matches!(
+                    HttpRequest::get(base).with_header(bad_name, "value"),
+                    Err(NetworkError::ProtocolViolation { .. })
+                ),
+                "{bad_name:?} as a name must be a typed refusal"
+            );
+        }
+
+        // The legitimate shapes still build: an ordinary header, a
+        // value with spaces (the remote-playlist Accept shape), and a
+        // non-ASCII value (values carry octets; only names are
+        // ASCII-only).
+        let request = HttpRequest::get(base)
+            .with_header("Accept", "audio/x-mpegurl, application/xspf+xml, */*")
+            .must()
+            .with_header("X-Note", "Ünïcode")
+            .must();
+        assert_eq!(
+            request.headers,
+            vec![
+                (
+                    "Accept".to_string(),
+                    "audio/x-mpegurl, application/xspf+xml, */*".to_string()
+                ),
+                ("X-Note".to_string(), "Ünïcode".to_string())
+            ]
+        );
     }
 }

@@ -17,7 +17,12 @@
 //! and revisit-checked) so the base for relative resolution is the URL
 //! the body actually came from — a playlist served after
 //! `/old/list.m3u → /new/list.m3u` resolves its entries against
-//! `/new/`, matching browser/VLC semantics.
+//! `/new/`, matching browser/VLC semantics. A scheme downgrade (an
+//! `https` playlist redirected down to `http`) is refused with the
+//! transport's own typed error
+//! ([`NetworkError::CrossSchemeRedirect`](crate::error::NetworkError),
+//! AUD-14): manual following is not a bypass around the main client's
+//! unconditional refusal.
 //!
 //! # Scope notes
 //!
@@ -122,7 +127,7 @@ pub fn open_remote_playlist(
     let response = loop {
         let request = HttpRequest::get(url.to_string())
             .with_redirect_mode(RedirectMode::Manual)
-            .with_header("Accept", "audio/x-mpegurl, application/xspf+xml, */*");
+            .with_header("Accept", "audio/x-mpegurl, application/xspf+xml, */*")?;
         let response = fetch.fetch(request)?;
         if matches!(response.status, 301 | 302 | 303 | 307 | 308)
             && let Some(location) = response.header("location")
@@ -134,6 +139,17 @@ pub fn open_remote_playlist(
                 });
             }
             let next = url.join(location)?;
+            // Scheme-downgrade refusal (AUD-14; the transport's
+            // wave-19 gate, `client.rs::is_scheme_downgrade`): this
+            // loop follows redirects manually, so the main client's
+            // unconditional https→http refusal never engages — a
+            // playlist origin downgrading to http is a mixed-content
+            // transport downgrade and is refused with the same typed
+            // error, no policy opt-in (no credentials are involved
+            // here; the gate is transport safety only).
+            if crate::client::is_scheme_downgrade(&url, &next) {
+                return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
+            }
             let canonical = next.to_string();
             if visited.contains(&canonical) {
                 return Err(NetworkError::RedirectLoop {
@@ -372,6 +388,86 @@ mod tests {
             .err()
             .must();
         assert!(matches!(error, NetworkError::RedirectLoop { .. }));
+    }
+
+    /// AUD-14: an https playlist redirected down to http is the
+    /// transport's typed refusal — manual following is not a bypass
+    /// around the main client's unconditional downgrade gate. (The
+    /// mock testkit speaks plaintext regardless of the URL scheme, so
+    /// an https-labeled origin can express the downgrade `Location`
+    /// over the wire — the same pinning strategy client.rs uses.)
+    #[test]
+    fn scheme_downgrade_playlist_redirect_is_refused_typed() {
+        let target = MockServer::spawn(MockConfig::body(b"#EXTM3U\n".to_vec())).must();
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some(target.url("/downgraded.m3u"));
+        let origin = MockServer::spawn(origin).must();
+        let https_start = origin.url("/pl.m3u").replacen("http://", "https://", 1); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+
+        let error = open_remote_playlist(&origin.client(), &https_start)
+            .err()
+            .must();
+        assert!(
+            matches!(error, NetworkError::CrossSchemeRedirect { hops: 1 }),
+            "the downgrade must be the transport's typed refusal, got {error}"
+        );
+        assert_eq!(error.code(), "streaming.net.cross-scheme-redirect");
+        assert_eq!(origin.requests().len(), 1, "the https origin answered once");
+        assert!(
+            target.requests().is_empty(),
+            "the downgraded http target must never be contacted"
+        );
+    }
+
+    /// AUD-14 (the gate's negative space): only the downgrade is
+    /// refused — an https→https playlist redirect is followed, and the
+    /// final https URL is the resolution base for entries.
+    #[test]
+    fn https_playlist_redirect_to_https_target_follows() {
+        let target = MockServer::spawn(MockConfig::body(b"#EXTM3U\nseg.mp3\n".to_vec())).must();
+        let https_target = target.url("/final.m3u").replacen("http://", "https://", 1); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some(https_target.clone());
+        let origin = MockServer::spawn(origin).must();
+        let https_start = origin.url("/pl.m3u").replacen("http://", "https://", 1); // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+
+        let playlist = open_remote_playlist(&origin.client(), &https_start).must();
+        assert_eq!(
+            playlist.source_url, https_target,
+            "the final https URL is the base"
+        );
+        assert_eq!(playlist.len(), 1);
+        assert_eq!(
+            playlist.entries[0].location,
+            target.url("/seg.mp3").replacen("http://", "https://", 1), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            "entries resolve against the final https URL"
+        );
+    }
+
+    /// AUD-14's local-file face: a redirect `Location` targeting a
+    /// `file:` URI (or any non-http(s) scheme) inside a remote
+    /// playlist's fetch is already a typed refusal — `Url::join`
+    /// resolves only http/https absolute or root-relative references,
+    /// so a remote origin can never pivot the playlist fetch onto the
+    /// local filesystem. (Entry-level `file:` references *inside the
+    /// body* are a different, deliberate posture: the security
+    /// review's F3 records VLC-parity passthrough with an opt-in
+    /// origin policy as the fix sketch — a default refusal would
+    /// break legitimate mixed playlists.)
+    #[test]
+    fn file_scheme_redirect_target_is_refused_typed() {
+        let mut origin = MockConfig::body(Vec::new());
+        origin.absolute_redirect = Some("file:///etc/passwd".to_string());
+        let origin = MockServer::spawn(origin).must();
+
+        let error = open_remote_playlist(&origin.client(), &origin.url("/pl.m3u"))
+            .err()
+            .must();
+        assert!(
+            matches!(error, NetworkError::ProtocolViolation { .. }),
+            "a file: redirect target must be a typed refusal, got {error}"
+        );
+        assert_eq!(origin.requests().len(), 1, "the origin answered once");
     }
 
     /// A missing playlist is the typed HTTP status; a body that is

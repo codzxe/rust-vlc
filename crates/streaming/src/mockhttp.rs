@@ -1460,8 +1460,16 @@ mod tests {
     #[test]
     fn header_injection_is_rejected_typed() {
         let server = spawn(MockConfig::body(body_1000()));
-        let request =
-            HttpRequest::get(server.url("x")).with_header("X-Evil", "value\r\nHost: evil.example");
+        // The port's `with_header` builder now refuses this value at
+        // construction (AUD-15a, pinned in fetch.rs); this test keeps
+        // pinning the *transport's own* defense in depth — a request
+        // whose headers arrive dirty by any other path (direct field
+        // assembly, a wrapper) is still refused before the socket.
+        let mut request = HttpRequest::get(server.url("x"));
+        request.headers.push((
+            "X-Evil".to_string(),
+            "value\r\nHost: evil.example".to_string(),
+        ));
         let err = match fetcher().fetch(request) {
             Err(e) => e,
             Ok(response) => unreachable!("injection must be typed, got {}", response.status),

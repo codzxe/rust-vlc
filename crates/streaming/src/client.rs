@@ -215,7 +215,15 @@ fn is_redirect(status: u16) -> bool {
 /// caller has a legitimate reason to weaken its own transport).
 /// The reverse direction (http→https) is an upgrade and always
 /// followable.
-fn is_scheme_downgrade(url: &Url, next: &Url) -> bool {
+///
+/// `pub(crate)` because the two **manual** redirect loops outside
+/// this adapter — the auth wrapper's challenge-aware follower
+/// (`auth.rs::AuthFetch::follow`, AUD-07) and the remote-playlist
+/// opener (`remote_playlist.rs`, AUD-14) — resolve `Location`
+/// themselves and must refuse the exact same downgrade shape with
+/// the exact same typed error; they reuse this one gate instead of
+/// each re-deriving it.
+pub(crate) fn is_scheme_downgrade(url: &Url, next: &Url) -> bool {
     url.scheme == "https" && next.scheme == "http"
 }
 
@@ -824,7 +832,8 @@ mod tests {
         config.redirects = 1;
         let server = spawn(config);
         let request = HttpRequest::get(server.url("/start"))
-            .with_header("Authorization", "Bearer secret-token");
+            .with_header("Authorization", "Bearer secret-token")
+            .must();
         let response = UreqClient::new().fetch(request).must();
         assert_eq!(response.status, 200);
         let logged = server.requests();
