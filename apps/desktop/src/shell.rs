@@ -7,6 +7,16 @@
 //!   [`lumen_dispatch`](crate::dispatch::lumen_dispatch), observe the
 //!   response (§4.2/§4.3 bookkeeping), then drain every new engine
 //!   event through the staleness filter into the bounded egress queue.
+//! - [`ShellRuntime::pump_once`] + [`PACER_TICK`] — the session pacer
+//!   (card 3.B3): one FULL engine pump in the CLI host's own
+//!   semantics (poll + time advance + end-tail play-out) followed by
+//!   the event drain. The engine is synchronous single-writer — it
+//!   advances ONLY when a host pumps it — and between invokes
+//!   nothing pumps, so a wall-clock thread calling `pump_once` every
+//!   [`PACER_TICK`] (one render quantum, ≈30.6 ms) is what makes GUI
+//!   playback progress at all: time-ticks flow, the position
+//!   advances, EOS arrives (without it the shell could open/pause/
+//!   seek but everything froze at 0 between interactions).
 //! - [`ShellRuntime::open_path`] / [`on_files_dropped`] /
 //!   [`pick_and_open`] — the file-open acquisitions (dialog,
 //!   drag-drop, direct path) funneling through the SAME command —
@@ -24,6 +34,7 @@
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use commands::envelope::RequestId;
 use commands::{WireEvent, WireRequest, WireResponse};
@@ -52,6 +63,22 @@ pub const DEFAULT_EVENT_CAPACITY: NonZeroUsize = {
         None => loop {},
     }
 };
+
+/// The pacer cadence (card 3.B3): one null-device render quantum —
+/// [`lumen_cli::pipeline_host::RENDER_QUANTUM`] frames at the 48 kHz
+/// nominal rate = 30 625 µs. This is the same constant the CLI host
+/// renders per `advance` tick (the quantum the sample-counter media
+/// clock advances by), so a wall-clock thread calling
+/// [`ShellRuntime::pump_once`] on this cadence slices wall time into
+/// engine ticks at the device's own period — the null-device
+/// stand-in for the real audio callback's clock (ADR-005's real
+/// backends will own this cadence from the device side). A session
+/// at a different rate (44.1 kHz renders 33.33 ms quanta) stays
+/// correct at this cadence: the pump renders whatever the ring
+/// holds, and the cadence only sets how coarsely wall time is cut,
+/// never a second clock.
+pub const PACER_TICK: Duration =
+    Duration::from_micros((lumen_cli::pipeline_host::RENDER_QUANTUM as u64) * 1_000_000 / 48_000);
 
 /// What one dialog attempt concluded.
 #[derive(Debug, Clone)]
@@ -126,6 +153,26 @@ impl ShellRuntime {
         let events = &mut self.events;
         let mut deliver = DeliverThrough { host, events };
         let _ = self.shell.forward_new_events(&mut deliver);
+    }
+
+    /// One pacer tick (card 3.B3): a FULL engine pump in the CLI
+    /// host's own [`lumen_cli::host::CliHost::pump`] semantics —
+    /// `engine.poll()` (the single writer's whole scheduler), the
+    /// output drain, the null-device time advance (each rendered
+    /// quantum moves the sample counter, the media clock's truth; a
+    /// frozen/paused clock pulls nothing, so this is pause-safe
+    /// unconditionally), and the end-tail play-out — then the §4.2
+    /// event drain into the bounded egress queue. Delegated, not
+    /// duplicated: every engine rule lives in the adopted host
+    /// (ARCH-5); this is only the cadence seam the wrapper's ticker
+    /// drives every [`PACER_TICK`]. Between invokes nothing else
+    /// advances the engine, so without this cadence the GUI's playback
+    /// freezes between interactions. Safe in every state (idle,
+    /// paused, ended): the pump's halves no-op when there is nothing
+    /// to advance.
+    pub fn pump_once(&mut self) {
+        self.shell.engine_host().pump();
+        self.pump_events();
     }
 
     /// The events awaiting webview emission, in engine order (each
@@ -226,8 +273,19 @@ mod tests {
     use commands::Command;
     use commands::CommandOutcome;
     use commands::ErrorCode;
+    use commands::EventKind;
+    use commands::PlaybackState;
     use std::path::PathBuf;
+    use std::time::Duration;
+    use std::time::Instant;
     use testkit::Must;
+
+    /// The proof loop's pump bound: 2× the CLI host's own run-to-end
+    /// bound (`RUN_PUMPS` = 512 full pumps); the measured run for
+    /// THIS fixture is ~170 full pumps (demux-paced — the AVI lane
+    /// yields roughly one packet per poll, half of them video), so
+    /// the bound is pure headroom, not new arithmetic.
+    const PROOF_PUMP_BOUND: usize = 1024;
 
     /// A scripted dialog — the test half of the acquisition seam.
     struct ScriptedDialog {
@@ -394,6 +452,110 @@ mod tests {
             Ok(_) => unreachable!("playlist.load is not served by this engine build"),
         }
         assert_eq!(runtime.engine_host().session_id(), None);
+    }
+
+    /// THE card 3.B3 proof — the GUI plays (the wave's key
+    /// regression): a real fixture opened through the GUI's own
+    /// funnel (`open_path` → the single `lumen_dispatch`), playback
+    /// started through the same single command (the play button's
+    /// exact path), then ONLY `pump_once` ticks — the pacer thread's
+    /// exact body — drive the session to its end. No `settle`, no
+    /// host verb, no sleeps: deterministic (every observable is a
+    /// pure function of the pump count), bounded by iteration count
+    /// and a wall-clock deadline (the deadline is the hang guard,
+    /// never a pacing input). Before the pacer this was the
+    /// frozen-GUI failure: between invokes nothing pumped, so the
+    /// position never advanced, time-ticks never flowed, and EOS
+    /// never arrived.
+    #[test]
+    fn pacer_proof_pump_once_drives_a_real_session_to_end() {
+        // The same 2.000 s fixture the CLI's conformance lane runs to
+        // its end with the `advance` verb (both limbs decodable — the
+        // proof covers the whole pipeline, not one lane).
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/generated/valid/avi_mjpeg_pcm.avi"
+        );
+        let mut runtime = ShellRuntime::default();
+        let open = match runtime.open_path(&PathBuf::from(fixture)) {
+            Some(response) => response,
+            None => unreachable!("a media file must classify"),
+        };
+        match open.result {
+            Ok(CommandOutcome::Accepted { .. }) => {}
+            other => unreachable!("a real media file must open: {other:?}"),
+        }
+        // Start playback through the same dispatch path (C8-safe from
+        // every live state: the open may still be settling).
+        let play_id = runtime.next_request_id();
+        let play = runtime.dispatch(&request(play_id, Command::PlaybackPlay));
+        match play.result {
+            Ok(CommandOutcome::Accepted { .. }) => {}
+            other => unreachable!("play must be accepted: {other:?}"),
+        }
+        // The pacer loop — the ticker's exact body, driven to the
+        // terminal state. The first take also drains the open's own
+        // event burst (the queue the dispatch path filled).
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let mut saw_playing = false;
+        let mut time_ticks = 0usize;
+        let mut saw_end_of_media = false;
+        let mut ended = false;
+        let mut pumps = 0usize;
+        while pumps < PROOF_PUMP_BOUND {
+            pumps += 1;
+            runtime.pump_once();
+            for event in runtime.take_pending_events() {
+                match event.kind {
+                    EventKind::SessionStateChanged { to, .. } => match to {
+                        PlaybackState::Playing => saw_playing = true,
+                        PlaybackState::Ended => ended = true,
+                        _ => {}
+                    },
+                    EventKind::TimingTimeTick { .. } => time_ticks += 1,
+                    EventKind::PlaybackEndOfMedia => saw_end_of_media = true,
+                    _ => {}
+                }
+            }
+            if ended {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the pacer loop must not hang: a bound breach is a failure, never a mystery"
+            );
+        }
+        assert!(saw_playing, "the pacer must reach Playing ({pumps} pumps)");
+        assert!(
+            time_ticks > 0,
+            "the pacer must flow time-ticks ({pumps} pumps)"
+        );
+        assert!(
+            saw_end_of_media,
+            "EOS must arrive through the pacer ({pumps} pumps)"
+        );
+        assert!(
+            ended,
+            "the pacer must reach Ended within {PROOF_PUMP_BOUND} pumps \
+             ({pumps} pumped, {time_ticks} time-ticks)"
+        );
+        // The egress accounting conserves end to end.
+        assert!(runtime.event_stats().conserves());
+    }
+
+    /// The pacer cadence is derived, not invented: one render quantum
+    /// of the null device — the CLI host's own `RENDER_QUANTUM`
+    /// (1470 frames) at the 48 kHz nominal rate. Pinned so a change
+    /// on either side is a visible diff here, not a silent rate drift.
+    #[test]
+    fn pacer_tick_is_one_render_quantum() {
+        assert_eq!(PACER_TICK, Duration::from_micros(30_625));
+        assert_eq!(
+            PACER_TICK,
+            Duration::from_micros(
+                (lumen_cli::pipeline_host::RENDER_QUANTUM as u64) * 1_000_000 / 48_000
+            )
+        );
     }
 
     /// Non-openable paths are honest no-ops (never a session error the

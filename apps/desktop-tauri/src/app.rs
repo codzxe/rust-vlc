@@ -35,13 +35,21 @@
 //! (event-to-event, by `seq`) is total under the lock, which is the
 //! guarantee the UI's correlation machinery consumes (§1.3).
 //!
-//! # The event pump
+//! # The session pacer (card 3.B3) — the event pump that DRIVES
 //!
-//! Engine-originated events (progress, timing, playlist changes) arrive
-//! between commands; a 40 ms ticker thread (`spawn_event_pump`) drains
-//! them to the webview without waiting for the next invoke. Both the
-//! command path and the pump call [`forward_pending`] under the same
-//! lock, so there is exactly one ordered egress.
+//! The engine is synchronous single-writer: it advances ONLY when a
+//! host pumps it (`Engine::poll` + the null-device time advance —
+//! the CLI host's own `pump` semantics), and between two invokes
+//! NOTHING pumps. The shell's ticker thread (`spawn_event_pump`)
+//! therefore IS the session thread: every [`PUMP_INTERVAL`] tick it
+//! locks the runtime, runs one [`ShellRuntime::pump_once`] (a FULL
+//! engine pump + the event drain), then emits whatever the drain
+//! queued — so media time advances, time-ticks flow, and EOS arrives
+//! without waiting for the next invoke. Without it the GUI could
+//! open/pause/seek but playback froze between interactions (the
+//! card-3.B3 gap). Both the command path and the pacer call
+//! [`forward_pending`] under the same lock, so there is exactly one
+//! ordered egress (§4.3 guarantee 2 rides the lock, not the timer).
 //!
 //! # File-open seams (doc 05 §2.7 shell-routed surface)
 //!
@@ -79,7 +87,7 @@ use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
 use commands::WireRequest;
 use commands::WireResponse;
 use desktop::files::PathDragDrop;
-use desktop::shell::{DEFAULT_EVENT_CAPACITY, ShellRuntime};
+use desktop::shell::{DEFAULT_EVENT_CAPACITY, PACER_TICK, ShellRuntime};
 use desktop::window_config::parse_window_table;
 
 /// The engine → webview event channel (doc 05 §5.1: the shell forwards
@@ -88,10 +96,15 @@ use desktop::window_config::parse_window_table;
 // lumen-allow-literal: transport contract string — the shell↔UI IPC channel name both sides must carry literally (doc 05 §5.1, mirrored in ui/src/client/tauri-transport.ts); a wire-protocol constant, not a config value — renaming it is a coordinated two-sided change.
 pub const EVENT_CHANNEL: &str = "lumen://event";
 
-/// The pump cadence: fast enough for 30 fps progress ticks, slow enough
-/// to batch; both halves share one lock so cadence is not an ordering
-/// input (§4.3 guarantee 2 rides the lock, not the timer).
-const PUMP_INTERVAL: Duration = Duration::from_millis(40);
+/// The pacer cadence: one null-device render quantum
+/// ([`PACER_TICK`] — `RENDER_QUANTUM` = 1470 frames ≈ 30.6 ms at the
+/// 48 kHz nominal, derived from the CLI host's own constant, not a
+/// second clock), so the ticker advances the engine at the quantum
+/// the null device renders per pump. Fast enough for 30 fps progress
+/// ticks, slow enough to batch; both halves share one lock so cadence
+/// is not an ordering input (§4.3 guarantee 2 rides the lock, not the
+/// timer).
+const PUMP_INTERVAL: Duration = PACER_TICK;
 
 /// The managed state: one [`ShellRuntime`] behind one lock — THE
 /// serialization point of the whole shell (commands + pump + drops).
@@ -153,8 +166,15 @@ fn forward_pending(app: &AppHandle, runtime: &mut ShellRuntime) {
     }
 }
 
-/// 40 ms ticker: keeps engine-originated events flowing between invokes.
-/// Stops silently when the state is poisoned (the app is dying anyway).
+/// The session pacer ticker (card 3.B3): every [`PUMP_INTERVAL`] it
+/// locks the runtime, advances the engine one FULL pump
+/// ([`ShellRuntime::pump_once`] — poll + time advance + end-tail
+/// play-out, the CLI host's own semantics) and then emits what the
+/// drain queued. This thread IS the session thread — between invokes
+/// nothing else pumps, so playback progresses only while this loop
+/// runs. Pause-safe unconditionally (a frozen clock pulls nothing).
+/// Stops silently when the state is poisoned (the app is dying
+/// anyway).
 fn spawn_event_pump(app: AppHandle) {
     std::thread::spawn(move || {
         loop {
@@ -163,6 +183,9 @@ fn spawn_event_pump(app: AppHandle) {
             let Ok(mut runtime) = state.0.lock() else {
                 return;
             };
+            // Drive first, then drain: the pump advances the engine
+            // AND records the events; forward_pending ships them.
+            runtime.pump_once();
             forward_pending(&app, &mut runtime);
         }
     });
