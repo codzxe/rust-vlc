@@ -306,6 +306,16 @@ assert keypath is not None and keypath.get("KeyPath") == "yes", (
     "the shortcut component's KeyPath must be its registry value")
 assert keypath.get("Root") == "HKLM", (
     "per-machine install: the shortcut keypath registry value is HKLM")
+# TWIN-PARITY PIN (the w28.1 hotfix): the Key must be the interpolated
+# Software\<publisher>\<name> -- identical to gen-wxs.sh's row for the
+# same component GUID. Divergent keys across the twins = component-rule
+# violation on upgrade = exit 1603 (release run 43729218652). Hostile
+# fixtures: manufacturer P&Q, name A&B "C" <D>.
+assert keypath.get("Key") == (
+    "Software\\P&Q\\A&B \"C\" <D>"
+), (
+    f"shortcut keypath registry Key must be Software\\<publisher>\\<name> "
+    f"(twin parity with gen-wxs.sh), got {keypath.get('Key')!r}")
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,

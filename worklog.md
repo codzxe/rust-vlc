@@ -2058,3 +2058,18 @@ Work Log:
 
 Stage Summary:
 - The Windows exe is now a normal app: double-click → GUI only (no terminal), frameless window with a real custom title bar (drag, double-click maximize, real −/□/× controls), MSI installs a Start-Menu shortcut, min-size can't break the layout. Release v0.1.1 stamped; the stale subcrate lockfile that would have failed the release lane is fixed. Remaining [VERIFY at first run]: the Windows/macOS launch lanes + the human per-OS ADR-004 verdict rows (frameless drag + caption buttons behave on real hardware).
+
+---
+Task ID: w28.1.msi-twin-parity-hotfix
+Agent: Lead-directed implementation session (continuation of w28.normal-app)
+Task: Fix the v0.1.1 release-lane failure: MSI upgrade test exit 1603 (run 43729218652, windows job).
+
+Work Log:
+- Root cause: gen-wxs.sh's heredoc RegistryValue Key line carried `\$` (heredoc-escaped dollar → literal `${esc_manufacturer}${esc_name}` text, no backslashes), while the .ps1 twin interpolated correctly (`Software\<publisher>\<name>`). Same AppMenuShortcut component GUID (44134d88-…) with two DIFFERENT keypath registry keys across the predecessor (build-msi.ps1 build) and current (gen-wxs.sh build) MSIs = Windows Installer component-rule violation = upgrade install exits 1603 in <2s (fresh install unaffected — matches the evidence; step 2 passed, step 3 failed).
+- Fix: `\\${esc_manufacturer}\\${esc_name}` in the heredoc (literal backslash + expansion — the exact form verified in isolation).
+- Regression pins, BOTH twins: the self-tests now assert the AppMenuShortcut RegistryValue Key equals the interpolated hostile-fixture value (Software\P&Q\A&B "C" <D>) — twin divergence on this row can never pass a self-test again.
+- Offline parity proof (scripts/twin_parity.py, hostile + realistic cases): simulated the .ps1 here-string interpolation and diffed against the real gen-wxs.sh output, comments stripped — SEMANTICALLY IDENTICAL (every element + attribute, both cases).
+- gen-wxs.sh --self-test PASS; ps1-sanity PASS.
+
+Stage Summary:
+- The twins generate identical installer XML again; the upgrade path's 1603 root cause is removed. v0.1.1 re-tagged on the fix commit (the failed run published nothing, so the tag moves cleanly).

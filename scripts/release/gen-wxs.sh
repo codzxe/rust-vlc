@@ -212,7 +212,7 @@ ${docs_xml}        </Component>
           <Shortcut Id="AppShortcut" Name="${esc_name}" Description="${esc_description}"
                     Target="[INSTALLDIR]${BIN_TAURI}.exe" WorkingDirectory="INSTALLDIR" />
           <RemoveFolder On="uninstall" />
-          <RegistryValue Root="HKLM" Key="Software\${esc_manufacturer}\${esc_name}"
+          <RegistryValue Root="HKLM" Key="Software\\${esc_manufacturer}\\${esc_name}"
                          Name="appmenu-shortcut" Type="integer" Value="1" KeyPath="yes" />
         </Component>
       </Directory>
@@ -332,6 +332,20 @@ assert keypath is not None and keypath.get("KeyPath") == "yes", (
     "the shortcut component's KeyPath must be its registry value")
 assert keypath.get("Root") == "HKLM", (
     "per-machine install: the shortcut keypath registry value is HKLM")
+# TWIN-PARITY PIN (the w28.1 hotfix): the registry Key must interpolate
+# the identity values (Software\<publisher>\<name>) — a literal
+# "${esc_manufacturer}" here means the heredoc swallowed the backslash
+# (`\$` → literal $), the .sh twin then diverges from the .ps1 twin's
+# Key, and the SAME component GUID carries two different keypaths
+# across products = component-rule violation = upgrade exit 1603
+# (release run 43729218652, windows job). XML-escaped hostile values:
+# manufacturer P&Q, name A&B "C" <D>.
+assert keypath.get("Key") == (
+    "Software\\P&Q\\A&B \"C\" <D>"
+), (
+    f"shortcut keypath registry Key must be the INTERPOLATED "
+    f"Software\\<publisher>\\<name> (twin parity with build-msi.ps1), "
+    f"got {keypath.get('Key')!r}")
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,
