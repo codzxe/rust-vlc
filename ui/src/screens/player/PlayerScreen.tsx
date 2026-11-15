@@ -91,6 +91,10 @@ import { IconButton } from "../../components/button/IconButton";
 import { MenuPopup } from "../../components/menu/MenuPopup";
 import { identityResolveLabel } from "../../components/menu/types";
 import type { MenuEntry } from "../../components/menu";
+// w31.4 (lane `ui-canvas`): the media surface moved to its own owned
+// file — the <video> half verbatim, plus the shell-mode frame-canvas
+// consumer of w31.1's LUF1 channel (see components/player/MediaSurface.tsx).
+import { MediaSurface } from "../../components/player/MediaSurface";
 import { HOTKEY_BINDINGS } from "../settings/areas/hotkeys/generated/bindings";
 import { MediaInfoPanel, MediaInfoProvider } from "../media-info";
 import { PlaylistPanel, PlaylistProvider, usePlaylist } from "../playlist";
@@ -1481,51 +1485,6 @@ function PlaylistsDock({
         <NewPlaylistDialog open onClose={() => setCreateOpen(false)} />
       ) : null}
     </aside>
-  );
-}
-
-/** The canvas's real media surface (w26.i02, h03 #2) — the UI half of the
- * 4.H1 render seam. A <video> element mounted while a session is up:
- * url sources render REAL bytes through the browser's media stack; every
- * other source (no addressable bytes yet — the engine is unwired) mounts
- * with no src: an honest empty dark surface over the near-black canvas,
- * never a fabricated poster or synthetic frames. The element FOLLOWS the
- * session state (playing → play(), anything else → pause()); its own
- * events never drive state — the engine truth (bridge view / controls
- * context) is the only playback authority. */
-function MediaSurface({ source, playing }: { source: SourceSpec | null; playing: boolean }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const src = source !== null && source.kind === "url" ? source.url : null;
-  useEffect(() => {
-    const el = videoRef.current;
-    if (el === null) return;
-    if (playing) {
-      // Real browsers return a promise; test DOMs may return undefined —
-      // Promise.resolve normalizes both. Autoplay policy or an unloadable
-      // stream stays quiet: the engine state is the only truth, never the
-      // element's own.
-      void Promise.resolve(el.play()).catch(() => {});
-    } else if (src !== null) {
-      // Only a surface with real bytes needs holding; a src-less element
-      // has nothing to pause (and no browser media stack to invoke).
-      el.pause();
-    }
-  }, [playing, src]);
-  return (
-    <video
-      ref={videoRef}
-      className="lumen-player__media"
-      data-media-surface="video"
-      data-media-bytes={src === null ? "none" : "url"}
-      src={src ?? undefined}
-      /* Presentation only: the transport lives in ControlBar, the label on
-       * the canvas region — a second accessible name here would
-       * double-announce (doc 08 §4.5). */
-      aria-hidden="true"
-      /* No controls, no poster, no autoplay attribute — the effect follows
-       * the session state; nothing pretends before the engine says so. */
-      playsInline
-    />
   );
 }
 
