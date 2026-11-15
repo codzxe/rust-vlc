@@ -5,14 +5,16 @@
 # Bundle layout (Apple's documented macOS bundle structure):
 #   <Name>.app/
 #     Contents/Info.plist          (generated; fields from product.toml)
-#     Contents/MacOS/<desktop bin> (the lumen-desktop binary; the
-#                                  CFBundleExecutable — the only exe
-#                                  Launch Services launches directly)
-#     Contents/MacOS/<tauri bin>   (the lumen-tauri binary — an
-#                                  AUXILIARY executable: a bundle may
-#                                  carry several executables in
-#                                  MacOS/, launched explicitly, not
-#                                  by double-clicking the bundle)
+#     Contents/MacOS/<tauri bin>   (the lumen-tauri binary — the
+#                                  CFBundleExecutable: the ONLY exe,
+#                                  and the one Launch Services
+#                                  launches on double-click; w30.8
+#                                  re-pointed it from the exit-86
+#                                  lumen-desktop stub, which v0.1.2
+#                                  users double-clicked into "loading,
+#                                  then nothing" — the stub is a
+#                                  CI-only diagnostic and no longer a
+#                                  bundle member)
 #     Contents/Resources/LICENSE
 #     Contents/Resources/README.md
 #
@@ -28,7 +30,8 @@
 #   CFBundleIdentifier        <- identity.ids.macos.bundle_id
 #   CFBundleShortVersionString<- identity.display_version
 #   CFBundleVersion           <- identity.version_code (monotonic integer)
-#   CFBundleExecutable        <- the desktop package's [[bin]] name
+#   CFBundleExecutable        <- the tauri package's [[bin]] name
+#                              (BIN_TAURI — the real GUI shell, w30.8)
 #
 # HONEST LIMIT (issue #56, docs/RELEASE.md): the bundle is NOT code
 # signed and NOT notarized — no Apple Developer account exists for this
@@ -49,9 +52,8 @@ set -eu
 : "${PRODUCT_VERSION:?make-app.sh: PRODUCT_VERSION not set}"
 : "${PRODUCT_VERSION_CODE:?make-app.sh: PRODUCT_VERSION_CODE not set}"
 : "${PRODUCT_BUNDLE_ID:?make-app.sh: PRODUCT_BUNDLE_ID not set}"
-: "${BIN_DESKTOP:?make-app.sh: BIN_DESKTOP not set}"
-# Third shipped binary — REQUIRED like BIN_DESKTOP (a bundle without
-# it would silently ship a partial payload).
+# The GUI shell — REQUIRED (a bundle without it would silently ship
+# no executable at all).
 : "${BIN_TAURI:?make-app.sh: BIN_TAURI not set}"
 TARGET_DIR=${TARGET_DIR:-target}
 DIST_DIR=${DIST_DIR:-dist}
@@ -62,8 +64,6 @@ cd "$ROOT"
 
 die() { echo "make-app.sh: error: $*" >&2; exit 2; }
 
-bin="$TARGET_DIR/release/$BIN_DESKTOP"
-[ -f "$bin" ] || die "missing desktop binary: $bin (build first: cargo build --release --locked)"
 tauri_bin="$TARGET_DIR/release/$BIN_TAURI"
 [ -f "$tauri_bin" ] || die "missing tauri binary: $tauri_bin (build first: cargo build --release --locked)"
 [ -f LICENSE ] && [ -f README.md ] || die "LICENSE/README.md not found in repo root"
@@ -71,7 +71,9 @@ tauri_bin="$TARGET_DIR/release/$BIN_TAURI"
 app_root="$APP_DIR/${PRODUCT_NAME}.app"
 mkdir -p "$app_root/Contents/MacOS" "$app_root/Contents/Resources"
 
-install -m 0755 "$bin" "$app_root/Contents/MacOS/$BIN_DESKTOP"
+# The bundle's ONE executable: the real GUI shell (w30.8 — the
+# exit-86 lumen-desktop stub used to be staged here as the
+# CFBundleExecutable, so double-clicking the .app launched the stub).
 install -m 0755 "$tauri_bin" "$app_root/Contents/MacOS/$BIN_TAURI"
 cp LICENSE README.md "$app_root/Contents/Resources/"
 
@@ -102,7 +104,7 @@ cat >"$app_root/Contents/Info.plist" <<EOF
     <key>CFBundleShortVersionString</key>
     <string>${PRODUCT_VERSION}</string>
     <key>CFBundleExecutable</key>
-    <string>${BIN_DESKTOP}</string>
+    <string>${BIN_TAURI}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -117,4 +119,4 @@ cat >"$app_root/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-echo "make-app.sh: wrote $app_root (bundle id=${esc_bundle_id} version=${PRODUCT_VERSION} build=${PRODUCT_VERSION_CODE}; MacOS/: ${BIN_DESKTOP} + ${BIN_TAURI})"
+echo "make-app.sh: wrote $app_root (bundle id=${esc_bundle_id} version=${PRODUCT_VERSION} build=${PRODUCT_VERSION_CODE}; MacOS/: ${BIN_TAURI} — the CFBundleExecutable, the bundle's only exe)"

@@ -4,18 +4,24 @@
 #
 # WHAT SHIPS TODAY: the `lumen` CLI (package lumen-cli, apps/cli — the
 # real engine surface: demux/decode/playback through the ONE command
-# layer), `lumen-desktop` (package desktop, apps/desktop — the std-only
-# ADR-004 composition-root skeleton) and, since W26-M, `lumen-tauri`
-# (package lumen-desktop-tauri, apps/desktop-tauri — the ADR-004
-# webview shell: a workspace-EXCLUDED crate with its own Cargo.lock,
-# built on every lane below; INFRA-BLOCKED.md §B.1/§C).
-# Payload honesty (W24-R1 P2-4): tar.gz/zip/deb/rpm/msi package the
-# binaries + the [shipped] docs list; the AppImage and the macOS
-# .app/.dmg/app-zip are GUI-shell payloads (no CLI, no docs) —
-# per-artifact payload table in docs/packaging/README.md. The tauri
-# binary rides the SAME installer payloads (the payload lists are
-# packaging-script/config-owned — W26-M T2/T3); no new artifact names.
-# Nothing claims a GUI that does not exist.
+# layer) and, since W26-M, `lumen-tauri` (package lumen-desktop-tauri,
+# apps/desktop-tauri — the ADR-004 webview shell: a workspace-EXCLUDED
+# crate with its own Cargo.lock, built on every lane below;
+# INFRA-BLOCKED.md §B.1/§C). The third built binary, `lumen-desktop`
+# (package desktop, apps/desktop — the std-only ADR-004 skeleton that
+# prints its notice and exits 86 WEBVIEW_PENDING), is a CI-only
+# diagnostic as of w30.8: v0.1.2 shipped it inside user payloads where
+# it read as "the desktop app" (console flash, exit 86, nothing), so it
+# was dropped from every user payload this workflow's scripts own
+# (zip/AppImage/.app/tar.gz/deb/rpm) and AppRun/CFBundleExecutable now
+# exec the REAL shell; the MSI drops it in the gen-wxs.sh/build-msi.ps1
+# twins' lane (w30.9), which owns that member list.
+# Payload honesty (W24-R1 P2-4, updated w30.8): tar.gz/zip/deb/rpm
+# package the CLI + the GUI shell + the [shipped] docs list; the
+# AppImage and the macOS .app/.dmg/app-zip are GUI-shell payloads (the
+# tauri binary only, launched directly by AppRun/Launch Services; no
+# CLI, no docs) — per-artifact payload table in
+# docs/packaging/README.md. Nothing claims a GUI that does not exist.
 #
 # HONESTY NOTE — THIS WORKFLOW HAS NEVER EXECUTED (CI billing blocked):
 # every Actions run in this repository currently dies at 0 steps
@@ -65,7 +71,11 @@
 #
 # LANE MAP (per-platform jobs -> scripts/packaging/* drivers):
 #   windows: build-zip.sh (flat zip) + build-msi.sh (gen-wxs + WiX +
-#            sign-windows.sh) + test-msi-upgrade.ps1 (config-gated)
+#            sign-windows.sh) + the extracted-zip lumen-tauri.exe
+#            launch smoke (w30.8: survive 10 s + zero failure receipts
+#            + tree kill — the SHIPPED GUI binary is launch-proven
+#            before release) + test-msi-upgrade.ps1 (config-gated;
+#            includes the installed-exe launch smoke)
 #   macos:   build-dmg.sh (make-app + sign-macos.sh --app + make-dmg +
 #            sign-macos.sh --dmg: codesign/notarize/staple, R-35
 #            sidecars when credentials are absent)
@@ -279,6 +289,95 @@ jobs:
             fi
           done
           scripts/packaging/build-msi.sh
+      - name: "Launch smoke — the SHIPPED zip's lumen-tauri.exe (survive 10 s, zero failure receipts, tree kill)"
+        # The v0.1.2 defect class (audit E §C / F §4.2.4): the shipped GUI
+        # binary was never launch-tested, so a shipped exe that cannot
+        # start stayed green ("download, install, loading, nothing"). This
+        # gate launches the EXACT packaged bytes: Expand-Archive the zip
+        # the user downloads, Start-Process its lumen-tauri.exe with a
+        # real fixture on argv (the file-open seam), poll HasExited
+        # 20 x 500 ms, and FAIL the release on early exit or on the app's
+        # own stderr failure receipts. Explicit redirected handles survive
+        # the w28 GUI-subsystem flip (no console is allocated on a
+        # double-click, but parent-provided pipes still flow — which is
+        # also what makes the receipts observable). windows-latest runners
+        # have an interactive desktop session + the WebView2 Evergreen
+        # runtime, so the real webview path is exercised; the registry
+        # probe prints presence to document that assumption (diagnostic
+        # only — an ABSENT there is the user-machine failure class this
+        # gate cannot reproduce). Same assert shape as the manual
+        # tauri-launch.yml windows lane, promoted to a release gate.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $base = "$($env:PRODUCT_LOWER)-$($env:PRODUCT_VERSION)-$($env:ARCH_ID)-$($env:OS_ID)"
+          $zip = "dist/$base.zip"
+          if (-not (Test-Path $zip)) { Write-Host "::error::shipped zip missing: $zip"; exit 1 }
+
+          # WebView2 presence probe (diagnostic only, never a gate): the
+          # runner ships the Evergreen runtime; print it so a red smoke
+          # can be told apart from a machine-state failure on the runner.
+          $wv2 = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue
+          Write-Host "WebView2 runtime: $(if ($wv2 -and $wv2.pv) { $wv2.pv } else { 'ABSENT' })"
+
+          # Launch the PACKAGED exe, not target/release: payload fidelity
+          # (the zip member is the byte-identical user download).
+          $stage = New-Item -ItemType Directory -Path ([IO.Path]::GetTempPath()) -Name ("smoke-" + [IO.Path]::GetRandomFileName())
+          Expand-Archive $zip $stage.FullName
+          $bin = Join-Path $stage.FullName "$($env:BIN_TAURI).exe"
+          if (-not (Test-Path $bin)) { Write-Host "::error::$($env:BIN_TAURI).exe missing from the shipped zip payload (w30.8: the zip carries the CLI + the GUI shell + docs)"; exit 1 }
+          $fixture = "tests/fixtures/generated/valid/avi_mjpeg_pcm.avi"
+          if (-not (Test-Path $fixture)) { Write-Host "::error::smoke fixture missing: $fixture"; exit 1 }
+          Write-Host "smoke: extracted-zip $($env:BIN_TAURI).exe, fixture $fixture (argv file-open seam)"
+
+          $stdout = Join-Path $stage.FullName "stdout.log"
+          $stderr = Join-Path $stage.FullName "stderr.log"
+          # -WorkingDirectory mirrors the MSI shortcut's
+          # WorkingDirectory=INSTALLDIR: the exe runs from an install-like
+          # directory, not the repo checkout.
+          $p = Start-Process -FilePath $bin -ArgumentList $fixture -WorkingDirectory $stage.FullName `
+                -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+
+          # Assert 1: survival - 20 x 500 ms = 10 s with no early exit.
+          $survived = $true
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            if ($p.HasExited) { $survived = $false; break }
+          }
+          $status = 0
+          if (-not $survived) {
+            Write-Host "smoke: FAIL - exited at tick $i with code $($p.ExitCode); stderr tail:"
+            Get-Content $stderr -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+            $status = 1
+          } else {
+            Write-Host "smoke: survival PASS (10 s, no early exit)"
+          }
+
+          # Assert 2: the app's own failure receipts on stderr (main.rs
+          # "admission shell failed", app.rs "event emit failed", plus the
+          # panic face). An empty stderr is the healthy GUI-subsystem case.
+          $receipts = @(Select-String -Path $stderr -Pattern "admission shell failed|event emit failed|panicked" -ErrorAction SilentlyContinue)
+          if ($receipts.Count -gt 0) {
+            Write-Host "smoke: FAIL - failure receipts present:"
+            $receipts | Select-Object -First 5 | ForEach-Object { Write-Host "  $($_.Line)" }
+            $status = 1
+          } else {
+            Write-Host "smoke: receipts PASS (no admission/emit/panic lines in stderr)"
+          }
+
+          # Cleanup: kill the whole tree - WebView2 child processes first
+          # (Win32_Process ParentProcessId), then the parent - so the GUI
+          # exe never outlives the step. A Force-kill exit code is
+          # recorded, not asserted.
+          if ($survived) {
+            Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" |
+              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            $p.WaitForExit(10000) | Out-Null
+            $code = if ($p.HasExited) { $p.ExitCode } else { "did-not-exit" }
+            Write-Host "smoke: tree kill done (parent exit code $code - recorded, not asserted)"
+          }
+          exit $status
       - name: "MSI upgrade-path test (config-gated: packaging.toml windows.upgrade_test)"
         run: |
           if [ "${PACKAGING_WINDOWS_UPGRADE_TEST:?}" != "true" ]; then
@@ -289,7 +388,10 @@ jobs:
           # pwsh (PowerShell 7) is preinstalled on windows-latest [VERIFY
           # at first live run]. The test installs a predecessor MSI built
           # from the same tree + frozen UpgradeCode, then proves the
-          # current one REPLACES it (MajorUpgrade semantics).
+          # current one REPLACES it (MajorUpgrade semantics); since w30.8
+          # it ALSO launch-smokes the installed lumen-tauri.exe (10 s
+          # survival + zero failure receipts + tree kill — the shortcut
+          # target, proven at its installed path).
           pwsh scripts/packaging/test-msi-upgrade.ps1 -CurrentMsi "dist/${base}.msi"
       - name: Per-artifact SBOM (gen-sboms.sh — CycloneDX, suffix + spec version from config)
         run: |
@@ -728,8 +830,10 @@ jobs:
       - name: Package + verify (verify-linux-artifacts.sh — the locally-PROVEN harness)
         run: scripts/packaging/verify-linux-artifacts.sh
         # Builds tar.gz + deb + AppImage + the binary rpm, launch-tests
-        # the packaged binaries (--version, decode-bench on a fixture,
-        # the desktop skeleton exit code), asserts deb/rpm header fields
+        # the packaged CLI (--version, decode-bench on a fixture; the
+        # tauri GUI shell is presence-asserted — launching it needs a
+        # display + host WebKitGTK, so the launch verdicts live in
+        # tauri-launch.yml's xvfb lane), asserts deb/rpm header fields
         # against the config, writes per-artifact SBOMs (gen-sboms.sh)
         # and the per-set checksum manifest.
       - name: Scope the per-set checksum manifest (avoid flat-merge collision)

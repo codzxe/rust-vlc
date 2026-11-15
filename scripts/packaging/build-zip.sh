@@ -1,12 +1,16 @@
 #!/bin/sh
 # build-zip.sh — the flat Windows archive (issue #56, card 8.E1, W24-C).
 #
-# The 8.E1 config-driven zip lane: the shipped exes (CLI, desktop and
+# The 8.E1 config-driven zip lane: the shipped exes (the CLI and
 # the tauri admission crate's bin — workspace-excluded, built by CI's
 # release workflow separately and received here as BIN_TAURI, set
-# exactly like BIN_DESKTOP) + the shipped docs list from
+# exactly like BIN_CLI) + the shipped docs list from
 # packaging/packaging.toml [shipped] (never a literal file list) at
-# the archive root. Made with `python -m zipfile` (the
+# the archive root. The third built binary, lumen-desktop (the
+# exit-86 diagnostic skeleton), is deliberately NOT a zip member
+# since w30.8: v0.1.2 users unpacked the archive, double-clicked the
+# obviously-desktop-named exe and got "loading, then nothing" — the
+# stub is a CI-only diagnostic now. Made with `python -m zipfile` (the
 # stdlib is on every GitHub runner image) rather than a runner-specific
 # zip CLI -- git-bash on windows-latest has no `zip`, GNU tar does not
 # write zip, 7z is only guaranteed on the Windows image. One tool,
@@ -24,9 +28,8 @@ set -eu
 : "${PRODUCT_LOWER:?build-zip.sh: PRODUCT_LOWER not set (run packaging-env.py first)}"
 : "${PRODUCT_VERSION:?build-zip.sh: PRODUCT_VERSION not set}"
 : "${BIN_CLI:?build-zip.sh: BIN_CLI not set}"
-: "${BIN_DESKTOP:?build-zip.sh: BIN_DESKTOP not set}"
-# The third shipped binary: REQUIRED like the other two (a packaging
-# run without the tauri bin would silently ship a partial payload).
+# The GUI shell: REQUIRED like the CLI (a packaging run without the
+# tauri bin would silently ship a partial payload).
 : "${BIN_TAURI:?build-zip.sh: BIN_TAURI not set (run packaging-env.py first)}"
 : "${OS_ID:?build-zip.sh: OS_ID not set}"
 : "${ARCH_ID:?build-zip.sh: ARCH_ID not set}"
@@ -46,12 +49,9 @@ PY=$(command -v python3 || command -v python) ||
 
 release_dir="$TARGET_DIR/release"
 cli_exe="${BIN_CLI}.exe"
-desktop_exe="${BIN_DESKTOP}.exe"
 tauri_exe="${BIN_TAURI}.exe"
 [ -f "$release_dir/$cli_exe" ] ||
     die "missing packaging input: $release_dir/$cli_exe (build first: cargo build --release --locked)"
-[ -f "$release_dir/$desktop_exe" ] ||
-    die "missing packaging input: $release_dir/$desktop_exe"
 [ -f "$release_dir/$tauri_exe" ] ||
     die "missing packaging input: $release_dir/$tauri_exe"
 
@@ -67,7 +67,6 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
 
 install -m 0755 "$release_dir/$cli_exe" "$stage/$cli_exe"
-install -m 0755 "$release_dir/$desktop_exe" "$stage/$desktop_exe"
 install -m 0755 "$release_dir/$tauri_exe" "$stage/$tauri_exe"
 for doc in $PACKAGING_DOCS; do
     install -m 0644 "$doc" "$stage/"
@@ -79,7 +78,7 @@ zip_path="$dist_abs/${base}.zip"
 # python -m zipfile stores entries under their given (relative) names —
 # run from the staging dir so the archive root is flat. The doc list is
 # passed as shell-quoted argv (no re-parsing).
-set -- "$cli_exe" "$desktop_exe" "$tauri_exe"
+set -- "$cli_exe" "$tauri_exe"
 for doc in $PACKAGING_DOCS; do
     set -- "$@" "$doc"
 done

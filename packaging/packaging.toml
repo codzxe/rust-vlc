@@ -39,10 +39,21 @@ spec_version = "1.5"
 artifact_suffix = "sbom.cdx.json"
 
 # --- Shipped files -----------------------------------------------------------
-# Repo-relative files that ride in EVERY package. The two binaries are
-# NOT listed here: their names come from cargo metadata via
-# product-env.py (BIN_CLI / BIN_DESKTOP), so a bin rename needs no
-# packaging edit. Docs listed here are staged with 0644.
+# Repo-relative files that ride in EVERY package. The binaries are NOT
+# listed here: their names come from cargo metadata via product-env.py
+# (BIN_CLI / BIN_DESKTOP / BIN_TAURI), so a bin rename needs no
+# packaging edit. What ships where (payload honesty, w30.8):
+#   tar.gz / zip / deb / rpm  BIN_CLI + BIN_TAURI + these docs
+#                              (the exit-86 lumen-desktop stub left
+#                              these payloads — it is a CI-only
+#                              diagnostic now, never a user download)
+#   msi                        the same pair + these docs + Start-Menu
+#                              and Desktop shortcuts to BIN_TAURI (the
+#                              .wxs twins own that member list; the
+#                              stub left the MSI in their w30.9 lane)
+#   AppImage / macOS .app      BIN_TAURI only (GUI-shell payloads,
+#                              launched via AppRun / Launch Services)
+# Docs listed here are staged with 0644.
 # CONSTRAINT: doc paths must be whitespace-free (schema pattern,
 # packaging.schema.json shipped.docs — W24-R6 P4-4): the bridge exports
 # the list as the space-separated PACKAGING_DOCS env var, so a path
@@ -100,9 +111,12 @@ upgrade_test = true
 #   <bin> <version_flag>            -> exit 0
 #   <bin> <smoke_verb> <fixture>    -> exit 0, one BENCH line (real
 #                                      open-path + decoder drive)
-# The desktop binary's packaged contract is its documented skeleton
-# notice + exit code 86 (apps/desktop/src/main.rs WEBVIEW_PENDING) —
-# asserted as-is, never faked.
+# desktop_pending_exit: the documented exit code of the lumen-desktop
+# diagnostic stub (apps/desktop/src/main.rs WEBVIEW_PENDING = 86).
+# w30.8: the stub left every user payload, so no release-lane assert
+# consumes this row anymore (its last consumer, verify-linux-artifacts
+# sh's exit-86 launch checks, retired with the payload change; the
+# row stays config + schema-required until its owner retires it).
 [launch_test]
 version_flag = "--version"
 smoke_verb = "decode-bench"

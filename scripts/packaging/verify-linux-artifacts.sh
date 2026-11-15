@@ -10,9 +10,9 @@
 # inputs are the release binaries and the pinned AppImage tools.
 #
 # Steps:
-#   1. build-targz.sh    — the flat archive (all three shipped binaries
-#                         + the [shipped] docs list) — content
-#                         cross-checked.
+#   1. build-targz.sh    — the flat archive (the two shipped binaries
+#                         — CLI + GUI shell — + the [shipped] docs
+#                         list) — content cross-checked.
 #   2. build-deb.sh       — REAL .deb (native dpkg-deb) from the shared
 #                         FHS payload (config-driven: dirs, docs,
 #                         desktop entry, section).
@@ -26,26 +26,31 @@
 #   5. deb launch tests (dpkg-deb -x, no root needed):
 #        <bindir>/<cli> --version          exit 0
 #        <bindir>/<cli> decode-bench <fx>  exit 0 + one BENCH line
-#        <bindir>/<desktop>                exit = the documented
-#                                            skeleton code (config)
 #        <bindir>/<tauri> PRESENT          exec bit + path (no launch:
-#                                            the admission shell needs
-#                                            the host's WebKitGTK, which
+#                                            the GUI shell needs the
+#                                            host's WebKitGTK, which
 #                                            the deb declares in
-#                                            Depends — launching it here
-#                                            would test this sandbox's
-#                                            display stack, not the
-#                                            package)
+#                                            Depends — launching it
+#                                            here would test this
+#                                            sandbox's display
+#                                            stack, not the package)
+#        <bindir>/<desktop> ABSENT         the exit-86 stub left the
+#                                            payload (w30.8: it read
+#                                            as "the desktop app" and
+#                                            exited with nothing)
 #        Depends carries the webkit pair   libgtk-3-0 +
 #                                            libwebkit2gtk-4.1-0
 #        dpkg-deb -f Package/Version/Architecture == config values
 #        shipped docs present per packaging.toml [shipped] docs
-#   6. AppImage launch test: APPIMAGE_EXTRACT_AND_RUN=1 <image> exits
-#      with the desktop skeleton code (no FUSE needed — same mechanism
-#      as the build step); then --appimage-extract (the type2 runtime's
-#      own extraction, still no FUSE) proves the tauri payload row.
-#   7. tar.gz member check against the same [shipped] list + the three
-#      binary names.
+#   6. AppImage payload contract (extract-and-run's successor, w30.8):
+#      --appimage-extract (the type2 runtime's own extraction, no
+#      FUSE) proves AppRun EXECS THE GUI SHELL (the re-point away
+#      from the exit-86 stub) + the tauri payload row in the bindir.
+#      Launching the GUI shell here would need a display + host
+#      WebKitGTK (this lane has neither) — the launch verdicts live
+#      in .github/workflows/tauri-launch.yml's xvfb lane, not here.
+#   7. tar.gz member check against the same [shipped] list + the two
+#      binary names (and the stub's ABSENCE — same w30.8 contract).
 #   8. Per-artifact-set SBOM: gen-sboms.sh (the ONE writer — wraps
 #      `cargo run -p xtask --locked -- sbom`, CycloneDX per config,
 #      lockfile-derived; content identical per set, generated per
@@ -70,6 +75,9 @@ set -eu
 : "${PRODUCT_VERSION:?verify-linux-artifacts.sh: PRODUCT_VERSION not set}"
 : "${PRODUCT_NAME:?verify-linux-artifacts.sh: PRODUCT_NAME not set}"
 : "${BIN_CLI:?verify-linux-artifacts.sh: BIN_CLI not set}"
+# BIN_DESKTOP is asserted even though the stub is NOT a payload member
+# since w30.8: the absence checks below pin that contract, and a future
+# lane that re-adds the stub must do it deliberately, not by drift.
 : "${BIN_DESKTOP:?verify-linux-artifacts.sh: BIN_DESKTOP not set}"
 : "${BIN_TAURI:?verify-linux-artifacts.sh: BIN_TAURI not set}"
 : "${OS_ID:?verify-linux-artifacts.sh: OS_ID not set}"
@@ -80,7 +88,6 @@ set -eu
 : "${PACKAGING_LAUNCH_VERSION_FLAG:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_VERSION_FLAG not set}"
 : "${PACKAGING_LAUNCH_SMOKE_VERB:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_SMOKE_VERB not set}"
 : "${PACKAGING_LAUNCH_SMOKE_FIXTURE:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_SMOKE_FIXTURE not set}"
-: "${PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT:?verify-linux-artifacts.sh: PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT not set}"
 : "${PACKAGING_CHECKSUM_ALGORITHM:?verify-linux-artifacts.sh: PACKAGING_CHECKSUM_ALGORITHM not set}"
 : "${PACKAGING_CHECKSUM_MANIFEST:?verify-linux-artifacts.sh: PACKAGING_CHECKSUM_MANIFEST not set}"
 : "${PACKAGING_SBOM_ARTIFACT_SUFFIX:?verify-linux-artifacts.sh: PACKAGING_SBOM_ARTIFACT_SUFFIX not set}"
@@ -142,15 +149,18 @@ if command -v rpmbuild >/dev/null 2>&1; then
         echo "  rpm header: $want_field=$got_val"
     done
     # Payload rows: every shipped binary must be listed by the package
-    # (rpm -qlp needs no root). The tauri row joins the other two — a
-    # missing row means build-rpm.sh's %files list drifted from the
-    # stager.
+    # (rpm -qlp needs no root) — the CLI + the GUI shell (w30.8: the
+    # exit-86 stub left the payload); a missing row means
+    # build-rpm.sh's %files list drifted from the stager.
     rpm_qlp=$(rpm -qlp "$rpm_path") || die "rpm -qlp failed on $rpm_path"
-    for bin_row in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI"; do
+    for bin_row in "$BIN_CLI" "$BIN_TAURI"; do
         printf '%s\n' "$rpm_qlp" | grep -qx "/$PACKAGING_LINUX_BINDIR/$bin_row" ||
             die "rpm payload is missing /$PACKAGING_LINUX_BINDIR/$bin_row"
         echo "  rpm payload: /$PACKAGING_LINUX_BINDIR/$bin_row"
     done
+    if printf '%s\n' "$rpm_qlp" | grep -qx "/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP"; then
+        die "rpm payload still carries the exit-86 stub /$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP (w30.8: user payloads ship the CLI + the GUI shell only — the stub is a CI-only diagnostic)"
+    fi
 else
     # Honest local half: spec generation + structural validation only.
     echo "  rpmbuild absent on this host -- spec-only (the binary .rpm"
@@ -158,15 +168,18 @@ else
     echo "  never faked)"
     scripts/packaging/build-rpm.sh --spec-only "$dist_abs/${base}.spec"
     # Spec-only half: the %files rows are the payload contract — the
-    # tauri row must be present exactly like the other two.
+    # GUI shell row must be present exactly like the CLI's.
     # build-rpm.sh's validate_spec already proved every row exists in
     # the staged tree AND that the Requires pair is intact; this greps
     # the same contract back from the consumer side.
-    for bin_row in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI"; do
+    for bin_row in "$BIN_CLI" "$BIN_TAURI"; do
         grep -Fxq "/$PACKAGING_LINUX_BINDIR/$bin_row" "$dist_abs/${base}.spec" ||
             die "rpm spec %files is missing the /$PACKAGING_LINUX_BINDIR/$bin_row row"
         echo "  rpm spec row: /$PACKAGING_LINUX_BINDIR/$bin_row"
     done
+    if grep -Fxq "/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" "$dist_abs/${base}.spec"; then
+        die "rpm spec %files still lists the exit-86 stub /$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP (w30.8: user payloads ship the CLI + the GUI shell only)"
+    fi
 fi
 
 targz="$dist_abs/${base}.tar.gz"
@@ -183,17 +196,19 @@ trap 'rm -rf "$deb_root" "$appimage_extract_dir"' EXIT INT TERM
 dpkg-deb -x "$deb" "$deb_root" || die "dpkg-deb -x failed on $deb"
 
 cli="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_CLI"
-desktop="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP"
 tauri="$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_TAURI"
 [ -x "$cli" ] || die "packaged CLI not present in the deb: $PACKAGING_LINUX_BINDIR/$BIN_CLI"
-[ -x "$desktop" ] || die "packaged desktop binary not present in the deb"
-# The tauri admission shell rides in the same bindir. Presence + exec
-# bit is the honest row here: it is a GUI binary that needs WebKitGTK
-# 4.1 + GTK3 from the HOST (the pair below asserts the deb DECLARES
-# them) — launching it in this sandbox would test the sandbox's display
+# The GUI shell rides in the same bindir. Presence + exec bit is the
+# honest row here: it is a GUI binary that needs WebKitGTK 4.1 + GTK3
+# from the HOST (the pair below asserts the deb DECLARES them) —
+# launching it in this sandbox would test the sandbox's display
 # stack, not the package. That boundary is stated, not silently
 # skipped.
 [ -x "$tauri" ] || die "packaged tauri binary not present in the deb: $PACKAGING_LINUX_BINDIR/$BIN_TAURI"
+# w30.8: the exit-86 stub must NOT be in the payload (it read as
+# "the desktop app" to v0.1.2 users and exited with nothing).
+[ ! -e "$deb_root/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" ] ||
+    die "deb payload still carries the exit-86 stub $BIN_DESKTOP (w30.8: user payloads ship the CLI + the GUI shell only — the stub is a CI-only diagnostic)"
 
 # 4a. version flag — the packaged engine binary launches.
 cli_out=$("$cli" "$PACKAGING_LAUNCH_VERSION_FLAG") ||
@@ -210,13 +225,13 @@ echo "$smoke_out" | grep -q "BENCH" ||
 $smoke_out"
 echo "  CLI smoke decode: $(echo "$smoke_out" | grep "BENCH" | head -1)"
 
-# 4c. desktop binary — the documented skeleton contract, asserted
-# as-is (never faked, never skipped).
-desktop_out=$("$desktop" 2>&1) && desktop_rc=0 || desktop_rc=$?
-[ "$desktop_rc" -eq "$PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT" ] ||
-    die "packaged desktop binary exited $desktop_rc (expected the documented skeleton code $PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT):
-$desktop_out"
-echo "  desktop skeleton: exit $desktop_rc (as documented)"
+# 4c. desktop stub — ABSENT, asserted (w30.8): the v0.1.2 payload
+# confusion ("download, install, loading, nothing") was users
+# double-clicking the exit-86 skeleton; the stub is a CI-only
+# diagnostic now, so a payload that re-stages it is a regression.
+# (The deb-level absence is asserted above with the presence rows;
+# this label documents why there is no launch assert here anymore.)
+echo "  desktop stub: absent from the deb payload (as designed, w30.8)"
 
 # 4d. control metadata matches the config (the deb IS what config says).
 case "$ARCH_ID" in
@@ -253,32 +268,41 @@ printf '%s\n' "$deb_depends" | grep -q "libwebkit2gtk-4.1-0" ||
     die "deb Depends is missing libwebkit2gtk-4.1-0 (the tauri shell's webview), got: '$deb_depends'"
 echo "  deb Depends: $deb_depends"
 
-echo "=== 6. AppImage launch test (extract-and-run; no FUSE) ==="
-appimage_out=$(APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" 2>&1) && app_rc=0 || app_rc=$?
-[ "$app_rc" -eq "$PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT" ] ||
-    die "AppImage exited $app_rc (expected the documented skeleton code $PACKAGING_LAUNCH_DESKTOP_PENDING_EXIT):
-$appimage_out"
-echo "  AppImage skeleton: exit $app_rc (as documented)"
-
-# 6b. tauri payload row: extract the image (the type2 runtime's own
-# --appimage-extract works without FUSE and needs no env; the arg is
-# consumed by the runtime, not the app) and require the tauri binary
-# beside the desktop one in the bindir. PAYLOAD PRESENCE only — the
-# launch contract above stays the desktop binary's, and the tauri
-# shell's webkit runtime comes from the host (see build-appimage.sh's
-# bundling boundary).
+echo "=== 6. AppImage payload contract (extract; no FUSE) ==="
+# w30.8: AppRun execs the REAL GUI shell (it used to exec the exit-86
+# stub — the AppImage "launch test" was really a stub-exit assert).
+# Launching the GUI shell here would need a display + host WebKitGTK
+# (this lane has neither); the launch verdicts live in
+# .github/workflows/tauri-launch.yml's xvfb lane. The honest release
+# gate is therefore structural: extract the image (the type2
+# runtime's own --appimage-extract works without FUSE; the arg is
+# consumed by the runtime, not the app) and pin BOTH the AppRun
+# exec target and the payload row.
 (cd "$appimage_extract_dir" && "$appimage" --appimage-extract) >/dev/null ||
     die "AppImage --appimage-extract failed on $appimage"
+apprun="$appimage_extract_dir/squashfs-root/AppRun"
+[ -x "$apprun" ] || die "AppRun missing or not executable in the AppImage payload"
+apprun_exec_line="exec \"\$HERE/$PACKAGING_LINUX_BINDIR/$BIN_TAURI\""
+grep -Fq "$apprun_exec_line" "$apprun" ||
+    die "AppRun does not exec the GUI shell (expected the line: $apprun_exec_line) — the w30.8 re-point away from the exit-86 stub regressed"
+echo "  AppRun exec: $apprun_exec_line (the REAL GUI shell)"
 [ -x "$appimage_extract_dir/squashfs-root/$PACKAGING_LINUX_BINDIR/$BIN_TAURI" ] ||
     die "tauri binary missing from the AppImage payload: $PACKAGING_LINUX_BINDIR/$BIN_TAURI"
 echo "  AppImage payload: $PACKAGING_LINUX_BINDIR/$BIN_TAURI present"
+if [ -e "$appimage_extract_dir/squashfs-root/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" ]; then
+    die "AppImage payload still carries the exit-86 stub $BIN_DESKTOP (w30.8: user payloads ship the GUI shell only)"
+fi
+echo "  AppImage stub: absent (as designed, w30.8)"
 
 echo "=== 7. tar.gz content check (the shipped list, cross-checked) ==="
 tar_list=$(tar -tzf "$targz")
-for member in "$BIN_CLI" "$BIN_DESKTOP" "$BIN_TAURI" $PACKAGING_DOCS; do
+for member in "$BIN_CLI" "$BIN_TAURI" $PACKAGING_DOCS; do
     printf '%s\n' "$tar_list" | grep -qx "$member" ||
-        die "tar.gz member missing: $member (expected: binaries + packaging.toml [shipped] docs)"
+        die "tar.gz member missing: $member (expected: the CLI + the GUI shell + packaging.toml [shipped] docs)"
 done
+if printf '%s\n' "$tar_list" | grep -qx "$BIN_DESKTOP"; then
+    die "tar.gz still stages the exit-86 stub $BIN_DESKTOP (w30.8: user payloads ship the CLI + the GUI shell only — the stub is a CI-only diagnostic)"
+fi
 echo "  tar.gz members: $(printf '%s\n' "$tar_list" | tr '\n' ' ')"
 
 echo "=== 8. per-artifact-set SBOM (gen-sboms.sh — the ONE writer) ==="
@@ -309,4 +333,4 @@ done
 echo "  manifest: $manifest"
 cat "$manifest"
 
-echo "verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, all three shipped binaries verified per format (tauri row: presence + webkit runtime deps), packaged launch-tested binaries, SBOMs + checksums written"
+echo "verify-linux-artifacts.sh: PASS — tar.gz + deb + AppImage (+ rpm where rpmbuild exists) built, the two shipped binaries (CLI launch-tested, GUI shell presence-asserted with the webkit runtime deps declared) verified per format, the exit-86 stub verifiably ABSENT from every payload (w30.8), AppRun execs the real GUI shell, SBOMs + checksums written"

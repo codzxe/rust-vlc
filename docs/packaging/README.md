@@ -44,13 +44,18 @@ Naming: `<slug>-<version>-<arch>-<os>.<ext>` (all from config).
 
 **Payload honesty** (W24-R1 P2-4 — the earlier "every artifact
 packages BOTH binaries + docs" claim was false for two artifact
-families and is replaced by this table):
+families and is replaced by this table; w30.8 update: the exit-86
+`lumen-desktop` stub left every user payload — v0.1.2 shipped it
+where it read as "the desktop app" and users double-clicked into
+"loading, then nothing". The stub is a CI-only diagnostic now, and
+AppRun / `CFBundleExecutable` exec the REAL GUI shell):
 
 | Payload | Artifacts |
 |---|---|
-| BOTH shipped binaries (`lumen` CLI — the real engine surface; `lumen-desktop` — the std-only ADR-004 skeleton that exits 86 `WEBVIEW_PENDING`) **plus** the `packaging.toml [shipped]` docs list | `.tar.gz`, `.zip`, `.deb`, `.rpm`, `.msi` |
-| Desktop binary ONLY — the GUI-shell distribution channel (AppRun + desktop entry + icon; no CLI, no docs) | `.AppImage` (`build-appimage.sh`) |
-| Desktop binary + LICENSE/README in `Contents/Resources` (no CLI — GUI-shell bundle; the doc pair is hardcoded by the wave-22 `make-app.sh`, flagged as drift vs the `[shipped]` list) | macOS `.app`, `.dmg`, app-`.zip` (`make-app.sh` → `build-dmg.sh`) |
+| `lumen` CLI + `lumen-tauri` GUI shell **plus** the `packaging.toml [shipped]` docs list (no stub) | `.tar.gz`, `.zip`, `.deb`, `.rpm` |
+| GUI shell ONLY — `lumen-tauri`, exec'd by AppRun (w30.8 re-point from the stub) + desktop entry + icon; no CLI, no docs, no stub | `.AppImage` (`build-appimage.sh`) |
+| GUI shell ONLY — `lumen-tauri` as `CFBundleExecutable` (w30.8 re-point from the stub) + LICENSE/README in `Contents/Resources` (no CLI; the doc pair is hardcoded by the wave-22 `make-app.sh`, flagged as drift vs the `[shipped]` list) | macOS `.app`, `.dmg`, app-`.zip` (`make-app.sh` → `build-dmg.sh`) |
+| `lumen` CLI + `lumen-tauri` GUI shell **plus** the `packaging.toml [shipped]` docs list and Start-Menu + Desktop shortcuts targeting `lumen-tauri.exe` (the stub left the MSI in the `gen-wxs.sh`/`build-msi.ps1` twins' w30.9 lane) | `.msi` |
 
 The full matrix:
 
@@ -100,9 +105,11 @@ scripts/packaging/verify-linux-artifacts.sh    # builds + launch-tests + SBOMs +
 `verify-linux-artifacts.sh` is the WHOLE lane in one honest script:
 builds the tar.gz/deb/AppImage (+ binary .rpm when `rpmbuild` exists —
 otherwise the validated spec, loudly labeled), then **launch-tests the
-packaged binaries** (`--version`, `decode-bench` on a real fixture, the
-documented desktop skeleton exit code from
-`packaging.toml [launch_test]`), asserts deb/rpm header fields equal
+packaged CLI** (`--version`, `decode-bench` on a real fixture),
+presence-asserts the GUI shell with its webkit runtime deps declared
+(launching it needs a display — the launch verdicts live in
+`tauri-launch.yml`'s xvfb lane), asserts the exit-86 stub's ABSENCE
+from every payload (w30.8), asserts deb/rpm header fields equal
 the config, writes per-artifact SBOMs and the per-set checksum
 manifest. Exit 0 means every claim above held.
 
@@ -112,10 +119,15 @@ The same env bridge, then:
 
 - Windows: `build-zip.sh` → `build-msi.sh` (generates the `.wxs` from
   product.toml, runs pinned WiX, hands the MSI to `sign-windows.sh`) →
-  `test-msi-upgrade.ps1` (config-gated by
+  the **extracted-zip launch smoke** (release.yml windows job, w30.8:
+  Expand-Archive the SHIPPED zip, Start-Process its `lumen-tauri.exe`
+  with a real fixture on argv, 10 s survival + zero failure receipts +
+  process-tree kill) → `test-msi-upgrade.ps1` (config-gated by
   `packaging.toml [windows] upgrade_test`) — installs a predecessor MSI
-  built from the same tree + frozen UpgradeCode and proves the current
-  one REPLACES it (MajorUpgrade semantics).
+  built from the same tree + frozen UpgradeCode, proves the current
+  one REPLACES it (MajorUpgrade semantics), and since w30.8 also
+  launch-smokes the INSTALLED `lumen-tauri.exe` (the shortcut target,
+  same assert shape as the zip smoke).
 - macOS: `build-dmg.sh` — `.app` bundle (wave-22 `make-app.sh`), then
   `sign-macos.sh --app`, then `hdiutil` dmg (`make-dmg.sh`), then
   `sign-macos.sh --dmg` (codesign + notarytool + stapler).

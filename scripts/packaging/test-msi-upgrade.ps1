@@ -13,7 +13,15 @@
 #      a NEW one.
 #   3. The shipped files are present under Program Files after both
 #      installs.
-#   4. Uninstall removes the product: zero ProductCodes remain and the
+#   4. The installed GUI shell LAUNCHES (w30.8, audit F F2): the
+#      upgrade test used to assert files only, so a dead shortcut
+#      target stayed green (the v0.1.2 "MSI installs but the app never
+#      opens" blind spot). Start-Process [INSTALLDIR]lumen-tauri.exe
+#      -- the exe the Start-Menu shortcut targets -- with a real
+#      fixture on argv, then the same assert shape as the release
+#      lane's extracted-zip smoke: 10 s survival, zero failure
+#      receipts on redirected stderr, process-tree kill.
+#   5. Uninstall removes the product: zero ProductCodes remain and the
 #      install directory is gone.
 #
 # Predecessor version rule: parse the numeric MSI version x.y.z, find
@@ -64,7 +72,7 @@ if (-not (Test-Path $CurrentMsi)) { Fail "current MSI not found: $CurrentMsi" }
 $CurrentMsi = (Resolve-Path $CurrentMsi).ProviderPath
 
 foreach ($name in @(
-        'PRODUCT_MSI_UPGRADE_CODE', 'MSI_VERSION', 'BIN_CLI', 'BIN_DESKTOP',
+        'PRODUCT_MSI_UPGRADE_CODE', 'MSI_VERSION', 'BIN_CLI', 'BIN_TAURI',
         'PRODUCT_NAME', 'PRODUCT_LOWER', 'ARCH_ID', 'OS_ID')) {
     if (-not (Get-Item -Path "Env:$name" -ErrorAction SilentlyContinue)) {
         Fail "required config env $name is not set (run packaging-env.py first)"
@@ -176,10 +184,12 @@ function Invoke-MsiExec([string]$Verb, [string]$MsiPath, [string]$LogFile) {
 
 function Assert-InstalledFiles([string]$Label) {
     $installRoot = Join-Path $env:ProgramFiles $env:PRODUCT_NAME
-    # All three shipped exes (w26.m.t3 cross-lane note N1: the tauri row
-    # joins the upgrade-test assertion alongside the CLI and desktop
-    # binaries - the MSI ships all three since wave 26-M).
-    foreach ($bin in @("$($env:BIN_CLI).exe", "$($env:BIN_DESKTOP).exe", "$($env:BIN_TAURI).exe")) {
+    # The shipped exes the MSI installs (w30.8/w30.9 cross-lane note:
+    # the CLI + the GUI shell; the lumen-desktop exit-86 diagnostic
+    # stub left the user payloads in w30.8 and the MSI member list in
+    # the gen-wxs.sh/build-msi.ps1 twins' lane -- asserting it here
+    # would fail against the post-w30.9 installer).
+    foreach ($bin in @("$($env:BIN_CLI).exe", "$($env:BIN_TAURI).exe")) {
         $p = Join-Path $installRoot $bin
         if (-not (Test-Path $p)) {
             Fail "$Label - expected installed file missing: $p"
@@ -246,6 +256,61 @@ try {
     }
     Assert-InstalledFiles 'current install (upgraded)'
     Write-Output "  [current install] ProductCode $($prevCode) -> $($codes[0]) (replaced, not co-installed)"
+
+    # --- 3b. Installed-exe launch smoke (w30.8, audit F F2) ------------------
+    # The CI blind spot behind "MSI installs but the app never opens":
+    # files-only asserts can never prove the shortcut target launches.
+    # Start the installed lumen-tauri.exe (what the Start-Menu shortcut
+    # targets, WorkingDirectory=INSTALLDIR), with a real fixture on
+    # argv (the file-open seam). Explicit redirected handles survive
+    # the w28 GUI-subsystem flip (no console on a double-click, but
+    # parent-provided pipes still flow -- which is also what makes the
+    # failure receipts observable).
+    $installRoot = Join-Path $env:ProgramFiles $env:PRODUCT_NAME
+    $installedExe = Join-Path $installRoot "$($env:BIN_TAURI).exe"
+    $fixture = Join-Path $repoRoot 'tests/fixtures/generated/valid/avi_mjpeg_pcm.avi'
+    if (-not (Test-Path $installedExe)) { Fail "launch smoke: installed exe missing: $installedExe" }
+    if (-not (Test-Path $fixture)) { Fail "launch smoke: fixture missing: $fixture" }
+    Write-Output "  [launch smoke] $installedExe + $fixture (argv file-open seam)"
+    $smokeOut = Join-Path $work 'smoke-stdout.log'
+    $smokeErr = Join-Path $work 'smoke-stderr.log'
+    $p = Start-Process -FilePath $installedExe -ArgumentList $fixture -WorkingDirectory $installRoot `
+        -RedirectStandardOutput $smokeOut -RedirectStandardError $smokeErr -PassThru
+
+    # Assert 1: survival -- 20 x 500 ms = 10 s with no early exit.
+    $survived = $true
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Milliseconds 500
+        if ($p.HasExited) { $survived = $false; break }
+    }
+    if (-not $survived) {
+        Write-Output "  diagnostics: launch smoke exited at tick $i with code $($p.ExitCode); stderr tail:"
+        if (Test-Path $smokeErr) {
+            Get-Content $smokeErr -Tail 20 | ForEach-Object { Write-Output "    $_" }
+        }
+        Fail 'installed lumen-tauri.exe did not survive 10 s (launch smoke)'
+    }
+
+    # Assert 2: the app's own failure receipts on stderr (main.rs
+    # 'admission shell failed', app.rs 'event emit failed', plus the
+    # panic face). An empty stderr is the healthy GUI-subsystem case.
+    $receipts = @(Select-String -Path $smokeErr -Pattern 'admission shell failed|event emit failed|panicked' -ErrorAction SilentlyContinue)
+    if ($receipts.Count -gt 0) {
+        Write-Output '  diagnostics: failure receipts in stderr:'
+        $receipts | Select-Object -First 5 | ForEach-Object { Write-Output "    $($_.Line)" }
+        Fail 'installed lumen-tauri.exe wrote failure receipts to stderr (launch smoke)'
+    }
+
+    # Cleanup: kill the whole tree -- WebView2 child processes first
+    # (Win32_Process ParentProcessId), then the parent -- so the GUI
+    # exe never outlives the test. A Force-kill exit code is recorded,
+    # not asserted.
+    Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+    $p.WaitForExit(10000) | Out-Null
+    $smokeCode = if ($p.HasExited) { $p.ExitCode } else { 'did-not-exit' }
+    Write-Output "  [launch smoke] PASS - survived 10 s, zero failure receipts (harness kill; exit code $smokeCode recorded, not asserted)"
 
     # --- 4. Uninstall, assert clean -------------------------------------------
     $null = Invoke-MsiExec 'x' $CurrentMsi (Join-Path $work 'uninstall.log')
