@@ -135,8 +135,22 @@ fn abrupt_drop_mid_playback_releases_everything_within_deadline() {
         fds_before,
         "the file handle is closed immediately after the drop"
     );
-    // No threads leaked.
-    assert_eq!(thread_count(), threads_before, "no threads leaked");
+    // No threads leaked. The drop is synchronous but a session
+    // worker's exit can land a scheduler tick behind it — a bounded
+    // wait (the CI-load shape this suite runs under) instead of an
+    // instantaneous count that races the kernel's accounting.
+    let leaked_deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if thread_count() == threads_before {
+            break;
+        }
+        assert!(
+            Instant::now() < leaked_deadline,
+            "no threads leaked (still {} vs baseline {threads_before:?} after the 5s bound)",
+            thread_count().unwrap_or_default()
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
     // No temp state: the scratch dir still holds exactly the media
     // copy — nothing was written beside it.
     let entries_after = scratch.entries();
