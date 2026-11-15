@@ -89,10 +89,13 @@ function getSidebar(): HTMLElement {
 }
 
 describe("AppShell — title bar (Player.svg topbar, banner landmark)", () => {
-  it("renders the banner with the full topbar anatomy: app dot, sidebar toggle, breadcrumb, centered wordmark, window controls", () => {
+  it("renders the banner with the full topbar anatomy: app dot, sidebar toggle, breadcrumb, centered wordmark, in-app actions, drag region", () => {
     const { container } = renderShell();
     const banner = getShellBanner();
     expect(banner).toHaveClass("app-shell__banner");
+    // w28 fix 2: the banner IS the title bar — the drag region (desktop
+    // webview reads it via tauri's drag.js; inert in a browser).
+    expect(banner).toHaveAttribute("data-tauri-drag-region", "deep");
     // orange app dot (decorative)
     expect(container.querySelector(".app-shell__appdot")).not.toBeNull();
     // sidebar-toggle wired to the sidebar region
@@ -103,11 +106,22 @@ describe("AppShell — title bar (Player.svg topbar, banner landmark)", () => {
     expect(within(banner).getByText("Player")).toBeInTheDocument();
     // centered wordmark
     expect(within(banner).getByText("Lumen")).toHaveClass("app-shell__wordmark");
-    // window controls group (in-app actions)
-    const group = within(banner).getByRole("group", { name: "Window controls" });
+    // in-app actions group (w28 fix 2 relabel: "Player actions" — the
+    // "Window controls" name belongs to the REAL OS cluster now)
+    const group = within(banner).getByRole("group", { name: "Player actions" });
     expect(within(group).getByRole("button", { name: "Minimize to miniplayer" })).toBeInTheDocument();
     expect(within(group).getByRole("button", { name: "Toggle fullscreen" })).toBeInTheDocument();
     expect(within(group).getByRole("button", { name: "Stop and return to the player" })).toBeInTheDocument();
+  });
+
+  it("browser mode (no webview host): the OS window-control cluster never renders", () => {
+    // jsdom carries no __TAURI_INTERNALS__ — the honest browser posture.
+    renderShell();
+    expect(screen.queryByRole("group", { name: "Window controls" })).toBeNull();
+    // ByRole `name` is a full-string match — "Minimize"/"Close" here can
+    // never hit "Minimize to miniplayer" / "Close shortcuts".
+    expect(screen.queryByRole("button", { name: "Minimize" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
   });
 
   it("badges the chrome while on the demo transport", () => {
@@ -118,6 +132,92 @@ describe("AppShell — title bar (Player.svg topbar, banner landmark)", () => {
   it("does not badge the chrome on a real transport", () => {
     renderShell();
     expect(screen.queryByText("Demo")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// w28 fix 2 — the REAL OS window controls (desktop shell only)
+// ---------------------------------------------------------------------------
+
+/** Records every invoke the shell makes, with per-command behavior. */
+function installTauriInternalsMock(options: { maximized?: boolean } = {}): {
+  calls: Array<{ command: string; payload?: unknown }>;
+} {
+  const calls: Array<{ command: string; payload?: unknown }> = [];
+  const invoke = (command: string, payload?: unknown): Promise<unknown> => {
+    calls.push({ command, payload });
+    if (command === "plugin:window|is_maximized") {
+      return Promise.resolve(options.maximized === true);
+    }
+    if (command === "plugin:event|listen" || command === "plugin:event|unlisten") {
+      return Promise.resolve(1);
+    }
+    return Promise.resolve(undefined);
+  };
+  (globalThis as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
+    invoke,
+    // The resize listener registers through this; never fired in tests.
+    transformCallback: (): number => 1,
+    metadata: { currentWindow: { label: "main" } },
+  };
+  return { calls };
+}
+
+/** The internals mock must never leak across tests (probe is global). */
+function removeTauriInternalsMock(): void {
+  delete (globalThis as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+}
+
+describe("AppShell — OS window controls (w28 fix 2: the frameless title bar)", () => {
+  it("desktop shell: renders the real − / □ / × cluster beside the in-app actions", async () => {
+    installTauriInternalsMock({ maximized: false });
+    renderShell();
+    const group = screen.getByRole("group", { name: "Window controls" });
+    expect(within(group).getByRole("button", { name: "Minimize" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Maximize" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Close" })).toBeInTheDocument();
+    // The in-app trio stays — both clusters, one title bar.
+    expect(screen.getByRole("group", { name: "Player actions" })).toBeInTheDocument();
+    // The mount-time state query rode the seam with the window's label.
+    await act(async () => {});
+    removeTauriInternalsMock();
+  });
+
+  it("the controls drive plugin:window|… with the runtime-stamped label (never a hardcoded one)", async () => {
+    const { calls } = installTauriInternalsMock({ maximized: false });
+    renderShell();
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
+    fireEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await act(async () => {});
+    const commands = calls
+      .map((call) => call.command)
+      .filter((command) => command.startsWith("plugin:window|"));
+    expect(commands).toContain("plugin:window|minimize");
+    expect(commands).toContain("plugin:window|toggle_maximize");
+    expect(commands).toContain("plugin:window|close");
+    // payload carries the current window's label from internals.metadata
+    for (const call of calls) {
+      if (call.command.startsWith("plugin:window|")) {
+        expect(call.payload).toEqual({ label: "main" });
+      }
+    }
+    // Chrome commands never touch the engine's single dispatch command.
+    expect(calls.map((call) => call.command)).not.toContain("lumen_dispatch");
+    removeTauriInternalsMock();
+  });
+
+  it("maximized state flips the middle control to Restore (aria-pressed + label + state refresh)", async () => {
+    installTauriInternalsMock({ maximized: true });
+    renderShell();
+    // Flush the mount-time is_maximized query before asserting.
+    await act(async () => {});
+    const restore = screen.getByRole("button", { name: "Restore" });
+    expect(restore).toHaveAttribute("aria-pressed", "true");
+    // Maximize is gone — one control, one truth for the maximized state.
+    expect(screen.queryByRole("button", { name: "Maximize" })).toBeNull();
+    removeTauriInternalsMock();
   });
 });
 

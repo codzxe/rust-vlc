@@ -1,8 +1,15 @@
 // shellGlyphs — the W26 shell-chrome glyphs that the pinned icon registry
 // (components/icon/icons.tsx) does not carry yet: window controls (min /
-// max / close, Player.svg topbar), the sidebar-header controls (back
+// max / restore / close — the REAL OS chrome glyphs, Player.svg topbar),
+// the sidebar-header controls (back
 // chevron, ellipsis, search, sort, list/grid view toggles — sidebar.svg)
 // and the small plus used by the rail's pinned stop and the create row.
+//
+// w28 fix 2 note: these frame glyphs now belong to the OS window-control
+// cluster ONLY (the frameless banner's real −/□/× controls). The in-app
+// actions beside them (miniplayer / fullscreen / stop) render registry
+// glyphs (`pip` / `fullscreen` / `stop`) whose shapes say what they do —
+// no in-app action may wear a window-control glyph.
 //
 // Geometry follows the icon system's conventions (doc 08 §1.4): 24×24
 // viewBox, stroke currentColor at 1.5 (2 for the window controls' heavier
@@ -61,6 +68,16 @@ export function GlyphMaximize({ size = 16 }: { size?: number }) {
   return (
     <Glyph size={size} strokeWidth={2}>
       <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </Glyph>
+  );
+}
+
+/** Window restore (two offset squares — the un-maximize state, 2px stroke). */
+export function GlyphRestore({ size = 16 }: { size?: number }) {
+  return (
+    <Glyph size={size} strokeWidth={2}>
+      <path d="M9 5.5h6.5A3.5 3.5 0 0 1 19 9v6.5" />
+      <path d="M5.5 9H13a3.5 3.5 0 0 1 3.5 3.5V20H9A3.5 3.5 0 0 1 5.5 16.5V9Z" />
     </Glyph>
   );
 }

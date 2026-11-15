@@ -10,10 +10,11 @@ export const keys = {
   // Wordmark / app identity (product.toml identity.name is the source of
   // truth for hosts; the catalog key is the UI's config-driven seam).
   "app.name": "Lumen",
-  // Title-bar window controls — in-app actions, NOT OS chrome (web shell):
-  // minimize collapses the app into the miniplayer card, maximize toggles
-  // the document fullscreen, close stops playback and returns home.
-  "shell.window.group": "Window controls",
+  // Title-bar in-app actions (w28 fix 2 relabel): minimize collapses the
+  // app into the miniplayer card, maximize toggles the document
+  // fullscreen, close stops playback and returns home. The REAL OS window
+  // controls are the w28.window.ts keys (desktop shell only).
+  "shell.window.group": "Player actions", // w28 fix 2: re-labeled — the OS controls (w28.window.ts) own "Window controls" now
   "shell.window.minimize": "Minimize to miniplayer",
   "shell.window.maximize": "Toggle fullscreen",
   "shell.window.close": "Stop and return to the player",

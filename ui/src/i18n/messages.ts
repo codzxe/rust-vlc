@@ -857,6 +857,12 @@ export type MessageKey =
   | "shell.window.group"
   | "shell.window.maximize"
   | "shell.window.minimize"
+  // w28.window lane keys (the frameless title bar — OS window controls)
+  | "shell.window.os.close"
+  | "shell.window.os.group"
+  | "shell.window.os.maximize"
+  | "shell.window.os.minimize"
+  | "shell.window.os.restore"
   | "shortcuts.close"
   | "shortcuts.column.global"
   | "shortcuts.column.hotkey"
@@ -2326,9 +2332,17 @@ export const messages: Readonly<Record<MessageKey, string>> = {
   "shell.sidebar.view-list": "List view",
   "shell.title.toggle-sidebar": "Toggle playlists sidebar",
   "shell.window.close": "Stop and return to the player",
-  "shell.window.group": "Window controls",
+  // w28 fix 2: the in-app group no longer borrows the "Window controls"
+  // name — the REAL OS controls own it now (shell.window.os.group below);
+  // this group is the in-app player-action trio (pip / fullscreen / stop).
+  "shell.window.group": "Player actions",
   "shell.window.maximize": "Toggle fullscreen",
   "shell.window.minimize": "Minimize to miniplayer",
+  "shell.window.os.close": "Close",
+  "shell.window.os.group": "Window controls",
+  "shell.window.os.maximize": "Maximize",
+  "shell.window.os.minimize": "Minimize",
+  "shell.window.os.restore": "Restore",
   "shortcuts.close": "Close shortcuts",
   "shortcuts.column.global": "Global Hotkey",
   "shortcuts.column.hotkey": "Hotkey",

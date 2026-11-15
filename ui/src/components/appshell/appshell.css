@@ -136,6 +136,25 @@ body {
   gap: calc(var(--space-grid) * 0.5);
 }
 
+/* ---- OS window controls (w28 fix 2 — the frameless title bar) --------- */
+
+/* The REAL − / □ / × cluster: desktop shell only, separated from the
+ * in-app actions by the same hairline tick the banner uses elsewhere.
+ * Structural geometry only (the separator); the IconButton base already
+ * carries the surface-hover affordance. */
+.app-shell__window--os {
+  padding-inline-start: var(--space-grid);
+  border-inline-start: 1px solid var(--color-stroke-border);
+}
+
+/* Close hover: the one destructive moment of the title bar — the
+ * record-red token carries it (never a raw platform red). The doubled
+ * selector matches .lumen-icon-button's own hover specificity. */
+.app-shell__winctl--close.lumen-icon-button:hover {
+  background: var(--color-record);
+  color: var(--color-content-bright);
+}
+
 /* ---- frame: rail + sidebar + main -------------------------------------- */
 
 .app-shell__frame {

@@ -441,9 +441,13 @@ jobs:
 
   # ------------------------------------------------------------------------
   # Windows — build-only + a native launch attempt. WebView2 ships on
-  # windows runners; the admission binary is a CONSOLE-subsystem exe (no
-  # windows_subsystem attribute in apps/desktop-tauri — the honest stderr
-  # face), so Start-Process redirects work. HONESTY: same posture as the
+  # windows runners. The admission binary is a GUI-subsystem exe in
+  # release builds (w28 fix 1: #![cfg_attr(not(debug_assertions),
+  # windows_subsystem = "windows")] — double-clicking the release exe no
+  # longer flashes a terminal); the launch lane's Start-Process
+  # -RedirectStandardOutput/-RedirectStandardError still work because
+  # explicit parent handles are inherited regardless of subsystem, so
+  # the stderr receipts below keep flowing. HONESTY: same posture as the
   # macOS lane — BEST-EFFORT-PENDING even when green.
   # ------------------------------------------------------------------------
   windows-launch:

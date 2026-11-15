@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main-window capability: core defaults only. Every UI-originated command flows EXCLUSIVELY through the single lumen_dispatch command (doc 05 §5.1 single-command rule); engine events arrive on the lumen://event channel, covered by core:event:default. No plugin permissions are granted.",
+  "description": "Main-window capability: core defaults + the four window-control grants (w28 fix 3 — the frameless title bar). Every UI-originated command flows EXCLUSIVELY through the single lumen_dispatch command (doc 05 §5.1 single-command rule); engine events arrive on the lumen://event channel, covered by core:event:default. The window grants are the ONLY direct core commands the UI may invoke (plugin:window|minimize / toggle_maximize / close / start_dragging): the shell's custom title bar (banner) IS the window chrome now (decorations:false, w28 fix 2), and chrome controls are not engine commands — they never touch lumen_dispatch. No plugin permissions are granted.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
+  ]
 }

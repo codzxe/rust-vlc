@@ -34,10 +34,16 @@
 //
 // The Solstice menubar is GONE (no W25 frame carries one): navigation
 // lives in the rail + breadcrumb; open-media stays shell-owned (the ONE
-// OPEN_MEDIA_EVENT listener for every screen); the window controls are
-// IN-APP actions (miniplayer / document fullscreen / stop + home) — the
-// web shell has no OS chrome to drive, and none of the buttons pretend
-// otherwise (labels say what they do).
+// OPEN_MEDIA_EVENT listener for every screen). The banner's control
+// clusters (w28 fix 2 — the frameless title bar):
+//   * in-app actions (miniplayer / document fullscreen / stop + home) —
+//     rendered on BOTH hosts, with registry glyphs (pip / fullscreen /
+//     stop) whose shapes say what they do;
+//   * REAL OS window controls (− / □-restore / ×) — desktop shell only,
+//     driving plugin:window|… (window-controls.ts): the window is
+//     frameless (decorations:false), the banner IS the title bar
+//     (data-tauri-drag-region), and no in-app action wears a
+//     window-control glyph anymore.
 //
 // ONE-SIDEBAR COMPOSITION (Player.png, Lead decision w26): the frame shows
 // rail + ONE sidebar — the shell's playlists library sidebar (sidebar.svg
@@ -63,8 +69,17 @@ import { Panel } from "../surface";
 import { useMsg } from "../../i18n/messages";
 import type { MessageKey } from "../../i18n/messages";
 import { keys as laneKeys } from "../../i18n/keys/w26.a10";
+// w28.window (fix 2 — the frameless title bar): the OS window-control
+// labels. Same pre-registration seam as the w26.a10 keys above (the
+// lane file is the reference; the Lead merges into messages.ts).
+import { keys as w28WindowKeys } from "../../i18n/keys/w28.window";
 import { useClient } from "../../client/ClientProvider";
 import type { CommandRequest } from "../../client/transport";
+// w28 fix 2: the host probe (same one the app transport uses) + the OS
+// window seam (plugin:window|… — chrome commands, never lumen_dispatch).
+import { isDesktopShell } from "../../client/app-transport";
+import { detectOsWindowBackend } from "../../client/window-controls";
+import type { OsWindowBackend } from "../../client/window-controls";
 import { OpenMediaDialog, OPEN_MEDIA_EVENT } from "../../screens/open-media";
 import { PLAYER_TOGGLE_SIDEBAR_EVENT } from "../../screens/player";
 // w26.f08 (e09-F5): the create flow reuses the playlist core's own dialog +
@@ -82,6 +97,7 @@ import {
   GlyphMore,
   GlyphPlaylist,
   GlyphPlus,
+  GlyphRestore,
   GlyphSearch,
   GlyphSort,
 } from "./shellGlyphs";
@@ -93,7 +109,12 @@ import "./appshell.css";
 
 /** Keys owned by this lane (registered into messages.ts by the Lead). */
 type LaneKey = keyof typeof laneKeys;
-const laneCatalog: Readonly<Record<string, string>> = laneKeys;
+// w28.window keys join the same seam (pre-registration passthrough).
+type W28WindowKey = keyof typeof w28WindowKeys;
+const laneCatalog: Readonly<Record<string, string>> = {
+  ...laneKeys,
+  ...w28WindowKeys,
+};
 
 /**
  * useShellMsg — `useMsg` extended with this lane's pre-registration keys.
@@ -105,7 +126,8 @@ const laneCatalog: Readonly<Record<string, string>> = laneKeys;
 function useShellMsg() {
   const m = useMsg();
   return useCallback(
-    (key: MessageKey | LaneKey): string => m(key as MessageKey) ?? laneCatalog[key],
+    (key: MessageKey | LaneKey | W28WindowKey): string =>
+      m(key as MessageKey) ?? laneCatalog[key],
     [m],
   );
 }
@@ -397,6 +419,64 @@ export function AppShell({
     navigate("/player");
   }, [dispatch, navigate]);
 
+  // ---- OS window controls (w28 fix 2 — the frameless title bar) -----------
+  // Desktop shell only: the window is frameless and the banner IS the title
+  // bar, so the banner's right edge carries the REAL − / □ / × controls.
+  // They drive plugin:window|… through the window-controls seam — chrome
+  // commands, never lumen_dispatch (doc 05 §5.1 keeps engine and chrome
+  // paths separate). In a browser the probe returns null, the cluster
+  // never renders, and the in-app trio above stands alone.
+  const [osWindow] = useState<OsWindowBackend | null>(() =>
+    isDesktopShell() ? detectOsWindowBackend() : null,
+  );
+  const [osMaximized, setOsMaximized] = useState(false);
+  useEffect(() => {
+    if (osWindow === null) return;
+    let stopped = false;
+    let unlisten: (() => void) | null = null;
+    const refresh = (): void => {
+      void osWindow
+        .isMaximized()
+        .then((maximized) => {
+          if (!stopped) setOsMaximized(maximized);
+        })
+        .catch((error: unknown) => {
+          // A failed state query leaves the glyph at its last-known state —
+          // honest staleness, never a crash in the title bar.
+          console.error("window-controls: is_maximized failed:", error);
+        });
+    };
+    refresh();
+    void osWindow
+      .onResized(refresh)
+      .then((stop) => {
+        if (stopped) stop();
+        else unlisten = stop;
+      })
+      .catch((error: unknown) => {
+        console.error("window-controls: resize listen failed:", error);
+      });
+    return () => {
+      stopped = true;
+      unlisten?.();
+    };
+  }, [osWindow]);
+  const onOsMinimize = useCallback((): void => {
+    void osWindow?.minimize().catch((error: unknown) => {
+      console.error("window-controls: minimize failed:", error);
+    });
+  }, [osWindow]);
+  const onOsToggleMaximize = useCallback((): void => {
+    void osWindow?.toggleMaximize().catch((error: unknown) => {
+      console.error("window-controls: toggle-maximize failed:", error);
+    });
+  }, [osWindow]);
+  const onOsClose = useCallback((): void => {
+    void osWindow?.close().catch((error: unknown) => {
+      console.error("window-controls: close failed:", error);
+    });
+  }, [osWindow]);
+
   // ---- breadcrumb ----------------------------------------------------------
   const crumb = useMemo(() => {
     const hit = CRUMB_ITEMS.find((item) => item.when(location.pathname));
@@ -453,7 +533,12 @@ export function AppShell({
   return (
     <div className="app-shell" data-demo={demo || undefined}>
       {/* ---- title bar (banner landmark; Player.svg topbar) ---------------- */}
-      <header className="app-shell__banner">
+      {/* data-tauri-drag-region="deep" (w28 fix 2): the frameless window's
+       * title bar. "deep" = a press anywhere in the banner subtree that is
+       * not an interactive control drags the window (buttons/links block
+       * drag by themselves — tauri's drag.js rule), and a double-press
+       * toggles maximize. Inert in a plain browser (no drag.js injected). */}
+      <header className="app-shell__banner" data-tauri-drag-region="deep">
         <div className="app-shell__banner-cluster">
           <span className="app-shell__appdot" aria-hidden="true" />
           <span className="app-shell__tick" aria-hidden="true" />
@@ -483,6 +568,11 @@ export function AppShell({
               {m("demo.badge")}
             </span>
           ) : null}
+          {/* In-app actions — BOTH hosts. w28 fix 2: these wear registry
+           * glyphs whose shapes say what they do (pip / fullscreen / stop);
+           * the old window-control look-alikes (dash / square / ×) moved to
+           * the REAL OS cluster below. Labels never changed — they always
+           * said exactly what the buttons do. */}
           <div className="app-shell__window" role="group" aria-label={t("shell.window.group")}>
             <IconButton
               label={t("shell.window.minimize")}
@@ -491,7 +581,7 @@ export function AppShell({
               onClick={onWindowMinimize}
               disabled={onMiniplayerRoute}
             >
-              <GlyphMinimize size={14} />
+              <Icon name="pip" size={16} />
             </IconButton>
             <IconButton
               label={t("shell.window.maximize")}
@@ -500,7 +590,7 @@ export function AppShell({
               aria-pressed={fullscreenActive}
               onClick={toggleFullscreen}
             >
-              <GlyphMaximize size={14} />
+              <Icon name="fullscreen" size={16} />
             </IconButton>
             <IconButton
               label={t("shell.window.close")}
@@ -508,9 +598,49 @@ export function AppShell({
               className="app-shell__winctl"
               onClick={onWindowClose}
             >
-              <GlyphClose size={14} />
+              <Icon name="stop" size={16} />
             </IconButton>
           </div>
+          {/* REAL OS window controls — desktop shell only (w28 fix 2). The
+           * frameless banner is the title bar; these drive the actual
+           * window via plugin:window|… (window-controls.ts). */}
+          {osWindow !== null ? (
+            <div
+              className="app-shell__window app-shell__window--os"
+              role="group"
+              aria-label={t("shell.window.os.group")}
+            >
+              <IconButton
+                label={t("shell.window.os.minimize")}
+                size="sm"
+                className="app-shell__winctl app-shell__winctl--os"
+                onClick={onOsMinimize}
+              >
+                <GlyphMinimize size={14} />
+              </IconButton>
+              <IconButton
+                label={
+                  osMaximized
+                    ? t("shell.window.os.restore")
+                    : t("shell.window.os.maximize")
+                }
+                size="sm"
+                className="app-shell__winctl app-shell__winctl--os"
+                aria-pressed={osMaximized}
+                onClick={onOsToggleMaximize}
+              >
+                {osMaximized ? <GlyphRestore size={14} /> : <GlyphMaximize size={14} />}
+              </IconButton>
+              <IconButton
+                label={t("shell.window.os.close")}
+                size="sm"
+                className="app-shell__winctl app-shell__winctl--os app-shell__winctl--close"
+                onClick={onOsClose}
+              >
+                <GlyphClose size={14} />
+              </IconButton>
+            </div>
+          ) : null}
         </div>
       </header>
 

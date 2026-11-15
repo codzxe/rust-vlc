@@ -155,7 +155,7 @@ mod tests {
         );
         assert_eq!(resolve_window_title(window, identity, None), "Lumen");
         assert_eq!(log_line_prefix(identity), "lumen");
-        assert_eq!(cli_version_line(identity), "Lumen 0.1.0-dev");
+        assert_eq!(cli_version_line(identity), "Lumen 0.1.1");
         assert_eq!(cli_usage_header(identity), "The Lumen command-line player");
         let installer = installer_identity(identity);
         assert_eq!(installer.product_name, "Lumen");

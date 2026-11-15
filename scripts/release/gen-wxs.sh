@@ -51,10 +51,14 @@
 # a broken one; File/@Id stays identifier-sanitized instead).
 #
 # Honest scope: the three binaries + the [shipped] docs list under
-# Program Files, no Start-Menu shortcut — the desktop shell is the
-# ADR-004 std-only skeleton, and shipping a menu entry for a binary
-# that opens no window would be a false affordance. Revisit when the
-# webview seam lands. The tauri exe runs its UI on WebView2, a SYSTEM
+# Program Files, PLUS a Start-Menu shortcut to the tauri app (w28 fix 4
+# — the "normal app" install). The wave-22 posture shipped no shortcut
+# because the desktop shell was the ADR-004 std-only skeleton ("shipping
+# a menu entry for a binary that opens no window would be a false
+# affordance — revisit when the webview seam lands"); the webview seam
+# HAS landed (lumen-tauri.exe opens the real UI), so the false-affordance
+# reason is gone and the shortcut points at the app binary, never the
+# skeleton or the CLI. The tauri exe runs its UI on WebView2, a SYSTEM
 # component on Win10/11 (preinstalled on Win11, Evergreen-distributed
 # on Win10) — this installer stages no WebView2 runtime and carries no
 # extra dependency row for it; the assumption is pinned in the
@@ -193,11 +197,32 @@ generate_wxs() {
 ${docs_xml}        </Component>
       </Directory>
     </StandardDirectory>
+    <!-- Start-Menu shortcut (w28 fix 4 — the "normal app" install):
+         one folder under ProgramMenuFolder, one shortcut to the REAL app
+         (the tauri webview binary — the skeleton/CLI exes stay
+         unshortcut). The Shortcut cannot be a component KeyPath, so the
+         HKLM registry value keys it (per-machine install posture); the
+         stable GUID follows the Docs component's rule (uuid5 over the
+         product upgrade code namespace, component:appmenu-shortcut).
+         RemoveFolder clears the menu folder on uninstall. Kept in
+         lockstep with the twin generator (change both together). -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuDir" Name="${esc_name}">
+        <Component Id="AppMenuShortcut" Guid="44134d88-f11f-52bb-a65d-68a087ac0ad2">
+          <Shortcut Id="AppShortcut" Name="${esc_name}" Description="${esc_description}"
+                    Target="[INSTALLDIR]${BIN_TAURI}.exe" WorkingDirectory="INSTALLDIR" />
+          <RemoveFolder On="uninstall" />
+          <RegistryValue Root="HKLM" Key="Software\${esc_manufacturer}\${esc_name}"
+                         Name="appmenu-shortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
     <Feature Id="Main" Level="1" Title="${esc_name}">
       <ComponentRef Id="BinCli" />
       <ComponentRef Id="BinDesktop" />
       <ComponentRef Id="BinTauri" />
       <ComponentRef Id="Docs" />
+      <ComponentRef Id="AppMenuShortcut" />
     </Feature>
   </Package>
 </Wix>
@@ -283,6 +308,30 @@ for r in root.findall(f".//{ns}ComponentRef"):
     assert r.get("Id") and "RefId" not in r.attrib, (
         "ComponentRef must carry Id= (never a RefId= attribute)")
 assert "BinTauri" in comp_ids, "the BinTauri component row is missing"
+
+# The Start-Menu shortcut (w28 fix 4): the "normal app" install surface.
+# One Shortcut row, aimed at the TAURI exe (never the skeleton/CLI), keyed
+# by an HKLM registry value (a Shortcut cannot be a KeyPath), inside a
+# ProgramMenuFolder directory the uninstall clears (RemoveFolder row).
+shortcuts = root.findall(f".//{ns}Shortcut")
+assert len(shortcuts) == 1, (
+    f"exactly one Start-Menu Shortcut expected (the app entry), "
+    f"found {len(shortcuts)}")
+shortcut = shortcuts[0]
+assert shortcut.get("Target") == "[INSTALLDIR]selftest-tauri.exe", (
+    f"shortcut must target the tauri app exe, got {shortcut.get('Target')!r}")
+assert shortcut.get("WorkingDirectory") == "INSTALLDIR", (
+    "shortcut must launch with the install dir as working directory")
+assert "AppMenuShortcut" in comp_ids, "the AppMenuShortcut component row is missing"
+shortcut_component = [c for c in root.findall(f".//{ns}Component")
+                      if c.get("Id") == "AppMenuShortcut"][0]
+assert shortcut_component.find(f"{ns}RemoveFolder") is not None, (
+    "the menu folder must be removed on uninstall (RemoveFolder row)")
+keypath = shortcut_component.find(f"{ns}RegistryValue")
+assert keypath is not None and keypath.get("KeyPath") == "yes", (
+    "the shortcut component's KeyPath must be its registry value")
+assert keypath.get("Root") == "HKLM", (
+    "per-machine install: the shortcut keypath registry value is HKLM")
 
 # The escape SET pinned on the raw text (the one proof that catches a
 # reverted &apos; -- a bare ' parses fine in a double-quoted attribute,

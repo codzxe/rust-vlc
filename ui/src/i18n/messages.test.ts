@@ -26,7 +26,7 @@ describe("en-US reference catalog (doc 07 §6.3)", () => {
     // meaningfully against a 1443-key catalog. Repin deliberately per wave —
     // the count moves when the Lead merges lane keys (up) or prunes the
     // dead-key grandfather list (down, ui/i18n-dead-keys.json).
-    expect(keys.length).toBe(1443);
+    expect(keys.length).toBe(1448); // w28.window: +5 OS window-control keys
     for (const key of keys) {
       expect(typeof messages[key], key).toBe("string");
       expect(messages[key].length, key).toBeGreaterThan(0);

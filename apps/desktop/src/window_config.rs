@@ -358,8 +358,9 @@ mod tests {
         let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
         assert_eq!(config.width, 1280);
         assert_eq!(config.height, 720);
-        assert_eq!(config.min_width, 480);
-        assert_eq!(config.min_height, 320);
+        // w28 fix 5: the UI floor (was 480/320 — see product.toml [window]).
+        assert_eq!(config.min_width, 940);
+        assert_eq!(config.min_height, 600);
         assert!(!config.start_maximized);
         assert!(config.remember_geometry);
         assert_eq!(config.title_template, "{media_title} — {product_name}");
@@ -445,7 +446,8 @@ mod tests {
         let config = parse_window_table(product).unwrap_or_else(|err| unreachable!("{err}"));
         let spec = config.build_spec();
         assert_eq!(spec.inner_size, (1280, 720));
-        assert_eq!(spec.min_inner_size, (480, 320));
+        // w28 fix 5: the UI floor (was 480x320 — see product.toml [window]).
+        assert_eq!(spec.min_inner_size, (940, 600));
         assert!(!spec.maximized);
         assert!(spec.remember_geometry);
         assert_eq!(

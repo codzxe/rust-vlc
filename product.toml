@@ -24,9 +24,9 @@ short_name = "Lumen"
 publisher = "Lumen Contributors"          # [PROPOSAL] placeholder entity
 # Human-facing version string. NOT the engine/catalog/protocol versions —
 # those are reported by system.get-engine-info (doc 05 §2.12).
-display_version = "0.1.0-dev"
+display_version = "0.1.1"
 # Monotonic build number for installers/updaters that compare integers.
-version_code = 1
+version_code = 2
 # Product description: a localization key, never literal text (MP §5).
 # The prose lives in locales/en-US.toml under this key.
 description_key = "product.description"
@@ -63,8 +63,12 @@ app_id = "dev.lumen.Lumen"
 [window]
 width = 1280                  # schema 480..=3840
 height = 720                  # schema 320..=2160
-min_width = 480               # schema: min_width < width
-min_height = 320              # schema: min_height < height
+# w28 fix 5: the UI floor (tauri.conf.json first-paint minWidth/minHeight
+# and the W26 responsive layout's measured floor) — 940x600. The old
+# 480x320 rows let users crush the desktop shell below its layout floor
+# (a broken, "unsticky" UI); min sizes now agree with the design floor.
+min_width = 940               # schema: min_width < width; = UI floor
+min_height = 600              # schema: min_height < height; = UI floor
 start_maximized = false
 # Remember window geometry across runs (position + size, per monitor).
 remember_geometry = true
