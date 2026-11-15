@@ -5,15 +5,16 @@
 # Inputs (environment; set by the release workflow via product-env.py):
 #   PRODUCT_LOWER, PRODUCT_VERSION, PRODUCT_DESCRIPTION,
 #   PRODUCT_PUBLISHER, MSI_VERSION, PRODUCT_MSI_UPGRADE_CODE,
-#   BIN_CLI, BIN_DESKTOP, BIN_TAURI (all three shipped exes),
+#   BIN_CLI, BIN_TAURI (the two shipped exes; w30.8/w30.12 — the
+#   exit-86 lumen-desktop stub left every user payload),
 #   OS_ID (windows), ARCH_ID (e.g. x86_64),
 #   TARGET_DIR (cargo build dir, default "target"),
 #   DIST_DIR   (output dir, default "dist"),
 #   WIX_EXE    (optional path to wix.exe; when set an MSI is also built)
 #
 # Outputs in DIST_DIR:
-#   <slug>-<version>-<arch>-windows.zip   (the CLI, desktop and tauri
-#                                          exes + LICENSE + README.md)
+#   <slug>-<version>-<arch>-windows.zip   (the CLI and tauri exes
+#                                          + LICENSE + README.md)
 #   <slug>-<version>-<arch>-windows.msi   (only when WIX_EXE is set)
 #
 # The zip is made with `python -m zipfile` (stdlib, present on every
@@ -30,9 +31,8 @@ set -eu
 : "${PRODUCT_DESCRIPTION:?package-windows.sh: PRODUCT_DESCRIPTION not set}"
 : "${PRODUCT_PUBLISHER:?package-windows.sh: PRODUCT_PUBLISHER not set}"
 : "${BIN_CLI:?package-windows.sh: BIN_CLI not set}"
-: "${BIN_DESKTOP:?package-windows.sh: BIN_DESKTOP not set}"
-# Third shipped binary: gen-wxs.sh requires it for the BinTauri File
-# row, so the zip stages it too (REQUIRED like the other two).
+# The GUI shell: REQUIRED like the CLI (the MSI's File rows carry it;
+# the stub is a CI-only diagnostic — never staged here, w30.8/w30.12).
 : "${BIN_TAURI:?package-windows.sh: BIN_TAURI not set}"
 : "${OS_ID:?package-windows.sh: OS_ID not set}"
 : "${ARCH_ID:?package-windows.sh: ARCH_ID not set}"
@@ -52,9 +52,8 @@ PY=$(command -v python3 || command -v python) ||
 
 release_dir="$TARGET_DIR/release"
 cli_exe="${BIN_CLI}.exe"
-desktop_exe="${BIN_DESKTOP}.exe"
 tauri_exe="${BIN_TAURI}.exe"
-for f in "$release_dir/$cli_exe" "$release_dir/$desktop_exe" "$release_dir/$tauri_exe" LICENSE README.md; do
+for f in "$release_dir/$cli_exe" "$release_dir/$tauri_exe" LICENSE README.md; do
     [ -f "$f" ] || die "missing packaging input: $f (build first: cargo build --release --locked)"
 done
 
@@ -64,7 +63,6 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
 
 install -m 0755 "$release_dir/$cli_exe" "$stage/$cli_exe"
-install -m 0755 "$release_dir/$desktop_exe" "$stage/$desktop_exe"
 install -m 0755 "$release_dir/$tauri_exe" "$stage/$tauri_exe"
 cp LICENSE README.md "$stage/"
 
@@ -73,7 +71,7 @@ zip_path="$dist_abs/${base}.zip"
 
 # python -m zipfile stores entries under their given (relative) names —
 # run from the staging dir so the archive root is flat.
-( cd "$stage" && "$PY" -m zipfile -c "$zip_path" "$cli_exe" "$desktop_exe" "$tauri_exe" LICENSE README.md ) ||
+( cd "$stage" && "$PY" -m zipfile -c "$zip_path" "$cli_exe" "$tauri_exe" LICENSE README.md ) ||
     die "zip creation failed"
 [ -s "$zip_path" ] || die "zip archive is missing or empty: $zip_path"
 echo "package-windows.sh: wrote $zip_path"

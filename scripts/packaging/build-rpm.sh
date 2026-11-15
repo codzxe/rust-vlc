@@ -27,8 +27,9 @@
 #                  config key exists; same decision as build-deb.sh's
 #                  Depends rows)
 #   files       <- PACKAGING_LINUX_BINDIR / _DOCS_DIR /
-#                  _APPLICATIONS_DIR / _ICONS_DIR + BIN_CLI/BIN_DESKTOP
-#                  + BIN_TAURI (cargo metadata) +
+#                  _APPLICATIONS_DIR / _ICONS_DIR + BIN_CLI
+#                  + BIN_TAURI (cargo metadata; w30.8/w30.12: the
+#                  lumen-desktop stub left the payload) +
 #                  PACKAGING_DESKTOP_CATEGORIES /
 #                  PACKAGING_DESKTOP_TERMINAL for the entry file
 #
@@ -49,7 +50,6 @@ set -eu
 : "${PRODUCT_APPSTREAM_ID:?build-rpm.sh: PRODUCT_APPSTREAM_ID not set}"
 : "${PRODUCT_ACCENT_COLOR:?build-rpm.sh: PRODUCT_ACCENT_COLOR not set}"
 : "${BIN_CLI:?build-rpm.sh: BIN_CLI not set}"
-: "${BIN_DESKTOP:?build-rpm.sh: BIN_DESKTOP not set}"
 : "${BIN_TAURI:?build-rpm.sh: BIN_TAURI not set}"
 : "${OS_ID:?build-rpm.sh: OS_ID not set}"
 : "${ARCH_ID:?build-rpm.sh: ARCH_ID not set}"
@@ -109,7 +109,6 @@ mkdir -p "$payload"
 # payload stager installed (single source — they cannot drift).
 files_list=""
 for entry in "/$PACKAGING_LINUX_BINDIR/$BIN_CLI" \
-    "/$PACKAGING_LINUX_BINDIR/$BIN_DESKTOP" \
     "/$PACKAGING_LINUX_BINDIR/$BIN_TAURI" \
     "/$PACKAGING_LINUX_APPLICATIONS_DIR/${PRODUCT_APPSTREAM_ID}.desktop" \
     "/$PACKAGING_LINUX_ICONS_DIR/$PRODUCT_LOWER.png"

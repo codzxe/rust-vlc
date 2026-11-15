@@ -303,11 +303,14 @@ mod tests {
 
         // A real file canonicalizes to itself (the temp dir is already
         // absolute; canonicalize also resolves any symlinked parents).
+        // The URI is built through the shared w30.1 constructor — the
+        // same platform-aware path every host uses (no hand-rolled
+        // format! here, so the test cannot pass while hosts differ).
         let tmp = std::env::temp_dir().canonicalize().must();
         let file = tmp.join("lumen-2a1-uri-resolve.tmp"); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         std::fs::write(&file, b"x").must();
-        let uri = format!("file://{}", file.to_str().must());
-        let resolved = resolve_file(&parse(&uri)).must();
+        let uri = SourceUri::from_file_path(file.to_str().must()).must();
+        let resolved = resolve_file(&uri).must();
         assert_eq!(resolved, file, "canonical path round-trips");
         let _ = std::fs::remove_file(&file);
 
@@ -317,8 +320,8 @@ mod tests {
         std::os::unix::fs::symlink("nowhere-lumen-2a1", &dangling).must(); // lumen-allow-literal: test fixture value — round-trip data, not display identity
         #[cfg(not(unix))]
         std::fs::write(&dangling, b"stub-not-a-symlink-on-this-platform").must();
-        let uri = format!("file://{}", dangling.to_str().must());
-        let err = testkit::assert_err(resolve_file(&parse(&uri)), "dangling symlink");
+        let uri = SourceUri::from_file_path(dangling.to_str().must()).must();
+        let err = testkit::assert_err(resolve_file(&uri), "dangling symlink");
         assert!(
             matches!(
                 err.kind,

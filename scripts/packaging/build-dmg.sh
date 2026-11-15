@@ -31,9 +31,10 @@
 # rule-F1 posture, applied to packaging).
 #
 # Inputs (environment; set by the release workflow via
-# scripts/packaging/packaging-env.py): PRODUCT_*, BIN_DESKTOP,
-# BIN_TAURI (the third shipped binary — staged into the .app by
-# make-app.sh, guarded here like BIN_DESKTOP),
+# scripts/packaging/packaging-env.py): PRODUCT_*, BIN_TAURI
+# (the GUI shell — staged into the .app by make-app.sh and guarded
+# here; w30.8/w30.12: the exit-86 lumen-desktop stub is a CI-only
+# diagnostic and no longer a payload member anywhere),
 # OS_ID=macos, ARCH_ID (aarch64|x86_64), PACKAGING_MACOS_UNIVERSAL,
 # TARGET_DIR (default "target"), DIST_DIR (default "dist"),
 # APP_DIR (where the .app is staged; default "bundle").
@@ -50,9 +51,9 @@ set -eu
 : "${PRODUCT_NAME:?build-dmg.sh: PRODUCT_NAME not set (run packaging-env.py first)}"
 : "${PRODUCT_LOWER:?build-dmg.sh: PRODUCT_LOWER not set}"
 : "${PRODUCT_VERSION:?build-dmg.sh: PRODUCT_VERSION not set}"
-: "${BIN_DESKTOP:?build-dmg.sh: BIN_DESKTOP not set}"
-# Third shipped binary, REQUIRED like BIN_DESKTOP: make-app.sh stages
-# it into Contents/MacOS (the tauri bin embeds its web UI via
+# The GUI shell — REQUIRED (a bundle without it ships no executable
+# at all): make-app.sh stages it into Contents/MacOS as the
+# CFBundleExecutable (the tauri bin embeds its web UI via
 # tauri-codegen — no extra Resources; WKWebView is system-provided on
 # macOS 11+, the bundle's LSMinimumSystemVersion).
 : "${BIN_TAURI:?build-dmg.sh: BIN_TAURI not set}"

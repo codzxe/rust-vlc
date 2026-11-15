@@ -155,8 +155,10 @@ $out"
                 bad "generated desktop entry Categories != packaging.toml desktop_entry.categories"
             grep -q "^Terminal=${PACKAGING_DESKTOP_TERMINAL}$" "$stage/entry.desktop" ||
                 bad "generated desktop entry Terminal != packaging.toml desktop_entry.terminal"
-            grep -q "^Exec=${BIN_DESKTOP}$" "$stage/entry.desktop" ||
-                bad "generated desktop entry Exec != BIN_DESKTOP (cargo metadata)"
+            # w30.8/w30.12: the entry launches the GUI shell (BIN_TAURI)
+            # — the exit-86 lumen-desktop stub left every payload.
+            grep -q "^Exec=${BIN_TAURI}$" "$stage/entry.desktop" ||
+                bad "generated desktop entry Exec != BIN_TAURI (cargo metadata)"
             step "   gen-desktop-entry.sh content matches config"
         else
             bad "gen-desktop-entry.sh failed: $out"

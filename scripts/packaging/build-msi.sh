@@ -25,7 +25,7 @@
 # Inputs (environment; set by the release workflow via
 # scripts/packaging/packaging-env.py, which wraps product-env.py):
 #   PRODUCT_NAME, PRODUCT_PUBLISHER, PRODUCT_DESCRIPTION, MSI_VERSION,
-#   PRODUCT_MSI_UPGRADE_CODE, BIN_CLI, BIN_DESKTOP, BIN_TAURI, OS_ID,
+#   PRODUCT_MSI_UPGRADE_CODE, BIN_CLI, BIN_TAURI, OS_ID,
 #   ARCH_ID,
 #   PACKAGING_WINDOWS_BINDIR (bin dir under ProgramFiles64Folder\<Name>),
 #   PACKAGING_DOCS (packaging.toml [shipped] docs — staged + referenced
@@ -58,9 +58,10 @@ set -eu
 : "${PRODUCT_LOWER:?build-msi.sh: PRODUCT_LOWER not set}"
 : "${PRODUCT_VERSION:?build-msi.sh: PRODUCT_VERSION not set}"
 : "${BIN_CLI:?build-msi.sh: BIN_CLI not set}"
-: "${BIN_DESKTOP:?build-msi.sh: BIN_DESKTOP not set}"
-# The tauri admission bin: REQUIRED like the other two — the generated
-# .wxs carries a BinTauri File row, so staging it is not optional.
+# The tauri GUI shell: REQUIRED like the CLI — the generated .wxs
+# (w30.9 twins) carries its File row, so staging it is not optional.
+# w30.8/w30.12: the exit-86 lumen-desktop stub left the MSI with the
+# twins — it is a CI-only diagnostic now, never staged here.
 : "${BIN_TAURI:?build-msi.sh: BIN_TAURI not set (run packaging-env.py first)}"
 : "${OS_ID:?build-msi.sh: OS_ID not set}"
 : "${ARCH_ID:?build-msi.sh: ARCH_ID not set}"
@@ -90,9 +91,8 @@ esac
 # the configured install bindir for the MSI layout.
 release_dir="$TARGET_DIR/release"
 cli_exe="${BIN_CLI}.exe"
-desktop_exe="${BIN_DESKTOP}.exe"
 tauri_exe="${BIN_TAURI}.exe"
-for f in "$release_dir/$cli_exe" "$release_dir/$desktop_exe" "$release_dir/$tauri_exe"; do
+for f in "$release_dir/$cli_exe" "$release_dir/$tauri_exe"; do
     [ -f "$f" ] || die "missing packaging input: $f (build first: cargo build --release --locked)"
 done
 
@@ -102,7 +102,6 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
 
 install -m 0755 "$release_dir/$cli_exe" "$stage/$cli_exe"
-install -m 0755 "$release_dir/$desktop_exe" "$stage/$desktop_exe"
 install -m 0755 "$release_dir/$tauri_exe" "$stage/$tauri_exe"
 
 # Docs ride beside the exes in the staging dir: the generated .wxs

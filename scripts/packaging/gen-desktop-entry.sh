@@ -7,7 +7,11 @@
 # field is config-driven:
 #   Name/Comment <- product.toml identity (PRODUCT_NAME/_DESCRIPTION via
 #                   packaging-env.py -> product-env.py)
-#   Exec         <- BIN_DESKTOP (cargo metadata [[bin]] name)
+#   Exec         <- BIN_TAURI (the GUI shell's cargo-metadata [[bin]]
+#                   name; w30.8/w30.12 — was BIN_DESKTOP, the exit-86
+#                   stub, so the Linux menu entry printed a skeleton
+#                   notice and exited; the stub is a CI-only
+#                   diagnostic and not a payload member anywhere)
 #   Icon         <- PRODUCT_LOWER (identity slug)
 #   Terminal/Categories <- packaging/packaging.toml [desktop_entry]
 #                   (PACKAGING_DESKTOP_TERMINAL / _CATEGORIES)
@@ -19,7 +23,7 @@ set -eu
 : "${PRODUCT_NAME:?gen-desktop-entry.sh: PRODUCT_NAME not set (run packaging-env.py first)}"
 : "${PRODUCT_DESCRIPTION:?gen-desktop-entry.sh: PRODUCT_DESCRIPTION not set}"
 : "${PRODUCT_LOWER:?gen-desktop-entry.sh: PRODUCT_LOWER not set}"
-: "${BIN_DESKTOP:?gen-desktop-entry.sh: BIN_DESKTOP not set}"
+: "${BIN_TAURI:?gen-desktop-entry.sh: BIN_TAURI not set}"
 : "${PACKAGING_DESKTOP_TERMINAL:?gen-desktop-entry.sh: PACKAGING_DESKTOP_TERMINAL not set (run packaging-env.py first)}"
 : "${PACKAGING_DESKTOP_CATEGORIES:?gen-desktop-entry.sh: PACKAGING_DESKTOP_CATEGORIES not set}"
 
@@ -36,7 +40,7 @@ cat >"$out" <<EOF
 Type=Application
 Name=${PRODUCT_NAME}
 Comment=${PRODUCT_DESCRIPTION}
-Exec=${BIN_DESKTOP}
+Exec=${BIN_TAURI}
 Icon=${PRODUCT_LOWER}
 Terminal=${PACKAGING_DESKTOP_TERMINAL}
 Categories=${PACKAGING_DESKTOP_CATEGORIES}
