@@ -194,7 +194,8 @@ fn features_table_merges_per_key() {
     };
     assert_eq!(resolved.features.get("library"), Some(&true));
     assert_eq!(resolved.features.get("core-playback"), Some(&true));
-    assert_eq!(resolved.features.get("streaming-http"), Some(&false));
+    // w31.3 flipped the shipped default; an unset user layer keeps it.
+    assert_eq!(resolved.features.get("streaming-http"), Some(&true));
 }
 
 /// §4.4 rule 7 — determinism: the merge is a pure function of the ordered

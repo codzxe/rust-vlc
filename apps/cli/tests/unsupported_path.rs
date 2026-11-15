@@ -181,23 +181,31 @@ fn ivf_container_opens_and_accepts_the_session() {
     assert!(out.contains("ok: accepted session=1"), "{out}");
 }
 
-/// URL sources: the honest host-capability refusal (exit 69).
+/// URL sources with a blocked scheme (rtsp): the honest
+/// host-capability refusal naming the blocked lane (exit 69) — w31.3
+/// moved http(s) onto the streaming crate's open path, so the blanket
+/// Phase-6 sentence is gone and the refusal is scheme-specific truth.
 #[test]
-fn url_source_is_unsupported_for_host() {
-    let (_out, err, code) = run(&["open", "https://example.org/x.mp4"], "quit\n");
+fn blocked_scheme_url_is_unsupported_for_host() {
+    let (_out, err, code) = run(&["open", "rtsp://camera.invalid/stream"], "quit\n");
     assert_eq!(code, 69, "stderr:\n{err}");
     assert!(err.contains("error: [input.unsupported-for-host]"), "{err}");
-    assert!(err.contains("Phase 6"), "{err}");
+    assert!(
+        err.contains("rtsp"),
+        "the refusal names the blocked scheme: {err}"
+    );
+    assert!(err.contains("not implemented"), "{err}");
 }
 
 /// The `file:` URL open lane (audit B §4 D.3), through the REAL
 /// binary: a `file:` URL naming a valid local fixture opens through
 /// the same resolve + canonical tail as a path-spelled source — exit
-/// 0, session accepted — while the non-file scheme beside it keeps
-/// the Phase-6 host refusal (the `https://` sibling pin above,
-/// restated here as the lane's contrast).
+/// 0, session accepted — while the blocked scheme beside it keeps
+/// the lane-named host refusal (the rtsp sibling pin above, restated
+/// here as the lane's contrast; http(s) now opens — see the loopback
+/// proof below).
 #[test]
-fn file_url_opens_while_https_keeps_the_phase_named() {
+fn file_url_opens_while_blocked_schemes_refuse() {
     let canonical = std::fs::canonicalize(fixture("generated/valid/avi_mjpeg_pcm.avi")).must();
     let text = canonical.to_str().must();
     let url = media_types::SourceUri::from_file_path(text)
@@ -207,9 +215,42 @@ fn file_url_opens_while_https_keeps_the_phase_named() {
     let (out, err, code) = run(&["open", &url], "quit\n");
     assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
     assert!(out.contains("ok: accepted session=1"), "{out}");
-    let (_out, err, code) = run(&["open", "https://example.org/x.mp4"], "quit\n");
+    let (_out, err, code) = run(&["open", "rtsp://camera.invalid/stream"], "quit\n");
     assert_eq!(code, 69, "stderr:\n{err}");
-    assert!(err.contains("Phase 6"), "{err}");
+    assert!(err.contains("not implemented"), "{err}");
+}
+
+/// The `http://` open lane (w31.3), through the REAL binary over a
+/// REAL loopback socket: the streaming crate's mockhttp server serves
+/// a WAV fixture body with `Range` support; the production ureq
+/// transport (rustls TLS, bounded redirects) opens it, the probe
+/// identifies the container, the registry constructs the demuxer —
+/// exit 0, session accepted, the network path proven end to end.
+#[test]
+fn http_url_opens_over_a_real_loopback_socket() {
+    let body = std::fs::read(fixture("generated/valid/wav_pcm_s16le_44k1_st.wav")).must();
+    let server =
+        streaming::mockhttp::MockServer::spawn(streaming::mockhttp::MockConfig::body(body)).must();
+    let url = server.url("media.wav");
+    let (out, err, code) = run(&["open", &url], "quit\n");
+    assert_eq!(code, 0, "stdout:\n{out}\nstderr:\n{err}");
+    assert!(out.contains("ok: accepted session=1"), "{out}");
+    // The request log proves the ranged transport really worked over
+    // the socket: the open path's bounded probe window + container
+    // header reads ride real range requests (payload streaming is
+    // playback's business, not open's — one ranged fetch is the
+    // honest open-time count here).
+    assert!(
+        !server.requests().is_empty(),
+        "the transport must have exercised the socket"
+    );
+    assert!(
+        server
+            .requests()
+            .iter()
+            .any(|request| request.header("Range").is_some()),
+        "the open reads ride ranged requests"
+    );
 }
 
 /// A class-A command with no session: the honest not-ready (69).

@@ -10,11 +10,14 @@
 //! 1. `SourceSpec::File` → canonical absolute path → the one shared
 //!    platform-aware `file:` URI constructor
 //!    (`SourceUri::from_file_path`); a `file:` URL source resolves
-//!    through `input` and runs the same canonical tail, every other
-//!    scheme is the honest Phase-6 host refusal (the `input` crate
-//!    resolves the URI back through `canonicalize` — the open path
-//!    is symlink-safe by construction).
-//! 2. `FileAccess::open` (the 2.A1 access stack) → seekable stream.
+//!    through `input` and runs the same canonical tail; an `http(s)`
+//!    URL opens through the streaming crate's ranged resource (the
+//!    6.A access-plugin composition — `RangedResource` serves the
+//!    same [`plugin_api::access::SourceStream`] contract `input`
+//!    serves, so the probe and the container registry are shared
+//!    verbatim); every other scheme is the honest host-capability
+//!    refusal naming the blocked streaming lane.
+//! 2. `FileAccess::open` / `RangedResource::open` → seekable stream.
 //! 3. `probe_stream` (2.A2) over the builtin signature registry — the
 //!    bounded, non-consuming window read. A miss is the honest typed
 //!    `unsupported` (stage `probe`); a hit is handed to
@@ -55,7 +58,7 @@ use media_types::packet::SharedBytes;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
 use playback_engine::{QueuePlan, wire_error_code, wire_stage};
-use plugin_api::{Access, DemuxEvent, Demuxer, SeekSupport};
+use plugin_api::{Access, DemuxEvent, Demuxer, SeekSupport, access::SourceStream};
 
 /// The product's queue packet caps — the `[limits]` figures
 /// product.toml ships (`queue_packets_audio = 1024`,
@@ -349,7 +352,9 @@ fn file_uri_from_canonical(canonical: &Path) -> Result<SourceUri, CommandError> 
 }
 
 /// The whole open path (probe → demuxer pre-pass → wrapper), producing
-/// an [`OpenedMedia`].
+/// an [`OpenedMedia`]. The production half: the real hardened ureq
+/// transport (`SchemeRegistry::new()` — rustls TLS always on, bounded
+/// redirects, the 6.A1b/6.A1c client) serves every `http(s)` source.
 ///
 /// # Errors
 /// Typed [`CommandError`]s at the honest stages: `input` (access),
@@ -360,17 +365,47 @@ pub fn open_source(
     no_video: bool,
     no_audio: bool,
 ) -> Result<OpenedMedia, CommandError> {
-    let uri = match source {
-        commands::catalog::types::SourceSpec::File { path } => file_uri(path)?,
+    open_source_with(source, start_time_us, no_video, no_audio, None)
+}
+
+/// [`open_source`] with an injectable HTTP transport: `None` rides the
+/// production ureq client; `Some(mock)` is the in-process test seam
+/// (the streaming crate's mockhttp server + client — a REAL socket on
+/// loopback, so the ranged resource, the probe and the container
+/// registry all run their true code; only the TLS-capable transport is
+/// substituted, which a plain-`http` loopback URL cannot tell apart).
+#[allow(clippy::too_many_arguments)]
+fn open_source_with(
+    source: &commands::catalog::types::SourceSpec,
+    start_time_us: Option<i64>,
+    no_video: bool,
+    no_audio: bool,
+    fetch: Option<std::sync::Arc<dyn streaming::fetch::HttpFetch>>,
+) -> Result<OpenedMedia, CommandError> {
+    // The open lanes produce BOTH the session's source URI and the
+    // seekable stream — the file lanes pair the canonical `file:` URI
+    // with `input`'s FileAccess, the http lane pairs the ranged
+    // resource's own (post-redirect) URI with itself. Everything
+    // downstream (probe, container registry, facts pre-pass) is
+    // shared verbatim: one pipeline, three access spellings.
+    let (uri, stream) = match source {
+        commands::catalog::types::SourceSpec::File { path } => {
+            let uri = file_uri(path)?;
+            let stream = input::FileAccess::new()
+                .open(&uri)
+                .map_err(|err| access_refusal(&err, &uri))?;
+            (uri, stream)
+        }
         commands::catalog::types::SourceSpec::Url { url } => {
             // The routing fix (audit B §4 D.3): a `file:` URL is a
             // local-file source spelled as a URI — resolve it through
             // the same `input` seam the access stack uses, then run
             // the shared canonical tail so the session carries the
-            // constructor's canonical URI, not the URL spelling.
+            // constructor's canonical URI, not the URL spelling. An
+            // `http(s)` URL opens through the streaming crate (w31.3:
+            // the Phase-6 gap closes for progressive/ranged HTTP).
             // Every other scheme keeps the honest host-capability
-            // refusal (the streaming crate's Phase-6 lane, exit 69 —
-            // the pins stay byte-exact).
+            // refusal naming its blocked lane (exit 69).
             let parsed = SourceUri::parse(url).map_err(|err| {
                 CommandError::new(
                     Stage::Input,
@@ -379,24 +414,33 @@ pub fn open_source(
                 )
                 .with_detail("scheme", url.split(':').next().unwrap_or("?"))
             })?;
-            if parsed.scheme().as_str() != "file" {
-                return Err(CommandError::new(
-                    Stage::Input,
-                    ErrorCode::UnsupportedForHost,
-                    format!("URL sources need the streaming crate (Phase 6): {url}"),
-                )
-                .with_detail("scheme", url.split(':').next().unwrap_or("?")));
+            match parsed.scheme().as_str() {
+                "file" => {
+                    let path = input::resolve_file(&parsed)
+                        .map_err(|err| access_refusal(&err, &parsed))?;
+                    let uri = file_uri_from_canonical(&path)?;
+                    let stream = input::FileAccess::new()
+                        .open(&uri)
+                        .map_err(|err| access_refusal(&err, &uri))?;
+                    (uri, stream)
+                }
+                "http" | "https" => open_http_source(url, fetch)?,
+                scheme => {
+                    return Err(CommandError::new(
+                        Stage::Input,
+                        ErrorCode::UnsupportedForHost,
+                        format!(
+                            "the {scheme} streaming lane is not implemented \
+                             (blocked v1 — docs/feature-matrix.toml): {url}"
+                        ),
+                    )
+                    .with_detail("scheme", scheme));
+                }
             }
-            let path = input::resolve_file(&parsed).map_err(|err| access_refusal(&err, &parsed))?;
-            file_uri_from_canonical(&path)?
         }
     };
-    // 1. Access (the 2.A1 stack).
-    let access = input::FileAccess::new();
-    let mut stream = access
-        .open(&uri)
-        .map_err(|err| access_refusal(&err, &uri))?;
     // 2. Probe (the 2.A2 bounded window; non-consuming).
+    let mut stream = stream;
     let registry = media_probe::ProbeRegistry::with_builtins();
     let config = media_probe::ProbeConfig::default();
     let report = media_probe::probe_stream(&registry, &mut *stream, &config)
@@ -412,6 +456,47 @@ pub fn open_source(
         no_audio,
     };
     crate::containers::open(&container, stream, &opts)
+}
+
+/// The `http(s)` open lane (w31.3): the streaming crate's
+/// [`RangedResource`](streaming::ranged::RangedResource) — ranged
+/// windows with the linear-scan no-range fallback — serving the same
+/// [`plugin_api::access::SourceStream`] contract the file lane's
+/// `FileAccess` serves, so the probe and the container registry run
+/// verbatim. The session's URI is the resource's own (post-redirect
+/// identity: what actually serves the bytes, not the spelled URL).
+///
+/// # Errors
+/// Typed [`CommandError`]s: `InvalidArgument` for a URL the fetch port
+/// refuses to parse; the ranged resource's own `EngineError`s through
+/// the shared [`wire_error`] seam (network unreachable, budget,
+/// redirect policy — all stage-`Open` truths).
+fn open_http_source(
+    url: &str,
+    fetch: Option<std::sync::Arc<dyn streaming::fetch::HttpFetch>>,
+) -> Result<(SourceUri, Box<dyn plugin_api::access::SourceStream>), CommandError> {
+    // Parse through the fetch port's own URL grammar first (pure — a
+    // structurally invalid reference never opens a socket).
+    streaming::fetch::Url::parse(url).map_err(|err| {
+        CommandError::new(
+            Stage::Input,
+            ErrorCode::InvalidArgument,
+            format!("the http(s) URL was refused by the fetch port: {err}"),
+        )
+        .with_detail("scheme", url.split(':').next().unwrap_or("?"))
+    })?;
+    let config = streaming::ranged::RangedConfig::default();
+    let resource = match fetch {
+        Some(fetch) => streaming::ranged::RangedResource::open(fetch, url, config),
+        None => streaming::schemes::SchemeRegistry::new().open_http(
+            &streaming::fetch::Url::parse(url)
+                .unwrap_or_else(|err| unreachable!("the URL parsed one call ago: {err}")),
+            config,
+        ),
+    }
+    .map_err(|err| wire_error(&err))?;
+    let uri = resource.uri().clone();
+    Ok((uri, Box::new(resource)))
 }
 
 /// A demuxer behind the CLI's open options: track selection
@@ -752,12 +837,15 @@ mod tests {
         }
     }
 
-    /// URL sources: the honest host-capability refusal.
+    /// URL sources with a blocked scheme (rtsp and friends): the
+    /// honest host-capability refusal naming the blocked lane (w31.3:
+    /// `http(s)` now opens through the streaming crate, so the
+    /// refusal is scheme-specific truth, not a blanket Phase-6 gap).
     #[test]
-    fn url_sources_are_refused_with_the_phase_named() {
+    fn blocked_scheme_urls_refuse_naming_the_lane() {
         match open_source(
             &commands::catalog::types::SourceSpec::Url {
-                url: "https://example.org/x.mp4".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+                url: "rtsp://camera.local/stream/1".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
             },
             None,
             false,
@@ -765,10 +853,71 @@ mod tests {
         ) {
             Err(err) => {
                 assert_eq!(err.code, ErrorCode::UnsupportedForHost, "{err}");
-                assert!(err.message.contains("Phase 6"), "{err}");
+                assert_eq!(err.stage, Stage::Input, "{err}");
+                assert!(err.message.contains("rtsp"), "{err}");
+                assert!(
+                    err.message.contains("not implemented"),
+                    "the refusal names the blocked lane: {err}"
+                );
+                assert!(!err.message.contains("Phase 6"), "{err}");
             }
-            Ok(_) => unreachable!("URLs are out of the first vertical"),
+            Ok(_) => unreachable!("a blocked scheme must not open"),
         }
+    }
+
+    /// The `http(s)` open lane (w31.3) through the REAL open path: the
+    /// streaming crate's mockhttp server (a real loopback socket)
+    /// serves a WAV fixture body with `Range` support; the ranged
+    /// resource opens it, the probe identifies the container, and the
+    /// registry constructs the demuxer — the SAME downstream pipeline
+    /// the file lane runs, proven by the audio track's facts. The
+    /// session URI is the resource's own http identity.
+    #[test]
+    fn http_url_opens_through_the_ranged_resource() {
+        use std::sync::Arc;
+        let body = std::fs::read(fixture("generated/valid/wav_pcm_s16le_44k1_st.wav"))
+            .unwrap_or_else(|e| unreachable!("fixture unreadable: {e}"));
+        let server =
+            streaming::mockhttp::MockServer::spawn(streaming::mockhttp::MockConfig::body(body))
+                .unwrap_or_else(|e| unreachable!("mock server: {e}"));
+        let url = server.url("media.wav");
+        let opened = open_source_with(
+            &commands::catalog::types::SourceSpec::Url { url: url.clone() },
+            None,
+            false,
+            false,
+            Some(Arc::new(server.client())),
+        )
+        .unwrap_or_else(|e| unreachable!("an http WAV must open: {e}"));
+        assert_eq!(
+            opened.uri.raw(),
+            &url,
+            "the session carries the resource's own (post-redirect) URI"
+        );
+        assert_eq!(opened.facts.container.as_str(), "wav");
+        assert!(
+            opened
+                .facts
+                .tracks
+                .iter()
+                .any(|t| matches!(t.kind, media_types::MediaKind::Audio { .. })),
+            "the WAV's audio track must be present: {:?}",
+            opened.facts.tracks
+        );
+        // The request log proves the ranged path did real network
+        // work over the socket: the open's bounded probe + header
+        // reads ride range requests (payload streaming is playback's).
+        assert!(
+            !server.requests().is_empty(),
+            "the open must have exercised the transport"
+        );
+        assert!(
+            server
+                .requests()
+                .iter()
+                .any(|request| request.header("Range").is_some()),
+            "the open reads ride ranged requests"
+        );
     }
 
     /// The `file:` URL open lane (audit B §4 D.3): a `file:` URL is a

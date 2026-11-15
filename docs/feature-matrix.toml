@@ -1284,9 +1284,9 @@ priority = "P0"
 phase_target = 6
 vlc_modules = ["access"]
 inventory_ref = "inventory/formats.json#http-https"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.A1–6.A3; ureq-first recommendation; see network-http-client + network-tls-policy rows for the honest TLS story (ADR-011 input)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "w31.3: apps/cli/src/demux_host.rs open_http_source (the open path's http arm, the production ureq transport + RangedResource) + the loopback e2e through the REAL binary (unsupported_path.rs http_url_opens_over_a_real_loopback_socket, exit 0 + session accepted) + the in-process mock proof (demux_host.rs http_url_opens_through_the_ranged_resource); product.toml streaming-http = true"
+notes = "6.A1–6.A3 landed in the streaming crate (range, TLS always-on per ADR-011, bounded redirects, auth incl. the w30.4 scheme-downgrade refusal); w31.3 wired the open path. Per-OS runtime on real hardware: [VERIFY at first live run]. Web host stays its own lane (7.H4)."
 
 [[feature]]
 id = "protocol-udp"

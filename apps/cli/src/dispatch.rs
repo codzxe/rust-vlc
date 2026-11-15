@@ -314,13 +314,13 @@ mod tests {
 
     /// URL sources refuse through the open path's own typed answer.
     #[test]
-    fn url_open_refuses_the_phase_named() {
+    fn blocked_scheme_url_open_refuses_naming_the_lane() {
         let mut host = CliHost::new();
         let response = lumen_dispatch(
             &mut host,
             &request(Command::SessionOpen {
                 source: SourceSpec::Url {
-                    url: "https://example.org/x.mp4".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+                    url: "rtsp://camera.invalid/stream".to_string(), // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
                 },
                 options: Default::default(),
             }),
@@ -332,8 +332,12 @@ mod tests {
                     commands::ErrorCode::UnsupportedForHost,
                     "{error}"
                 );
+                assert!(
+                    error.message.contains("not implemented"),
+                    "the refusal names the blocked lane: {error}"
+                );
             }
-            Ok(_) => unreachable!("URL open must refuse"),
+            Ok(_) => unreachable!("a blocked scheme must refuse"),
         }
     }
 

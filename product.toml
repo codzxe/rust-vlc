@@ -154,7 +154,7 @@ config-surface = true           # config.get/set/reset-setting + settings UI
 # --- explicitly off until the implementing phase ships (MP §16) ---
 playlists = false               # Phase 4
 library = false                 # Phase 4
-streaming-http = false          # Phase 6
+streaming-http = true           # w31.3: the CLI/GUI open path serves http(s) through the streaming crate's ranged resource
 streaming-hls = false           # Phase 6
 streaming-dash = false          # Phase 6
 streaming-rtsp = false          # Phase 6

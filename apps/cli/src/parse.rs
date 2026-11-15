@@ -494,9 +494,10 @@ pub fn open_command(
     // `file:///…`: the open path (demux_host::open_source) routes the
     // `file` scheme to the local filesystem through
     // `input::resolve_file` + the shared canonical constructor, so
-    // `open x.mp4` and `open file:///…/x.mp4` are one behavior; every
-    // other scheme refuses unsupported-for-host (69) naming the
-    // streaming crate (Phase 6). Re-classifying `file:` HERE would
+    // `open x.mp4` and `open file:///…/x.mp4` are one behavior;
+    // `http(s)` opens through the streaming crate's ranged resource
+    // (w31.3); every other scheme refuses unsupported-for-host (69)
+    // naming its blocked lane. Re-classifying `file:` HERE would
     // mean percent-decoding in the parser, duplicating the resolver
     // (audit B §4 D.3) — never a file-resolution error on the URL
     // string.
