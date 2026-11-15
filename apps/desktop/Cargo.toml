@@ -17,7 +17,7 @@
 
 [package]
 name = "desktop"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Lumen desktop composition-root skeleton: the ADR-003 variant-B frame-streaming prototype core (wire protocol, canvas bridge, latest-wins mailbox, command-layer host seam)."
 publish = false

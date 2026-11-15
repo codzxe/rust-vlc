@@ -2259,3 +2259,40 @@ Stage Summary:
   phase-8 refresh are owed by their owning lanes; v0.1.3 is drafted,
   not stamped - version stamping and the tag are the Lead's actions per
   RELEASE.md; l10n untouched.
+
+## w31 — the player becomes real (frame channel + HTTP streaming + v0.1.3)
+
+Wave 3 of the remediation program (the audit's 12-agent Wave 1 + the 11-lane
+Wave 2 precede it). The subagent dispatch service degraded mid-wave (context
+deadlines); the lead executed the remaining lanes directly — every lane below
+carries the same evidence discipline.
+
+- **w31.1.luf1-channel** — the GUI shows video: the engine's presented frames
+  tap into CanvasBridge→MailboxTransport through the new shell-owned
+  `session.set-frame-channel` command (channel id rides the ONE command
+  envelope; catalog 65 commands, codegen regen) and the pacer ticker ships the
+  newest LUF1 record per tick as a raw binary channel message. PresentTap is
+  additive + default-inert for the pure CLI. Headless proofs: bind-intercept,
+  open→play→pump→LUF1-records-to-Ended through the GUI's own funnel.
+- **w31.4.ui-canvas** — the webview consumes it: the hand-rolled tauri channel
+  shim (transformCallback/unregisterCallback, the raw-payload fetch dance, no
+  new npm dep) + the LUF1 decoder (wire.rs byte-mirror in TS) + a 2D
+  putImageData presenter in the media surface (shell mode only). 29 new tests;
+  full UI suite 1705 green.
+- **w31.2.http-streaming** — http(s) URLs open through the streaming crate's
+  RangedResource (production ureq transport, same SourceStream contract as
+  file access); blocked schemes keep lane-named refusals; loopback e2e through
+  the REAL binary (exit 0, session accepted, ranged requests on the socket);
+  product.toml streaming-http=true; feature-matrix row implemented.
+- **w31.3.ci-flake** — scenario_16's no-threads-leaked assert waits on a 5s
+  bounded poll instead of racing the kernel's thread accounting under CI load.
+- **w31.5.release-v0.1.3** — the stamp: 0.1.3 (version_code 4), both tracks,
+  lockfiles (own-package rows), SBOM regen (158 components, subject Lumen
+  0.1.3, no drift), rc-smoke ALL 8 PASS (engine 0.1.3 end to end + web boots
+  0 page errors).
+
+Honest open items (the audit's ledger stands): audio output remains the null
+device engine-wide (the cpal lane's typed-error foundation is stashed —
+`git stash list`: "w31-audio-cpal-partial"); volume/mute/track-select host
+wiring, HLS VOD dispatch, the dialog plugin admission, flac-native/ASF demux
+wiring, and the phase 6-8 gate closures are the next waves' work.
