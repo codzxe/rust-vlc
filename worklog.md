@@ -2089,3 +2089,16 @@ Work Log:
 
 Stage Summary:
 - main should be fully green again (gate + Rust lanes rode the single pre-existing evidence drift; tauri-check/cargo-deny already fixed by the lockfile regen in w28.normal-app).
+
+---
+Task ID: w28.3.rebrand-pin
+Agent: Lead-directed implementation session (continuation of w28.normal-app)
+Task: Fix the last red on main: tests/rebrand/rebrand_skeleton.rs:282 pinned `version_code = 1` — the 0.1.1 release stamp (version_code = 2) broke the byte-level survival assertion (gate lane, run 43733811241).
+
+Work Log:
+- Fix follows the test's own established never-pinned discipline (the README rewrite count is DERIVED from the source file, line ~422): the version_code row is now read from the source product.toml and asserted verbatim in the dest — version-bump-proof, still proving byte-level survival.
+- Audited the three remaining `version_code = 1` literals (sbom.rs:917, rebrand.rs:861/:1062): all self-contained synthetic fixtures that never read the real product.toml — no drift risk, left as-is.
+- Verification: xtask full suite green (cli 12+12, sbom/lock 176, arch 17, … all ok); the previously failing nova_fixture_rebrand_passes_skeleton_assertions passes.
+
+Stage Summary:
+- The gate lane's last red is version-bump-proof now. CI/Rust on main should be fully green.

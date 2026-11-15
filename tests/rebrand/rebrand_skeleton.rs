@@ -279,7 +279,21 @@ fn nova_fixture_rebrand_passes_skeleton_assertions() {
     }
     // Non-identity content survives byte-level.
     assert!(product.contains("title_template = \"{media_title} — {product_name}\""));
-    assert!(product.contains("version_code = 1"));
+    // w28.3: version_code is RELEASE-STAMPED (product.toml
+    // identity.version_code — 0.1.1 bumped it 1 → 2), so the byte-level
+    // survival proof DERIVES the row from the source file — the same
+    // never-pinned discipline as the README rewrite count below. A
+    // literal "= 1" pin broke on the first version bump.
+    let source_product = fs::read_to_string(repo_root().join("product.toml"))
+        .unwrap_or_else(|e| unreachable!("source product.toml unreadable: {e}"));
+    let version_code_row = source_product
+        .lines()
+        .find(|line| line.trim_start().starts_with("version_code ="))
+        .unwrap_or_else(|| unreachable!("source product.toml carries no version_code row"));
+    assert!(
+        product.contains(version_code_row),
+        "dest product.toml: the source version_code row `{version_code_row}` did not survive byte-level"
+    );
     assert!(product.contains("schema_version = 1"));
     assert!(product.contains("# entries = []"));
 
