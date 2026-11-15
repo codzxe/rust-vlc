@@ -22,7 +22,7 @@
 
 [package]
 name = "lumen-desktop-tauri"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Lumen desktop webview shell — the ADR-004 admission build (tauri/wry, one command, embedded ui/dist)."
 publish = false

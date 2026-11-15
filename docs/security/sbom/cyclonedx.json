@@ -2,14 +2,14 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:c93af48b-7b46-8738-bc27-2e0d63aa963e",
+  "serialNumber": "urn:uuid:62b082ee-639a-8365-bfd9-f9b2c58e1a17",
   "version": 1,
   "metadata": {
     "component": {
       "type": "application",
-      "bom-ref": "Lumen@0.1.1",
+      "bom-ref": "Lumen@0.1.2",
       "name": "Lumen",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "publisher": "Lumen Contributors"
     },
     "properties": [
@@ -446,9 +446,9 @@
     },
     {
       "type": "library",
-      "bom-ref": "desktop@0.1.1",
+      "bom-ref": "desktop@0.1.2",
       "name": "desktop",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "scope": "required",
       "properties": [
         {
@@ -1057,9 +1057,9 @@
     },
     {
       "type": "library",
-      "bom-ref": "lumen-cli@0.1.1",
+      "bom-ref": "lumen-cli@0.1.2",
       "name": "lumen-cli",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "scope": "required",
       "properties": [
         {
@@ -3632,7 +3632,7 @@
   ],
   "dependencies": [
     {
-      "ref": "Lumen@0.1.1",
+      "ref": "Lumen@0.1.2",
       "dependsOn": [
         "audio-engine@0.1.0",
         "audio-output@0.1.0",
@@ -3642,12 +3642,12 @@
         "control-protocol@0.1.0",
         "control-server@0.1.0",
         "demux@0.1.0",
-        "desktop@0.1.1",
+        "desktop@0.1.2",
         "device-discovery@0.1.0",
         "first-vertical@0.1.0",
         "input@0.1.0",
         "localization@0.1.0",
-        "lumen-cli@0.1.1",
+        "lumen-cli@0.1.2",
         "lumen-mem-audit@0.1.0",
         "lumen-sweep@0.1.0",
         "lumen-web@0.1.0",
@@ -3813,10 +3813,10 @@
       ]
     },
     {
-      "ref": "desktop@0.1.1",
+      "ref": "desktop@0.1.2",
       "dependsOn": [
         "commands@0.1.0",
-        "lumen-cli@0.1.1",
+        "lumen-cli@0.1.2",
         "media-clock@0.1.0",
         "media-types@0.1.0",
         "renderer-wgpu@0.1.0",
@@ -3859,7 +3859,7 @@
       "ref": "first-vertical@0.1.0",
       "dependsOn": [
         "commands@0.1.0",
-        "lumen-cli@0.1.1",
+        "lumen-cli@0.1.2",
         "testkit@0.1.0"
       ]
     },
@@ -3964,7 +3964,7 @@
       "dependsOn": []
     },
     {
-      "ref": "lumen-cli@0.1.1",
+      "ref": "lumen-cli@0.1.2",
       "dependsOn": [
         "audio-engine@0.1.0",
         "audio-output@0.1.0",

@@ -2116,3 +2116,17 @@ Work Log:
 
 Stage Summary:
 - The desktop app now starts clean: empty player, no phantom "Playback error" chip; real failures (open errors, decode errors, failed user actions) still surface typed. Release v0.1.2 stamps this fix (see the next entry).
+---
+Task ID: w29.2.release-v0.1.2
+Agent: Lead-directed implementation session (release stamping per docs/release-checklist.md §0)
+Task: Stamp v0.1.2 so the w29.1 cold-start fix reaches the Windows/macOS/Linux artifacts.
+
+Work Log:
+- Version stamping (§0, both tracks, one commit): product.toml display_version 0.1.1→0.1.2 + version_code 2→3; apps/cli + apps/desktop + apps/desktop-tauri Cargo.toml 0.1.2; tauri.conf.json 0.1.2; runtime.rs version-line pin 0.1.2. Both lockfiles refreshed via `cargo update --workspace` (own-package rows only — no dependency churn: Cargo.lock 2 rows, tauri subcrate lock 3 rows).
+- SBOM regenerated (cargo run -p xtask --locked -- sbom): 158 components, subject Lumen 0.1.2, drift gate `sbom --check` no-drift; lint-literals PASS (0 violations, 458 allowlisted); check-identity PASS (0 violations, 459 allowlisted).
+- Version-sensitive pins re-proven: product-config runtime tests (Lumen 0.1.2 line) 2 passed; xtask rebrand skeleton suite 5 passed (the version_code survival proof derives from product.toml — w28.3's never-pinned discipline).
+- RC smoke (scripts/rc-smoke.sh, all 8 checks): PASS — engine-build (release, --locked), engine-version prints `lumen 0.1.2`, engine-info, headless-decode (every frame), command-layer-play (Playing→Stopped), wasm-web-build (\0asm, >1 MiB), web-ui-build (tsc+vite), web-ui-browser-load (Playwright chromium boots to the player surface, 0 page errors). Pre-flight: release.yml YAML parses; all 8 release sh scripts bash -n clean.
+- Tag v0.1.2 = v + numeric semver (§0.4); the release lane builds ui/dist from source at tag time, so w29.1's fix is embedded in every artifact.
+
+Stage Summary:
+- v0.1.2 is stamped and smoke-proven: the cold-start "Playback error" chip fix ships, upgrades replace (MSI UpgradeCode frozen), version surfaces agree on both tracks. Watch the tag run; then the user's §6.7 sanity: download, sha256-check, install, launch — no error chip on the empty player.

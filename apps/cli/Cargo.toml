@@ -31,7 +31,7 @@
 
 [package]
 name = "lumen-cli"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 publish = false
 description = "Lumen command-line player — the first vertical's headless host (doc 05 §5.3)"
