@@ -2073,3 +2073,19 @@ Work Log:
 
 Stage Summary:
 - The twins generate identical installer XML again; the upgrade path's 1603 root cause is removed. v0.1.1 re-tagged on the fix commit (the failed run published nothing, so the tag moves cleanly).
+
+---
+Task ID: w28.2.evidence-regen
+Agent: Lead-directed implementation session (continuation of w28.normal-app)
+Task: Restore green CI on main: the first-vertical evidence tests failed on w27 AND on the w28 commits (pre-existing — proven by running the same test on pristine 31fc62a7 in a worktree: identical failures).
+
+Work Log:
+- Root cause: w27's color-converter generalization (BT.601-full → tagged matrices) changed the avi_mjpeg_pcm final-frame PNG bytes (same 307541-byte size, different sha256: af9b6aad… → 698af4ee…) but the committed evidence artifacts were never regenerated; the drift broke final_frame_is_current + committed_transcripts_match_fresh_runs (evidence.rs:162/:47) in both the CI gate lane and the Rust workflow.
+- The same lockfile staleness (w28.normal-app's regeneration) is what had also broken w27's tauri-check + cargo-deny lanes — both GREEN on f4ef9e71 (this CI run) with no further change.
+- Fix: the test's own documented regen path — `cargo build -p lumen-cli` (wire-session needs the bin; the cold-cache gap is self-documented in its error), then `cargo test -p first-vertical --test evidence -- --ignored regen`.
+- Regenerated artifacts: final-frame.png + the final_png.sha256 digests in 7 transcripts + ledger provenance (run_id/sha/started_at). NOTHING else changed — the full transcript diff is one digest line per file.
+- Verification: evidence suite 3 passed / 0 failed (fresh runs now byte-match the committed artifacts).
+- Note: no re-release needed — evidence artifacts are repo-internal test files, not release payloads; v0.1.1's published artifacts are unaffected.
+
+Stage Summary:
+- main should be fully green again (gate + Rust lanes rode the single pre-existing evidence drift; tauri-check/cargo-deny already fixed by the lockfile regen in w28.normal-app).

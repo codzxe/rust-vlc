@@ -1,11 +1,11 @@
 {
   "schema": "evidence/1",
-  "run_id": "2e1-local-945e392e4",
+  "run_id": "2e1-local-f4ef9e71e",
   "commit": {
-    "sha": "945e392e44d3f531b16fcaaad7f07d099bcc3ad7",
+    "sha": "f4ef9e71e5854b7e12b7931c69d16873c9f61781",
     "note": "the tree the evidence was regenerated FROM; the artifact commit itself lands one commit later (a file cannot carry its own sha)"
   },
-  "started_at": "2026-10-22T17:54:34Z",
+  "started_at": "2026-11-15T16:07:34Z",
   "environment": {
     "kind": "local",
     "os": "linux",
@@ -215,12 +215,12 @@
     {
       "path": "evidence/transcripts/play.json",
       "bytes": 4652,
-      "sha256": "1a3dd1b3535c72495d5222d2d289a7f47fea81a6c1f8e1372b090b74934315a4"
+      "sha256": "d9518957fac0f09a5f3a87d7afc7542688f8bc7a22005a8019ae2a8aed321228"
     },
     {
       "path": "evidence/transcripts/pause.json",
       "bytes": 3451,
-      "sha256": "d3d4893d6b515c0cf91fab510bf8334b063cbac8e886ef273d54e64438991c9d"
+      "sha256": "95252334212b5d781c0c7b0c05e1d824557e7667ec8288f0b7032e4f317360ae"
     },
     {
       "path": "evidence/transcripts/seek.json",
@@ -235,7 +235,7 @@
     {
       "path": "evidence/transcripts/run-to-end.json",
       "bytes": 3819,
-      "sha256": "5d173a59d57486eb6eaccbc495cfd50c99009e135006dc96078c33a35489c6bb"
+      "sha256": "7afd348312e0b86165934f437fb62a1d76d2e90f1ef442ba0678725d880d22b4"
     },
     {
       "path": "evidence/transcripts/missing-file.json",
@@ -250,17 +250,17 @@
     {
       "path": "evidence/transcripts/corrupt-truncated-midplay.json",
       "bytes": 3516,
-      "sha256": "761795b9cc2b2eedae9ce03820acd2348d9f8629caf06e205cbb9901bafbcee5"
+      "sha256": "b437a630afa6255bce2c2e921b2be88811b09bb059a580ab182b2c22a5a8929f"
     },
     {
       "path": "evidence/transcripts/corrupt-garbage-appended.json",
       "bytes": 3847,
-      "sha256": "4ca2a096450d33bde409da4c70c467be953f23bd70939be1674c0e90dfa0d91b"
+      "sha256": "b034f8cfb960b56927d4b86dac18895457e2ae96ff8d8f1bdf4676a5f60ce25b"
     },
     {
       "path": "evidence/transcripts/corrupt-noidx.json",
       "bytes": 3834,
-      "sha256": "0978ffb1f1cb87963eef816624c84865786df196313fb826b17750464faf8d81"
+      "sha256": "fb90a57a223bcdb2490df0ea31dcdc0ca7a9a93966343afc98f475976ddad77b"
     },
     {
       "path": "evidence/transcripts/wire-session.json",
@@ -270,7 +270,7 @@
     {
       "path": "evidence/final-frame.png",
       "bytes": 307541,
-      "sha256": "af9b6aad3a767e0781912c83ab414508d1e99e3a9b156ab2dbb5f4dcda8700c5"
+      "sha256": "698af4ee249d8b31925ad958ba49ca4dcf1a530aa949c6aab30a8ed93cb553db"
     }
   ],
   "hardware_labels": {
