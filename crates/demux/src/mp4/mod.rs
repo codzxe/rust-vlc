@@ -469,6 +469,58 @@ fn codec_of(kind: &[u8; 4]) -> Option<&'static str> {
     }
 }
 
+/// Map an `ipcm`/`fpcm` (ISO/IEC 23003-5) sample entry to the
+/// registry PCM descriptor via its `pcmC` child box: `format_flags`
+/// bit 0 = little-endian, `PCM_format` 0x10/0x18/0x20/0x40 =
+/// 16/24/32/64-bit (32/64 in `fpcm` = float) — verified against
+/// ffmpeg 7.1.5 output. The v0 `samplesize` field is NOT trustworthy
+/// (ffmpeg writes 16 for every width) and the geometry rides the
+/// classic v0 fields (`channelcount`, 16.16 `samplerate`), which
+/// ffmpeg fills. Unmapped widths return `None` — the unknown-entry
+/// damage path, never a guessed format.
+fn pcm_codec_of_ipcm(entry: &[u8], kind: &[u8; 4]) -> Option<&'static str> {
+    let float = kind == b"fpcm";
+    // Child boxes ride after the AudioSampleEntry v0 base (28 bytes,
+    // ISO/IEC 14496-12 §12.4.3) — the same anchor the esds quirk
+    // walks. A malformed child walk finds no pcmC: fall through to
+    // the entry-name default (the esds_oti fall-through precedent).
+    if let Ok(boxes) = iter_boxes(entry, 28, entry.len()) {
+        for b in &boxes {
+            if b.kind != *b"pcmC" {
+                continue;
+            }
+            // `pcmC` is a FullBox (ISO/IEC 23003-5 §7.3.2):
+            // version/flags(4), format_flags(1), PCM_format(1).
+            let body = entry.get(b.body.start..b.body.end).unwrap_or(&[]);
+            let little = body.get(4).is_some_and(|f| f & 0x01 == 0x01);
+            let width = body.get(5).copied();
+            return match (float, little, width) {
+                (false, false, Some(0x10)) => Some("pcm_s16be"),
+                (false, true, Some(0x10)) => Some("pcm_s16le"),
+                (false, false, Some(0x18)) => Some("pcm_s24be"),
+                (false, true, Some(0x18)) => Some("pcm_s24le"),
+                (false, false, Some(0x20)) => Some("pcm_s32be"),
+                (false, true, Some(0x20)) => Some("pcm_s32le"),
+                (true, false, Some(0x20)) => Some("pcm_f32be"),
+                (true, true, Some(0x20)) => Some("pcm_f32le"),
+                (true, false, Some(0x40)) => Some("pcm_f64be"),
+                (true, true, Some(0x40)) => Some("pcm_f64le"),
+                // Unmapped width/endianness/class combination: never
+                // a guessed format (the unknown-entry damage path).
+                _ => None,
+            };
+        }
+    }
+    // No pcmC child: entry-name default per ISO/IEC 23003-5 §7.3.2
+    // (i = big-endian, f = little-endian), 16-bit assumed (the
+    // QuickTime convention).
+    match kind {
+        b"ipcm" => Some("pcm_s16be"),
+        b"fpcm" => Some("pcm_s16le"),
+        _ => None,
+    }
+}
+
 /// MediaKind from an `hdlr` handler fourcc.
 fn kind_of(handler: &[u8; 4]) -> MediaKind {
     match handler {
@@ -1121,6 +1173,11 @@ impl Mp4Demuxer {
         if entry_kind == *b"mp4v" && esds_oti(entry) == Some(0x6c) {
             codec = Some("mjpeg");
         }
+        // ISO/IEC 23003-5 PCM entries (ffmpeg >= 7 writes these): the
+        // descriptor truth is the pcmC child, not the fourcc alone.
+        if entry_kind == *b"ipcm" || entry_kind == *b"fpcm" {
+            codec = pcm_codec_of_ipcm(entry, &entry_kind);
+        }
         let Some(codec) = codec else {
             self.note(entry_size as u64, "unknown-stsd-entry");
             return Err(error::bad_box(stsd.body.start as u64));
@@ -1210,22 +1267,34 @@ impl Mp4Demuxer {
                 }
                 b"stco" => {
                     let count = u32be(body, 4).unwrap_or(0) as usize;
-                    for i in 0..count {
+                    let take = count.min(MAX_SAMPLES);
+                    for i in 0..take {
                         offsets.push(u64::from(u32be(body, 8 + i * 4).unwrap_or(0)));
+                    }
+                    if count > take {
+                        self.note((count - take) as u64, "stco-count-over-ceiling");
                     }
                 }
                 b"co64" => {
                     let count = u32be(body, 4).unwrap_or(0) as usize;
-                    for i in 0..count {
+                    let take = count.min(MAX_SAMPLES);
+                    for i in 0..take {
                         offsets.push(u64be(body, 8 + i * 8).unwrap_or(0));
+                    }
+                    if count > take {
+                        self.note((count - take) as u64, "co64-count-over-ceiling");
                     }
                 }
                 b"stsc" => {
                     let count = u32be(body, 4).unwrap_or(0) as usize;
-                    for i in 0..count {
+                    let take = count.min(MAX_SAMPLES);
+                    for i in 0..take {
                         let first = u64::from(u32be(body, 8 + i * 12).unwrap_or(1));
                         let per = u64::from(u32be(body, 12 + i * 12).unwrap_or(0));
                         stsc.push((first, per));
+                    }
+                    if count > take {
+                        self.note((count - take) as u64, "stsc-count-over-ceiling");
                     }
                 }
                 b"stss" => {
@@ -1234,6 +1303,12 @@ impl Mp4Demuxer {
                     for i in 0..count.min(MAX_SAMPLES) {
                         set.push(u32be(body, 8 + i * 4).unwrap_or(0));
                     }
+                    // Sorted + deduped: the per-sample membership
+                    // check below binary-searches — an unsorted or
+                    // duplicated table in the wild would otherwise
+                    // force the O(samples × keyframes) linear scan.
+                    set.sort_unstable();
+                    set.dedup();
                     sync_set = Some(set);
                 }
                 b"ctts" => {
@@ -1291,7 +1366,7 @@ impl Mp4Demuxer {
                     let size = sizes[si];
                     let dur = if si < deltas.len() { deltas[si] } else { 0 };
                     let sync = match &sync_set {
-                        Some(set) => set.contains(&sample_no) || set.is_empty(),
+                        Some(set) => set.binary_search(&sample_no).is_ok() || set.is_empty(),
                         // ISO 14496-12 §8.6.2: absent stss ⇒ all sync.
                         None => true,
                     };

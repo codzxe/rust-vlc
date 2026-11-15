@@ -8,7 +8,7 @@ use plugin_api::{DemuxEvent, Demuxer, SeekSupport};
 
 use super::test_support::{
     SampleSpec, TrackSpec, chapter_track, fragmented, progressive, progressive_with_chapters,
-    progressive_with_cover,
+    progressive_with_cover, progressive_with_entry_children,
 };
 use super::{Mp4Demuxer, probe};
 
@@ -760,6 +760,316 @@ fn seek_failure_leaves_state_usable_d4() {
     // The stream continues where it was: the remaining 2 packets.
     let (_, packets) = drain(&mut mp4);
     assert_eq!(packets.len(), 2);
+}
+
+// ---- ISO/IEC 23003-5 PCM entries (ipcm/fpcm + pcmC) -------------
+
+/// One `pcmC` child box (FullBox, ISO/IEC 23003-5 §7.3.2):
+/// format_flags bit 0 = little-endian, PCM_format =
+/// 0x10/0x18/0x20/0x40 (16/24/32/64-bit).
+fn pcmc_box(little: bool, pcm_format: u8) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&14u32.to_be_bytes()); // size
+    b.extend_from_slice(b"pcmC");
+    b.extend_from_slice(&[0, 0, 0, 0]); // version/flags
+    b.push(u8::from(little)); // format_flags
+    b.push(pcm_format); // PCM_format
+    b
+}
+
+/// A PCM audio track (the geometry rides the classic v0 fields the
+/// builder fills; `samplesize` stays 16 like ffmpeg's output).
+fn pcm_track(entry: &[u8; 4], n: usize) -> TrackSpec {
+    TrackSpec {
+        handler: *b"soun",
+        entry: *entry,
+        timescale: 48_000,
+        edit: None,
+        chap_ref: None,
+        samples: (0..n)
+            .map(|i| SampleSpec {
+                bytes: vec![0x50 + i as u8; 2],
+                dur: 1024,
+                sync: true,
+                cts: 0,
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn ipcm_fpcm_pcmc_mapping_table() {
+    // The (kind, endianness, width) → descriptor table verified
+    // against ffmpeg 7.1.5's PCM-in-MP4 output.
+    let entry = |children: &[u8]| {
+        let mut e = vec![0u8; 28]; // v0 base only
+        e.extend_from_slice(children);
+        e
+    };
+    let cases: &[(&[u8; 4], bool, u8, &str)] = &[
+        (b"ipcm", false, 0x10, "pcm_s16be"),
+        (b"ipcm", true, 0x10, "pcm_s16le"),
+        (b"ipcm", false, 0x18, "pcm_s24be"),
+        (b"ipcm", true, 0x18, "pcm_s24le"),
+        (b"ipcm", false, 0x20, "pcm_s32be"),
+        (b"ipcm", true, 0x20, "pcm_s32le"),
+        (b"fpcm", false, 0x20, "pcm_f32be"),
+        (b"fpcm", true, 0x20, "pcm_f32le"),
+        (b"fpcm", false, 0x40, "pcm_f64be"),
+        (b"fpcm", true, 0x40, "pcm_f64le"),
+    ];
+    for (kind, little, fmt, want) in cases {
+        let e = entry(&pcmc_box(*little, *fmt));
+        assert_eq!(
+            super::pcm_codec_of_ipcm(&e, kind),
+            Some(*want),
+            "{kind:?} little={little} format={fmt:#x}"
+        );
+    }
+    // Unmapped widths (0x30) and class/width mismatches: never a
+    // guessed format — the unknown-entry damage path.
+    for (kind, little, fmt) in [
+        (b"ipcm", false, 0x30),
+        (b"ipcm", true, 0x30),
+        (b"ipcm", false, 0x40),
+        (b"fpcm", true, 0x10),
+    ] {
+        let e = entry(&pcmc_box(little, fmt));
+        assert_eq!(
+            super::pcm_codec_of_ipcm(&e, kind),
+            None,
+            "{kind:?} little={little} format={fmt:#x}"
+        );
+    }
+    // No pcmC child: the entry-name default per 23003-5 §7.3.2
+    // (i = big-endian, f = little-endian), 16-bit assumed.
+    assert_eq!(
+        super::pcm_codec_of_ipcm(&entry(&[]), b"ipcm"),
+        Some("pcm_s16be")
+    );
+    assert_eq!(
+        super::pcm_codec_of_ipcm(&entry(&[]), b"fpcm"),
+        Some("pcm_s16le")
+    );
+}
+
+#[test]
+fn ipcm_fpcm_with_pcmc_demux_as_pcm_codecs() {
+    // ffmpeg >= 7.1 writes PCM-in-MP4 with ipcm/fpcm entries whose
+    // pcmC child holds the format truth (the v0 samplesize is 16 for
+    // every width and must not be trusted).
+    let s16le = pcm_track(b"ipcm", 2);
+    let bytes = progressive_with_entry_children(&[s16le], b"isom", &[&pcmc_box(true, 0x10)]);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "pcm_s16le");
+    let (_, packets) = drain(&mut mp4);
+    assert_eq!(packets.len(), 2);
+    assert_eq!(packets[0].data.as_ref(), &[0x50, 0x50]);
+    assert_eq!(packets[1].data.as_ref(), &[0x51, 0x51]);
+
+    let f32le = pcm_track(b"fpcm", 2);
+    let bytes = progressive_with_entry_children(&[f32le], b"isom", &[&pcmc_box(true, 0x20)]);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "pcm_f32le");
+    let (_, packets) = drain(&mut mp4);
+    assert_eq!(packets.len(), 2);
+}
+
+#[test]
+fn ipcm_without_pcmc_defaults_to_entry_name_convention() {
+    // 23003-5 §7.3.2: i = big-endian, f = little-endian, 16-bit
+    // assumed when no pcmC child disambiguates.
+    let track = pcm_track(b"ipcm", 1);
+    let bytes = progressive(&[track], b"isom");
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(tracks[0].codec.as_str(), "pcm_s16be");
+    let (_, packets) = drain(&mut mp4);
+    assert_eq!(packets.len(), 1);
+}
+
+#[test]
+fn ipcm_pcmc_unmapped_width_notes_unknown_entry() {
+    // An unmapped PCM_format (0x30) must land on the typed
+    // unknown-entry damage path — dropped trak, damage note, never
+    // a guessed codec (the healthy sibling still demuxes).
+    let audio = audio_track(1, 1024);
+    let bad = pcm_track(b"ipcm", 1);
+    let bytes =
+        progressive_with_entry_children(&[audio, bad], b"isom", &[&[], &pcmc_box(false, 0x30)]);
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1, "the unmapped ipcm trak is dropped");
+    assert_eq!(tracks[0].codec.as_str(), "aac");
+    let mut noted = None;
+    let mut packets = 0usize;
+    loop {
+        match mp4
+            .next_event()
+            .unwrap_or_else(|e| unreachable!("event: {e}"))
+        {
+            DemuxEvent::Packet(_) => packets += 1,
+            DemuxEvent::Recovered { skipped, reason } => {
+                if reason == "unknown-stsd-entry" {
+                    noted = Some(skipped);
+                }
+            }
+            DemuxEvent::EndOfStream => break,
+            _ => {}
+        }
+    }
+    // The note's magnitude is the dropped entry's declared size
+    // (8-byte header + 28-byte base + 14-byte pcmC).
+    assert_eq!(noted, Some(50), "the unmapped width is damage-noted");
+    assert_eq!(packets, 1);
+}
+
+// ---- chunk-table ceilings (AUD-01) ------------------------------
+
+/// The first box of `kind` in `bytes` (its start offset); None when
+/// absent. The first match matters: multi-trak fixtures repeat the
+/// sample-table boxes.
+fn find_box(bytes: &[u8], kind: &[u8; 4]) -> Option<usize> {
+    (4..bytes.len().saturating_sub(3))
+        .find(|&i| &bytes[i..i + 4] == kind)
+        .map(|i| i - 4)
+}
+
+/// Drain to EOS, capturing the `skipped` magnitude of one damage
+/// reason alongside the packets.
+fn drain_noting(mp4: &mut Mp4Demuxer, reason_want: &str) -> (Option<u64>, usize) {
+    let mut noted = None;
+    let mut packets = 0usize;
+    loop {
+        match mp4
+            .next_event()
+            .unwrap_or_else(|e| unreachable!("event: {e}"))
+        {
+            DemuxEvent::Packet(_) => packets += 1,
+            DemuxEvent::Recovered { skipped, reason } => {
+                if reason == reason_want {
+                    noted = Some(skipped);
+                }
+            }
+            DemuxEvent::EndOfStream => break,
+            _ => {}
+        }
+    }
+    (noted, packets)
+}
+
+#[test]
+fn stco_count_over_ceiling_is_bounded_and_damage_noted() {
+    // AUD-01: a 4-byte count patch (0x0800_0000 over a tiny box)
+    // used to walk and allocate the declared count; the take is now
+    // capped at MAX_SAMPLES with the surplus damage-noted.
+    let track = video_track(2, 100, &[true, false], &[0]);
+    let mut bytes = Vec::from(progressive(&[track], b"isom").as_ref());
+    let at = find_box(&bytes, b"stco").unwrap_or_else(|| unreachable!("no stco"));
+    // entry_count sits at box + 12 (size, kind, version/flags).
+    bytes[at + 12..at + 16].copy_from_slice(&0x0800_0000u32.to_be_bytes());
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1);
+    let (noted, packets) = drain_noting(&mut mp4, "stco-count-over-ceiling");
+    // Exactly MAX_SAMPLES taken; the declared surplus is the note's
+    // magnitude — the walk is bounded by construction.
+    let max = super::MAX_SAMPLES as u64;
+    assert_eq!(noted, Some(0x0800_0000u64 - max));
+    assert_eq!(packets, 2, "the two real samples still demux");
+}
+
+#[test]
+fn co64_count_over_ceiling_is_bounded_and_damage_noted() {
+    // The co64 twin: restamp the stco box as co64 — its two 4-byte
+    // entries become one real 8-byte entry — and balloon the count.
+    // stsz is trimmed to one sample so the single real chunk (whose
+    // offset rides the 8-byte entry) is the whole media walk; the
+    // past-payload entries read as offset 0 and never map a sample.
+    let track = video_track(2, 100, &[true, false], &[0]);
+    let mut bytes = Vec::from(progressive(&[track], b"isom").as_ref());
+    let at = find_box(&bytes, b"stco").unwrap_or_else(|| unreachable!("no stco"));
+    let off0 = u32::from_be_bytes([
+        bytes[at + 16],
+        bytes[at + 17],
+        bytes[at + 18],
+        bytes[at + 19],
+    ]);
+    bytes[at + 4..at + 8].copy_from_slice(b"co64");
+    bytes[at + 12..at + 16].copy_from_slice(&0x0800_0000u32.to_be_bytes());
+    bytes[at + 16..at + 24].copy_from_slice(&u64::from(off0).to_be_bytes());
+    // stsz count at box + 16 (size, kind, version/flags, fixed).
+    let stsz = find_box(&bytes, b"stsz").unwrap_or_else(|| unreachable!("no stsz"));
+    bytes[stsz + 16..stsz + 20].copy_from_slice(&1u32.to_be_bytes());
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 1);
+    let (noted, packets) = drain_noting(&mut mp4, "co64-count-over-ceiling");
+    let max = super::MAX_SAMPLES as u64;
+    assert_eq!(noted, Some(0x0800_0000u64 - max));
+    assert_eq!(packets, 1, "the real first-chunk sample still demuxes");
+}
+
+#[test]
+fn stsc_count_over_ceiling_is_bounded_and_damage_noted() {
+    // The stsc twin: the inflated trak's filler entries (first=1,
+    // per=0 past the payload) leave it sample-less — damage-noted,
+    // the healthy sibling still demuxes.
+    let v = video_track(2, 100, &[true, false], &[0]);
+    let a = audio_track(2, 1024);
+    let mut bytes = Vec::from(progressive(&[v, a], b"isom").as_ref());
+    let at = find_box(&bytes, b"stsc").unwrap_or_else(|| unreachable!("no stsc"));
+    bytes[at + 12..at + 16].copy_from_slice(&0x0800_0000u32.to_be_bytes());
+    let mut mp4 = open(&bytes);
+    let tracks = mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+    assert_eq!(tracks.len(), 2);
+    let (noted, packets) = drain_noting(&mut mp4, "stsc-count-over-ceiling");
+    let max = super::MAX_SAMPLES as u64;
+    assert_eq!(noted, Some(0x0800_0000u64 - max));
+    assert_eq!(packets, 2, "only the healthy audio trak demuxes");
+}
+
+#[test]
+fn stss_unsorted_with_duplicates_matches_sorted_flags() {
+    // AUD-03: the sync-set membership check binary-searches the
+    // sorted, deduped set; an unsorted, duplicated stss table must
+    // yield the same per-sample flags as the sorted canonical form
+    // of the same set.
+    let track = video_track(6, 100, &[true, false, true, false, true, false], &[0]);
+    let bytes = Vec::from(progressive(&[track], b"isom").as_ref());
+    let at = find_box(&bytes, b"stss").unwrap_or_else(|| unreachable!("no stss"));
+    // stss from box start: size(4) kind(4) version/flags(4)
+    // count(4) entries(4 each). The builder wrote {1,3,5}; rewrite
+    // the same three slots as the unsorted, duplicated multiset
+    // [3,3,1] (set {1,3}).
+    let entries = at + 16;
+    let mut unsorted = bytes.clone();
+    for (i, v) in [3u32, 3, 1].iter().enumerate() {
+        unsorted[entries + i * 4..entries + i * 4 + 4].copy_from_slice(&v.to_be_bytes());
+    }
+    // The sorted canonical form of the same set: count=2, [1,3]
+    // (the stale third slot goes unread).
+    let mut sorted = bytes;
+    sorted[at + 12..at + 16].copy_from_slice(&2u32.to_be_bytes());
+    sorted[entries..entries + 4].copy_from_slice(&1u32.to_be_bytes());
+    sorted[entries + 4..entries + 8].copy_from_slice(&3u32.to_be_bytes());
+    let flags = |bytes: &[u8]| -> Vec<bool> {
+        let mut mp4 = open(bytes);
+        mp4.start().unwrap_or_else(|e| unreachable!("start: {e}"));
+        let (_, packets) = drain(&mut mp4);
+        assert_eq!(packets.len(), 6);
+        packets.iter().map(|p| p.keyframe).collect()
+    };
+    assert_eq!(flags(&unsorted), flags(&sorted));
+    assert_eq!(
+        flags(&unsorted),
+        vec![true, false, true, false, false, false]
+    );
 }
 
 // ---- +FB (fuzz-lite, deterministic in-crate sweep) --------------

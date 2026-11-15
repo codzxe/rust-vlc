@@ -135,19 +135,29 @@ fn hdlr(handler: &[u8; 4]) -> Vec<u8> {
     fullbox(b"hdlr", 0, &b)
 }
 
-/// One stsd entry (audio-shaped 28-byte payload — the parser only
-/// needs the entry's size and kind; the codec cards own the fields).
-fn stsd_entry(entry: &[u8; 4]) -> Vec<u8> {
+/// One stsd entry with child boxes appended after the 28-byte v0
+/// base (audio-shaped: the parser only needs the entry's size and
+/// kind; the codec cards own the fields) — the ISO/IEC 23003-5
+/// `ipcm`/`fpcm` shape whose `pcmC` child carries the format truth
+/// (ffmpeg >= 7 writes these).
+fn stsd_entry_with(entry: &[u8; 4], children: &[u8]) -> Vec<u8> {
     let mut b = vec![0u8; 28];
     b[8..10].copy_from_slice(&2u16.to_be_bytes()); // channels
     b[10..12].copy_from_slice(&16u16.to_be_bytes()); // samplesize
     b[16..20].copy_from_slice(&44_100u32.to_be_bytes()); // 16.16 rate
+    b.extend_from_slice(children);
     boxb(entry, &b)
 }
 
 /// The trak of one track; `offsets` patches stco (None for fragment
-/// tracks with empty tables).
-fn trak(spec: &TrackSpec, track_id: u32, offsets: Option<&[u64]>) -> Vec<u8> {
+/// tracks with empty tables). `entry_children` splices child boxes
+/// after the stsd entry's 28-byte v0 base (empty for none).
+fn trak(
+    spec: &TrackSpec,
+    track_id: u32,
+    offsets: Option<&[u64]>,
+    entry_children: &[u8],
+) -> Vec<u8> {
     let mut t = Vec::new();
     t.extend_from_slice(&tkhd(track_id, spec.samples.iter().map(|s| s.dur).sum()));
     if let Some(chap) = spec.chap_ref {
@@ -172,7 +182,7 @@ fn trak(spec: &TrackSpec, track_id: u32, offsets: Option<&[u64]>) -> Vec<u8> {
     let mut stbl = Vec::new();
     let mut stsd_body = Vec::new();
     stsd_body.extend_from_slice(&u32b(1)); // entry_count
-    stsd_body.extend_from_slice(&stsd_entry(&spec.entry));
+    stsd_body.extend_from_slice(&stsd_entry_with(&spec.entry, entry_children));
     stbl.extend_from_slice(&fullbox(b"stsd", 0, &stsd_body));
     if let Some(offsets) = offsets {
         // stts: one run per distinct delta.
@@ -273,39 +283,53 @@ fn udta_cover(wkt: u32, payload: &[u8]) -> Vec<u8> {
 }
 
 /// The moov body (children) over the tracks (offsets None for
-/// fragment tracks).
-fn moov_body(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>) -> Vec<u8> {
+/// fragment tracks). `entry_children[i]` rides track i's stsd entry
+/// (an empty slice for none).
+fn moov_body(
+    tracks: &[TrackSpec],
+    offsets: Option<&[Vec<u64>]>,
+    entry_children: &[&[u8]],
+) -> Vec<u8> {
     let mut m = Vec::new();
     m.extend_from_slice(&mvhd(1000, 0));
     for (i, spec) in tracks.iter().enumerate() {
         let offs = offsets.map(|o| o[i].as_slice());
-        m.extend_from_slice(&trak(spec, i as u32 + 1, offs));
+        let children = entry_children.get(i).copied().unwrap_or(&[]);
+        m.extend_from_slice(&trak(spec, i as u32 + 1, offs, children));
     }
     m
 }
 
 /// The moov body plus trailing `udta` children (the cover hang).
 fn moov_body_with_udta(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>, udta: &[u8]) -> Vec<u8> {
-    let mut m = moov_body(tracks, offsets);
+    let mut m = moov_body(tracks, offsets, &[]);
     m.extend_from_slice(udta);
     m
-}
-
-/// The whole moov box.
-fn moov(tracks: &[TrackSpec], offsets: Option<&[Vec<u64>]>) -> Vec<u8> {
-    boxb(b"moov", &moov_body(tracks, offsets))
 }
 
 /// Build a progressive MP4: `ftyp + moov + mdat`, one chunk per
 /// sample, offsets patched in a second pass.
 #[must_use]
 pub fn progressive(tracks: &[TrackSpec], major: &[u8; 4]) -> Arc<[u8]> {
+    progressive_with_entry_children(tracks, major, &[])
+}
+
+/// [`progressive`] where selected tracks' `stsd` entries carry child
+/// boxes after the 28-byte v0 base (`children[i]` rides track i) —
+/// the ISO/IEC 23003-5 `ipcm`/`fpcm` + `pcmC` shapes (AUD-02
+/// fixtures; the v0 `samplesize` field is written 16 for every width
+/// by ffmpeg and is not trusted by the parser).
+#[must_use]
+pub fn progressive_with_entry_children(
+    tracks: &[TrackSpec],
+    major: &[u8; 4],
+    children: &[&[u8]],
+) -> Arc<[u8]> {
     // Pass 1: measure with zero offsets (same byte lengths).
     let zero: Vec<Vec<u64>> = tracks.iter().map(|t| vec![0u64; t.samples.len()]).collect();
     let mut file = Vec::new();
     file.extend_from_slice(&ftyp(major));
-    let moov1 = moov(tracks, Some(&zero));
-    file.extend_from_slice(&moov1);
+    file.extend_from_slice(&boxb(b"moov", &moov_body(tracks, Some(&zero), children)));
     let mdat_payload_start = file.len() as u64 + 8;
     // Pass 2: real offsets.
     let mut offsets: Vec<Vec<u64>> = Vec::new();
@@ -320,7 +344,7 @@ pub fn progressive(tracks: &[TrackSpec], major: &[u8; 4]) -> Arc<[u8]> {
     }
     let mut file = Vec::new();
     file.extend_from_slice(&ftyp(major));
-    file.extend_from_slice(&moov(tracks, Some(&offsets)));
+    file.extend_from_slice(&boxb(b"moov", &moov_body(tracks, Some(&offsets), children)));
     let mut mdat = Vec::new();
     for t in tracks {
         for s in &t.samples {
@@ -384,7 +408,7 @@ pub fn progressive_with_cover(
 pub fn fragmented(tracks: &[TrackSpec], frags: usize, per_frag: usize) -> Arc<[u8]> {
     let mut file = Vec::new();
     file.extend_from_slice(&ftyp(b"isom"));
-    let mut m = moov_body(tracks, None);
+    let mut m = moov_body(tracks, None, &[]);
     let mut mvex = Vec::new();
     for (i, t) in tracks.iter().enumerate() {
         let mut trex = Vec::new();
