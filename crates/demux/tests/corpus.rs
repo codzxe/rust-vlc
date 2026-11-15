@@ -36,16 +36,12 @@ use media_types::packet::Packet;
 use plugin_api::{Access, DemuxEvent, Demuxer, SourceStream};
 use testkit::Must;
 
-/// Open a corpus file through the real access stack (card 2.A1's seam).
+/// Open a corpus file through the real access stack (card 2.A1's
+/// seam): the shared platform-aware `SourceUri::from_file_path`
+/// constructor (POSIX outputs byte-exact; a non-local path is the
+/// constructor's typed refusal, propagated — never a mis-built URI).
 fn open_via_input(path: &Path) -> Result<Box<dyn SourceStream>, EngineError> {
-    let text = match path.to_str() {
-        Some(text) => format!("file://{text}"),
-        None => unreachable!("corpus paths are UTF-8 ({path:?})"),
-    };
-    let uri = match media_types::ids::SourceUri::parse(&text) {
-        Ok(uri) => uri,
-        Err(err) => unreachable!("corpus path is a valid file URI ({path:?}): {err}"),
-    };
+    let uri = media_types::ids::SourceUri::from_file_path(path.to_str().must())?;
     let access = input::FileAccess::new();
     access.open(&uri)
 }

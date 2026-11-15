@@ -334,7 +334,7 @@ struct Fixture {
 
 fn open_fixture() -> Fixture {
     let path = testkit::fixture_path(FIXTURE).must();
-    let uri = SourceUri::parse(&format!("file://{}", path.to_str().must())).must();
+    let uri = SourceUri::from_file_path(path.to_str().must()).must();
     let stream = input::FileAccess::new().open(&uri).must();
     let mut avi = AviDemuxer::new(stream).must();
     let tracks = avi.start().must();

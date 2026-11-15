@@ -856,23 +856,11 @@ fn session_error_wire(error: &SessionError) -> CommandError {
     }
 }
 
-/// The percent-encoding set for a `file:` URI path (the CLI's own
-/// minimal RFC 3986 encoder, copied so open-path URIs agree).
-fn encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
 /// Canonicalize a user path and build its `file:` URI (the CLI's
-/// `file_uri`: the canonicalize failure IS the truth).
+/// `file_uri`: the canonicalize failure IS the truth): the shared
+/// `SourceUri::from_file_path` constructor — POSIX outputs are
+/// byte-exact with the retired local encoder, Windows canonical
+/// paths (`\\?\C:\…`) open too.
 fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
     let canonical: PathBuf = std::fs::canonicalize(path).map_err(|err| {
         CommandError::new(
@@ -895,11 +883,11 @@ fn file_uri(path: &Path) -> Result<SourceUri, CommandError> {
             "the path is not valid UTF-8",
         )
     })?;
-    SourceUri::parse(&format!("file://{}", encode_path(text))).map_err(|err| {
+    SourceUri::from_file_path(text).map_err(|err| {
         CommandError::new(
             Stage::Input,
             ErrorCode::Internal,
-            format!("the encoded file URI was rejected: {err}"),
+            format!("the file URI was rejected: {err}"),
         )
     })
 }

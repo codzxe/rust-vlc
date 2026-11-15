@@ -151,23 +151,10 @@ fn per_frame_damage(error: &EngineError) -> bool {
     )
 }
 
-/// The percent-encoding set for a `file:` URI path — the minimal
-/// RFC 3986 form apps/cli's `demux_host::encode_path` uses (same
-/// set as mem-audit's walk.rs).
-fn encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
-/// Canonicalize a path into its `file:` URI (driver setup).
+/// Canonicalize a path into its `file:` URI (driver setup): the
+/// shared platform-aware constructor `SourceUri::from_file_path`
+/// (POSIX outputs byte-exact with the retired local encoder; Windows
+/// canonical paths open too).
 fn file_uri(path: &Path) -> Result<media_types::SourceUri, EngineError> {
     let inaccessible = |code: &'static str, reason| {
         EngineError::new(
@@ -204,7 +191,7 @@ fn file_uri(path: &Path) -> Result<media_types::SourceUri, EngineError> {
             media_types::error::ErrorContext::new("sweep.path.not_utf8"),
         ));
     };
-    media_types::SourceUri::parse(&format!("file://{}", encode_path(text)))
+    media_types::SourceUri::from_file_path(text)
 }
 
 /// Configure one decoder for the walk (the bench pattern: the
@@ -527,8 +514,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encode_path_percent_encodes_spaces_but_keeps_slashes() {
-        assert_eq!(encode_path("/tmp/a b/c.avi"), "/tmp/a%20b/c.avi");
+    fn from_file_path_percent_encodes_spaces_but_keeps_slashes() {
+        // The constructor owns the rule the retired local `encode_path`
+        // pinned (spaces escape, `/` survives): POSIX outputs are
+        // byte-exact with every former hand-roll; the drive-form row
+        // pins the Windows shape the hand-roll could not produce.
+        let cases = [
+            ("/tmp/a b/c.avi", "file:///tmp/a%20b/c.avi"),
+            ("C:\\Users\\a b\\c.avi", "file:///C:/Users/a%20b/c.avi"),
+        ];
+        for (path, want) in cases {
+            let uri = media_types::SourceUri::from_file_path(path)
+                .unwrap_or_else(|err| unreachable!("{path:?}: {err}"));
+            assert_eq!(uri.raw(), want, "{path:?}");
+        }
     }
 
     #[test]

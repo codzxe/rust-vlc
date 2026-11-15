@@ -118,10 +118,10 @@ fn wav_over_http_demuxes_to_the_on_disk_truth() {
     // (2) MD5 against the recorded ffmpeg truth.
     assert_eq!(md5_hex(&net_payload), FFMPEG_MD5);
 
-    // (3) the same fixture through the input crate's file access.
+    // (3) the same fixture through the input crate's file access
+    //     (the shared platform-aware constructor builds the URI).
     let path = testkit::fixture_path(FIXTURE).must();
-    let uri =
-        media_types::ids::SourceUri::parse(&format!("file://{}", path.to_str().must())).must();
+    let uri = media_types::ids::SourceUri::from_file_path(path.to_str().must()).must();
     let file_stream = input::FileAccess::new().open(&uri).must();
     let mut file_wav = WavDemuxer::new(file_stream).unwrap_or_else(|e| unreachable!("{e}"));
     file_wav.start().unwrap_or_else(|e| unreachable!("{e}"));
@@ -187,8 +187,7 @@ fn wav_over_no_range_http_demuxes_to_the_on_disk_truth() {
     );
     assert_eq!(md5_hex(&net_payload), FFMPEG_MD5);
     let path = testkit::fixture_path(FIXTURE).must();
-    let uri =
-        media_types::ids::SourceUri::parse(&format!("file://{}", path.to_str().must())).must();
+    let uri = media_types::ids::SourceUri::from_file_path(path.to_str().must()).must();
     let file_stream = input::FileAccess::new().open(&uri).must();
     let mut file_wav = WavDemuxer::new(file_stream).unwrap_or_else(|e| unreachable!("{e}"));
     file_wav.start().unwrap_or_else(|e| unreachable!("{e}"));

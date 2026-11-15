@@ -25,6 +25,7 @@ use demux::wav::WavDemuxer;
 use media_types::ids::{CodecDescriptor, SourceUri};
 use media_types::packet::SharedBytes;
 use plugin_api::{Access, DemuxEvent, Demuxer};
+use testkit::Must;
 
 /// One corpus lane's measured truth (the differential's pinned table,
 /// data-derived window).
@@ -76,14 +77,14 @@ fn corpus_media_dir() -> Option<PathBuf> {
 }
 
 /// Open a path through `input`'s FileAccess (the first vertical's
-/// access stack — the differential's exact open path).
+/// access stack — the differential's exact open path): the shared
+/// platform-aware `SourceUri::from_file_path` constructor (POSIX
+/// outputs byte-exact; a non-local path is the constructor's typed
+/// refusal, propagated — never a mis-built URI).
 fn open_via_input(
     path: &Path,
 ) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
-    let uri = match SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or(""))) {
-        Ok(uri) => uri,
-        Err(err) => unreachable!("corpus path is a valid file URI ({path:?}): {err}"),
-    };
+    let uri = SourceUri::from_file_path(path.to_str().must())?;
     input::FileAccess::new().open(&uri)
 }
 

@@ -12,6 +12,9 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use media_types::SourceUri;
+use testkit::Must;
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A unique temp directory with one file inside, removed recursively on
@@ -35,14 +38,17 @@ impl TempFile {
         Ok(TempFile { path })
     }
 
-    /// The `file:` URI for the file. Temp paths are ASCII on every CI
-    /// host; a non-UTF-8 path here is a broken fixture (testkit's
-    /// `unreachable!`-based `must` vocabulary).
+    /// The `file:` URI for the file, built by the shared
+    /// platform-aware constructor (`SourceUri::from_file_path`):
+    /// percent-encodes spaces/non-ASCII, normalizes Windows drive
+    /// forms, refuses relative/UNC paths typed. Temp paths are ASCII
+    /// on every CI host; a non-UTF-8 path is a broken fixture
+    /// (testkit's `must` vocabulary).
     pub fn file_uri(&self) -> String {
-        match self.path.to_str() {
-            Some(text) => format!("file://{text}"),
-            None => unreachable!("temp paths are UTF-8 on CI hosts"),
-        }
+        SourceUri::from_file_path(self.path.to_str().must())
+            .must()
+            .raw()
+            .to_string()
     }
 
     /// Truncate the file to `len` bytes (the truncation fault).
@@ -89,11 +95,13 @@ impl TempDir {
         Ok(TempDir { path })
     }
 
+    /// The `file:` URI for the directory, built by the shared
+    /// platform-aware constructor (same contract as `TempFile`'s).
     pub fn file_uri(&self) -> String {
-        match self.path.to_str() {
-            Some(text) => format!("file://{text}"),
-            None => unreachable!("temp paths are UTF-8 on CI hosts"),
-        }
+        SourceUri::from_file_path(self.path.to_str().must())
+            .must()
+            .raw()
+            .to_string()
     }
 }
 

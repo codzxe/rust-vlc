@@ -343,9 +343,7 @@ impl DemuxerCore {
 }
 
 fn open_via_input(path: &Path) -> Box<dyn SourceStream> {
-    let uri = format!("file://{}", path.display());
-    let parsed = media_types::ids::SourceUri::parse(&uri)
-        .unwrap_or_else(|e| unreachable!("valid file URI: {e}"));
+    let parsed = media_types::ids::SourceUri::from_file_path(path.to_str().must()).must();
     input::FileAccess::new()
         .open(&parsed)
         .unwrap_or_else(|e| unreachable!("open {}: {e}", path.display()))

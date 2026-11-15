@@ -154,9 +154,13 @@ fn mem_seek_error() -> EngineError {
     )
 }
 
+/// Open a committed fixture through the real file access stack: the
+/// shared platform-aware `SourceUri::from_file_path` constructor
+/// (POSIX outputs byte-exact; a non-local path is the constructor's
+/// typed refusal — never a mis-built URI).
 fn open_fixture(relative: &str) -> WavDemuxer {
     let path = fixture_path(relative).must();
-    let uri = SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or_default())).must();
+    let uri = SourceUri::from_file_path(path.to_str().must()).must();
     let stream = input::FileAccess::new().open(&uri).must();
     WavDemuxer::new(stream).must()
 }

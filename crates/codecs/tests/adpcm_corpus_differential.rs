@@ -137,17 +137,13 @@ impl FrameSink for Capture {
 }
 
 /// Open a path through `input`'s FileAccess (the first vertical's
-/// access stack).
+/// access stack): the shared platform-aware `SourceUri::from_file_path`
+/// constructor (POSIX outputs byte-exact; a non-local path is the
+/// constructor's typed refusal, propagated — never a mis-built URI).
 fn open_via_input(
     path: &std::path::Path,
 ) -> Result<Box<dyn plugin_api::SourceStream>, EngineError> {
-    let uri = match media_types::ids::SourceUri::parse(&format!(
-        "file://{}",
-        path.to_str().unwrap_or("")
-    )) {
-        Ok(uri) => uri,
-        Err(err) => unreachable!("fixture path is a valid file URI ({path:?}): {err}"),
-    };
+    let uri = media_types::ids::SourceUri::from_file_path(path.to_str().must())?;
     let access = input::FileAccess::new();
     access.open(&uri)
 }

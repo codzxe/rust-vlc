@@ -19,6 +19,7 @@ use demux::mp4::Mp4Demuxer;
 use media_types::ids::SourceUri;
 use media_types::packet::SharedBytes;
 use plugin_api::{Access, DemuxEvent, Demuxer};
+use testkit::Must;
 
 fn fixture_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -29,10 +30,7 @@ fn fixture_path(name: &str) -> PathBuf {
 fn open_via_input(
     path: &Path,
 ) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
-    let uri = match SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or(""))) {
-        Ok(uri) => uri,
-        Err(err) => unreachable!("fixture path is a valid file URI ({path:?}): {err}"),
-    };
+    let uri = SourceUri::from_file_path(path.to_str().must())?;
     input::FileAccess::new().open(&uri)
 }
 

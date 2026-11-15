@@ -166,25 +166,10 @@ fn per_frame_damage(error: &EngineError) -> bool {
     )
 }
 
-/// The percent-encoding set for a `file:` URI path — the minimal
-/// RFC 3986 form apps/cli's `demux_host::encode_path` uses (the
-/// smallest set that round-trips `SourceUri::parse` + `input`'s
-/// resolver; the audit's file set is ASCII).
-fn encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
 /// Canonicalize a path into its `file:` URI (driver setup — outside
-/// every window).
+/// every window): the shared platform-aware constructor
+/// `SourceUri::from_file_path` (POSIX outputs byte-exact with the
+/// retired local encoder; Windows canonical paths open too).
 fn file_uri(path: &Path) -> Result<media_types::SourceUri, EngineError> {
     let inaccessible = |code: &'static str, reason| {
         EngineError::new(
@@ -221,7 +206,7 @@ fn file_uri(path: &Path) -> Result<media_types::SourceUri, EngineError> {
             media_types::error::ErrorContext::new("memaudit.path.not_utf8"),
         ));
     };
-    media_types::SourceUri::parse(&format!("file://{}", encode_path(text)))
+    media_types::SourceUri::from_file_path(text)
 }
 
 /// Configure one decoder for the walk (the bench pattern: the track's

@@ -120,14 +120,14 @@ fn fixture_path(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// The real byte source (the 5.J2a composition: input FileAccess).
+/// The real byte source (the 5.J2a composition: input FileAccess):
+/// the shared platform-aware `SourceUri::from_file_path` constructor
+/// (POSIX outputs byte-exact; a non-local path is the constructor's
+/// typed refusal, propagated — never a mis-built URI).
 fn open_via_input(
     path: &Path,
 ) -> Result<Box<dyn plugin_api::SourceStream>, media_types::EngineError> {
-    let uri = match SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or(""))) {
-        Ok(uri) => uri,
-        Err(err) => unreachable!("fixture path is a valid file URI ({path:?}): {err}"),
-    };
+    let uri = SourceUri::from_file_path(path.to_str().must())?;
     let access = input::FileAccess::new();
     access.open(&uri)
 }

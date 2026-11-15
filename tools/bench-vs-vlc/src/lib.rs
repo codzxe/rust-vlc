@@ -217,21 +217,6 @@ pub struct PcmDigestReport {
     pub format_changes: u32,
 }
 
-/// Percent-encode a path for a `file:` URI (the CLI open path's rule:
-/// RFC 3986 unreserved + `/` kept, everything else escaped).
-fn encode_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for byte in path.bytes() {
-        let keep = byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/');
-        if keep {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
 /// The sample-format name as the JSON/report spells it.
 fn sample_name(format: AudioFormat) -> String {
     let name = match format.sample {
@@ -254,7 +239,10 @@ fn sample_name(format: AudioFormat) -> String {
 /// adversarial corpus is an expected input).
 pub fn digest_avi_first_pcm_audio(path: &Path) -> Result<PcmDigestReport, String> {
     // 1. Canonicalize + build the `file:` URI (the player's open
-    //    path; symlink-safe by construction).
+    //    path; symlink-safe by construction) — the shared
+    //    platform-aware constructor (POSIX outputs byte-exact with
+    //    the retired local encoder; Windows canonical paths open
+    //    too).
     let canonical = std::fs::canonicalize(path)
         .map_err(|err| format!("[input] cannot resolve {}: {err}", path.display()))?;
     if !canonical.is_file() {
@@ -263,8 +251,8 @@ pub fn digest_avi_first_pcm_audio(path: &Path) -> Result<PcmDigestReport, String
     let text = canonical
         .to_str()
         .ok_or_else(|| format!("[input] the path is not valid UTF-8: {}", path.display()))?;
-    let uri = media_types::SourceUri::parse(&format!("file://{}", encode_path(text)))
-        .map_err(|err| format!("[input] encoded file URI rejected: {err}"))?;
+    let uri = media_types::SourceUri::from_file_path(text)
+        .map_err(|err| format!("[input] cannot build the file URI: {err}"))?;
 
     // 2. Access (the 2.A1 stack).
     let access = FileAccess::new();

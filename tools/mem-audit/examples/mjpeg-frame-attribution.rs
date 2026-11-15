@@ -68,8 +68,10 @@ fn main() {
         std::process::exit(64);
     });
     // Open the AVI through the real access + probe + demuxer path,
-    // harvest the first video packet, then decode it repeatedly.
-    let uri = media_types::SourceUri::parse(&format!("file://{path}")).unwrap_or_else(|err| {
+    // harvest the first video packet, then decode it repeatedly. The
+    // shared platform-aware constructor builds the URI (percent-
+    // encoding spaces and non-ASCII; Windows canonical paths open).
+    let uri = media_types::SourceUri::from_file_path(&path).unwrap_or_else(|err| {
         eprintln!("error: {err}");
         std::process::exit(65);
     });

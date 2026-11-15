@@ -760,12 +760,13 @@ fn parse_file_tags(path: &std::path::Path) -> (TagList, EditionList, Vec<u64>) {
     (list, editions, uids)
 }
 
-/// Open through `input`'s FileAccess (the 2.A1+demux composition).
+/// Open through `input`'s FileAccess (the 2.A1+demux composition):
+/// the shared platform-aware `SourceUri::from_file_path` constructor
+/// (POSIX outputs byte-exact; a non-local path is the constructor's
+/// typed refusal — never a mis-built URI).
 fn open_source(path: &std::path::Path) -> Box<dyn plugin_api::SourceStream> {
     use plugin_api::Access;
-    let uri =
-        media_types::ids::SourceUri::parse(&format!("file://{}", path.to_str().unwrap_or("")))
-            .must();
+    let uri = media_types::ids::SourceUri::from_file_path(path.to_str().must()).must();
     let access = input::FileAccess::new();
     access.open(&uri).must()
 }

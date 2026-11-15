@@ -112,19 +112,19 @@ fn or_exit<T>(result: Result<T, EngineError>, context: &str) -> T {
     }
 }
 
-/// Open a real file through the production access stack.
+/// Open a real file through the production access stack. The URI is
+/// built by the shared platform-aware constructor (POSIX outputs
+/// byte-exact with the retired `format!` hand-roll; spaces and
+/// non-ASCII percent-encode; Windows canonical paths open).
 fn open_file(path: &std::path::Path) -> Result<Box<dyn SourceStream>, EngineError> {
-    let text = match path.to_str() {
-        Some(text) => format!("file://{text}"),
-        None => {
-            return Err(EngineError::new(
-                media_types::PipelineStage::Open,
-                media_types::ErrorKind::Unsupported { format: None },
-                media_types::error::ErrorContext::new("walk-bench.path-not-utf8"),
-            ));
-        }
-    };
-    let uri = media_types::ids::SourceUri::parse(&text)?;
+    let text = path.to_str().ok_or_else(|| {
+        EngineError::new(
+            media_types::PipelineStage::Open,
+            media_types::ErrorKind::Unsupported { format: None },
+            media_types::error::ErrorContext::new("walk-bench.path-not-utf8"),
+        )
+    })?;
+    let uri = media_types::ids::SourceUri::from_file_path(text)?;
     input::FileAccess::new().open(&uri)
 }
 
