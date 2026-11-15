@@ -2102,3 +2102,17 @@ Work Log:
 
 Stage Summary:
 - The gate lane's last red is version-bump-proof now. CI/Rust on main should be fully green.
+---
+Task ID: w29.1.desktop-probe
+Agent: Lead-directed implementation session (user bug report on the v0.1.1 desktop build)
+Task: Fix "Playback error — session: no session open (not-ready)" showing on the EMPTY player at every desktop cold start.
+
+Work Log:
+- User report: the v0.1.1 Windows app shows a "Playback error / session: no session open (not-ready)" chip on launch, before any file is opened.
+- Diagnosis (traced end to end, no guessing): the chip is ControlBar's ErrorSurface (`${error.stage}: ${error.message} (${error.code})`); its payload came from the PlayerControlsProvider's mount-time probes. The desktop shell drives the REAL engine host (the CLI host behind lumen_dispatch — desktop → lumen-cli, ARCH-5), whose cold-start answers are: system.get-state-snapshot → control/unsupported-for-host (no snapshot row in the SERVED table, apps/cli/src/dispatch.rs), media.get-info + media.get-current-time → session/not-ready "no session open" (host.rs — facts/handle are session-scoped). The provider's isEmptyProbe guard exempted ONLY media.get-info/not-found — the browser DemoTransport's idle face — so all three desktop STATE answers landed in lastError as if they were playback failures. (Play/seek/stop buttons are idle-disabled per doc 08 §5.1, so user-triggered "no session" was not the path.)
+- Fix (ui/src/screens/player/context.tsx): the guard generalizes to isStateProbeRefusal — media.get-info/media.get-current-time answering not-found OR not-ready, and system.get-state-snapshot answering unsupported-for-host, are STATES (nothing open / host doesn't serve the probe), never playback failures; the honest idle view stands and the chip stays reserved for real failures (doc 08 §5.4). User-initiated commands (playback.*, seek) keep their typed failures surfaced — a failed action is a failure, never a state.
+- Regression pins: context.test.tsx DesktopHostTransport (the CLI host's cold-start face mirrored verbatim from the Rust sources) — cold start leaves lastError null; the demo face (not-found) stays exempt; a failed USER toggle still surfaces session/not-ready "no session open". ControlBar.test.tsx — the desktop host's cold-start answers render NO error chip (queryByRole("status") null).
+- Gates: UI vitest 134 files / 1676 passed 1 skipped (3 new tests); tsc clean; eslint 0 errors (5 pre-existing react-refresh warnings on touched files); stylelint clean; l10n:check PASS (1448 keys). No Rust surface touched (UI-only fix; the engine's typed answers are correct and stay as they are).
+
+Stage Summary:
+- The desktop app now starts clean: empty player, no phantom "Playback error" chip; real failures (open errors, decode errors, failed user actions) still surface typed. Release v0.1.2 stamps this fix (see the next entry).

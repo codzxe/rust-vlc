@@ -62,6 +62,64 @@ class UnreachableTransport implements CommandTransport {
   }
 }
 
+/**
+ * w29.desktop-probe — the REAL desktop engine host's cold-start face,
+ * mirrored from the Rust sources (not a mock's guess). The desktop shell
+ * drives the CLI host (desktop → lumen-cli, ARCH-5) behind
+ * `lumen_dispatch`, and with no session open it answers the player's
+ * mount probes:
+ *   - `system.get-state-snapshot` → control/unsupported-for-host — the
+ *     served table has no snapshot row (apps/cli/src/dispatch.rs SERVED,
+ *     doc 05 §5.3's first-vertical subset);
+ *   - `media.get-info` / `media.get-current-time` → session/not-ready
+ *     "no session open" (apps/cli/src/host.rs `media_info`/`current_time`
+ *     — the facts are session-scoped);
+ *   - any session command (`playback.play` & friends) → session/not-ready
+ *     "no session open" (`submit_and_await`).
+ * These are the exact shapes the TauriTransport delivers on a cold start.
+ */
+class DesktopHostTransport implements CommandTransport {
+  private readonly listeners = new Set<(event: Event) => void>();
+
+  subscribe(listener: (event: Event) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  async send(request: CommandRequest): Promise<CommandResponse> {
+    const error = (
+      stage: "control" | "session",
+      code: "not-ready" | "unsupported-for-host",
+      message: string,
+    ): CommandResponse => ({
+      gen: 0,
+      requestId: request.requestId,
+      result: { error: { code, details: {}, message, stage } },
+    });
+    switch (request.cmd) {
+      case "system.get-state-snapshot":
+        // The CLI host's unserved-command refusal, verbatim shape
+        // (dispatch.rs `unserved`): stage control, code
+        // unsupported-for-host, the command named.
+        return error(
+          "control",
+          "unsupported-for-host",
+          "`system.get-state-snapshot` is not served by this build's command-line host (not in the first vertical's served set (see `lumen commands`))",
+        );
+      default:
+        // media.get-info / media.get-current-time / playback.* with no
+        // session: the honest not-ready.
+        return error("session", "not-ready", "no session open");
+    }
+  }
+
+  emit(event: Event): void {
+    for (const listener of this.listeners) listener(event);
+  }
+}
+
 /** Probe: exposes the provider state + real action triggers. */
 function StateProbe({ onState }: { onState: (state: PlayerState) => void }) {
   const { state, actions } = usePlayerControls();
@@ -249,5 +307,108 @@ describe("PlayerControlsProvider — playback.error resolves a pending toggle (w
     });
     expect(probe.latest().pendingToggle).toBe(false);
     expect(probe.latest().lastError?.code).toBe("decoder");
+  });
+});
+
+describe("PlayerControlsProvider — desktop cold-start probes (w29.desktop-probe)", () => {
+  // User report on the v0.1.1 desktop build: a "Playback error —
+  // session: no session open (not-ready)" chip on the EMPTY player at
+  // every cold start. Root cause: the mount probes' error handling was
+  // written against the browser DemoTransport's idle face
+  // (media.get-info → not-found); the real desktop host answers
+  // not-ready "no session open" (and has no snapshot row at all), and
+  // those STATE answers landed in the lastError surface as if they were
+  // playback failures.
+
+  it("the desktop host's idle answers surface NO playback error (states, not failures)", async () => {
+    const transport = new DesktopHostTransport();
+    const probe = mountProbe(transport);
+    // Let the three mount probes (snapshot, current-time, info) resolve.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(probe.latest().lastError).toBeNull();
+    // The honest idle view stands — the empty-state hero renders.
+    expect(probe.latest().playbackState).toBe("idle");
+  });
+
+  it("the demo transport's old idle face stays exempt (not-found regression pin)", async () => {
+    // The browser dev shell's cold start: the snapshot + current-time
+    // probes complete and media.get-info answers not-found ("no media
+    // open" — the shape the pre-w29 guard was written against). The
+    // generalization must keep that case exempt too.
+    const transport = new ErrorTransport();
+    transport.nextResult = (request) => {
+      if (request.cmd === "media.get-info") {
+        return {
+          error: {
+            code: "not-found",
+            details: {},
+            message: "demo transport: no media open",
+            stage: "input",
+          },
+        };
+      }
+      if (request.cmd === "media.get-current-time") {
+        return {
+          completed: {
+            kind: "current-time",
+            position: 0,
+            time: 0,
+            buffered: [],
+          },
+        };
+      }
+      if (request.cmd === "system.get-state-snapshot") {
+        return {
+          completed: {
+            kind: "state-snapshot",
+            snapshot: {
+              state: "idle",
+              time: 0,
+              duration: { kind: "unknown" },
+              volume: 0.5,
+              muted: false,
+              tracks: [],
+              selections: {},
+            },
+          },
+        } as unknown as CommandResponse["result"];
+      }
+      return {
+        error: {
+          code: "not-seekable",
+          details: { cmd: request.cmd },
+          message: "engine refused the command",
+          stage: "control",
+        },
+      };
+    };
+    const probe = mountProbe(transport);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(probe.latest().lastError).toBeNull();
+    expect(probe.latest().playbackState).toBe("idle");
+  });
+
+  it("the guard does not over-reach: a failed USER toggle still surfaces the typed error", async () => {
+    const transport = new DesktopHostTransport();
+    const probe = mountProbe(transport);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // A play with no session (e.g. a keymap binding before the button's
+    // idle-disable lands) is a real failed action — the chip answers.
+    await act(async () => {
+      probe.toggle();
+    });
+    expect(probe.latest().lastError?.stage).toBe("session");
+    expect(probe.latest().lastError?.code).toBe("not-ready");
+    expect(probe.latest().lastError?.message).toBe("no session open");
+    expect(probe.latest().pendingToggle).toBe(false);
   });
 });

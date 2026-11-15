@@ -610,6 +610,39 @@ describe("error surfacing — typed errors, never swallowed (§5.4)", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("w29.desktop-probe: the desktop host's cold-start answers render NO error chip (states, not failures)", async () => {
+    // The v0.1.1 desktop build showed "Playback error — session: no
+    // session open (not-ready)" on the EMPTY player at every cold start.
+    // The real engine host (the CLI host behind lumen_dispatch — desktop
+    // → lumen-cli, ARCH-5) answers the mount probes with typed STATE
+    // refusals: no snapshot row in the served table
+    // (control/unsupported-for-host), media.get-info/current-time with
+    // no session (session/not-ready "no session open" — apps/cli
+    // host.rs). None of those is a playback failure; the chip stays
+    // reserved for real ones (doc 08 §5.4).
+    const hostRefusal = (
+      stage: "control" | "session",
+      code: "unsupported-for-host" | "not-ready",
+      message: string,
+      details: Record<string, string> = {},
+    ): CommandResponse["result"] => ({
+      error: { code, details, message, stage },
+    });
+    const fake = new FakeTransport();
+    fake.respond = (request) =>
+      request.cmd === "system.get-state-snapshot"
+        ? hostRefusal(
+            "control",
+            "unsupported-for-host",
+            "`system.get-state-snapshot` is not served by this build's command-line host (not in the first vertical's served set (see `lumen commands`))",
+            { command: "system.get-state-snapshot" },
+          )
+        : hostRefusal("session", "not-ready", "no session open");
+    renderBar(fake);
+    await flush();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("playback.error event surfaces a typed error; fatal marks engine error", () => {
     const fake = new FakeTransport();
     renderBar(fake);

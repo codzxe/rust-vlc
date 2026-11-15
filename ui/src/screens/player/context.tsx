@@ -158,6 +158,47 @@ const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
 const isToggleCommand = (cmd: CommandRequest["cmd"]): boolean =>
   cmd === "playback.play" || cmd === "playback.pause" || cmd === "playback.toggle-play-pause";
 
+/**
+ * w29.desktop-probe: probe failures that mean "nothing open" or "this
+ * host does not serve the probe" are STATES, not playback failures —
+ * the error chip stays reserved for real failures (doc 08 §5.4).
+ *
+ * The mount-time probes meet two idle faces:
+ *   - the browser DemoTransport: `media.get-info` → input/not-found
+ *     ("no media open" — the shape the original guard covered);
+ *   - the REAL desktop engine host (the CLI host behind
+ *     `lumen_dispatch`; desktop → lumen-cli, ARCH-5): no snapshot row in
+ *     the served table (apps/cli/src/dispatch.rs — doc 05 §5.3's
+ *     first-vertical subset answers control/unsupported-for-host), and
+ *     `media.get-info` / `media.get-current-time` answer
+ *     session/not-ready "no session open" (host.rs — the facts are
+ *     session-scoped).
+ * For a PASSIVE probe all of these mean the same: no media is open —
+ * the honest idle/empty state stands. User-initiated commands
+ * (playback.*, seek) keep their typed failures surfaced: a failed
+ * action is a failure, never a state.
+ */
+const isStateProbeRefusal = (
+  cmd: CommandRequest["cmd"],
+  error: CommandError,
+): boolean => {
+  switch (cmd) {
+    case "media.get-info":
+    case "media.get-current-time":
+      // Nothing open: the demo's not-found face, the desktop engine's
+      // not-ready face (no session ⇒ no facts ⇒ the honest refusal).
+      return error.code === "not-found" || error.code === "not-ready";
+    case "system.get-state-snapshot":
+      // The desktop host's typed "not served" (doc 05 §5.2: capability
+      // gaps are typed, not silent — and a typed gap on a passive probe
+      // still is not a playback failure; the initial idle view is the
+      // honest seed, live events take over).
+      return error.code === "unsupported-for-host";
+    default:
+      return false;
+  }
+};
+
 const bufferRangesOf = (ranges: readonly TimeRange[]): readonly PlayerBufferRange[] =>
   // w26.k17: wire TimeRanges are µs; the seam documents seconds — cross
   // at the read edge (same fix family as the duration conversions).
@@ -262,14 +303,16 @@ export function PlayerControlsProvider({
       try {
         const response = await wire.send(request);
         if ("error" in response.result) {
-          // "No media open" is a STATE, not a playback failure: the
-          // mount-time media.get-info probe on an idle session answers
-          // `not-found`, and the stage already renders the honest empty
-          // state for it. The error chip stays reserved for real failures
-          // (demo shell + engine parity, 2026-11-08).
-          const isEmptyProbe =
-            request.cmd === "media.get-info" && response.result.error.code === "not-found";
-          if (!isEmptyProbe) {
+          // "No media open" and "this host does not serve the probe" are
+          // STATES, not playback failures: the mount-time probes on an
+          // idle session answer not-found (the demo transport) or
+          // not-ready "no session open" (the real desktop engine host),
+          // and the desktop host has no snapshot row at all
+          // (unsupported-for-host) — the stage already renders the honest
+          // empty state for all of them. The error chip stays reserved
+          // for real failures (demo shell + engine parity, 2026-11-08;
+          // generalized w29.desktop-probe for the desktop cold start).
+          if (!isStateProbeRefusal(request.cmd, response.result.error)) {
             patch({ lastError: response.result.error });
           }
           // w26.k06 (J06-2, P1): a failed toggle never completes — clear its
