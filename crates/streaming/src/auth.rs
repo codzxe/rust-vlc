@@ -350,8 +350,19 @@ pub(crate) fn digest_response(inputs: &DigestInputs<'_>) -> String {
 
 /// Build the `Authorization: Digest …` header value for a challenge.
 ///
-/// `None` means the challenge names an unsupported algorithm (only
-/// MD5 — SHA-256 is a deliberate typed refusal, no new deps).
+/// Two typed refusal shapes (AUD-15b): the challenge names an
+/// unsupported algorithm (only MD5 — SHA-256 is a deliberate typed
+/// refusal, no new deps), or a server-controlled parameter (or the
+/// username) carries a control byte the quoted-string grammar cannot
+/// carry safely. Everything else is formatted per the RFC 7616/9110
+/// quoted-string rules: `\` and `"` are backslash-escaped, so a
+/// crafted `realm`/`nonce`/`opaque`/username can neither break out of
+/// its quoted field nor smuggle CR/LF into the header value.
+///
+/// # Errors
+/// [`NetworkError::ProtocolViolation`] — a static, structured detail
+/// (MP §12) — for the unsupported algorithm or a control byte; never
+/// the offending bytes themselves.
 pub(crate) fn digest_authorization(
     credentials: &Credentials,
     challenge: &DigestChallenge,
@@ -359,12 +370,25 @@ pub(crate) fn digest_authorization(
     uri: &str,
     nc: &str,
     cnonce: &str,
-) -> Option<String> {
+) -> Result<String, NetworkError> {
     if let Some(algorithm) = &challenge.algorithm
         && !algorithm.eq_ignore_ascii_case("MD5")
     {
-        return None;
+        return Err(NetworkError::ProtocolViolation {
+            detail: "digest challenge names an unsupported algorithm",
+        });
     }
+    // The wire form of every quoted parameter: escaped for the
+    // quoted-string grammar (the digest itself hashes the *raw*
+    // values — escaping is a wire-format concern only, and the
+    // server's quoted-string parser recovers the raw value back).
+    let username = escape_quoted_string(credentials.username())?;
+    let realm = escape_quoted_string(&challenge.realm)?;
+    let nonce = escape_quoted_string(&challenge.nonce)?;
+    let opaque = match &challenge.opaque {
+        Some(opaque) => Some(escape_quoted_string(opaque)?),
+        None => None,
+    };
     let qop = if challenge
         .qop
         .iter()
@@ -386,19 +410,46 @@ pub(crate) fn digest_authorization(
         qop,
     });
     let mut header = format!(
-        "Digest username=\"{}\", realm=\"{}\", nonce=\"{}\", uri=\"{uri}\"",
-        credentials.username(),
-        challenge.realm,
-        challenge.nonce
+        "Digest username=\"{username}\", realm=\"{realm}\", nonce=\"{nonce}\", uri=\"{uri}\""
     );
     if let Some(qop) = qop {
         header.push_str(&format!(", qop={qop}, nc={nc}, cnonce=\"{cnonce}\""));
     }
-    if let Some(opaque) = &challenge.opaque {
+    if let Some(opaque) = opaque {
         header.push_str(&format!(", opaque=\"{opaque}\""));
     }
     header.push_str(&format!(", response=\"{response}\""));
-    Some(header)
+    Ok(header)
+}
+
+/// The wire form of one quoted-string auth parameter (RFC 7617 /
+/// RFC 9110 §5.6.4, as the RFC 7616 auth-param grammar references):
+/// backslash-escape `\` and `"` so a server-controlled value can
+/// neither terminate its own quoted field nor smuggle a separator.
+///
+/// Any other control byte (`< 0x20` or `0x7F`) is a typed refusal,
+/// consistent with the port's header-validation posture (AUD-15a):
+/// quoted-string parsing would *preserve* such bytes via the escape
+/// rule, so a crafted nonce could otherwise ride CR/LF straight into
+/// the `Authorization` value.
+///
+/// # Errors
+/// [`NetworkError::ProtocolViolation`] when the value carries a
+/// control byte — a static detail, never the bytes themselves.
+fn escape_quoted_string(value: &str) -> Result<String, NetworkError> {
+    if value.bytes().any(|byte| byte < 0x20 || byte == 0x7F) {
+        return Err(NetworkError::ProtocolViolation {
+            detail: "auth parameter contains control bytes",
+        });
+    }
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character == '\\' || character == '"' {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    Ok(escaped)
 }
 
 // ------------------------------------------------------------------ the wrapper
@@ -498,6 +549,14 @@ impl AuthFetch {
     /// credential-leak posture; same-origin hops are the curl/VLC
     /// default trust boundary).
     ///
+    /// A scheme downgrade (an `https` hop whose `Location` targets
+    /// `http`, same host or not) is refused with the transport's own
+    /// typed error ([`NetworkError::CrossSchemeRedirect`], AUD-07 —
+    /// the 6.H1 F1 residual): manual following must not become a
+    /// bypass around the main client's unconditional refusal, or the
+    /// credential attached to a same-host hop would ride a plaintext
+    /// connection.
+    ///
     /// Manual following is what lets the auth layer know the URL the
     /// challenge actually came from (the digest `uri` and the
     /// same-origin check both need it).
@@ -548,6 +607,21 @@ impl AuthFetch {
                     });
                 }
                 let next = url.join(&location)?;
+                // Scheme-downgrade refusal (AUD-07 — the 6.H1 F1
+                // residual; the transport's wave-19 gate,
+                // `client.rs::is_scheme_downgrade`, mirrored inline
+                // the same way the mock client mirrors it): this loop
+                // follows redirects **manually**, so the main client's
+                // unconditional https→http refusal never engages here
+                // — without this gate a same-host 302 down to http
+                // would re-attach the Authorization header
+                // (Basic/Digest credentials) on a plaintext hop.
+                // Refused before the cross-host check and with no
+                // policy opt-in, exactly like the transport:
+                // transport safety outranks host policy.
+                if url.scheme == "https" && next.scheme == "http" {
+                    return Err(NetworkError::CrossSchemeRedirect { hops: followed + 1 });
+                }
                 let cross_host = !next.host.eq_ignore_ascii_case(&url.host);
                 if cross_host && !template.redirects.cross_host {
                     return Err(NetworkError::CrossHostRedirect { hops: followed + 1 });
@@ -618,21 +692,18 @@ impl HttpFetch for AuthFetch {
                     Some(Challenge::Digest(challenge)) => {
                         let nc = self.next_nc();
                         let cnonce = self.next_cnonce(&challenge.nonce, &final_url.path_and_query);
-                        match digest_authorization(
+                        // A typed refusal here (unsupported algorithm,
+                        // or control bytes in a server-controlled
+                        // parameter — AUD-15b) propagates unchanged.
+                        let authorization = digest_authorization(
                             &credentials,
                             &challenge,
                             "GET",
                             &final_url.path_and_query,
                             &nc,
                             &cnonce,
-                        ) {
-                            Some(authorization) => (authorization, AuthSchemeKind::Digest),
-                            None => {
-                                return Err(NetworkError::ProtocolViolation {
-                                    detail: "digest challenge names an unsupported algorithm",
-                                });
-                            }
-                        }
+                        )?;
+                        (authorization, AuthSchemeKind::Digest)
                     }
                     None => {
                         return Err(NetworkError::ProtocolViolation {
@@ -1000,10 +1071,10 @@ mod tests {
             algorithm: Some("SHA-256".to_string()),
             ..challenge
         };
-        assert_eq!(
+        assert!(matches!(
             digest_authorization(&credentials, &sha256, "GET", "/", "1", "c"),
-            None
-        );
+            Err(NetworkError::ProtocolViolation { .. })
+        ));
     }
 
     /// Redaction contract (6.E1 acceptance): `Debug`/`Display` of
@@ -1119,6 +1190,362 @@ mod tests {
                 .iter()
                 .any(|(name, value)| name.eq_ignore_ascii_case("authorization")
                     && value == "Basic dXNlcjpwYXNz")
+        );
+    }
+
+    /// AUD-07 regression fixture: a challenge-then-downgrade origin.
+    /// The credential-less probe is answered with a 401 Basic
+    /// challenge; any request carrying the valid Basic header is
+    /// answered with a 302 whose absolute `Location` is the **same
+    /// host over `http`** — the exact same-host TLS-downgrade hop the
+    /// credential is trusted onto. Every request is recorded so the
+    /// test can prove the downgraded hop was never issued.
+    ///
+    /// (The one-shot `MockConfig` cannot express challenge-then-
+    /// redirect — `absolute_redirect` outranks its auth gate — so the
+    /// credential-carrying refusal is pinned here at the URL-decision
+    /// level; the wire-level refusal is pinned over the mock testkit
+    /// in `tests/auth_scheme_gate.rs`.)
+    #[derive(Clone)]
+    struct ChallengeThenDowngradeServer {
+        requests: Arc<Mutex<Vec<HttpRequest>>>,
+    }
+
+    impl ChallengeThenDowngradeServer {
+        /// Record the hop and decide its answer: unauthenticated →
+        /// challenge; authenticated → the hostile downgrade redirect.
+        fn answer(&self, request: &HttpRequest) -> HttpResponse {
+            match self.requests.lock() {
+                Ok(mut guard) => guard.push(request.clone()),
+                Err(poisoned) => poisoned.into_inner().push(request.clone()),
+            }
+            let authorized = request.headers.iter().any(|(name, value)| {
+                name.eq_ignore_ascii_case("authorization") && value == "Basic dXNlcjpwYXNz"
+            });
+            if authorized {
+                let url = Url::parse(&request.url).must(); // fixture contract
+                HttpResponse {
+                    status: 302,
+                    reason: "Found".to_string(),
+                    headers: vec![(
+                        "Location".to_string(),
+                        // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+                        format!("http://{}:{}/leak.flac", url.host, url.port),
+                    )],
+                    body: Vec::new(),
+                }
+            } else {
+                HttpResponse {
+                    status: 401,
+                    reason: "Unauthorized".to_string(),
+                    headers: vec![(
+                        "WWW-Authenticate".to_string(),
+                        "Basic realm=\"downgrade-test\"".to_string(),
+                    )],
+                    body: Vec::new(),
+                }
+            }
+        }
+    }
+
+    impl HttpFetch for ChallengeThenDowngradeServer {
+        fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+            // The conservative shape: a 401 is a typed error here.
+            let response = self.answer(&request);
+            if response.status == 401 {
+                return Err(NetworkError::http_status(401));
+            }
+            Ok(response)
+        }
+
+        fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+            // The challenge-surfacing shape: the 401 rides back as Ok.
+            Ok(self.answer(&request))
+        }
+    }
+
+    /// AUD-07: the credential-carrying retry meets a same-host 302
+    /// that downgrades https→http; the manual follow loop must refuse
+    /// it with the transport's typed error **before** issuing the hop
+    /// — the Basic credential never rides a plaintext connection.
+    #[test]
+    fn downgrade_hop_never_receives_credentials() {
+        let server = ChallengeThenDowngradeServer {
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let auth =
+            AuthFetch::new(server.clone()).with_credentials(Credentials::new("user", "pass"));
+        let error = auth
+            .fetch(HttpRequest::get(
+                "https://challenge.example.org:8443/protected.flac", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            ))
+            .err()
+            .must();
+
+        assert!(
+            matches!(error, NetworkError::CrossSchemeRedirect { hops: 1 }),
+            "the downgrade hop must be the transport's typed refusal, got {error}"
+        );
+        assert_eq!(error.code(), "streaming.net.cross-scheme-redirect");
+
+        let logged = match server.requests.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        // Exactly two hops were issued — the credential-less probe and
+        // the credential-carrying retry — and both were https: the
+        // downgraded hop was never issued at all.
+        assert_eq!(logged.len(), 2, "probe, then the challenged retry");
+        assert!(
+            logged
+                .iter()
+                // lumen-allow-literal: scheme-prefix dispatch — protocol vocabulary, not an endpoint
+                .all(|request| request.url.starts_with("https://")),
+            "no hop was ever issued over http"
+        );
+        assert!(
+            logged[0]
+                .headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("authorization"))
+        );
+        // The retry DID carry the credential on its https hop — the
+        // credential was in play when the downgrade arrived, and the
+        // gate (not the fixture) kept it off the plaintext wire.
+        assert!(
+            logged[1]
+                .headers
+                .iter()
+                .any(|(name, value)| name.eq_ignore_ascii_case("authorization")
+                    && value == "Basic dXNlcjpwYXNz")
+        );
+    }
+
+    /// AUD-07's negative space (the 6.H1 trust boundary, pinned): a
+    /// cross-host hop is followed under the default policy but the
+    /// credential never re-attaches to it — the Authorization header
+    /// rides only allowed-host hops, exactly the recorded same-origin
+    /// trust boundary the follow docs name.
+    #[derive(Clone)]
+    struct ChallengeThenCrossHostServer {
+        requests: Arc<Mutex<Vec<HttpRequest>>>,
+    }
+
+    impl ChallengeThenCrossHostServer {
+        /// Record the hop and decide its answer: the origin host
+        /// challenges the unauthenticated and redirects the
+        /// authenticated cross-host (same scheme); the other host
+        /// serves its body to whoever asks.
+        fn answer(&self, request: &HttpRequest) -> HttpResponse {
+            match self.requests.lock() {
+                Ok(mut guard) => guard.push(request.clone()),
+                Err(poisoned) => poisoned.into_inner().push(request.clone()),
+            }
+            let url = Url::parse(&request.url).must(); // fixture contract
+            if url.host.eq_ignore_ascii_case("origin.example.org") {
+                let authorized = request.headers.iter().any(|(name, value)| {
+                    name.eq_ignore_ascii_case("authorization") && value == "Basic dXNlcjpwYXNz"
+                });
+                if authorized {
+                    HttpResponse {
+                        status: 302,
+                        reason: "Found".to_string(),
+                        headers: vec![(
+                            "Location".to_string(),
+                            // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+                            "http://other.example.net:9999/leak.flac".to_string(),
+                        )],
+                        body: Vec::new(),
+                    }
+                } else {
+                    HttpResponse {
+                        status: 401,
+                        reason: "Unauthorized".to_string(),
+                        headers: vec![(
+                            "WWW-Authenticate".to_string(),
+                            "Basic realm=\"cross-host-test\"".to_string(),
+                        )],
+                        body: Vec::new(),
+                    }
+                }
+            } else {
+                HttpResponse {
+                    status: 200,
+                    reason: "OK".to_string(),
+                    headers: Vec::new(),
+                    body: b"cross-host body".to_vec(),
+                }
+            }
+        }
+    }
+
+    impl HttpFetch for ChallengeThenCrossHostServer {
+        fn fetch(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+            // The conservative shape: a 401 is a typed error here.
+            let response = self.answer(&request);
+            if response.status == 401 {
+                return Err(NetworkError::http_status(401));
+            }
+            Ok(response)
+        }
+
+        fn fetch_with_challenge(&self, request: HttpRequest) -> Result<HttpResponse, NetworkError> {
+            // The challenge-surfacing shape: the 401 rides back as Ok.
+            Ok(self.answer(&request))
+        }
+    }
+
+    #[test]
+    fn cross_host_hop_never_receives_credentials() {
+        let server = ChallengeThenCrossHostServer {
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let auth =
+            AuthFetch::new(server.clone()).with_credentials(Credentials::new("user", "pass"));
+        let response = auth
+            .fetch(HttpRequest::get(
+                "http://origin.example.org:8080/protected.flac", // lumen-allow-literal: test-double URL on a reserved/example host — never a shipped endpoint
+            ))
+            .must();
+        assert_eq!(response.body, b"cross-host body");
+
+        let logged = match server.requests.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        // Probe, challenged retry on the origin, then the followed
+        // cross-host hop — which must be credential-less.
+        assert_eq!(logged.len(), 3, "probe, retry, cross-host hop");
+        assert!(
+            logged[0]
+                .headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("authorization")),
+            "the probe carries no credential"
+        );
+        assert!(
+            logged[1]
+                .headers
+                .iter()
+                .any(|(name, value)| name.eq_ignore_ascii_case("authorization")
+                    && value == "Basic dXNlcjpwYXNz"),
+            "the retry carries the credential on its origin hop"
+        );
+        assert!(
+            logged[2].url.starts_with("http://other.example.net:9999/"), // lumen-allow-literal: scheme-prefix dispatch — protocol vocabulary, not an endpoint
+            "the cross-host hop was followed (the default policy allows it)"
+        );
+        assert!(
+            logged[2]
+                .headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("authorization")),
+            "a cross-host hop never receives these credentials"
+        );
+    }
+
+    /// AUD-15b: server-controlled challenge parameters are escaped per
+    /// the RFC 7617 / RFC 9110 quoted-string grammar (`\` and `"`
+    /// backslash-escaped) and any other control byte in
+    /// realm/nonce/opaque/username is a typed refusal — a crafted
+    /// nonce can neither break out of its quoted field nor smuggle
+    /// CR/LF into the `Authorization` value.
+    #[test]
+    fn digest_parameters_are_escaped_and_control_bytes_refused() {
+        // A realm (and opaque) carrying both escapable characters.
+        let challenge = DigestChallenge {
+            realm: "re\"alm\\".to_string(),
+            nonce: "nonce-value".to_string(),
+            opaque: Some("op\"aque\\".to_string()),
+            qop: Vec::new(),
+            algorithm: None,
+        };
+        let credentials = Credentials::new("Mufasa", "Circle Of Life");
+        let header = digest_authorization(
+            &credentials,
+            &challenge,
+            "GET",
+            "/dir/index.html",
+            "00000001",
+            "0a4f113b",
+        )
+        .must();
+        assert!(
+            header.contains("realm=\"re\\\"alm\\\\\""),
+            "the realm must be backslash-escaped in place, got {header}"
+        );
+        assert!(
+            header.contains("opaque=\"op\\\"aque\\\\\""),
+            "the opaque token is escaped like every other quoted parameter, got {header}"
+        );
+        assert!(header.contains("nonce=\"nonce-value\""));
+        // Round trip: the server's own quoted-string parser
+        // (`parse_auth_params`) recovers the raw parameter values from
+        // the escaped wire form — escaping is lossless, not lossy.
+        let params = parse_auth_params(header.strip_prefix("Digest ").must());
+        let get = |name: &str| {
+            params
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, value)| value.as_str())
+                .must()
+        };
+        assert_eq!(get("realm"), "re\"alm\\");
+        assert_eq!(get("nonce"), "nonce-value");
+        assert_eq!(get("opaque"), "op\"aque\\");
+        assert_eq!(get("username"), "Mufasa");
+
+        // A username with escapable characters is escaped too …
+        let quoted_user = digest_authorization(
+            &Credentials::new("mu\"fasa", "pw"),
+            &challenge,
+            "GET",
+            "/",
+            "1",
+            "c",
+        )
+        .must();
+        assert!(quoted_user.contains("username=\"mu\\\"fasa\""));
+
+        // … and any control byte in a server-controlled parameter (or
+        // the username) is a typed refusal, never an escaped
+        // ride-along: CR in the nonce, DEL in the realm, LF in the
+        // opaque, NUL in the username.
+        for corrupt in [
+            DigestChallenge {
+                nonce: "abc\rdef".to_string(),
+                ..challenge.clone()
+            },
+            DigestChallenge {
+                realm: "re\u{7f}alm".to_string(),
+                ..challenge.clone()
+            },
+            DigestChallenge {
+                opaque: Some("x\ny".to_string()),
+                ..challenge.clone()
+            },
+        ] {
+            assert!(
+                matches!(
+                    digest_authorization(&credentials, &corrupt, "GET", "/", "1", "c"),
+                    Err(NetworkError::ProtocolViolation { .. })
+                ),
+                "control bytes must be refused typed, not escaped"
+            );
+        }
+        assert!(
+            matches!(
+                digest_authorization(
+                    &Credentials::new("mu\u{0}fasa", "pw"),
+                    &challenge,
+                    "GET",
+                    "/",
+                    "1",
+                    "c"
+                ),
+                Err(NetworkError::ProtocolViolation { .. })
+            ),
+            "a control byte in the username is refused typed"
         );
     }
 

@@ -36,16 +36,27 @@ this document or replaces it wholesale.]`
   prove purity — every quick-pass row below carries `[VERIFY]` for exactly
   that reason (AGENTS §3.4).
 
-## 3. The allowlist (22 registry crates in Cargo.lock)
+## 3. The allowlist (registry crates in the main Cargo.lock)
 
 Direct workspace consumers named per `cargo tree --workspace` (2026-10-20;
-`commands` added by card 1.D4): serde (product-config, settings-schema,
-commands) · serde_json (product-config, theme-tokens, commands) · toml
-(localization, product-config, settings-schema) · thiserror (localization,
+`commands` added by card 1.D4; `ureq` added by the w30.4 audit-fix lane,
+2026-11-15 — the 2026-11-14 audit's finding that the only network crate
+had no row despite being exact-pinned in both the main and `fuzz/`
+lockfiles): serde (product-config, settings-schema, commands) ·
+serde_json (product-config, theme-tokens, commands) · toml (localization,
+product-config, settings-schema) · thiserror (localization,
 product-config, settings-schema) · schemars (commands — the doc 05 §5.1
-schema-derivation dep behind `cargo xtask codegen`). All other rows are
-transitive-only. `scope = "all"` (normal+build edges; the workspace has no
-registry dev-dependencies — `testkit` is a path dev-dep, §4).
+schema-derivation dep behind `cargo xtask codegen`) · ureq (streaming —
+the HTTP(S) transport behind the `HttpFetch` port, card 6.A1b, admitted
+under ADR-011). All other rows are transitive-only. `scope = "all"`
+(normal+build edges; the workspace has no registry dev-dependencies —
+`testkit` is a path dev-dep, §4).
+
+The phase-4–6 codec admissions (rav1d, the symphonia family, claxon,
+rust_h264/rust_h265, …) predate this row without §3 rows of their own —
+their records exist under `records/`; closing that drift is a separate
+card, recorded here so the row count below is never misread as
+lockfile-complete.
 
 | crate | locked | version-range | license (verified 2026-10-20) | purity-class | verdict / evidence |
 |---|---|---|---|---|---|
@@ -54,6 +65,7 @@ registry dev-dependencies — `testkit` is a path dev-dep, §4).
 | toml | 1.1.8+spec-1.1.0 | >=1.1.8, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation; its `[VERIFY-P1: license null at version endpoint]` is **closed** by this card's API check + green cargo-deny licenses run |
 | thiserror | 2.0.21 | >=2.0.21, <3.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation |
 | schemars | 1.2.3 | >=1.2.3, <2.0.0 | MIT | pure-rust | **pass** — inherited preaudit-foundation (2026-10-12); card 1.D4 re-verified the license from the vendored crate manifest via `cargo metadata` (the crate is MIT-only, not dual-licensed). The doc 05 §5.1 schema-derivation dep for `commands` (catalog codegen). |
+| ureq | 3.5.0 | =3.5.0 (exact pin; any bump re-triggers the record, doc 11 §3.7) | MIT OR Apache-2.0 (record R7, verified 2026-10-30) | pure-rust transport; the tree's TLS crypto core (ring 0.17.14) is the E2 audited-native-crypto exception (ADR-011, the rav1d-asm posture) | **pass** — `records/ureq-3.5.0.md` R1–R10 (validate-then-admit, 2026-10-30); R10's condition — the Lead accepting the recorded ring deviation — **discharged by ADR-011 accepted 2026-11-09**; locked 3.5.0 in both the main and `fuzz/` lockfiles; row added by the w30.4 audit-fix lane (2026-11-15) |
 | dyn-clone | 1.0.20 | >=1.0.20, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — dtolnay; via schemars (card 1.D4) |
 | equivalent | 1.0.3 | >=1.0.3, <2.0.0 | Apache-2.0 OR MIT | pure-rust | **quick-pass** `[VERIFY]` — indexmap support (indexmap-rs org); via indexmap |
 | hashbrown | 0.17.1 | >=0.17.1, <0.18.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — rust-lang org; via indexmap; 0.x ⇒ minor pin |
@@ -81,8 +93,16 @@ registry dev-dependencies — `testkit` is a path dev-dep, §4).
 Common row fields (allowlist-format.md §1): `approver = "Lead"` (this
 snapshot's compiler is task 1.E5-R; approval is the Lead's merge decision —
 AGENTS §1, doc 11 §10 Q10) · `date = "2026-10-20"` · `expires = ""` ·
-`scope = "all"` · `features =` unset (no conditional feature pins in this
-set; the first one — rav1d asm-off, doc 11 §2.4 — is future work).
+`scope = "all"` · `features =` unset (no conditional feature pins in the
+snapshot set; the first one — rav1d asm-off, doc 11 §2.4 — is future work).
+
+The ureq row (2026-11-15) differs on two of those fields, per its record:
+`approver = "Lead"` by direct ADR ratification (ADR-011 accepted
+2026-11-09) rather than the snapshot's merge-decision default, and the
+table's **first active feature pin** — `default-features = false,
+features = ["rustls", "rustls-webpki-roots"]` (the record's "The feature
+pin" section is the enforcement text; the exact `=3.5.0` pin lives at
+`crates/streaming/Cargo.toml`).
 
 Re-audit triggers, all rows (doc 11 §3.7): version change · new transitive
 dep · build.rs/links= change across the bump · license-file change ·
