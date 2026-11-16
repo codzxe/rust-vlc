@@ -92,9 +92,12 @@ fn version_prints_the_crate_version() {
 fn commands_lists_the_whole_catalog() {
     let (out, err, code) = run(&["commands"], "");
     assert_eq!(code, 0, "stderr:\n{err}");
-    // 64 since main's wave 8 minted the playback-operations verbs
-    // (frame-step, chapter nav, Go-to-Time, bookmarks).
-    assert!(out.contains("ok: 64 command(s)"), "{out}");
+    // 65 since w31.1 minted session.set-frame-channel (the frame
+    // channel bind for the GUI canvas presenter); the wave-8
+    // playback-operations verbs (frame-step, chapter nav, Go-to-Time,
+    // bookmarks) had made it 64. w31.1 missed THIS pin (its checksum
+    // sibling was fixed in w31.6); the consolidation round catches it.
+    assert!(out.contains("ok: 65 command(s)"), "{out}");
     for id in [
         "session.open",
         "session.close",

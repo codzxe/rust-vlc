@@ -120,10 +120,14 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_lists_all_64_commands_from_the_live_spec() {
+    fn the_catalog_lists_all_65_commands_from_the_live_spec() {
         let listings = catalog_listings();
         assert_eq!(listings.len(), CommandId::ALL.len());
-        assert_eq!(listings.len(), 64, "doc 05 §2.1's v1 table");
+        // 65 since w31.1 minted session.set-frame-channel (the GUI
+        // canvas presenter's frame-channel bind); w31.1 missed these
+        // control-server pins (its cli sibling was caught in w31.6) —
+        // the consolidation round catches them.
+        assert_eq!(listings.len(), 65);
         // Ordered by the catalog table, every row well-formed.
         let ids: Vec<&str> = listings.iter().map(|row| row.id.as_str()).collect();
         assert_eq!(ids.first().copied(), Some("session.open"));
@@ -156,7 +160,7 @@ mod tests {
         });
         match response.result {
             Ok(CommandOutcome::Completed(CommandResult::CommandListings { commands })) => {
-                assert_eq!(commands.len(), 64);
+                assert_eq!(commands.len(), 65);
             }
             other => unreachable!("list-commands result: {other:?}"),
         }

@@ -182,17 +182,21 @@ fn native_seek_keeps_the_epoch_and_closes_the_accounting() {
     // presentation queue's published generation carries the seek's
     // mint. Nothing was refused and nothing presented late.
     let accounting = host.headless_accounting().must();
-    assert_eq!(accounting.scheduler_dropped_stale, 16, "{accounting:?}");
+    assert_eq!(accounting.scheduler_dropped_stale, 15, "{accounting:?}");
     assert_eq!(accounting.queue_published, 1, "{accounting:?}");
     assert_eq!(accounting.frames_refused, 0, "{accounting:?}");
     assert_eq!(accounting.video_refused, 0, "{accounting:?}");
     assert_eq!(accounting.scheduler_dropped_late, 0, "{accounting:?}");
     // The decode accounting proves the pipeline was not rebuilt: the
-    // pre-seek decode-ahead (94 deliveries — the settle pumps decode
-    // ahead of the clock by design) PLUS the landing's own 60 (30
-    // video + 30 audio) — a reopen would have answered exactly 60.
-    assert_eq!(accounting.frames_accepted, 154, "{accounting:?}");
-    assert_eq!(accounting.scheduler_pushed, 46, "{accounting:?}");
+    // pre-seek decode-ahead (30 deliveries — the settle pumps decode
+    // ahead of the clock by design, bounded since card 3.B3 by the
+    // ring's decode-park threshold, and primed as soon as the
+    // producer parks on a cap: the seek lands from the FIRST parked
+    // steady state, earlier than the old drain-the-ring settle) PLUS
+    // the landing's own 60 (30 video + 30 audio) — a reopen would
+    // have answered exactly 60.
+    assert_eq!(accounting.frames_accepted, 90, "{accounting:?}");
+    assert_eq!(accounting.scheduler_pushed, 45, "{accounting:?}");
 }
 
 /// Position truth is the ACTUAL, not the requested (doc 03 §6 step

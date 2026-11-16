@@ -86,6 +86,7 @@ use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
 use commands::{CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent};
 use media_clock::{MediaClock, MonotonicSource, PlaybackClock};
 use media_types::MediaKind;
+use media_types::Rate;
 use playback_engine::event::EngineEventKind;
 use playback_engine::{
     CommandReceipt, Engine, EngineOutput, ReceiptResult, SeekTarget, SessionCommandKind,
@@ -188,6 +189,32 @@ pub struct CliHost {
     /// determinism seam the first-vertical evidence harness uses
     /// (a frozen source keeps the transcripts byte-stable).
     event_throttle: Option<Arc<dyn MonotonicSource>>,
+    /// The wall-clock pacing anchor ([`CliHost::pump_wallclock`]'s
+    /// truth): `Some` exactly while the session is `Playing` — the
+    /// (instant, device counter, rate) the wall owes zero at. Every
+    /// non-Playing stretch clears it, so pause/underrun/seek all
+    /// re-anchor on the next `Playing` (the clock's own re-anchor is
+    /// the position truth; the wall anchor only answers "how much
+    /// real time has elapsed since then").
+    wall_anchor: Option<WallAnchor>,
+}
+
+/// The wall-pacing anchor: the device counter and clock rate at the
+/// instant the current `Playing` stretch began. The due-frames
+/// arithmetic of [`CliHost::advance_time_wall`] renders
+/// `anchor.frames + elapsed × rate` — never more, whatever the poll
+/// cadence (a 10 ms session tick renders at most the quanta the wall
+/// has become owed; a slow tick catches up only to the wall, never
+/// past it).
+#[derive(Debug, Clone, Copy)]
+struct WallAnchor {
+    /// When this `Playing` stretch was anchored.
+    at: std::time::Instant,
+    /// The device's consumed-frame counter at the anchor.
+    frames: u64,
+    /// The clock's rate at the anchor (a rate change re-anchors —
+    /// the clock anchor's own `rate` field is the comparison truth).
+    rate: Rate,
 }
 
 impl Default for CliHost {
@@ -219,6 +246,7 @@ impl CliHost {
             settings: BTreeMap::new(),
             outbox_scratch: Vec::new(),
             event_throttle: None,
+            wall_anchor: None,
         }
     }
 
@@ -472,6 +500,139 @@ impl CliHost {
         }
     }
 
+    /// One **real-time** pump (the GUI session thread's tick — the
+    /// module docs' "session thread under wall-clock pacing would be
+    /// this plus a sleep", made real): poll + drain + a
+    /// **wall-bounded** time advance + the end-tail play-out.
+    ///
+    /// The difference from [`CliHost::pump`] is exactly the advance:
+    /// the scripted sessions' [`CliHost::advance`] drains the whole
+    /// ring per pump (every observable a pure function of the pump
+    /// count — the headless determinism contract), which under a
+    /// wall-clock ticker would play a full ring (up to 3 s) per tick.
+    /// This pump renders only the quanta the device is **owed by wall
+    /// time** — `anchor.frames + elapsed × rate` — so playback runs at
+    /// 1.0× real time under any tick cadence, the ring's fill stays
+    /// bounded by the decode park ([`crate::pipeline_host::
+    /// AUDIO_PARK_FILL`]) plus one burst, and the position advances
+    /// smoothly between UI polls.
+    ///
+    /// Safe to call with no session, paused, or buffering: the
+    /// anchor logic clears it outside `Playing`, and the paused arm
+    /// of the advance never renders (the null device pulls nothing).
+    pub fn pump_wallclock(&mut self) {
+        let now = std::time::Instant::now();
+        self.pump_wallclock_at(now);
+    }
+
+    /// The injectable-now half of [`CliHost::pump_wallclock`] (the
+    /// determinism discipline: tests drive synthetic instants, never
+    /// real sleeps — same posture as the event-throttle seam).
+    pub fn pump_wallclock_at(&mut self, now: std::time::Instant) {
+        self.refresh_wall_anchor(now);
+        self.pump_pipeline();
+        self.advance_time_wall(now);
+        self.drain_tail_at_end();
+    }
+
+    /// Keep the wall anchor truthful (the pacers' shared truth):
+    /// `Some` exactly while `Playing`, re-anchored at every entry and
+    /// on every rate change (the clock's own anchor rate is the
+    /// comparison truth — when the set-rate command lands, the new
+    /// rate re-anchors here and the due math follows it).
+    fn refresh_wall_anchor(&mut self, now: std::time::Instant) {
+        let playing = self.state() == PlaybackState::Playing;
+        let device_frames = self.device.as_ref().map(NullDevice::sample_count);
+        let clock_rate = self.clock.as_ref().map(|clock| clock.anchor().rate);
+        match (self.wall_anchor, playing, device_frames, clock_rate) {
+            // Not playing (or nothing to pace): clear — every Playing
+            // entry re-anchors below. Pause, underrun-buffering and
+            // the seek's frozen window all land here.
+            (_, false, _, _) => self.wall_anchor = None,
+            // Playing with a live anchor and the same rate: keep.
+            (Some(anchor), true, Some(_), Some(rate)) if rate == anchor.rate => {}
+            // Playing (first tick, a re-entry, or a rate change):
+            // anchor at the device's counter NOW — the wall owes zero
+            // at this instant. The clock's position is its own truth;
+            // the anchor only measures elapsed wall time from here.
+            (_, true, Some(frames), rate) => {
+                self.wall_anchor = Some(WallAnchor {
+                    at: now,
+                    frames,
+                    rate: rate.unwrap_or(Rate::ONE),
+                });
+            }
+            // Playing but no device/clock yet (the limb-less gap):
+            // nothing to pace on the audio axis — the limb-less arm
+            // of the wall advance does not read the anchor.
+            (_, true, None, _) => self.wall_anchor = None,
+        }
+    }
+
+    /// The wall-bounded advance (the pacers' shared body — the same
+    /// vsync-then-advance order and drift observation as
+    /// [`CliHost::advance_time`], with the render loop bounded by the
+    /// anchor's due-frames instead of draining the ring whole).
+    fn advance_time_wall(&mut self, now: std::time::Instant) {
+        if self.clock.as_ref().is_some_and(|clock| clock.is_paused()) {
+            return;
+        }
+        let consumer = match self.consumer.as_ref() {
+            Some(consumer) => Arc::clone(consumer),
+            None => return,
+        };
+        let channels = self.audio_channels();
+        // The device's wall due: FRAMES the wall has become owed since
+        // the anchor — elapsed ns × playback rate × device rate / 1e9
+        // (u128 intermediate; the saturating conversions keep the
+        // discipline at the extremes).
+        let rate_hz = u128::from(self.audio_rate_hz());
+        let due_frames = self.wall_anchor.map(|anchor| {
+            let elapsed_ns = u128::from(now.saturating_duration_since(anchor.at).as_nanos() as u64);
+            let numer = elapsed_ns * u128::from(anchor.rate.num) * rate_hz;
+            let denom = u128::from(anchor.rate.den) * 1_000_000_000;
+            anchor
+                .frames
+                .saturating_add(u64::try_from(numer / denom).unwrap_or(u64::MAX))
+        });
+        match self.device.as_mut() {
+            Some(device) => {
+                let mut guard = consumer.lock();
+                while device.buffered_frames() >= RENDER_QUANTUM
+                    && due_frames
+                        .is_some_and(|due| device.sample_count() + (RENDER_QUANTUM as u64) <= due)
+                {
+                    // Same vsync-then-advance order as `advance_time`
+                    // (the slot decision sees the clock at the slot
+                    // boundary; a frame presents exactly when its slot
+                    // arrives).
+                    if let Err(error) = guard.tick_video() {
+                        guard.note_video_error(error);
+                        break;
+                    }
+                    let mut buffer = vec![0.0_f32; RENDER_QUANTUM * channels];
+                    if let Err(error) = device.render(&mut buffer) {
+                        guard.note_video_error(error);
+                        break;
+                    }
+                    guard.observe_audio_drift();
+                }
+            }
+            None => {
+                // No audio limb: the bounded scheduler slice per pump
+                // (wall-clock presents — the monotonic master paces
+                // itself; the anchor is not read on this arm).
+                let mut guard = consumer.lock();
+                for _ in 0..16 {
+                    if let Err(error) = guard.tick_video() {
+                        guard.note_video_error(error);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     /// Drain the engine's output hub: receipts stashed for matching,
     /// events converted to wire, staleness-filtered and recorded.
     /// The buffer is REUSED across pumps (D-1): take → clear →
@@ -600,6 +761,24 @@ impl CliHost {
         }) {
             Some((channels, _rate)) => channels as usize,
             None => 2,
+        }
+    }
+
+    /// The audio limb's sample rate (the wall pacer's due-frames
+    /// arithmetic — frames the wall owes per elapsed second). The
+    /// harvested track geometry, mono/stereo-agnostic; 44 100 when
+    /// no audio fact carries geometry (the same default the render
+    /// buffer's channel count falls back to).
+    fn audio_rate_hz(&self) -> u32 {
+        match self.facts.as_ref().and_then(|facts| {
+            facts
+                .facts
+                .iter()
+                .find(|fact| fact.kind == MediaKind::Audio)
+                .and_then(|fact| fact.audio_geometry())
+        }) {
+            Some((_channels, rate)) => rate,
+            None => 44_100,
         }
     }
 
@@ -1575,5 +1754,187 @@ mod audio_limb_seam_tests {
         );
         assert!(outcome.is_ok(), "{outcome:?}");
         assert!(host.device.is_none(), "no geometry source — no limb");
+    }
+}
+
+#[cfg(test)]
+mod session_backpressure_tests {
+    //! Card 3.B3's host half: the ring→decode backpressure and the
+    //! wall-clock session pump, proven through the REAL `open_session`
+    //! over a media LONGER than the ring (the committed fixtures are
+    //! 2 s ring-sized; the GUI bug needs a media whose decode-ahead
+    //! can exceed 131 072 frames). The generated WAV is written to a
+    //! unique temp path (never the repo; cleaned up by the OS).
+
+    use super::*;
+    use crate::pipeline_host::AUDIO_PARK_FILL;
+    use crate::pipeline_host::RING_FRAMES;
+    use std::path::PathBuf;
+    use testkit::Must;
+
+    /// Write a `seconds`-long 44.1 kHz mono s16le WAV to a unique
+    /// temp path and answer it.
+    fn long_wav(seconds: u32) -> PathBuf {
+        use std::io::Write as _;
+        let rate: u32 = 44_100;
+        let frames = u64::from(seconds) * u64::from(rate);
+        let data_len = frames * 2 * 2; // stereo s16le
+        let mut wav = Vec::with_capacity(44 + data_len as usize);
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len as u32).to_le_bytes());
+        wav.extend_from_slice(b"WAVE");
+        wav.extend_from_slice(b"fmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        wav.extend_from_slice(&2u16.to_le_bytes()); // stereo
+        wav.extend_from_slice(&rate.to_le_bytes());
+        wav.extend_from_slice(&(rate * 4).to_le_bytes()); // byte rate
+        wav.extend_from_slice(&4u16.to_le_bytes()); // block align
+        wav.extend_from_slice(&16u16.to_le_bytes()); // bits
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&(data_len as u32).to_le_bytes());
+        // Silence: the lane's geometry is the subject, not its content.
+        wav.resize(44 + data_len as usize, 0);
+        let path = std::env::temp_dir().join(format!(
+            "lumen-backpressure-{}-{}s.wav",
+            std::process::id(),
+            seconds
+        ));
+        let mut file = std::fs::File::create(&path).must();
+        file.write_all(&wav).must();
+        path
+    }
+
+    /// Open + settle a long session (auto-play): the harness the two
+    /// proofs below share.
+    fn playing_host(seconds: u32) -> CliHost {
+        let mut host = CliHost::new();
+        let path = long_wav(seconds);
+        let outcome = host.open_session(
+            commands::catalog::types::SourceSpec::File { path },
+            None,
+            false,
+            false,
+        );
+        assert!(outcome.is_ok(), "{outcome:?}");
+        host.settle();
+        assert_eq!(host.state(), PlaybackState::Playing);
+        host
+    }
+
+    /// THE GUI regression (the user-visible `audio.ring_full` fatal,
+    /// v0.1.2): a session driven by pipeline-only pumps — the exact
+    /// shape of the shell's settle loop and the 40 ms event ticker
+    /// before the session thread existed — decodes ahead while the
+    /// clock never moves. Ungated, the ring fills to its 131 072
+    /// ceiling in a handful of polls and the next staged frame is a
+    /// FATAL at the audio-output stage; parked (card 3.B3), the fill
+    /// tops out at [`AUDIO_PARK_FILL`] + one packet burst and the
+    /// session stays `Playing` — then plays to its exact end once
+    /// time is allowed to move.
+    #[test]
+    fn settle_loop_parks_instead_of_fatalling_the_ring() {
+        // 6 s = 264 600 frames — over 2× the ring, so the ungated
+        // code path had more than enough media to overflow with.
+        let mut host = playing_host(6);
+        // The settle-loop shape: pipeline-only pumps, NO time advance.
+        for _ in 0..200 {
+            host.pump_pipeline();
+        }
+        assert_ne!(
+            host.state(),
+            PlaybackState::Error,
+            "decode-ahead without time movement is parking, never fatal"
+        );
+        assert!(host.last_fatal.is_none(), "{:?}", host.last_fatal);
+        let fill = host
+            .device
+            .as_ref()
+            .map(|device| device.buffered_frames())
+            .must();
+        // The park bound: fill ≤ AUDIO_PARK_FILL + the worst single
+        // packet burst (16 384 frames of 16-bit stereo at the 64 KiB
+        // packetizer cap) — structurally below RING_FRAMES.
+        let worst_burst = 16_384;
+        assert!(
+            fill <= AUDIO_PARK_FILL + worst_burst,
+            "ring fill {fill} must stay under the park bound {}",
+            AUDIO_PARK_FILL + worst_burst
+        );
+        assert!(fill < RING_FRAMES, "never at the ring's ceiling");
+        // And the parked session is not wedged: with time moving
+        // again it plays to its exact end (the 6 s of media, the
+        // tail play-out included — no stranded residue).
+        assert!(
+            host.pump_until_state(PlaybackState::Ended, 4_000),
+            "the parked session resumes and ends honestly"
+        );
+        let position_us = host.position_us();
+        assert!(
+            (5_990_000..=6_010_000).contains(&position_us),
+            "the full media played out, got {position_us} µs"
+        );
+    }
+
+    /// The wall-clock session pump ([`CliHost::pump_wallclock_at`]):
+    /// synthetic instants drive the render — the device only ever
+    /// consumes what the WALL is owed since the Playing anchor, at
+    /// the quantum's granularity, whatever the pump cadence or the
+    /// ring's fill. The deterministic `advance`'s whole-ring drain
+    /// (the scripted sessions' contract) would have consumed the
+    // ~66 k-frame fill on the FIRST tick; the wall pump consumes
+    /// 1 470 frames per 33 ms owed and no more.
+    #[test]
+    fn wall_pump_renders_only_what_the_wall_owes() {
+        let mut host = playing_host(6);
+        let t0 = std::time::Instant::now();
+        // The anchor forms on the first wall pump (Playing entry).
+        host.pump_wallclock_at(t0);
+        let fill_at_anchor = host
+            .device
+            .as_ref()
+            .map(|device| device.buffered_frames())
+            .must();
+        assert!(
+            fill_at_anchor > 0,
+            "decode-ahead staged frames before the anchor"
+        );
+        // 50 ms of wall: 2 205 frames owed → exactly one quantum
+        // (1 470) renders (the second does not fit under the due).
+        host.pump_wallclock_at(t0 + std::time::Duration::from_millis(50));
+        assert_eq!(
+            host.device.as_ref().map(|device| device.sample_count()),
+            Some(1_470),
+            "50 ms owes 2 205 frames; the quantum fits once"
+        );
+        // 1 s of wall (a burst catch-up after a slow tick): the
+        // counter lands on the wall's due, quantized down.
+        host.pump_wallclock_at(t0 + std::time::Duration::from_millis(1_000));
+        let count = host
+            .device
+            .as_ref()
+            .map(|device| device.sample_count())
+            .must();
+        assert_eq!(count, 44_100, "1 s at 44.1 kHz, quantum-quantized");
+        assert!(
+            (count as usize) < fill_at_anchor,
+            "the wall pump never drains the ring whole ({count} vs fill {fill_at_anchor})"
+        );
+        // The position is the audio-master clock over the same
+        // counter: ≈1 s of media time, not the decode-ahead depth.
+        let position_us = host.position_us();
+        assert!(
+            (995_000..=1_005_000).contains(&position_us),
+            "position tracks the wall, got {position_us} µs"
+        );
+        // Pause: the anchor clears (not Playing) and the paused arm
+        // renders nothing even at +2 s of wall.
+        host.submit_and_await(SessionCommandKind::Pause).must();
+        host.pump_wallclock_at(t0 + std::time::Duration::from_millis(2_000));
+        assert_eq!(
+            host.device.as_ref().map(|device| device.sample_count()),
+            Some(44_100),
+            "a paused session renders nothing"
+        );
     }
 }

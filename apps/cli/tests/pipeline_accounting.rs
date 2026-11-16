@@ -178,18 +178,20 @@ fn native_seek_accounting_closes() {
     // second session here).
     assert_eq!(host.session_id(), session_before);
     let accounting = host.headless_accounting().must();
-    // The decode accounting: the settle pumps' decode-ahead (94
+    // The decode accounting: the settle pumps' decode-ahead (30
     // deliveries — the decode stage runs ahead of the clock by
-    // design) PLUS the landing's own half (30 video + 30 audio). A
+    // design, bounded since card 3.B3 by the ring's decode-park
+    // threshold, and primed as soon as the producer parks on a cap)
+    // PLUS the landing's own half (30 video + 30 audio). A
     // stop→close→reopen would have answered exactly 60.
-    assert_eq!(accounting.frames_accepted, 154, "{accounting:?}");
+    assert_eq!(accounting.frames_accepted, 90, "{accounting:?}");
     // The scheduler saw the pre-seek window (16 — the window cap)
     // plus the landing's 30.
-    assert_eq!(accounting.scheduler_pushed, 46, "{accounting:?}");
+    assert_eq!(accounting.scheduler_pushed, 45, "{accounting:?}");
     // The seek-boundary proofs: the pre-seek window purged as stale
     // at the generation change, the presentation queue's published
     // generation carrying the seek's mint.
-    assert_eq!(accounting.scheduler_dropped_stale, 16, "{accounting:?}");
+    assert_eq!(accounting.scheduler_dropped_stale, 15, "{accounting:?}");
     assert_eq!(accounting.queue_published, 1, "{accounting:?}");
     // Nothing refused, nothing late: the landing's frames all
     // scheduled and staged cleanly.

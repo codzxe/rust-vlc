@@ -248,8 +248,36 @@ impl ShellRuntime {
     /// freezes between interactions. Safe in every state (idle,
     /// paused, ended): the pump's halves no-op when there is nothing
     /// to advance.
+    ///
+    /// The whole-ring drain per call is the headless-proof semantics
+    /// (the pacer test drives a session to `Ended` through it); the
+    /// production ticker drives [`ShellRuntime::pump_session`]
+    /// instead — the wall-bounded advance below — which renders only
+    /// what the wall is owed and cannot burst-play a full ring on a
+    /// slow tick.
     pub fn pump_once(&mut self) {
         self.shell.engine_host().pump();
+        self.pump_events();
+    }
+
+    /// One **real-time session tick** (the GUI's wall-clock pacer —
+    /// the production cadence seam, w27): poll + a **wall-bounded**
+    /// time advance ([`CliHost::pump_wallclock`]: the device renders
+    /// only the quanta the wall has become owed since the Playing
+    /// anchor — never the whole ring) + the end-tail play-out, then
+    /// the §4.2 event drain. The engine-side decode park
+    /// (`FrameConsumer::ready_for`, card 3.B3's ring→decode
+    /// backpressure) keeps the ring bounded between ticks, so this
+    /// cadence is stable under any tick jitter: a slow tick catches
+    /// up only to the wall, never past it.
+    ///
+    /// The wrapper calls this on a short ticker under the SAME lock
+    /// as dispatches — the engine's single-writer invariant holds
+    /// (state moves only inside `Engine::poll`, and `poll` runs only
+    /// under the lock). Safe with no session, paused, or buffering:
+    /// the pump's own anchor logic no-ops.
+    pub fn pump_session(&mut self) {
+        self.shell.engine_host().pump_wallclock();
         self.pump_events();
     }
 

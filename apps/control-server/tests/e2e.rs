@@ -308,12 +308,14 @@ fn e2e_full_session_through_the_app_stack() {
         other => unreachable!("expected welcome, got {other:?}"),
     }
 
-    // (1) Catalog introspection: all 64 commands, from the live table.
+    // (1) Catalog introspection: all 65 commands, from the live table
+    // (65 since w31.1's session.set-frame-channel; this pin was missed
+    // with the dispatch ones — caught in the consolidation round).
     send(&mut client, &request(1, r#""cmd":"system.list-commands""#));
     match next_frame(&mut client) {
         ServerFrame::Response { response } => match response.result {
             Ok(CommandOutcome::Completed(CommandResult::CommandListings { commands })) => {
-                assert_eq!(commands.len(), 64);
+                assert_eq!(commands.len(), 65);
                 assert!(commands.iter().any(|row| row.id == "config.set-setting"));
             }
             other => unreachable!("list-commands result: {other:?}"),

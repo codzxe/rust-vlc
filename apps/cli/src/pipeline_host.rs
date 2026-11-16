@@ -72,7 +72,8 @@ use media_types::frame::{
 use media_types::packet::SharedBytes;
 use media_types::time::Timestamp;
 use media_types::{
-    EngineError, ErrorKind, Frame, GenerationId, Packet, PipelineStage, Rate, Track, TrackId,
+    EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, PipelineStage, Rate, Track,
+    TrackId,
 };
 use playback_engine::{DecoderProvider, FrameConsumer};
 use renderer_wgpu::color::SurfaceFormat;
@@ -115,6 +116,23 @@ pub const DRIFT_TARGET_FILL_NS: u64 = 40_000_000;
 /// fixture's quantum; a device-period setting joins with real
 /// backends per ADR-005]`
 pub const RING_FRAMES: usize = 131_072;
+
+/// The decode-park fill threshold (frames): while the device ring
+/// holds MORE than this, [`CliFrameConsumer`]'s `ready_for(Audio)`
+/// probe answers false and the engine's decode slice parks the audio
+/// limb (card 3.B3 — packets stay queued, bounded by the queue caps;
+/// decode resumes when the pump has rendered the fill back down).
+///
+/// Sizing proof (the invariant the threshold must uphold): the gate
+/// runs BEFORE a packet pop, so the ring must absorb the parked
+/// fill PLUS the worst single-packet decode burst. The packetizer
+/// caps a packet at 64 KiB (`wav::MAX_PACKET_BYTES`, the demux's
+/// own bound), whose worst-case PCM expansion is 8-bit mono —
+/// 65 536 frames. 32 768 (park fill) + 65 536 (burst) = 98 304 <
+/// 131 072, with 32 768 frames (≈0.74 s at 44.1 kHz) of margin.
+/// Every real lane bursts far smaller (AAC 1024, MP3 1152, the
+/// 16-bit PCM packetizers ≤ 32 768).
+pub const AUDIO_PARK_FILL: usize = 32_768;
 
 /// A presentation-queue slot count (one per scheduler tick, drained
 /// in the same pump step).
@@ -545,6 +563,21 @@ impl AudioLimb {
     #[must_use]
     pub fn buffered_frames(&self) -> usize {
         self.sink.buffered_frames()
+    }
+
+    /// The decode-park probe (card 3.B3): `false` while the device
+    /// ring holds more than [`AUDIO_PARK_FILL`] frames — the engine's
+    /// decode slice parks the audio limb, packets stay queued, and
+    /// the pump's renders bring the fill back under the threshold.
+    /// This is the fix for the GUI-session `audio.ring_full` fatal
+    /// (a settle loop that polls decode without advancing time fills
+    /// the 131 072-frame ring in ~8 polls on an AAC lane): parking
+    /// bounds the ring by construction instead of hoping the caller
+    /// paces production — the same posture as a full packet queue
+    /// parking the demuxer.
+    #[must_use]
+    pub fn ring_ready(&self) -> bool {
+        self.sink.buffered_frames() <= AUDIO_PARK_FILL
     }
 
     /// Cumulative frames pushed into the ring (the write-side twin of
@@ -1203,6 +1236,16 @@ impl FrameConsumer for CliFrameConsumer {
             }
             // Subtitle/data limbs are not wired in the first vertical.
             Frame::Subtitle(_) => Ok(()),
+        }
+    }
+
+    fn ready_for(&self, kind: MediaKind) -> bool {
+        match kind {
+            MediaKind::Audio => self.lock().audio.as_ref().is_none_or(AudioLimb::ring_ready),
+            // Video's boundedness is the scheduler window's (the
+            // window-full hold already backpressures by refusing and
+            // holding) — always ready.
+            _ => true,
         }
     }
 }

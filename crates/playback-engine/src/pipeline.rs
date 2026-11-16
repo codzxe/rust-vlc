@@ -145,6 +145,29 @@ pub trait FrameConsumer: Send + Sync {
     /// — propagated as the decode call's failure, per the
     /// [`FrameSink`] contract.
     fn accept(&self, frame: Frame, track: TrackId) -> Result<(), EngineError>;
+
+    /// Backpressure probe (doc 03 §8 — the ring→decode direction of
+    /// the bounded-queue discipline, card 3.B3): can the consumer
+    /// take more frames of `kind` RIGHT NOW? `false` parks the
+    /// decode slice for that kind — the packets stay in the bounded
+    /// packet queue (nothing is lost, nothing is dropped) and decode
+    /// resumes when the probe answers `true` again (the host's pump
+    /// drains the sink between polls). Called on the polling thread
+    /// before each packet pop and each flush call — like `accept`,
+    /// it must not block.
+    ///
+    /// The default answers `true` (an ungated consumer — collectors,
+    /// test fakes, and every consumer whose own boundedness lives
+    /// elsewhere, e.g. the video scheduler's window-full hold).
+    /// `MediaKind::Audio` is the gated kind: the audio device ring
+    /// is the one sink whose capacity the decode side must respect
+    /// (a parked audio limb must never be mistaken for damage — it
+    /// is the designed parking of card 3.B3, the same posture as a
+    /// full packet queue parking the demuxer).
+    fn ready_for(&self, kind: MediaKind) -> bool {
+        let _ = kind;
+        true
+    }
 }
 
 /// Which per-kind packet axis a [`QueuePlanError`] names.
@@ -1946,13 +1969,34 @@ impl Pipeline {
             // (subtitles and switch-installed limbs still recovering
             // are exempt — see [`Pipeline::paces`]).
             let mut primed = !self.limbs.is_empty();
+            // The producer-parked proof (the 44.1 kHz stereo wav
+            // lane's measured livelock, the 6.FIX-pcm family's
+            // completion): a parked demuxer means the next packet in
+            // FIFO order was refused — the refusing queue is at ITS
+            // OWN cap for this media's packet geometry (371.5 ms wav
+            // packets against the 1 s duration cap admit exactly
+            // 2 = 743 ms, 7 ms short of the 750 ms high mark —
+            // unreachable on every axis), AND the FIFO discipline
+            // means no OTHER queue can grow either (the pending
+            // packet precedes everything still undemuxed — the
+            // interleave inversion: the audio queue parking the
+            // demuxer strangles the video queue's packets behind
+            // it). A parked producer is therefore the system's
+            // buffering maximum for this content: every pacing limb
+            // is as full as the media's own geometry and interleave
+            // allow, and waiting longer changes nothing. Primed.
+            // Without the escape a >ring-long wav wedges in
+            // `Buffering` forever, and an interleaved avi (PCM audio
+            // queue at its duration cap, MJPEG video queue starved
+            // behind the parked FIFO) wedges with it.
+            let producer_parked = self.pending.is_some();
             for limb in self.limbs.iter_mut() {
                 // paces(), inlined: subtitles and switch-installed
                 // limbs still recovering are exempt.
                 if limb.track.kind == MediaKind::Subtitle || limb.first_frame_pending {
                     continue;
                 }
-                if limb.queue.watermark().high {
+                if limb.queue.watermark().high || producer_parked {
                     // Priming is a full recovery: any starvation
                     // episode closes here, so the next dip is a fresh
                     // stall (1-tick latency, 3.B3 design B2/F1.5).
@@ -1992,6 +2036,17 @@ impl Pipeline {
             // without delaying a fresh episode's first stall.
             let mut starved = false;
             let mut any_low = false;
+            // The low-side twin of the priming escape above: a
+            // parked producer means every queue is at its
+            // content-relative maximum — a lane below the (packets-
+            // axis-degenerate) low mark with the producer parked on
+            // the interleave is not starving, it is merely shaped by
+            // its packet geometry (2 huge wav packets below the
+            // 256-packet mark; a video queue drained behind a
+            // parked audio FIFO). Without the escape such lanes flap
+            // Playing → starve → Buffering → parked primed → Playing
+            // once per drained slice, forever.
+            let producer_parked = self.pending.is_some();
             for limb in self.limbs.iter_mut() {
                 // paces(), inlined (the iter_mut borrow forbids the
                 // method call; the predicate reads limb fields only).
@@ -2004,7 +2059,8 @@ impl Pipeline {
                     // a rebuffer cycle in between.
                     limb.episode_open = false;
                 }
-                if mark.low {
+                let low = mark.low && !producer_parked;
+                if low {
                     any_low = true;
                     limb.low_streak = limb.low_streak.saturating_add(1);
                     if !limb.episode_open || limb.low_streak >= self.starve_debounce {
@@ -2268,6 +2324,28 @@ impl Pipeline {
                     if sink.hold_is_full() {
                         break;
                     }
+                    // Ring backpressure (card 3.B3, doc 03 §8): a
+                    // consumer that cannot take more AUDIO right now
+                    // parks this limb's slice — the packets stay
+                    // queued, bounded by the queue caps, and decode
+                    // resumes once the host's pump has drained the
+                    // sink below the consumer's own resume threshold.
+                    // NOT gated while the seek pre-roll hold owns the
+                    // slice: pre-roll frames land in the hold (bounded
+                    // by its own cap), not the ring, and the seek's
+                    // completion waits on exactly those deliveries —
+                    // parking here would deadlock a seek against the
+                    // clock the seek itself froze (the boundary's
+                    // ring flush makes room for the landing anyway).
+                    // Video is never gated here: its boundedness is
+                    // the scheduler window's (the hold below), which
+                    // already backpressures by refusing.
+                    if limb_kind == MediaKind::Audio
+                        && sink.hold.is_none()
+                        && !consumer.ready_for(MediaKind::Audio)
+                    {
+                        break;
+                    }
                     // Three pop outcomes matter: an item (decode it), a
                     // discontinuity marker (observed, keep going), and
                     // nothing resident (stop this limb's slice).
@@ -2354,8 +2432,21 @@ impl Pipeline {
                 // End-of-stream draining: flush the decoder until it
                 // reports `Drained`, bounded per tick. The same hold
                 // backpressure applies (a landing flush's frames are
-                // pre-roll frames too — held, not presented).
-                if fatal.is_none() && self.eof && !limb.drained {
+                // pre-roll frames too — held, not presented). The
+                // ring backpressure applies too (card 3.B3): an
+                // audio limb parked on a full device ring skips its
+                // flush this tick — the flush's frames would land in
+                // the same ring — and retries next tick once the
+                // pump has drained it (the EOF drain gate makes the
+                // terminal honest: `Drained` waits on the ring
+                // emptying anyway).
+                if fatal.is_none()
+                    && self.eof
+                    && !limb.drained
+                    && (limb_kind != MediaKind::Audio
+                        || sink.hold.is_some()
+                        || consumer.ready_for(MediaKind::Audio))
+                {
                     let queue_empty = limb.queue.usage().packets == 0;
                     if queue_empty && self.pending.is_none() {
                         for _ in 0..budget.flush_calls_per_limb {
@@ -2811,6 +2902,155 @@ mod tests {
             duration: media_types::Nanoseconds(0),
         };
         assert!(packet_queue::Watermark::evaluate(high_on_bytes, &marks).high);
+    }
+
+    /// A consumer whose `ready_for(Audio)` answer is scriptable and
+    /// whose deliveries are counted — the decode-park probe's test
+    /// half (card 3.B3's ring→decode backpressure).
+    struct GatedConsumer {
+        ready: std::sync::atomic::AtomicBool,
+        accepts: std::sync::atomic::AtomicU64,
+    }
+
+    impl GatedConsumer {
+        fn new() -> Self {
+            GatedConsumer {
+                ready: std::sync::atomic::AtomicBool::new(true),
+                accepts: std::sync::atomic::AtomicU64::new(0),
+            }
+        }
+    }
+
+    impl FrameConsumer for GatedConsumer {
+        fn accept(&self, _frame: Frame, _track: TrackId) -> Result<(), EngineError> {
+            self.accepts
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        }
+
+        fn ready_for(&self, kind: MediaKind) -> bool {
+            match kind {
+                MediaKind::Audio => self.ready.load(std::sync::atomic::Ordering::Relaxed),
+                _ => true,
+            }
+        }
+    }
+
+    /// A decoder that emits exactly one audio frame per packet (the
+    /// parked-slice observable: accepts only happen when decode runs).
+    struct EmittingDecoder;
+
+    impl Decoder for EmittingDecoder {
+        fn configure(&mut self, _config: &DecoderConfig) -> Result<(), EngineError> {
+            Ok(())
+        }
+
+        fn decode(
+            &mut self,
+            _packet: Packet,
+            out: &mut dyn FrameSink,
+        ) -> Result<DecodeOutcome, EngineError> {
+            let frame = Frame::Audio(media_types::frame::AudioFrame {
+                format: media_types::frame::AudioFormat {
+                    sample: media_types::frame::SampleFormat::F32,
+                    channels: 1,
+                    layout: media_types::frame::AudioLayout::Interleaved,
+                    rate: 44_100,
+                },
+                samples: SharedBytes::from_static(&[0u8; 4]),
+                pts: Stamp::Missing,
+                duration: None,
+                generation: GenerationId::FIRST,
+            });
+            out.accept(frame)?;
+            Ok(DecodeOutcome::Emitted { frames: 1 })
+        }
+
+        fn flush(&mut self, _out: &mut dyn FrameSink) -> Result<DecodeOutcome, EngineError> {
+            Ok(DecodeOutcome::Drained)
+        }
+    }
+
+    /// Card 3.B3's ring→decode backpressure, engine side: a consumer
+    /// that answers `ready_for(Audio) == false` parks the audio
+    /// limb's decode slice — the packets stay queued (nothing lost,
+    /// nothing dropped) and resume the moment the probe answers true
+    /// again. This is the engine half of the GUI `audio.ring_full`
+    /// fix: decode-ahead without time movement can never overflow a
+    /// bounded consumer again.
+    #[test]
+    fn not_ready_consumer_parks_audio_decode_and_resumes() {
+        let consumer = Arc::new(GatedConsumer::new());
+        let limits = QueueLimits {
+            max_packets: nonzero(8),
+            max_bytes: nonzero(1 << 20),
+            max_duration: media_types::Nanoseconds(1_000_000_000),
+        };
+        let plan = QueuePlan::new(limits, limits);
+        let mut pipeline = Pipeline::new(
+            Box::new(StalledDemuxer),
+            Arc::clone(&consumer) as Arc<dyn FrameConsumer>,
+        );
+        struct EmittingProvider;
+        impl DecoderProvider for EmittingProvider {
+            fn decoder_for(
+                &self,
+                _track: &Track,
+                _config: &DecoderConfig,
+            ) -> Result<Box<dyn Decoder>, EngineError> {
+                Ok(Box::new(EmittingDecoder))
+            }
+        }
+        let tracks = pipeline.start_demuxer().must();
+        let wired = pipeline
+            .wire(tracks, &EmittingProvider, &plan, GenerationId::FIRST)
+            .must();
+        assert_eq!(wired.wired, 1);
+        for limb in pipeline.limbs.iter_mut() {
+            assert!(matches!(limb.queue.try_pop(), PopOutcome::Discontinuity(_)));
+        }
+        // Park the consumer, then fill the queue: three ticks at a
+        // 4-packet budget each would deliver 12 frames ungated —
+        // parked, they deliver ZERO and the queue keeps all 8.
+        consumer
+            .ready
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        fill(&mut pipeline, 8);
+        let budget = TickBudget {
+            demux_events: 0,
+            packets_per_limb: 4,
+            flush_calls_per_limb: 0,
+        };
+        for _ in 0..3 {
+            let report = pipeline.tick(SessionState::Playing, &budget);
+            assert!(report.fatal.is_none(), "parking is not damage");
+        }
+        assert_eq!(
+            consumer.accepts.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "a parked consumer receives nothing"
+        );
+        assert_eq!(
+            pipeline.limbs.first().must().queue.usage().packets,
+            8,
+            "the packets stay queued — bounded, not lost"
+        );
+        // Un-park: the next tick delivers (up to the budget) and the
+        // queue drains.
+        consumer
+            .ready
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = pipeline.tick(SessionState::Playing, &budget);
+        assert_eq!(
+            consumer.accepts.load(std::sync::atomic::Ordering::Relaxed),
+            4,
+            "decode resumes at the budget"
+        );
+        assert_eq!(
+            pipeline.limbs.first().must().queue.usage().packets,
+            4,
+            "exactly the budget's packets left the queue"
+        );
     }
 
     /// First stall of a fresh episode fires at 1 tick (design F1.5:
