@@ -1,0 +1,22 @@
+id: blocking-in-async
+language: Rust
+severity: error
+message: >-
+  Blocking call inside an async fn: stalls the executor thread, starves other
+  tasks, can deadlock a single-threaded runtime.
+rule:
+  all:
+    - inside:
+        stopBy: end
+        kind: function_item
+        has:
+          kind: function_modifiers
+          regex: async
+    - any:
+        - pattern: std::thread::sleep($$$)
+        - pattern: std::fs::read($$$)
+        - pattern: std::fs::read_to_string($$$)
+        - pattern: std::fs::write($$$)
+        - pattern: std::net::TcpStream::connect($$$)
+        - pattern: $CH.recv()
+        - pattern: $M.lock().unwrap()

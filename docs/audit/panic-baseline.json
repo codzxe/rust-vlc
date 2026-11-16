@@ -1,0 +1,105 @@
+{
+ "generated": "2026-11-16T18:07:34Z",
+ "method": "brace-matched #[cfg(test)] excluded; tests/benches/examples skipped",
+ "grand_total": 41,
+ "crates": {
+  "crates/_template": {
+   "unreachable": 0,
+   "panic": 0,
+   "unwrap": 1,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/audio-engine": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/codecs": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/control-protocol": {
+   "unreachable": 4,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/demux": {
+   "unreachable": 2,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/input": {
+   "unreachable": 5,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/media-probe": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/playback-engine": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/playlists": {
+   "unreachable": 6,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/plugin-host-wasm": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/testkit": {
+   "unreachable": 3,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "crates/transcode": {
+   "unreachable": 1,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "apps/desktop": {
+   "unreachable": 4,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  },
+  "tools/xtask": {
+   "unreachable": 10,
+   "panic": 0,
+   "unwrap": 0,
+   "expect": 0,
+   "todo": 0
+  }
+ }
+}

@@ -1,0 +1,22 @@
+id: sleep-in-test
+language: Rust
+severity: warning
+message: >-
+  Sleep inside a test: flaky by construction and a hidden timing dependency
+  (D-10 hardware-clock realism). Use a mock clock or a condition variable.
+rule:
+  any:
+    - pattern: std::thread::sleep($$$)
+    - pattern: thread::sleep($$$)
+    - pattern: tokio::time::sleep($$$)
+  inside:
+    stopBy: end
+    any:
+      - kind: mod_item
+        has:
+          kind: identifier
+          regex: '^tests?$'
+      - kind: function_item
+        follows:
+          kind: attribute_item
+          regex: 'test'

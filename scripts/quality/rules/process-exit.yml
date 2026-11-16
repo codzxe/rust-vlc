@@ -1,0 +1,10 @@
+id: process-exit
+language: Rust
+severity: error
+message: >-
+  std::process::exit inside a library: kills the host process, skips Drop and
+  destructors, cannot be caught, untestable.
+rule:
+  any:
+    - pattern: std::process::exit($$$)
+    - pattern: process::exit($$$)

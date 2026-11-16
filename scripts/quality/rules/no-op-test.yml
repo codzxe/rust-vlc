@@ -1,0 +1,27 @@
+id: no-op-test
+language: Rust
+severity: warning
+message: >-
+  #[test] function contains no assert/panic/require/snapshot macro. It cannot
+  fail. Candidate fake test - confirm with mutation testing (T12).
+rule:
+  kind: function_item
+  follows:
+    kind: attribute_item
+    regex: '#\[(tokio::)?test'
+  not:
+    has:
+      stopBy: end
+      any:
+        - kind: macro_invocation
+          regex: '^assert'
+        - kind: macro_invocation
+          regex: '^panic'
+        - kind: macro_invocation
+          regex: '^require'
+        - kind: macro_invocation
+          regex: 'insta'
+        - kind: macro_invocation
+          regex: '^matches'
+        - kind: macro_invocation
+          regex: '^unwrap'

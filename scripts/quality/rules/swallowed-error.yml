@@ -1,0 +1,15 @@
+id: swallowed-error
+language: Rust
+severity: error
+message: >-
+  Error branch is empty or discards the error value: the failure is
+  unobservable to the caller. Either propagate it or log it with context.
+rule:
+  any:
+    - pattern: 'if let Err(_) = $E {}'
+    - pattern: 'if let Err($_) = $E {}'
+    - pattern: 'Err(_) => {}'
+    - pattern: 'Err(_e) => {}'
+    - pattern: 'Err(_) => { $$$ }'
+    - pattern: '.ok();'
+    - pattern: 'let _ = $E.ok();'

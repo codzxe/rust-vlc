@@ -1,0 +1,9 @@
+id: allow-attr
+language: Rust
+severity: info
+message: >-
+  Lint suppression. Counted as debt: every #[allow] is a rule the codebase
+  decided not to follow, and it hides future violations of the same kind.
+rule:
+  kind: attribute_item
+  regex: '#\[allow\('

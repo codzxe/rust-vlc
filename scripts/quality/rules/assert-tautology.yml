@@ -1,0 +1,14 @@
+id: assert-tautology
+language: Rust
+severity: error
+message: >-
+  Assertion can never fail (constant or self-comparison). This is test
+  theatre, not a test.
+rule:
+  any:
+    - pattern: assert!(true)
+    - pattern: assert!(false)
+    - pattern: assert_eq!($A, $A)
+    - pattern: assert_ne!($A, $A)
+    - pattern: assert_eq!($A, $A, $$$)
+    - pattern: debug_assert!(true)

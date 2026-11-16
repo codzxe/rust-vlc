@@ -1,0 +1,11 @@
+id: todo-macros
+language: Rust
+severity: error
+message: >-
+  todo!/unimplemented!/unreachable! in shipped code: a runtime panic reachable
+  from user input, or a lie about reachability.
+rule:
+  any:
+    - pattern: todo!($$$)
+    - pattern: unimplemented!($$$)
+    - pattern: unreachable!($$$)

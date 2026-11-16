@@ -1,0 +1,454 @@
+# audit — the docs/audit program wired to CI.
+#
+# DESIGN RULE: this file contains NO audit logic. Every step calls a script in
+# scripts/quality/ so the program runs identically on a laptop and on a runner:
+#
+#     bash scripts/quality/99_run_all.sh <tier>
+#
+# The YAML only decides *when*, *where* and *how parallel*. Delete a runner and
+# nothing is lost — the scripts are the program, the YAML is the timer.
+#
+# Tiers (measured baseline 2026-11-16: 39 members, 435,498 lines, 5,014 tests):
+#   static   ~10 min   lints + ast-grep + dead code + dup + typos + hygiene  -> every PR
+#   quality  ~45 min   rustc lint escalation + coverage + CRAP + census     -> nightly
+#   dynamic  ~60 min   feature matrix + fuzz list + concurrency + perf      -> nightly
+#   mutation ~2.5 h/shard (8 shards), ~19 h CPU total                      -> weekly
+#
+# ci.yml stays the merge gate (issue #5). This workflow is *evidence*: it
+# produces artifacts and a scoreboard, not a green light.
+#
+# Public repo => standard runners (Linux/Windows/macOS) are free and unmetered.
+# That removes the constraint in ci.yml:43 that parked the 3-OS matrix, so the
+# windows/macos lanes in ci-full.yml are now affordable — and they are the lanes
+# that catch F-001 (platform-linux test target not cfg-gated) and F-003
+# (platform-windows clippy under -D warnings) on day one.
+
+name: audit
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"      # nightly 03:00 CET — quality + dynamic
+    - cron: "0 3 * * 0"      # weekly Sunday — full mutation sweep
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "static | quality | dynamic | security | fuzz | speed | sanitizers | mutation"
+        default: "static"
+      parity:
+        description: "speed job: parity floor, e.g. 0.5 (0 = regression gate only)"
+        default: "0"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"        # leaner target dir + cache (same as ci.yml)
+  RUST_BACKTRACE: "1"
+
+concurrency:
+  group: audit-${{ github.ref }}-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ---------------------------------------------------------------- Tier 1 --
+  # Cheap, no full build, runs on every PR. Reports only: flipped to a hard
+  # gate once F-001..F-018 are triaged (a wall of pre-existing red on day one
+  # would block every PR for reasons that are not the PR's fault).
+  static:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'static')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache audit tools (~/.cargo/bin)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-audit-tools-${{ hashFiles('scripts/quality/00_install_tools.sh') }}
+          restore-keys: ${{ runner.os }}-audit-tools-
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install pinned audit tools
+        run: bash scripts/quality/00_install_tools.sh
+
+      - name: Run static tier
+        run: bash scripts/quality/99_run_all.sh static
+
+      - name: Scoreboard
+        if: always()
+        run: |
+          {
+            echo "## audit / static"
+            echo '```'
+            sed -n '1,40p' docs/audit/reports/astgrep-summary.txt 2>/dev/null || true
+            echo '```'
+            echo "Listed as NOT RUN (never guessed):"
+            echo '```'
+            cat docs/audit/reports/not-run.txt 2>/dev/null || echo "none"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-static
+          path: docs/audit/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------- Tier 2 --
+  quality:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'quality')
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache audit tools (~/.cargo/bin)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-audit-tools-${{ hashFiles('scripts/quality/00_install_tools.sh') }}
+          restore-keys: ${{ runner.os }}-audit-tools-
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install pinned audit tools
+        run: bash scripts/quality/00_install_tools.sh
+
+      # Linux lane only: llvm-cov failed to link on the Windows/GNU dev host
+      # (blocker B3), so T11/T14 produce their first real numbers HERE.
+      - name: Run quality tier (coverage, CRAP, lint escalation)
+        run: bash scripts/quality/99_run_all.sh quality
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## audit / quality"
+            echo '```'
+            grep -hE '^(TOTAL|Filename|All files|region|line)' docs/audit/reports/coverage*.txt 2>/dev/null | head -20 || echo "coverage: see artifacts"
+            echo '```'
+            echo "Not run:"
+            echo '```'
+            cat docs/audit/reports/not-run.txt 2>/dev/null || echo "none"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-quality
+          path: docs/audit/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  dynamic:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'dynamic')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache audit tools (~/.cargo/bin)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-audit-tools-${{ hashFiles('scripts/quality/00_install_tools.sh') }}
+          restore-keys: ${{ runner.os }}-audit-tools-
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install pinned audit tools
+        run: bash scripts/quality/00_install_tools.sh
+
+      - name: Run dynamic tier (features, fuzz, concurrency, perf)
+        run: bash scripts/quality/99_run_all.sh dynamic
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-dynamic
+          path: docs/audit/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------- Tier 3 --
+  # Full mutation sweep, sharded. 38,276 mutants / 8 shards / 4 jobs per shard
+  # = ~2.5 h wall per shard (measured 1.81 s/mutant). 8 shards is deliberate:
+  # 2 shards would be 9.5 h and be killed by the 6 h runner cap.
+  mutation:
+    if: github.event.schedule == '0 3 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'mutation')
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # merge-base + --in-diff readiness
+
+      - name: Cache audit tools (~/.cargo/bin)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-audit-tools-${{ hashFiles('scripts/quality/00_install_tools.sh') }}
+          restore-keys: ${{ runner.os }}-audit-tools-
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install pinned audit tools
+        run: bash scripts/quality/00_install_tools.sh
+
+      - name: Mutate shard ${{ matrix.shard }}/8
+        run: bash scripts/quality/12_mutants.sh full --shard ${{ matrix.shard }}/8
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-mutation-${{ matrix.shard }}
+          path: docs/audit/reports/mutants/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Aggregates the 8 shard outcomes into one mutation score + survivor list.
+  # This is the number that answers "are the tests real?".
+  mutation-score:
+    if: always() && needs.mutation.result != 'skipped'
+    needs: mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: audit-mutation-*
+          path: docs/audit/reports/mutants
+          merge-multiple: true
+
+      - name: Aggregate mutation score
+        run: |
+          python3 scripts/quality/mutants_report.py docs/audit/reports/mutants/full-shard-* \
+            | tee docs/audit/reports/mutants-score.txt
+          {
+            echo "## audit / mutation"
+            echo '```'
+            sed -n '1,80p' docs/audit/reports/mutants-score.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-mutation-score
+          path: docs/audit/reports/mutants-score.txt
+          retention-days: 90
+
+  # ---------------------------------------------------------------- Tier 4 --
+  # Formal / UB lanes. Needs a nightly toolchain, which is exactly what a
+  # laptop could not provide (blocker B3) — Miri, overflow and the Kani
+  # catalogue become reachable only here.
+  formal:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'formal')
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Miri on the pure foundation crates
+        run: |
+          for c in media-types codec-api packet-queue; do
+            echo "== miri: $c =="
+            bash scripts/quality/18_ub_checks.sh miri "$c" || true
+          done
+
+      - name: Kani catalogue (harnesses to write; no proofs yet)
+        run: bash scripts/quality/20_formal.sh || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-formal
+          path: docs/audit/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------- Tier 1b --
+  # Attacker mode: what hostile input can DO, not what the code looks like.
+  # 22 = boundary matrix, 23 = allocation amplification (DoS), 24 = panic
+  # ratchet (a crate may never add a shipped panic site).
+  security:
+    if: github.event_name == 'pull_request' || github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'security')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Run security tier
+        run: bash scripts/quality/99_run_all.sh security
+
+      - name: Attack surface summary
+        if: always()
+        run: |
+          {
+            echo "## audit / security"
+            sed -n '1,60p' docs/audit/reports/attack/attack-surface.md 2>/dev/null || true
+            echo ""
+            sed -n '/grand total/p' docs/audit/reports/panic/panic-budget.txt 2>/dev/null || true
+            sed -n '/worst peak/p' docs/audit/reports/alloc/alloc-budget.txt 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-security
+          path: docs/audit/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Fuzz campaign: the repo's 35 real targets, 5 shards, sanitizers on.
+  # Any artifact produced here is a permanent regression case.
+  fuzz:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'fuzz')
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      - name: Fuzz shard ${{ matrix.shard }}/5
+        run: |
+          mapfile -t ALL < <(ls fuzz/fuzz_targets/*.rs | xargs -n1 basename | sed 's/\.rs$//')
+          MINE=()
+          i=0
+          for t in "${ALL[@]}"; do
+            if [ $((i % 5)) -eq ${{ matrix.shard }} ]; then MINE+=("$t"); fi
+            i=$((i + 1))
+          done
+          echo "shard ${{ matrix.shard }}: ${#MINE[@]} targets"
+          bash scripts/quality/25_fuzz_campaign.sh 180 "${MINE[@]}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-fuzz-${{ matrix.shard }}
+          path: |
+            docs/audit/reports/fuzz/
+            fuzz/artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Speed parity vs ffmpeg on EVERY corpus in the tree (not one hand-picked
+  # class). ffmpeg is a CI-only reference decoder: installed, never shipped.
+  # Ratio convention: 1.00x = same speed. First run seeds the baseline; from
+  # then on a >20% regression fails.
+  speed:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'speed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true        # promote to blocking once the baseline is seeded
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: ffmpeg reference decoder
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Build lumen (release - speed numbers are meaningless in debug)
+        run: cargo build --release -p lumen-cli
+      - name: Speed parity across all corpora
+        env:
+          LUMEN_CMD: ${{ github.workspace }}/target/release/lumen decode-bench
+        run: |
+          bash scripts/quality/27_speed_parity.sh --count 24 --parity "${{ inputs.parity || '0' }}"
+
+      - name: Parity summary
+        if: always()
+        run: |
+          {
+            echo "## audit / speed parity vs ffmpeg"
+            cat docs/audit/reports/speed/parity.txt 2>/dev/null || echo "no result"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-speed
+          path: |
+            docs/audit/reports/speed/
+            docs/audit/speed-baseline.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Sanitizers on the C-ABI surface (rav1d). This is where a memory bug
+  # actually lives - pure Rust needs Miri, FFI needs ASan.
+  sanitizers:
+    if: github.event.schedule == '0 3 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'sanitizers')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+      - name: AddressSanitizer on crates/codecs (rav1d C ABI)
+        run: bash scripts/quality/18_ub_checks.sh asan codecs || true
+      - name: UndefinedBehaviourSanitizer on crates/codecs
+        run: bash scripts/quality/18_ub_checks.sh ubsan codecs || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-sanitizers
+          path: docs/audit/reports/ub/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------- Report --
+  # Regenerates BASELINE.md + the auto-count section of FINDINGS.md from the
+  # artifacts, so the evidence outlives the runners (nothing is "lost").
+  report:
+    if: always() && needs.quality.result != 'skipped'
+    needs: [quality, dynamic]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: audit-*
+          path: docs/audit/reports
+          merge-multiple: true
+
+      - name: Regenerate BASELINE + auto counts
+        run: bash scripts/quality/99_run_all.sh report
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: |
+            docs/audit/BASELINE.md
+            docs/audit/FINDINGS.md
+          retention-days: 90

@@ -1,0 +1,8 @@
+id: ignored-result
+language: Rust
+severity: warning
+message: >-
+  Value dropped with `let _ =`. If the expression is a Result, the error is
+  swallowed and the caller can never observe the failure.
+rule:
+  pattern: let _ = $EXPR;

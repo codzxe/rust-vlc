@@ -1,0 +1,22 @@
+id: unwrap-outside-tests
+language: Rust
+severity: warning
+message: >-
+  unwrap()/expect() in non-test code: any None/Err becomes a panic in the
+  shipped path. Workspace lint denies this; hits are escapes from it.
+rule:
+  any:
+    - pattern: $RECV.unwrap()
+    - pattern: $RECV.expect($MSG)
+  not:
+    inside:
+      stopBy: end
+      any:
+        - kind: mod_item
+          has:
+            kind: identifier
+            regex: '^tests?$'
+        - kind: function_item
+          follows:
+            kind: attribute_item
+            regex: 'test'
