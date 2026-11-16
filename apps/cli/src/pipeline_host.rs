@@ -704,9 +704,9 @@ struct LatchingPresenter<'a> {
     tap: Option<&'a Arc<dyn PresentTap>>,
     /// This tick's `PresentAction` repeat bit. The queue holds at
     /// most the tick's own request in this wiring (one push per tick
-    /// + a full drain), so the action's bit describes every drained
-    /// request; a future wiring that batches mixed actions must ride
-    /// the bit per-request instead `[PROPOSAL]`.
+    /// plus a full drain), so the action's bit describes every
+    /// drained request; a future wiring that batches mixed actions
+    /// must ride the bit per-request instead `[PROPOSAL]`.
     repeat: bool,
 }
 

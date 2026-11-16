@@ -218,13 +218,11 @@ fn spawn_event_pump(app: AppHandle) {
                     }
                 }
             }
-            if let Some(channel) = &frame_channel {
-                if let Some(record) = records.last() {
-                    if let Err(error) = crate::frame_channel::send_record(channel, record) {
-                        // lumen-allow-literal: diagnostic text (the ship failure notice), not identity wiring
-                        eprintln!("frame channel send failed (dropping until the next bind): {error}");
-                        frame_channel = None;
-                    }
+            if let (Some(channel), Some(record)) = (&frame_channel, records.last()) {
+                if let Err(error) = crate::frame_channel::send_record(channel, record) {
+                    // lumen-allow-literal: diagnostic text (the ship failure notice), not identity wiring
+                    eprintln!("frame channel send failed (dropping until the next bind): {error}");
+                    frame_channel = None;
                 }
             }
         }

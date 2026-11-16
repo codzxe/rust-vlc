@@ -237,7 +237,7 @@ fn committed_checksum_recomputes() -> Result<(), Box<dyn Error>> {
          {expected_catalog}:\n{text}"
     );
     assert!(
-        text.contains("counts: 64 commands / 26 events"),
+        text.contains("counts: 65 commands / 26 events"),
         "committed checksum counts line drifted:\n{text}"
     );
     Ok(())

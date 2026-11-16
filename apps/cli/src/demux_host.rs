@@ -900,7 +900,7 @@ mod tests {
                 .facts
                 .tracks
                 .iter()
-                .any(|t| matches!(t.kind, media_types::MediaKind::Audio { .. })),
+                .any(|t| t.kind == media_types::MediaKind::Audio),
             "the WAV's audio track must be present: {:?}",
             opened.facts.tracks
         );

@@ -151,7 +151,7 @@ mod tests {
         VideoFrame {
             format: media_types::PixelFormat::Rgba8,
             size: (4, 4),
-            data: FrameStorage::Cpu(SharedBytes::from_vec(vec![255, 0, 0, 255].repeat(4 * 4))),
+            data: FrameStorage::Cpu(SharedBytes::from_vec([255, 0, 0, 255].repeat(4 * 4))),
             pts: Stamp::Present(Timestamp::new(pts_ns, NANO_BASE)),
             color: ColorDescription::BT709_LIMITED,
             interlaced: false,
