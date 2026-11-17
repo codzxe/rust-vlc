@@ -58,10 +58,11 @@ workspace = true
 lumen-cli = { path = "../../apps/cli" }
 commands = { path = "../../crates/commands" }
 codec-api = { path = "../../crates/codec-api" }
-codecs = { path = "../../crates/codecs" }
-demux = { path = "../../crates/demux" }
-input = { path = "../../crates/input" }
-media-probe = { path = "../../crates/media-probe" }
+# NOTE (audit T5, 2026-11-17): codecs/demux/input/media-probe were
+# declared here but never imported — this runner reaches them through
+# lumen-cli's public modules (demux_host::open_source etc.), so the
+# direct rows were dead (cargo-machete). media-types/plugin-api/
+# playback-engine stay: they are named in this crate's code.
 media-types = { path = "../../crates/media-types" }
 plugin-api = { path = "../../crates/plugin-api" }
 playback-engine = { path = "../../crates/playback-engine" }

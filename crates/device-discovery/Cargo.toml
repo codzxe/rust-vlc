@@ -44,11 +44,13 @@ workspace = true
 # media-types: SourceUri (the Device vocabulary's uri slot) +
 # EngineError/PipelineStage (the doc 01 §2.4 trait's error currency).
 media-types = { path = "../media-types" }
-# plugin-api: the ServiceDiscovery plugin-kind contract (doc 06 §1.2
-# row 16) — its discovery.rs stages the HOST surface and names this
-# crate as the domain-trait home; the vocabulary is shared, never
-# forked.
-plugin-api = { path = "../plugin-api" }
+# NOTE (audit T5, 2026-11-17): the registry row once listed plugin-api
+# here, but this crate never imports it — plugin-api's discovery.rs
+# stages the HOST surface and points at this crate as the domain-trait
+# home (doc 06 §1.2 row 16), i.e. the reference direction is the
+# reverse, so the declared dep was dead weight (cargo-machete +
+# cargo-shear both flagged it). The vocabulary stays shared through
+# docs and media-types; nothing in src/ changes.
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7): the lint-legal Must
