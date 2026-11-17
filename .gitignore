@@ -116,3 +116,6 @@ target-w*/
 # tauri-codegen build artifact (generated at every desktop-tauri build;
 # appeared with the w30.12 windows-target check — never committed)
 apps/desktop-tauri/gen/
+
+# audit program local-run artifacts (CI uploads them as workflow artifacts)
+docs/audit/reports/
