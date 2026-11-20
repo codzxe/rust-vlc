@@ -1,0 +1,253 @@
+row	id	category	windows	linux	macos	web	verdict	reason
+1	container-matroska-webm	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+2	container-mp4-mov-3gp	container	implemented	implemented	implemented	not_started	REAL	lumen open+advance on a real H.264+AAC MP4: tracks 2 ready, Playing→Ended, 100.0% time, exit 0 (mp4-smoke-open-advance.txt) — executed on linux; windows/macos cells = REAL-UNPROVEN (same code, not run here)
+3	container-ogg	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+4	container-mpegts	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+5	container-mpegps	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+6	container-avi	container	implemented	implemented	implemented	not_started	REAL-UNPROVEN	conformance avi lanes passed in the executed suite; rc-smoke default fixture
+7	container-asf-wmv	container	implemented	partial	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+8	container-wav	container	implemented	implemented	implemented	not_started	REAL-UNPROVEN	conformance wav lanes passed in the executed suite
+9	container-flac-native	container	not_started	not_started	not_started	not_started	REAL-UNPROVEN	suite-passed; not individually executed
+10	container-aiff	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+11	container-au	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+12	container-adts-aac	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+13	container-mp3-raw	container	implemented	implemented	implemented	not_started	REAL-UNPROVEN	suite-passed; not individually executed
+14	container-mpeg-es-video	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+15	container-h264-annexb	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+16	container-hevc-annexb	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+17	container-ivf	container	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+18	container-realmedia	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+19	container-midi-smf	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+20	container-archive-zip	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+21	container-census-long-tail	container	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+22	codec-video-h264	video-codec	partial	partial	partial	not_started	REAL	same run — H.264 software decode (rust_h264) to end-of-media + conformance mp4_h264_family_lane passed in the executed suite — executed on linux; windows/macos cells = REAL-UNPROVEN (same code, not run here)
+23	codec-video-h264-software	video-codec	implemented	implemented	implemented	not_started	REAL	same run — the avcC-seeded software decoder (pipeline_host.rs:328) decoded it; NOTE: this row's evidence string cites the missing path crates/codecs/src/video/h264/sw (feature-audit R4 violation, executed exit 1) — REAL feature, FALSE evidence string — executed on linux; windows/macos cells = REAL-UNPROVEN (same code, not run here)
+24	codec-video-hevc	video-codec	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+25	codec-video-hevc-software	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+26	codec-video-av1	video-codec	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+27	codec-video-vp9	video-codec	implemented	partial	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+28	codec-video-vp8	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+29	codec-video-theora	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+30	codec-video-mpeg1-2	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+31	codec-video-mpeg4-asp	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+32	codec-video-mjpeg	video-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	container_conformance avi_mjpeg_pcm lanes passed in the executed workspace suite; bench decodes mjpeg (bench allowlist's only video member)
+33	codec-video-raw-fourcc	video-codec	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+34	codec-video-wmv-vc1	video-codec	not_started	not_started	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+35	codec-video-prores-dnxhd	video-codec	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+36	codec-video-ffv1	video-codec	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+37	codec-video-legacy-blocked	video-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+38	codec-audio-pcm	audio-codec	implemented	partial	implemented	not_started	REAL-UNPROVEN	conformance + rc-smoke fixture lane (avi_mjpeg_pcm) passed in the executed suite
+39	codec-audio-mp3	audio-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	same — suite-passed, not individually executed
+40	codec-audio-mp2	audio-codec	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+41	codec-audio-aac-lc	audio-codec	implemented	partial	implemented	not_started	REAL	same run — AAC audio limb decoded to end-of-media (null-device sink) — executed on linux; windows/macos cells = REAL-UNPROVEN (same code, not run here)
+42	codec-audio-he-aac	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+43	codec-audio-flac	audio-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	codecs crate differential/suite tests passed in the executed workspace run; not individually executed by the orchestrator
+44	codec-audio-alac	audio-codec	implemented	partial	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+45	codec-audio-vorbis	audio-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	same — suite-passed, not individually executed
+46	codec-audio-opus	audio-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	same (ruopus) — suite-passed, not individually executed
+47	codec-audio-ac3-eac3	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+48	codec-audio-dts	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+49	codec-audio-truehd-mlp	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+50	codec-audio-adpcm	audio-codec	implemented	implemented	implemented	not_started	REAL-UNPROVEN	same — suite-passed, not individually executed
+51	codec-audio-wma	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+52	codec-audio-wavpack	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+53	codec-audio-speex	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+54	codec-audio-musepack	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+55	codec-audio-midi-synth	audio-codec	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+56	codec-audio-census-tail	audio-codec	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+57	subtitle-srt	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+58	subtitle-ass-ssa	subtitle-format	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+59	subtitle-vtt	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+60	subtitle-microdvd	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+61	subtitle-subviewer	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+62	subtitle-sami	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+63	subtitle-ttml	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+64	subtitle-pgs	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+65	subtitle-dvb-subs	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+66	subtitle-teletext	subtitle-format	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+67	subtitle-cc-608-708	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+68	subtitle-vobsub	subtitle-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+69	subtitle-kate	subtitle-format	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+70	subtitle-forced	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+71	subtitle-autoload	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+72	subtitle-encoding-detection	subtitle-format	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+73	subtitle-census-tail	subtitle-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+74	textrender-subtitle-rasterizer	text-render	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+75	textrender-osd	text-render	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+76	textrender-subsource-overlays	text-render	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+77	plfmt-m3u-m3u8	playlist-format	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+78	plfmt-pls	playlist-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+79	plfmt-xspf	playlist-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+80	plfmt-asx	playlist-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+81	plfmt-b4s	playlist-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+82	plfmt-cue	playlist-format	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+83	plfmt-census-tail	playlist-format	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+84	protocol-file	protocol-access	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+85	protocol-directory	protocol-access	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+86	protocol-http-https	protocol-access	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+87	protocol-udp	protocol-access	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+88	protocol-rtp	protocol-access	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+89	protocol-rtsp	protocol-access	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+90	protocol-smb	protocol-access	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+91	protocol-nfs	protocol-access	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+92	protocol-ftp-sftp	protocol-access	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+93	protocol-mmsh-mms	protocol-access	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+94	protocol-census-tail	protocol-access	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+95	network-http-client	network-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+96	network-tls-policy	network-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+97	network-hls	network-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+98	network-dash	network-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+99	network-reconnect-buffering	network-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+100	network-auth	network-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+101	network-remote-playlists	network-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+102	playback-play-pause-stop	playback-op	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+103	playback-seek	playback-op	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+104	playback-rate	playback-op	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+105	playback-frame-step	playback-op	partial	partial	partial	partial	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+106	playback-track-switch	playback-op	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+107	playback-av-sync	playback-op	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+108	playback-chapter-title	playback-op	partial	partial	partial	partial	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+109	playback-bookmarks	playback-op	partial	partial	partial	partial	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+110	playback-snapshot	playback-op	partial	partial	partial	partial	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+111	playback-fullscreen	playback-op	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+112	playback-start-options	playback-op	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+113	playback-record	playback-op	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+114	playback-format-detection	playback-op	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+115	afeat-volume	audio-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+116	afeat-equalizer	audio-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+117	afeat-compressor	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+118	afeat-spatializer	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+119	afeat-stereowiden	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+120	afeat-resampler	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+121	afeat-stereo-mode	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+122	afeat-visualizations	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+123	afeat-replaygain	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+124	afeat-passthrough	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+125	afeat-audio-device-switch	audio-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+126	vfeat-aspect-ratio	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+127	vfeat-crop	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+128	vfeat-zoom-scale	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+129	vfeat-colors-adjust	video-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+130	vfeat-sharpen-gradfun	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+131	vfeat-color-fx	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+132	vfeat-hdr	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+133	vfeat-deinterlace	video-feature	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+134	vfeat-rotate-transform	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+135	vfeat-novelty-filters	video-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+136	plfeat-queue-model	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+137	plfeat-repeat-loop-shuffle	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+138	plfeat-save-load	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+139	plfeat-sort-search	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+140	plfeat-media-library	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+141	plfeat-recent-items	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+142	plfeat-autostart-behaviors	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+143	plfeat-service-discovery-panel	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+144	plfeat-metadata	playlist-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+145	config-area-global	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+146	config-area-interface	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+147	config-area-privacy	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+148	config-area-playback	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+149	config-area-video	config-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+150	config-area-audio	config-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+151	config-area-subtitles	config-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+152	config-area-controls	config-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+153	config-area-library	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+154	config-area-network	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+155	config-area-performance	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+156	config-area-recording	config-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+157	config-area-extensions	config-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+158	config-rebrand	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+159	config-profiles	config-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+160	config-hotkey-editor	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+161	config-keymap-layers	config-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+162	config-localization	config-feature	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+163	config-advanced-folding	config-feature	implemented	implemented	implemented	not_started	FALSE	status claims implemented while evidence path(s) ['ui/src/screens/settings/areas/advanced.tsx'] do not exist (feature-audit R4 violation, executed exit 1)
+164	config-defaults-source	config-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+165	plugin-builtin-registry	plugin-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+166	plugin-codec-api	plugin-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+167	plugin-wasm-extensions	plugin-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+168	plugin-addon-store	plugin-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+169	platform-aout-cpal	platform-feature	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+170	platform-aout-wasapi	platform-feature	not_started	unsupported	unsupported	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+171	platform-aout-coreaudio	platform-feature	unsupported	unsupported	not_started	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+172	platform-aout-pipewire	platform-feature	unsupported	not_started	unsupported	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+173	platform-vout-wgpu	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+174	platform-hwdecode-h264	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+175	platform-hwdecode-hevc	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+176	platform-hwdecode-vp9	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+177	platform-hwdecode-av1	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+178	platform-hwdecode-mpeg-family	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+179	platform-web-webcodecs	platform-feature	unsupported	unsupported	unsupported	not_started	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+180	platform-web-target	platform-feature	unsupported	unsupported	unsupported	not_started	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+181	platform-device-capture	platform-feature	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+182	platform-disc-dvd	platform-feature	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+183	platform-disc-bluray	platform-feature	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+184	platform-disc-cdda	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+185	platform-zero-copy-interop	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+186	platform-desktop-integration	platform-feature	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+187	sd-directory-watch	services-discovery	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+188	sd-podcast	services-discovery	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+189	sd-upnp	services-discovery	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+190	sd-mdns-renderers	services-discovery	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+191	sd-sap	services-discovery	blocked	blocked	blocked	blocked	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+192	sd-census-tail	services-discovery	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+193	ui-screen-player	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+194	ui-screen-playlist-library	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+195	ui-screen-settings	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+196	ui-screen-media-info	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+197	ui-screen-onboarding	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+198	ui-screen-miniplayer-music	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+199	ui-screen-keyboard-shortcuts	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+200	ui-screen-customize	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+201	ui-screen-av-tools	ui-screen	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+202	ui-screen-theme	ui-screen	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+203	ui-screen-skins2	ui-screen	unsupported	unsupported	unsupported	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+204	ui-dialog-open-file	ui-dialog	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+205	ui-dialog-open-network	ui-dialog	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+206	ui-dialog-open-multiple	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+207	ui-dialog-open-disc	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+208	ui-dialog-open-capture	ui-dialog	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+209	ui-dialog-goto-time	ui-dialog	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+210	ui-dialog-bookmarks	ui-dialog	implemented	implemented	implemented	not_started	SHALLOW	implemented cells certified by path-existence evidence only (the empty-file experiment standard); no execution by this audit
+211	ui-dialog-subtitle-add	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+212	ui-dialog-convert	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+213	ui-dialog-stream-output	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+214	ui-dialog-messages	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+215	ui-dialog-plugins	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+216	ui-dialog-about-update	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+217	ui-dialog-vlm	ui-dialog	unsupported	unsupported	unsupported	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+218	ui-dialog-program-guide	ui-dialog	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+219	menu-media-open	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+220	menu-media-convert-quit	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+221	menu-playback-transport	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+222	menu-playback-navigation	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+223	menu-playback-bookmarks	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+224	menu-audio	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+225	menu-video-display	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+226	menu-video-adjust	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+227	menu-video-snapshot	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+228	menu-subtitle	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+229	menu-tools	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+230	menu-view	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+231	menu-help	menu-item	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+232	menu-context-surface	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+233	menu-context-playlist	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+234	menu-tray	menu-item	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+235	hotkey-transport	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+236	hotkey-seek	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+237	hotkey-rate	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+238	hotkey-volume	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+239	hotkey-frame-step	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+240	hotkey-track	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+241	hotkey-sync	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+242	hotkey-video-display	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+243	hotkey-subtitle-scale	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+244	hotkey-playlist	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+245	hotkey-bookmarks	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+246	hotkey-navigation	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+247	hotkey-nav-disc	hotkey	blocked	blocked	blocked	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
+248	hotkey-snapshot-record	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+249	hotkey-interface	hotkey	partial	partial	partial	not_started	PARTIAL	matrix says partial; not individually re-derived by this audit (coverage-limited run)
+250	hotkey-global	hotkey	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+251	hotkey-wallpaper-360	hotkey	not_started	not_started	not_started	not_started	PAPER-ONLY	not_started everywhere; absence claim, not audited file-by-file this run
+252	ext-lua-extensions	extension	unsupported	unsupported	unsupported	unsupported	STUB/PAPER (as claimed)	row itself claims blocked/unsupported — honesty claims of absence, default-true unless code contradicts; none found at sweep level
