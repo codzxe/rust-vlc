@@ -1,0 +1,15 @@
+$ EXPERIMENT (W01-A01): can feature-audit be fooled by an empty file?
+$ Fake root /tmp/devil-fake: [[feature]] row id=container-fake-mp4-h264, status windows/linux/macos/web = implemented, evidence = "crates/fake/decoder.rs (the H.264 decoder, honest)"
+$ crates/fake/decoder.rs is a 0-BYTE EMPTY FILE
+
+$ cargo xtask feature-audit --root /tmp/devil-fake --matrix docs/feature-matrix.toml
+=== LUMEN FEATURE-AUDIT REPORT ===
+matrix: docs/feature-matrix.toml (root /tmp/devil-fake)
+rows: 1
+per-phase rows: 5=1
+per-category rows: container=1
+per-platform-status cells: implemented=4
+result: PASS
+EXIT=0
+
+CONCLUSION: the auditor certifies "implemented" on all four platforms when the cited evidence is an EMPTY FILE. R4 evidence-resolution checks filesystem existence only (feature_audit.rs:489-501 root.join(path).exists()). The same standard governs the real matrix: implemented=193 platform cells certified against paths that merely exist.
