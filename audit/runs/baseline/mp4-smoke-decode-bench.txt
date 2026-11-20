@@ -1,0 +1,4 @@
+$ ./target/release/lumen decode-bench audit/runs/baseline/sample-h264-aac.mp4
+bench: video track#0 h264 — not benched (no decoder in this build (first vertical: mjpeg + pcm)); audio track#1 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=audit/runs/baseline/sample-h264-aac.mp4 bytes=45682 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.000 decode_s=0.000
+EXIT=0

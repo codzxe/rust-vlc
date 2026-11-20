@@ -1,0 +1,14 @@
+$ npm run build (tsc --noEmit && vite build)
+dist/assets/index-CHz8maUu.js                 552.40 kB │ gzip: 146.42 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/media-info/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, dynamic import will not move module into another chunk.
+
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/playlist/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, src/screens/player/controls/ControlBar.tsx, src/screens/player/states/PlaylistBrowse.tsx, src/screens/player/variants/MiniPlayer.tsx, src/screens/player/variants/MusicMode.tsx, dynamic import will not move module into another chunk.
+
+✓ built in 419ms
+BUILD_EXIT=0

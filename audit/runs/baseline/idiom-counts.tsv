@@ -1,0 +1,41 @@
+idiom	total
+unwrap(	26
+expect(	45
+todo!	8
+unimplemented!	6
+unsafe	738
+#[ignore	66
+#[allow	121
+panic!(	13
+
+per-file top 30 by unwrap+expect:
+tools/vta/ac3/src/main.rs	unwrap=5	expect=6	unsafe=0	todo=0
+tools/xtask/src/cmd/check_panics.rs	unwrap=8	expect=3	unsafe=0	todo=3
+tools/vta/ruopus/src/main.rs	unwrap=2	expect=6	unsafe=0	todo=0
+crates/codecs/tests/aac_corpus_differential.rs	unwrap=0	expect=6	unsafe=0	todo=0
+tests/integration/first-vertical/tests/baselines_consistency.rs	unwrap=0	expect=5	unsafe=0	todo=0
+tools/vta/dnx/src/main.rs	unwrap=2	expect=3	unsafe=0	todo=0
+tools/xtask/src/cmd/compat_matrix.rs	unwrap=0	expect=5	unsafe=0	todo=0
+tools/xtask/src/cmd/config_validator.rs	unwrap=0	expect=5	unsafe=0	todo=0
+crates/media-types/src/packet.rs	unwrap=3	expect=0	unsafe=1	todo=0
+crates/playback-engine/tests/property/seek_roundtrip.rs	unwrap=0	expect=3	unsafe=0	todo=0
+tools/xtask/tests/check_panics.rs	unwrap=3	expect=0	unsafe=0	todo=0
+crates/packet-queue/tests/concurrency.rs	unwrap=2	expect=0	unsafe=0	todo=0
+apps/desktop-tauri/src/app.rs	unwrap=0	expect=1	unsafe=0	todo=0
+crates/_template/src/lint_canary.rs	unwrap=1	expect=0	unsafe=0	todo=0
+crates/demux/src/ts/pes.rs	unwrap=0	expect=1	unsafe=0	todo=0
+tools/vta/vp9/src/main.rs	unwrap=0	expect=1	unsafe=0	todo=0
+apps/cli/src/demux_host.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/cli/src/pipeline_host.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/cli/src/run.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/cli/tests/sync_scenarios.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/desktop-tauri/src/main.rs	unwrap=0	expect=0	unsafe=7	todo=0
+apps/desktop/src/diagnostics.rs	unwrap=0	expect=0	unsafe=2	todo=0
+apps/desktop/src/lib.rs	unwrap=0	expect=0	unsafe=1	todo=0
+apps/desktop/src/mailbox.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/desktop/src/shell.rs	unwrap=0	expect=0	unsafe=0	todo=0
+apps/web/src/abi.rs	unwrap=0	expect=0	unsafe=17	todo=0
+crates/_template/src/lib.rs	unwrap=0	expect=0	unsafe=1	todo=1
+crates/audio-engine/src/lib.rs	unwrap=0	expect=0	unsafe=1	todo=0
+crates/audio-engine/src/resample.rs	unwrap=0	expect=0	unsafe=1	todo=0
+crates/audio-engine/tests/audio_bench.rs	unwrap=0	expect=0	unsafe=0	todo=0

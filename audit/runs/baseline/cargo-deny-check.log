@@ -1,0 +1,17 @@
+$ cargo deny check (advisories bans licenses sources)
+     ├── desktop v0.1.3
+     ├── lumen-cli v0.1.3
+     │   ├── desktop v0.1.3 (*)
+     │   └── first-vertical v0.1.0
+     └── renderer-wgpu v0.1.0
+         ├── desktop v0.1.3 (*)
+         └── lumen-cli v0.1.3 (*)
+
+warning[unused-wrapper]: wrapper for banned crate was not encountered
+    ┌─ /home/z/my-project/audit-workspace/deny.toml:189:41
+    │
+189 │     { name = "libloading", wrappers = ["libappindicator-sys"] },  # nagisa/rust_libloading
+    │                                         ━━━━━━━━━━━━━━━━━━━ unmatched wrapper
+
+advisories FAILED, bans ok, licenses ok, sources ok
+EXIT=0

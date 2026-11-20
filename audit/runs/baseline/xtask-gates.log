@@ -1,0 +1,23 @@
+$ cargo xtask check-architecture
+
+result: FAILURE (1 of 5 checks failed)
+architecture: result=fail edges=fail cycles=pass unsafe-lints=pass static-mut=pass testkit-direction=pass
+full log: target/architecture-report.json
+EXIT=0
+$ cargo xtask lint-literals
+  allowed: crates/testkit/src/lib.rs:148: identity — skip diagnostic quoting the harness knob’s name — user-facing text, not config
+  allowed: crates/testkit/src/lib.rs:475: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/testkit/src/lib.rs:493: identity — cfg(test) scratch dir — test-only
+lint-literals: PASS — 0 violations, 512 allowlisted
+EXIT=0
+$ cargo xtask check-identity
+  allowed: crates/testkit/src/lib.rs:148: identity — skip diagnostic quoting the harness knob’s name — user-facing text, not config
+  allowed: crates/testkit/src/lib.rs:475: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/testkit/src/lib.rs:493: identity — cfg(test) scratch dir — test-only
+check-identity: PASS — 0 violations, 513 allowlisted
+EXIT=0
+$ cargo xtask fixtures --check
+    Finished `dev` profile [unoptimized] target(s) in 0.02s
+     Running `target/debug/xtask fixtures --check`
+result: no drift — 55 file(s) verified under /home/z/my-project/audit-workspace/tests/fixtures
+EXIT=0

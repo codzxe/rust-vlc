@@ -1,0 +1,6 @@
+manifest_files=3226
+assigned=3226
+missing=[]
+extra=[]
+double_assigned=[]
+VERDICT: PASS
