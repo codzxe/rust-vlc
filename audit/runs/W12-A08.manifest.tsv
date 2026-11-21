@@ -1,0 +1,6 @@
+crates/plugin-api/src/manifest.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:3
+apps/web/src/render/backend.rs	REAL/UNREACHABLE-loss-lane	S0:0 S1:0 S2:1 S3:1 S4:2
+apps/web/src/abi.rs#part1	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/plugin-api/src/playlist.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/plugin-api/src/codec.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+apps/web/worker.js	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:0 S4:4
