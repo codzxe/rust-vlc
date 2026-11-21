@@ -1,0 +1,6 @@
+crates/subtitles/src/pgs/segment.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:3 S4:2
+crates/subtitles/src/cc/cc_data.rs	REAL-UNPROVEN	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/subtitles/src/ass/parser.rs#part2	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:4
+crates/subtitles/src/model/style.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/subtitles/src/pgs/palette.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/subtitles/src/dvb/fuzz.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:0 S4:2
