@@ -1,0 +1,9 @@
+crates/codecs/src/video/h264/decode.rs	file
+crates/codecs/src/video/dnx/decoder.rs#part1	chunk
+crates/codecs/src/video/h264/parser/nal.rs#part2	chunk
+crates/codecs/examples/stage_bench.rs	file
+crates/codecs/src/video/mjpeg/color.rs#part1	chunk
+crates/codecs/src/video/h264/hw/vaapi/device.rs	file
+crates/codecs/src/video/h264/hw/vaapi/library.rs	file
+crates/codecs/src/video/av1/fuzz.rs	file
+crates/codecs/src/video/vp9/mod.rs	file

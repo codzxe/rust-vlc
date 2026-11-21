@@ -1,0 +1,9 @@
+crates/codecs/src/video/mjpeg/decoder.rs#part1	chunk
+crates/codecs/src/video/mpeg12/headers.rs#part1	chunk
+crates/codecs/src/video/mjpeg/parser.rs#part2	chunk
+crates/codecs/src/video/hevc/parser/nal.rs#part2	chunk
+crates/codecs/src/video/mjpeg/idct_simd.rs	file
+crates/codecs/src/video/mjpeg/bitreader.rs	file
+crates/codecs/src/video/vp9/error.rs	file
+crates/codecs/src/video/mpeg12/error.rs	file
+crates/codecs/src/video/hevc/mod.rs	file

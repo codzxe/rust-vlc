@@ -1,0 +1,57 @@
+## Official §7.1 MP4 smoke — 2026-11-21T17:09:31+00:00
+binary: target/release/lumen [built from e83e5bd3]
+lumen 0.1.3
+sample: /tmp/sample.mp4 — H.264+AAC, 3s, 320x240, 46171 bytes
+ffmpeg cmd (§7.1): ffmpeg -y -f lavfi -i testsrc=duration=3:size=320x240:rate=25 -f lavfi -i sine=duration=3 -c:v libx264 -c:a aac sample.mp4
+
+codec_name=h264
+codec_type=video
+width=320
+height=240
+codec_name=aac
+codec_type=audio
+sample_rate=44100
+
+## lumen --version
+lumen 0.1.3
+
+exit=0
+
+## lumen engine-info
+exit=0
+ok: engine
+  version: 0.1.3
+  host: cli
+  features: first-vertical:avi-mjpeg-pcm, audio.null-device, video.software-compositor
+  decoders: mjpeg, pcm_s16le
+
+
+## lumen open /tmp/sample.mp4   [25s window — sample is 3s of media]
+exit=124  (124=timeout, ignored TERM; 137=SIGKILLed)
+--- full captured output (1333 bytes) ---
+ok: accepted session=1 gen=0
+event: state-changed Idle → Opening
+event: tracks 2 ready
+event: buffering 0.00
+event: state-changed Opening → Buffering
+event: TimingDurationKnown { duration: Timestamp(3000000) }
+event: MediaInfoReady { info: MediaInfo { source: File { path: "/…/sample.mp4" }, container: None, title: None, duration: Known { time: Timestamp(3000000) }, seekable: true, is_live: false, metadata: {}, tracks: [TrackInfo { id: TrackId(0), kind: Video, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("h264"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }, TrackInfo { id: TrackId(1), kind: Audio, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("aac"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }], chapters: [] } }
+event: buffering 0.05
+event: error [decode.unsupported] unsupported in h264 (h264.sw.unsupported)
+event: buffering 1.00
+event: state-changed Buffering → Error
+error: unknown command `__workspace_agent_exit_code=$?`
+  usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`
+error: unknown command `printf`
+  usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`
+
+
+## lumen decode-bench /tmp/sample.mp4   [25s window]
+exit=0
+--- full captured output (320 bytes) ---
+bench: video track#0 h264 — not benched (no decoder in this build (first vertical: mjpeg + pcm)); audio track#1 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=/tmp/sample.mp4 bytes=46171 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.000 decode_s=0.000
+
+
+---
+NOTE (orchestrator): the `unknown command 'printf'` / `__workspace_agent_exit_code=$?` lines above were NOT typed by a user — after entering the Error state, the `lumen open` process kept running and consumed its inherited stdin (the harness shell) as command input. Evidence of a missing terminal-state transition, kept verbatim.
