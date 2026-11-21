@@ -1,0 +1,4 @@
+crates/product-config/src/semantic.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:3 S4:2
+crates/localization/src/key.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/localization/src/refs.rs	UNREACHABLE	S0:0 S1:0 S2:2 S3:1 S4:1
+keymaps/default.toml	SHALLOW	S0:0 S1:0 S2:2 S3:4 S4:2
