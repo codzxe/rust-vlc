@@ -1,0 +1,8 @@
+crates/streaming/src/ranged.rs#part2	REAL	S0:0 S1:0 S2:1 S3:1 S4:3
+crates/playlists/src/probe.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/streaming/src/mockhttp.rs#part3	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/streaming/src/reconnect.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/streaming/src/client.rs#part2	REAL	S0:0 S1:0 S2:0 S3:2 S4:0
+crates/transcode/src/convert.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/streaming/src/dash/fuzz.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/device-discovery/src/lib.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
