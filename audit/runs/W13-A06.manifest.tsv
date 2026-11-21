@@ -1,0 +1,6 @@
+apps/cli/src/pipeline_host.rs#part1	REAL	S0:0 S1:0 S2:0 S3:2 S4:2
+apps/cli/src/containers/wav.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/cli/src/containers/ts.rs#part1	REAL	S0:0 S1:1 S2:0 S3:1 S4:2
+apps/desktop/src/bridge.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/control-server/src/dispatch.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+apps/desktop/src/main.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
