@@ -1,0 +1,8 @@
+crates/audio-engine/src/convert.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/audio/mp3/xing.rs	UNREACHABLE	S0:0 S1:1 S2:1 S3:1 S4:2
+crates/codecs/src/audio/flac/metadata.rs	REAL	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/codecs/src/audio/vorbis/headers.rs	REAL	S0:0 S1:1 S2:0 S3:0 S4:2
+crates/codecs/src/audio/alac/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+crates/codecs/src/audio/vorbis/fuzz.rs	REAL	S0:0 S1:0 S2:2 S3:1 S4:1
+crates/audio-engine/src/buffer.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+crates/codecs/src/audio/opus/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
