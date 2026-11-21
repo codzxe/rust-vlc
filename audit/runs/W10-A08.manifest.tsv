@@ -1,0 +1,8 @@
+crates/streaming/src/ranged.rs#part3	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/streaming/src/hls/master.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:2
+crates/streaming/src/hls/media.rs#part1	UNREACHABLE	S0:0 S1:1 S2:1 S3:3 S4:2
+crates/streaming/src/mockhttp.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/playlists/src/cue.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/device-discovery/src/monitor.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:0
+crates/transcode/src/record.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/playlists/src/fuzz.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
