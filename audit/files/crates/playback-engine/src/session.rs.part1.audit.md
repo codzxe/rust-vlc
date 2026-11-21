@@ -98,7 +98,7 @@ Confidence: HIGH — Verification: read; `with_outbox_capacity` (989-1000, part2
 | `table.rs::command_kinds_map_onto_table_inputs` (≈630-675) | YES | Enum-to-catalog mapping asserted per kind against `catalog_data()` (id, class, gen_bumping); a wrong `as_command_id` arm or a catalog drift fails it. Executed: baseline `:4197` `command_kinds_map_onto_table_inputs ... ok`. |
 | `table.rs` `as_input` cases (830-850) | YES for the mapping | Direct assert per kind; would catch a remapped input. Cannot catch F-001 (it *pins* the dead arm as correct). |
 | `contract_suite.rs` accepted_generation asserts (1136-1225), `seek_flow.rs` (1242-1290), `replacement.rs` (909) | YES | End-to-end receipts through real sessions; seek gen-bumping receipts asserted (`Some(Generation(1))`, `Some(Generation(2))`) — these execute `submit`/`seek`/receipt minting from this chunk. All ran in baseline (playback_engine suites at log :3836+, all ok). |
-| Mutation check (reasoned, not run): change `queue`'s `Full` mapping to `SessionClosed` | Caught | contract/session_flow suites assert the typed `InboxBusy` on overflow (INBOX bound 64 — suites submit >64 without polling; if none does, the mapping arm is untested — flagged in §9 as unverified-for-coverage). |
+| Mutation check (reasoned, not run): change `queue`'s `Full` mapping to `SessionClosed` | Caught | `session_flow.rs:1888-1910 the_inbox_refuses_typed_at_its_bound_and_drains_whole` submits `INBOX_CAPACITY + 8` pauses pre-poll and asserts exactly 64 accepted + 8 typed `InboxBusy` — the mapping arm is covered end-to-end (corrected post-commit after a deeper grep; initial draft wrongly flagged it as a coverage gap). |
 
 ## 6. Doc claims touching this file
 | Claim | Source (doc §/matrix row) | Verdict | Proof |
@@ -121,5 +121,5 @@ Confidence: HIGH — Verification: read; `with_outbox_capacity` (989-1000, part2
 
 ## 9. Open questions for the next agent
 - **For W03-A02 (part2, poll 1157-1201):** cross-thread submit during a closing session's final poll — a command enqueued after step 1's drain but before step 3's `self.session = None` (1198) is destroyed with the session: sender got `Ok(())`, no receipt ever mints. The window needs a concurrent submitter thread; the RECEIPT_CAPACITY doc's "host re-queries or times out" mitigation applies. Defect site is poll (part2), so not filed as this chunk's finding.
-- **Coverage gap:** no suite found that submits > INBOX_CAPACITY (64) commands without polling to prove the `InboxBusy` arm end-to-end (searched tests/ for InboxBusy; see next agent's confirmation).
+- ~~Coverage gap~~ CORRECTED: `session_flow.rs:1888-1910` (`the_inbox_refuses_typed_at_its_bound_and_drains_whole`) covers the `InboxBusy` arm end-to-end (submits INBOX_CAPACITY+8 pre-poll, asserts 64 accepted / 8 typed busy, then one-poll whole-drain order). No gap.
 - `EngineEventKind::TimeTick` tick-replacement semantics (push event arm, 612-635) are part2's — read and verified correct in passing; A02 should file findings there if any.
