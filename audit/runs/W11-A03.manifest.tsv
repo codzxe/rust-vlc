@@ -1,0 +1,3 @@
+crates/settings-schema/src/model.rs	REAL	S0:0 S1:0 S2:3 S3:1 S4:2
+crates/product-config/src/lines.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/product-config/src/load.rs	REAL	S0:0 S1:0 S2:1 S3:1 S4:1
