@@ -1,0 +1,5 @@
+apps/cli/src/containers/mkv.rs#part1	REAL	S0:0 S1:0 S2:1 S3:3 S4:1
+apps/cli/src/host.rs#part1	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+apps/desktop/src/diagnostics.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+apps/desktop/src/shell.rs#part2	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/desktop/src/frame_tap.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
