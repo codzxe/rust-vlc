@@ -1,0 +1,12 @@
+path	kind
+crates/platform-macos/src/macos/coreaudio.rs	file
+crates/playback-engine/src/session.rs#part2	chunk
+crates/video-engine/src/scheduler.rs#part1	chunk
+crates/media-clock/src/backends.rs#part1	chunk
+crates/renderer-wgpu/src/error.rs	file
+crates/input/src/buffered.rs#part1	chunk
+crates/renderer-wgpu/src/screenshot.rs	file
+crates/platform-macos/src/capability.rs	file
+crates/renderer-wgpu/src/synthetic.rs	file
+crates/platform-macos/src/audio.rs	file
+crates/platform-linux/src/gpu.rs	file
