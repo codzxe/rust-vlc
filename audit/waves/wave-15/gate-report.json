@@ -1,0 +1,62 @@
+{
+ "wave": "W15",
+ "assignments": 260,
+ "audit_files_ok": 258,
+ "missing": [],
+ "thin": [
+  [
+   "A04",
+   "ui/package-lock.json#part4",
+   25
+  ],
+  [
+   "A05",
+   "ui/package-lock.json#part6",
+   30
+  ]
+ ],
+ "findings_total": {
+  "S0": 0,
+  "S1": 0,
+  "S2": 27,
+  "S3": 128,
+  "S4": 297
+ },
+ "verdicts": {
+  "REAL (code) / UNREACHABLE (shipped binary, W14)": 1,
+  "REAL (code) with 2 undeliverable claims / UNREACHABLE (W14)": 1,
+  "REAL (code); Sheet/Well/HeroPill DEAD in production; UNREACHABLE (W14)": 1,
+  "REAL (code); writes dead-end at HEAD (W11/W14); int branch drift": 1,
+  "REAL (code), geometry verified; UNREACHABLE (W14)": 1,
+  "REAL (code), clamp math verified; UNREACHABLE (W14)": 1,
+  "REAL (code); dead-button generator; engine tiles dead-end (W14)": 1,
+  "REAL (code), contrast claims recomputed; UNREACHABLE (W14)": 1,
+  "REAL (code); audio.list-devices has NO runtime handler (W8 class); unhandled rejection path": 1,
+  "REAL": 147,
+  "REAL (code); 2 stale \"pending fix\" comments; UNREACHABLE (W14)": 1,
+  "REAL (code); honest ghost (audio.set-eq absent, W8); onChange seam DEAD": 1,
+  "REAL (code); honest ghost, 8 controls guaranteed no-op": 1,
+  "REAL (code); ENTIRE routed area staged-inert (0 schema keys); systemic (4 areas)": 1,
+  "REAL (code); honest ghost; levels/onChange seams DEAD, 2 of 3 claimed mounts false": 1,
+  "REAL (code); DEAD COMPONENT (0 production consumers); 4th pattern copy lives in SettingsPanel": 1,
+  "REAL (live, 4 mounts); arrows move selection NOT focus (APG violation)": 1,
+  "REAL (code); drift guard invoked NOWHERE (CI/gate/baseline); vacuous pass here": 1,
+  "REAL (code); global.language setting unwired to locale seam (W11 pin); no error boundary": 1,
+  "REAL; dev-only verified (test-only import chain); no findings": 1,
+  "REAL; dev-only verified; global body rule noted": 1,
+  "REAL; correct 26-line seam; decorative memo": 1,
+  "REAL; light layering verified; 1.40:1 claim is dark-accent number (light=1.70)": 1,
+  "REAL (data; mining counts 26/26 exact, WCAG arithmetic exact) with 2 FALSE claims (E8E8E8 \"measured\" = 0 corpus hits; \"lightness-ranked\" = 39 inversions); dev-lane only, no shipped consumer (W14)": 1,
+  "REAL (data; alias layer clean, 0/86 orphan roles, WCAG numbers exact) with 1 FALSE claim (tertiary \">=4.5 on raised\" \u2014 dark measures 4.14:1); 8 dead semantic vars; dev-lane only (W14)": 1,
+  "SHALLOW": 12,
+  "STALE-ARTIFACT": 1,
+  "REAL(46/50 live; 4 dead assets)": 1,
+  "UNREACHABLE": 14,
+  "REAL-UNPROVEN": 12,
+  "REAL (dev-only, UNREACHABLE by design)": 2,
+  "REAL (lockfile integrity: CLEAN)": 1
+ },
+ "citations_checked": 7,
+ "citation_failures": [],
+ "gate": "FAIL"
+}
