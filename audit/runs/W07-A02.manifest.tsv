@@ -1,0 +1,8 @@
+crates/audio-engine/src/resample.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/audio-engine/src/pipeline.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/codecs/src/audio/aac/decoder.rs#part1	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/audio/adpcm/ms.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/audio-engine/src/mix.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/audio/mp2/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/audio-engine/src/lib.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/audio/alac/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
