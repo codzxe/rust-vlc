@@ -1,0 +1,12 @@
+path	kind
+crates/playback-engine/src/pipeline.rs#part5	chunk
+crates/playback-engine/src/events.rs#part3	chunk
+crates/renderer-wgpu/src/surface.rs	file
+crates/playback-engine/src/recovery.rs#part1	chunk
+crates/renderer-wgpu/src/negotiate.rs	file
+crates/video-engine/src/queue.rs	file
+crates/input/src/file.rs	file
+crates/video-engine/src/lib.rs	file
+crates/packet-queue/src/lib.rs	file
+crates/platform-macos/src/error.rs	file
+crates/video-engine/src/sink.rs	file
