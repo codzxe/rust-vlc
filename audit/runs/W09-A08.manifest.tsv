@@ -1,0 +1,6 @@
+crates/subtitles/src/vobsub/mod.rs	UNREACHABLE	S0:0 S1:1 S2:2 S3:3 S4:1
+crates/subtitles/src/ass/render.rs#part2	REAL (tests) / subject UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/subtitles/src/cc/mod.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:3
+crates/subtitles/src/compositing/bitmap.rs	REAL (contract layer; UNREACHABLE from shipped)	S0:0 S1:0 S2:0 S3:0 S4:4
+crates/subtitles/src/lib.rs	FALSE (contract narrative) / modules UNREACHABLE	S0:0 S1:0 S2:2 S3:2 S4:2
+crates/subtitles/src/compositing/mod.rs	REAL (wiring) / pipeline UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:0
