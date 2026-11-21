@@ -1,0 +1,23 @@
+{
+ "wave": "W08",
+ "assignments": 11,
+ "audit_files_ok": 11,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 1,
+  "S1": 1,
+  "S2": 7,
+  "S3": 22,
+  "S4": 20
+ },
+ "verdicts": {
+  "verdict": 2,
+  "REAL": 6,
+  "UNREACHABLE": 3,
+  "STUB": 2
+ },
+ "citations_checked": 9,
+ "citation_failures": [],
+ "gate": "PASS"
+}
