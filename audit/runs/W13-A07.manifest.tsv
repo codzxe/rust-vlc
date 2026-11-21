@@ -1,0 +1,5 @@
+apps/cli/src/pipeline_host.rs#part2	REAL	S0:0 S1:0 S2:1 S3:2 S4:3
+apps/cli/src/containers/mp4.rs#part1	REAL	S0:0 S1:0 S2:2 S3:0 S4:4
+apps/cli/src/run.rs#part2	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/cli/src/dispatch.rs	REAL	S0:0 S1:0 S2:1 S3:1 S4:3
+apps/control-server/src/main.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
