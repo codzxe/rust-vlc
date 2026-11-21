@@ -1,0 +1,7 @@
+crates/codecs/src/audio/adpcm/mod.rs#part2	REAL	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/audio/pcm/decoder.rs#part3	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/audio/mp3/decoder.rs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/audio/mp3/decoder.rs#part2	SHALLOW	S0:0 S1:0 S2:2 S3:1 S4:2
+crates/codecs/src/audio/adpcm/yamaha.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/audio/vorbis/seek.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/audio/aac/mod.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:0
