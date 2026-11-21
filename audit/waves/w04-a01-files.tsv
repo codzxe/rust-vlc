@@ -1,0 +1,15 @@
+path	kind
+crates/media-probe/src/signature/avi.rs	file
+crates/demux/src/aiff/chunks.rs	file
+crates/demux/examples/walk_bench.rs	file
+crates/demux/src/avi/index.rs#part1	chunk
+crates/demux/src/asf/error.rs	file
+crates/demux/src/avi/fuzz.rs	file
+crates/demux/src/es/fuzz.rs	file
+crates/demux/src/ivf/fuzz.rs	file
+crates/demux/src/asf/fixtures/asf_pcm_s16le.wma	file
+crates/demux/fixtures/adts/0059-trunc-4k.bin	file
+crates/demux/src/asf/fixtures/wmv_wmv2_64x48.wmv	file
+crates/media-probe/fixtures/annexb_probe_hevc.265	file
+crates/media-probe/fixtures/annexb_probe_h264.264	file
+crates/demux/src/asf/fixtures/wma_wmav2_mono8k.wma	file
