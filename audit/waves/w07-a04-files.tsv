@@ -1,0 +1,7 @@
+crates/codecs/src/audio/adpcm/mod.rs#part2	chunk
+crates/codecs/src/audio/pcm/decoder.rs#part3	chunk
+crates/codecs/src/audio/mp3/decoder.rs#part1	chunk
+crates/codecs/src/audio/mp3/decoder.rs#part2	chunk
+crates/codecs/src/audio/adpcm/yamaha.rs	file
+crates/codecs/src/audio/vorbis/seek.rs	file
+crates/codecs/src/audio/aac/mod.rs	file

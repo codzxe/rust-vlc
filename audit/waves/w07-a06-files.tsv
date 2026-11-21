@@ -1,0 +1,7 @@
+crates/codecs/src/audio/mp3/header.rs	file
+crates/codecs/src/audio/pcm/mod.rs	file
+crates/codecs/src/audio/adpcm/swf.rs	file
+crates/audio-engine/src/effects/eq.rs	file
+crates/codecs/src/audio/vorbis/error.rs	file
+crates/audio-engine/src/volume.rs	file
+crates/audio-engine/src/error.rs	file

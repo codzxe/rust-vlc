@@ -1,0 +1,8 @@
+crates/audio-engine/src/resample.rs	file
+crates/audio-engine/src/pipeline.rs#part2	chunk
+crates/codecs/src/audio/aac/decoder.rs#part1	chunk
+crates/codecs/src/audio/adpcm/ms.rs	file
+crates/audio-engine/src/mix.rs	file
+crates/codecs/src/audio/mp2/error.rs	file
+crates/audio-engine/src/lib.rs	file
+crates/codecs/src/audio/alac/mod.rs	file

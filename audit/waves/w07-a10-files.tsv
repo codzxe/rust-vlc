@@ -1,0 +1,8 @@
+crates/audio-engine/src/convert.rs	file
+crates/codecs/src/audio/mp3/xing.rs	file
+crates/codecs/src/audio/flac/metadata.rs	file
+crates/codecs/src/audio/vorbis/headers.rs	file
+crates/codecs/src/audio/alac/error.rs	file
+crates/codecs/src/audio/vorbis/fuzz.rs	file
+crates/audio-engine/src/buffer.rs	file
+crates/codecs/src/audio/opus/mod.rs	file

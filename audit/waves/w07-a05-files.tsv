@@ -1,0 +1,8 @@
+crates/codecs/src/audio/mp2/decoder.rs	file
+crates/codecs/src/audio/pcm/decoder.rs#part1	chunk
+crates/codecs/src/audio/alac/decoder.rs#part1	chunk
+crates/codecs/src/audio/adpcm/ima.rs	file
+crates/codecs/src/audio/mp2/seek.rs	file
+crates/codecs/src/audio/mp2/fuzz.rs	file
+crates/codecs/src/audio/flac/mod.rs	file
+crates/codecs/src/audio/opus/order.rs	file

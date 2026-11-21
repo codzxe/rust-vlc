@@ -1,0 +1,24 @@
+{
+ "wave": "W07",
+ "assignments": 75,
+ "audit_files_ok": 75,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 3,
+  "S2": 15,
+  "S3": 62,
+  "S4": 117
+ },
+ "verdicts": {
+  "verdict": 2,
+  "REAL": 54,
+  "UNREACHABLE": 14,
+  "SHALLOW": 2,
+  "REAL-UNPROVEN": 5
+ },
+ "citations_checked": 6,
+ "citation_failures": [],
+ "gate": "PASS"
+}

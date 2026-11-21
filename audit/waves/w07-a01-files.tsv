@@ -1,0 +1,7 @@
+crates/codecs/src/audio/flac/decoder.rs	file
+crates/audio-engine/src/pipeline.rs#part1	chunk
+crates/codecs/src/audio/opus/decoder.rs#part1	chunk
+crates/codecs/src/audio/vorbis/comments.rs	file
+crates/codecs/src/audio/mp3/fuzz.rs	file
+crates/codecs/src/audio/opus/error.rs	file
+crates/codecs/src/audio/mp3/mod.rs	file

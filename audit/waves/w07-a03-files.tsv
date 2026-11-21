@@ -1,0 +1,7 @@
+crates/codecs/src/audio/adpcm/mod.rs#part1	chunk
+crates/codecs/src/audio/pcm/decoder.rs#part2	chunk
+crates/audio-engine/src/effects.rs	file
+crates/codecs/src/audio/adpcm/misc.rs	file
+crates/codecs/src/audio/flac/error.rs	file
+crates/codecs/src/audio/aac/fuzz.rs	file
+crates/codecs/src/audio/mp2/mod.rs	file

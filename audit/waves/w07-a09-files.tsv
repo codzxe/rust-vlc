@@ -1,0 +1,8 @@
+crates/codecs/src/audio/mp3/id3.rs	file
+crates/codecs/src/audio/mp2/header.rs	file
+crates/codecs/src/audio/aac/decoder.rs#part2	chunk
+crates/audio-engine/src/channel_map.rs	file
+crates/codecs/src/audio/flac/fuzz.rs	file
+crates/codecs/src/audio/pcm/fuzz.rs	file
+crates/codecs/src/audio/adpcm/fuzz.rs	file
+crates/codecs/src/audio/vorbis/mod.rs	file

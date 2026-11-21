@@ -1,0 +1,7 @@
+crates/codecs/src/audio/flac/seek.rs	file
+crates/codecs/src/audio/vorbis/decoder.rs#part1	chunk
+crates/codecs/src/audio/opus/decoder.rs#part2	chunk
+crates/codecs/src/audio/aac/adts.rs	file
+crates/codecs/src/audio/mp3/seek.rs	file
+crates/codecs/src/audio/mp3/error.rs	file
+crates/codecs/src/audio/alac/fuzz.rs	file
