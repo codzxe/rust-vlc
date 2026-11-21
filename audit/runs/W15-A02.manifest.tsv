@@ -1,0 +1,27 @@
+crates/theme-tokens/src/parse.rs        UNREACHABLE(dev-tool; baseline-test-executed)   S0:0 S1:0 S2:0 S3:3 S4:3
+ui/src/screens/player/PlayerScreen.tsx#part2    SHALLOW S0:1 S1:0 S2:0 S3:2 S4:2
+ui/src/screens/shortcuts/shortcuts.css  REAL    S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/components/menu/Dropdown.tsx     REAL    S0:0 S1:0 S2:0 S3:1 S4:3
+ui/src/screens/player/controls/controls.css#part1       REAL    S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/settings/areas/effects.tsx       SHALLOW S0:0 S1:0 S2:1 S3:1 S4:1
+ui/src/screens/open-media/OpenMediaDialog.tsx   REAL    S0:0 S1:0 S2:1 S3:0 S4:2
+ui/src/components/list/Virtual.tsx      REAL(VirtualTable dead-in-prod) S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/network-stream/network-stream.css        REAL    S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/playlist/NewPlaylistDialog.tsx   REAL    S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/settings/areas/subtitles.css     REAL    S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/player/dialogs/ToolsDialog.tsx   SHALLOW S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/screens/player/variants/MusicMode.tsx    REAL    S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/theme/ThemeProvider.tsx  REAL    S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/components/form/SwatchGroup.tsx  REAL    S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/settings/areas/playback.tsx      SHALLOW S0:0 S1:0 S2:1 S3:0 S4:1
+ui/src/screens/settings/areas/staged.css        REAL    S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/player/states/StateRouter.tsx    REAL    S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/player/tools/dynamics/StereoWidenerTool.tsx      SHALLOW S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/settings/areas/language/LocalePicker.tsx	SHALLOW	S0:0 S1:0 S2:1 S3:1 S4:1
+ui/src/components/form/Switch.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/assets/fonts/fonts.css	REAL	S0:0 S1:0 S2:0 S3:1 S4:0
+ui/i18n-dead-keys.json	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/tsconfig.json	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/components/form/__snapshots__/Switch.test.tsx.snap	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/.vitest/json/output.json	STALE-ARTIFACT	S0:0 S1:0 S2:0 S3:1 S4:1
+asset-group://w15-g004	REAL(46/50 live; 4 dead assets)	S0:0 S1:0 S2:0 S3:3 S4:2
