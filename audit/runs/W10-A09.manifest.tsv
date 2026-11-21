@@ -1,0 +1,9 @@
+crates/streaming/src/ranged.rs#part1	REAL (reachable; tests unexecuted in baseline)	S0:0 S1:0 S2:1 S3:2 S4:1
+crates/playlists/src/probe.rs#part1	UNREACHABLE (dead in shipped; careful code)	S0:0 S1:0 S2:0 S3:3 S4:0
+crates/streaming/src/auth.rs#part3	REAL as tests / UNREACHABLE feature (auth never wired into shipped lane; tests never ran in baseline)	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/streaming/src/reconnect.rs#part2	UNREACHABLE (executor real but never wired; "v0 ships both layers on" is false)	S0:0 S1:0 S2:0 S3:2 S4:3
+crates/playlists/src/hls.rs#part1	REAL (library; UNREACHABLE from shipped)	S0:0 S1:0 S2:1 S3:4 S4:1
+crates/transcode/src/mp4mux.rs#part2	UNREACHABLE (zero-dependent crate; real muxer + round-trip suite never baseline-run)	S0:0 S1:0 S2:0 S3:2 S4:3
+crates/playlists/src/types.rs	REAL / UNREACHABLE (clean vocabulary; is_live dead + misnamed)	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/transcode/src/lib.rs	REAL / UNREACHABLE (orphan crate; docs verified accurate; zero findings)	S0:0 S1:0 S2:0 S3:0 S4:0
+crates/device-discovery/src/context.rs	UNREACHABLE (real tested budget struct in orphan crate; doc claims overreach)	S0:0 S1:0 S2:0 S3:3 S4:2
