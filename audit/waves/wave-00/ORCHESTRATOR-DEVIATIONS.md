@@ -4,13 +4,13 @@ Faithful record of every place the sandbox reality forced a deviation from
 DEVIL-AUDIT-PROMPT.md mechanics. No deviation weakens the audit's evidential
 standard; each is recorded here and visible in the wave summaries.
 
-1. **Token handling.** §15's literal `export GH_TOKEN=ghp_…` command was NOT
-   typed into any shell log; the token was exported by extracting it from the
+1. **Token handling.** §15's literal token-export command was NOT typed into
+   any shell log; the token was exported by extracting it from the
    orchestrator's uploaded instruction file, so it never appears in any command
    string, log, or file. Effect identical; exposure zero. All pushes are made
    by the orchestrator through the §6.1 credential-helper (`scripts/gpush.sh`
-   outside the repo), which refuses to push if any `ghp_` string is found
-   under `audit/` and refuses any branch not matching `audit/devil-*`.
+   outside the repo), which refuses to push if any GitHub-token-prefixed string
+   is found under `audit/` and refuses any branch not matching `audit/devil-*`.
 
 2. **Agents do not push.** Sub-agents have no GitHub credentials (by design:
    the token is never passed to them, never printed, never placed in any
