@@ -29,3 +29,15 @@ Systemic note for Wave 20 A04: citecheck.py's `Where:` regex takes only the
 first `path:a-b` of compound citations; adjudicate FAILs manually before
 recording. Agents should keep quoting with explicit per-block source labels
 (A07/A08 style is acceptable and precise).
+
+## Wave 2 gate (2026-11-21)
+
+Sample: 10 audit files × up to 3 citations. Raw: PASS 24 · FAIL 1.
+
+Adjudication: `w02-a01/audit/files/crates/commands/src/catalog/command.rs.part2.audit.md`
+F-001 `Where: command.rs:491-668 (variants) + apps/cli/src/dispatch.rs:155`,
+code block labeled "Code (dispatch fall-through):" quotes dispatch.rs. Verified
+verbatim at apps/cli/src/dispatch.rs:154-155 → **genuine; extractor paired the
+quote with the first path of a compound citation** (same class as wave 1).
+
+Confirmed fabrications in Wave 2: **0**.
