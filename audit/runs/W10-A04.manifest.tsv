@@ -1,0 +1,8 @@
+crates/transcode/src/runner.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:2
+crates/playlists/src/mpd.rs#part5	REAL (tests; subject UNREACHABLE)	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/streaming/src/schemes.rs#part1	REAL (open_http) / UNREACHABLE (classify half)	S0:0 S1:0 S2:2 S3:0 S4:1
+crates/playlists/src/xspf.rs#part1	REAL (unreachable from shipped entry points)	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/transcode/src/queue.rs	REAL (unreachable; S2 interrupt race)	S0:0 S1:0 S2:1 S3:1 S4:0
+crates/streaming/src/hls/timestamp_map.rs	REAL (unreachable; S2 year-overflow)	S0:0 S1:0 S2:1 S3:1 S4:0
+crates/device-discovery/src/volume.rs	REAL (crate not linked into any shipped binary)	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/transcode/src/cancel.rs	REAL (unreachable; cancel-finalize promise falsified by runner)	S0:0 S1:0 S2:1 S3:1 S4:0
