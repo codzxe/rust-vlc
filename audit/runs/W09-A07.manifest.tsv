@@ -1,0 +1,6 @@
+crates/subtitles/src/dvb/mod.rs#part1	UNREACHABLE	S0:0 S1:1 S2:2 S3:3 S4:1
+crates/subtitles/src/srt/parser.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/subtitles/src/vtt/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/subtitles/src/dvb/clut.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/subtitles/src/compositing/timing.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/subtitles/src/ass/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
