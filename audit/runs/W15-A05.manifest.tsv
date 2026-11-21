@@ -1,0 +1,26 @@
+ui/src/screens/playlist/playlist.css	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+ui/src/screens/player/dialogs/dialogs.css	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/onboarding/OnboardingScreen.tsx#part2	SHALLOW	S0:0 S1:0 S2:1 S3:1 S4:1
+ui/src/screens/player/tools/video/video.css	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/player/customize/CustomizePanels.tsx#part2	REAL	S0:0 S1:0 S2:0 S3:1 S4:0
+ui/scripts/web-matrix-run.mjs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/components/surface/surface.css	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/screens/settings/areas/index.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+themes/generated/tokens.css	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/src/screens/player/states/PlaylistBrowse.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/playlist/subtitles/SubtitlePickList.tsx	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+ui/scripts/gen-hotkeys-data.mjs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/tools/eslint-plugin-local/rules/i18n-no-literals.js	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+ui/tools/eslint-plugin-local/rules/semantic-tokens-only.js	REAL	S0:0 S1:0 S2:0 S3:0 S4:4
+ui/src/screens/settings/areas/codecs.tsx	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/tokens/TokenSandbox.css	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/settings/areas/appearance/AccentColorPicker.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/player/dialogs/dialogIcons.tsx	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/components/button/Button.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/player/tools/dynamics/harness.tsx	REAL (dev-only, UNREACHABLE by design)	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/components/slider/EQSlider.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/src/screens/media-info/MediaInfoScreen.tsx	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/src/screens/player/dialogs/harness.tsx	REAL (dev-only, UNREACHABLE by design)	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/package-lock.json#part6	REAL (lockfile integrity: CLEAN)	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/i18n-allowlist.json	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/src/components/form/__snapshots__/TextField.test.tsx.snap	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
