@@ -1,0 +1,8 @@
+crates/transcode/src/graph.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/playlists/src/mpd.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/transcode/src/wav.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/streaming/src/reconnect.rs#part3	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/streaming/src/hls/live.rs#part3	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/playlists/src/pls.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/device-discovery/src/error.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/playlists/src/lib.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
