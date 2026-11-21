@@ -1,0 +1,9 @@
+path	kind
+crates/_template/src/lint_canary.rs	file
+crates/streaming/Cargo.toml	file
+apps/cli/Cargo.toml	file
+crates/playback-engine/Cargo.toml	file
+apps/control-server/Cargo.toml	file
+crates/renderer-wgpu/Cargo.toml	file
+crates/video-engine/Cargo.toml	file
+crates/product-config/Cargo.toml	file
