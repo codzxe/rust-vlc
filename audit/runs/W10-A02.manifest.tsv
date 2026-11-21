@@ -1,0 +1,9 @@
+path#part	verdict	counts
+crates/streaming/src/dash/sched.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:1
+crates/playlists/src/mpd.rs#part3	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/streaming/src/auth.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/streaming/src/remote_playlist.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/streaming/src/hls/live.rs#part1	UNREACHABLE	S0:0 S1:1 S2:1 S3:1 S4:0
+crates/playlists/src/m3u.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:0 S4:3
+crates/device-discovery/src/events.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/playlists/src/error.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
