@@ -1,0 +1,80 @@
+CMD: bash scripts/full_gate.sh /home/z/my-project/audit-workspace
+NOTE: script default root is /home/z/my-project (hard-coded Lead-sandbox path); explicit repo dir passed
+DATE: 2026-11-21T06:22:04Z
+=== 1. fmt ===
+Diff in /home/z/my-project/audit-workspace/crates/plugin-api/tests/testkit_wiring.rs:40:
+     // and the names are unique — data, never hand-typed copy.
+     let mut names: Vec<&str> = PluginKind::ALL.iter().map(|k| k.as_str()).collect();
+     names.sort_unstable();
+-    let distinct = names.iter().collect::<std::collections::BTreeSet<_>>().len();
++    let distinct = names
++        .iter()
++        .collect::<std::collections::BTreeSet<_>>()
++        .len();
+     assert_eq!(distinct, names.len(), "manifest kind names are unique");
+     assert_eq!(names.len(), 16, "all sixteen §1.2 rows present");
+ 
+Diff in /home/z/my-project/audit-workspace/crates/plugin-api/tests/testkit_wiring.rs:47:
+     // Spot-check the spellings the §2.3 examples rely on.
+     assert_eq!(PluginKind::Access.as_str(), "access");
+     assert_eq!(PluginKind::AudioOutput.as_str(), "audio-output");
+-    assert_eq!(
+-        PluginKind::ServiceDiscovery.as_str(),
+-        "service-discovery"
+-    );
++    assert_eq!(PluginKind::ServiceDiscovery.as_str(), "service-discovery");
+ 
+     // Hostile manifests are a typed error, not a panic — the Semver
+     // lane above proves the same posture for versions.
+fmt: FAILED
+=== 2. clippy ===
+clippy: CLEAN
+=== 3. test ===
+test: FAILED
+=== 4. check-architecture ===
+arch: FAILED
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+error: could not create incremental compilation crate directory `/home/z/my-project/target/debug/incremental/xtask-01audcnykmcy7`: No space left on device (os error 28)
+
+error: could not compile `xtask` (bin "xtask") due to 1 previous error
+=== 5. fixtures --check ===
+fixtures: FAILED
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+error: could not create incremental compilation crate directory `/home/z/my-project/target/debug/incremental/xtask-01audcnykmcy7`: No space left on device (os error 28)
+
+error: could not compile `xtask` (bin "xtask") due to 1 previous error
+=== 6. fuzz-registry (doc 04 §8.5 — registry-vs-implementation diff) ===
+fuzz-registry: CLEAN — 35 targets, diff empty, corpora present
+fuzz-registry: PASS
+=== 7. lint-literals (doc 07 §9 C1 — config-plane literal scan, card 7.w21a) ===
+lint-literals: FAILED
+=== 8. check-identity (doc 07 §9 C2 — no-hardcoded-identity scan, card 7.w21a) ===
+check-identity: FAILED
+=== 9. sbom --check (issue #52 / doc 11 §3.4 — CycloneDX 1.5 SBOM drift gate) ===
+sbom: FAILED
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+error: could not create incremental compilation crate directory `/home/z/my-project/target/debug/incremental/xtask-01audcnykmcy7`: No space left on device (os error 28)
+
+error: could not compile `xtask` (bin "xtask") due to 1 previous error
+=== 10. web-budget --check (issue #49 / doc 09 §2.4 — wasm size-budget + growth gate, card 7.K1) ===
+web-budget: FAILED
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+error: could not create incremental compilation crate directory `/home/z/my-project/target/debug/incremental/xtask-01audcnykmcy7`: No space left on device (os error 28)
+
+error: could not compile `xtask` (bin "xtask") due to 1 previous error
+=== 11. packaging gate (issue #56 / cards 8.E1–8.E3 — packaging.toml schema + packaging script syntax + payload stagers + unsigned-fallback contracts) ===
+packaging: FAILED
+gate.sh: 1. packaging.toml <-> packaging.schema.json + product bridge
+gate.sh:    packaging-env.py: 52 variables resolved (schema + semantic pass green)
+gate.sh:    bridge exports BIN_TAURI (third shipped bin wired end to end)
+gate.sh: 2. scripts/packaging/*.sh parse under bash -n AND sh -n
+gate.sh:    all 14 scripts parse clean
+gate.sh: 3. packaging python tools parse (ast.parse — no bytecode written)
+gate.sh:    python tools parse
+gate.sh: 4. scripts/packaging/*.ps1 structural check (no pwsh in this sandbox)
+gate.sh:    ps1 structural checks pass (real parse: Windows runner [VERIFY])
+gate.sh: 5. gen-desktop-entry.sh + stage-linux-payload.sh (throwaway tree)
+mktemp: failed to create directory via template ‘/tmp/tmp.XXXXXXXXXX’: No space left on device
+gate.sh: FAILED: mktemp failed
+=== GATE RESULT: FAIL ===
+EXIT=1

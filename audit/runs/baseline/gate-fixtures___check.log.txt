@@ -1,0 +1,6 @@
+CMD: cargo xtask fixtures --check
+DATE: 2026-11-21T06:31:58Z
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/z/my-project/target/debug/xtask fixtures --check`
+result: no drift — 55 file(s) verified under /home/z/my-project/audit-workspace/tests/fixtures
+EXIT=0

@@ -1,0 +1,18 @@
+CMD: npm test (vitest run)
+DATE: 2026-11-21T06:19:01Z
+ ✓ src/screens/settings/areas/advanced.test.tsx (2 tests) 133ms
+ ✓ src/screens/settings/areas/hotkeys/conflicts.test.ts (7 tests) 5ms
+ ✓ src/components/form/Checkbox.test.tsx (5 tests) 61ms
+ ✓ src/client/transport.test.ts (4 tests) 6ms
+ ✓ src/components/form/ValueChip.test.tsx (4 tests) 37ms
+
+ Test Files  136 passed (136)
+      Tests  1705 passed | 1 skipped (1706)
+   Start at  06:19:01
+   Duration  146.33s (environment 52%, tests 31%, setup 8%, import 5%, transform 3%)
+
+Environment  jsdom was created 136 times · 68.83s total, 52% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+EXIT=0

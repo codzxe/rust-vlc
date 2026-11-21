@@ -1,0 +1,9 @@
+CMD: printf 'quit\n' | timeout -k 5 40 /home/z/my-project/target/release/lumen open audit/runs/baseline/samples/sample-hevc.mp4
+DATE: 2026-11-21T07:06:30Z
+error: [decode.unsupported]: unsupported (cli.codec_unavailable): no decoder for `hevc` in this build (landed: mjpeg, pcm, flac, mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1, h264)
+  code: cli.codec_unavailable
+event: state-changed Idle → Opening
+event: error [decode.unsupported] unsupported (cli.codec_unavailable)
+event: state-changed Opening → Error
+event: state-changed Error → Idle
+EXIT=65

@@ -1,0 +1,2412 @@
+   Compiling platform-windows v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-windows)
+   Compiling template v0.1.0 (/home/z/my-project/audit-workspace/crates/_template)
+   Compiling platform-macos v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-macos)
+   Compiling platform-linux v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-linux)
+   Compiling localization v0.1.0 (/home/z/my-project/audit-workspace/crates/localization)
+   Compiling device-discovery v0.1.0 (/home/z/my-project/audit-workspace/crates/device-discovery)
+   Compiling control-server v0.1.0 (/home/z/my-project/audit-workspace/apps/control-server)
+   Compiling transcode v0.1.0 (/home/z/my-project/audit-workspace/crates/transcode)
+   Compiling theme-tokens v0.1.0 (/home/z/my-project/audit-workspace/crates/theme-tokens)
+   Compiling plugin-host-wasm v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-host-wasm)
+   Compiling desktop v0.1.3 (/home/z/my-project/audit-workspace/apps/desktop)
+   Compiling first-vertical v0.1.0 (/home/z/my-project/audit-workspace/tests/integration/first-vertical)
+   Compiling control-protocol v0.1.0 (/home/z/my-project/audit-workspace/crates/control-protocol)
+   Compiling product-config v0.1.0 (/home/z/my-project/audit-workspace/crates/product-config)
+   Compiling subtitles v0.1.0 (/home/z/my-project/audit-workspace/crates/subtitles)
+   Compiling lumen-cli v0.1.3 (/home/z/my-project/audit-workspace/apps/cli)
+   Compiling streaming v0.1.0 (/home/z/my-project/audit-workspace/crates/streaming)
+   Compiling renderer-wgpu v0.1.0 (/home/z/my-project/audit-workspace/crates/renderer-wgpu)
+   Compiling lumen-mem-audit v0.1.0 (/home/z/my-project/audit-workspace/tools/mem-audit)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling lumen-web v0.1.0 (/home/z/my-project/audit-workspace/apps/web)
+   Compiling lumen-sweep v0.1.0 (/home/z/my-project/audit-workspace/tools/sweep)
+   Compiling video-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/video-engine)
+   Compiling settings-schema v0.1.0 (/home/z/my-project/audit-workspace/crates/settings-schema)
+   Compiling playlists v0.1.0 (/home/z/my-project/audit-workspace/crates/playlists)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/audit-workspace/crates/packet-queue)
+   Compiling codecs v0.1.0 (/home/z/my-project/audit-workspace/crates/codecs)
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+   Compiling demux v0.1.0 (/home/z/my-project/audit-workspace/crates/demux)
+   Compiling input v0.1.0 (/home/z/my-project/audit-workspace/crates/input)
+   Compiling plugin-api v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-api)
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+   Compiling testkit v0.1.0 (/home/z/my-project/audit-workspace/crates/testkit)
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+    Finished `release` profile [optimized] target(s) in 4m 53s
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/audio_engine-2919a678f4fb0fef)
+
+running 86 tests
+test buffer::tests::buffer_frame_math ... ok
+test channel_map::tests::apply_rejects_wrong_plane_geometry ... ok
+test channel_map::tests::apply_reuses_output_capacity ... ok
+test channel_map::tests::identity_is_bit_exact ... ok
+test channel_map::tests::mono_to_stereo_duplicates ... ok
+test channel_map::tests::stereo_to_mono_sums ... ok
+test channel_map::tests::routes_validate_indices_and_sum_duplicates ... ok
+test channel_map::tests::swap_exchanges_the_pair ... ok
+test convert::tests::f32_interleave_round_trips_the_deinterleave ... ok
+test convert::tests::every_format_decodes_a_known_scalar ... ok
+test convert::tests::interleave_into_is_byte_identical_to_the_vec_version ... ok
+test convert::tests::interleaved_output_rejects_ragged_planes ... ok
+test convert::tests::partial_frames_are_typed_corrupt ... ok
+test convert::tests::plane_capacity_is_reused_across_calls ... ok
+test convert::tests::s16_interleaved_decodes_exactly ... ok
+test convert::tests::s16_planar_decodes_exactly ... ok
+test convert::tests::s16_saturates_at_the_boundary ... ok
+test convert::tests::s16_round_trip_is_exact_over_the_full_range ... ok
+test convert::tests::s16_stereo_fast_path_is_bit_identical_to_the_generic_loop ... ok
+test effects::eq::tests::bad_parameters_are_typed_errors ... ok
+test effects::eq::tests::eq_plugs_into_the_effect_chain ... ok
+test effects::eq::tests::flat_eq_is_bit_exact_identity ... ok
+test effects::eq::tests::high_shelf_cuts_treble_by_the_asked_db ... ok
+test effects::eq::tests::identity_coeffs_are_the_trivial_filter ... ok
+test effects::eq::tests::low_shelf_boosts_bass_by_the_asked_db ... ok
+test effects::eq::tests::mid_peak_gains_at_center_frequency ... ok
+test effects::eq::tests::per_channel_state_is_independent ... ok
+test effects::eq::tests::preamp_scales_before_the_bands ... ok
+test effects::tests::balance_center_is_minus_3db_constant_power ... ok
+test effects::tests::balance_hard_stops_are_pinned ... ok
+test effects::tests::balance_rejects_out_of_range_and_non_stereo ... ok
+test effects::tests::balance_scales_each_channel_by_its_law_gain ... ok
+test effects::tests::chain_bound_is_a_wall ... ok
+test effects::tests::chain_runs_stages_in_push_order ... ok
+test effects::tests::empty_chain_is_identity_noop ... ok
+test effects::tests::gain_identity_is_bit_exact ... ok
+test effects::tests::gain_mute_compose_to_silence ... ok
+test effects::tests::gain_scales_sine_amplitude ... ok
+test effects::tests::mute_zeroes_everything ... ok
+test error::tests::codes_are_stable_and_lowercase ... ok
+test governor::tests::frozen_time_source_never_re_evaluates ... ok
+test governor::tests::reset_bounds_the_post_regime_transient ... ok
+test governor::tests::s1_fixed_plus_100ppm_device_converges_within_45s ... ok
+test governor::tests::s2_fixed_minus_100ppm_device_converges_without_flooding ... ok
+test governor::tests::s3_at_the_bound_and_adversarially_beyond ... ok
+test governor::tests::s5_fill_jitter_does_not_amplify ... ok
+test governor::tests::s6_rate_composition_converges_at_other_geometry ... ok
+test governor::tests::step_limiter_is_counted_and_enforced ... ok
+test governor::tests::unmeasurable_sink_parks_at_zero ... ok
+test mix::tests::geometry_and_track_errors_are_typed ... ok
+test mix::tests::mute_leaves_the_other_track_untouched ... ok
+test mix::tests::output_capacity_is_reused ... ok
+test mix::tests::per_track_volumes_apply_before_summing ... ok
+test mix::tests::single_track_at_unity_is_bit_exact ... ok
+test mix::tests::two_tracks_sum_in_track_order ... ok
+test pipeline::tests::armed_governor_closes_the_loop_through_observe_drift ... ok
+test pipeline::tests::channel_swap_routes_the_pair ... ok
+test pipeline::tests::frame_counts_are_conserved_through_the_quantum ... ok
+test pipeline::tests::misaligned_quanta_are_typed_errors ... ok
+test pipeline::tests::mono_track_maps_into_a_stereo_pipeline ... ok
+test pipeline::tests::quantum_output_rotation_is_bounded_and_values_stay_exact ... ok
+test pipeline::tests::reset_drift_restarts_the_measurement_regime ... ok
+test pipeline::tests::shape_and_geometry_errors_are_typed ... ok
+test pipeline::tests::two_tracks_mix_straight ... ok
+test pipeline::tests::unarmed_pipeline_ignores_drift_observations ... ok
+test pipeline::tests::unity_single_track_is_bit_exact_end_to_end ... ok
+test pipeline::tests::volume_halves_the_output ... ok
+test pipeline::tests::zero_correction_is_the_bit_exact_bypass ... ok
+test resample::tests::channel_coherence_by_construction ... ok
+test resample::tests::correction_change_midstream_renormalizes_the_phase ... ok
+test resample::tests::linear_interpolation_values_are_exact ... ok
+test resample::tests::out_never_exceeds_the_design_bound ... ok
+test resample::tests::phase_carries_exactly_across_quanta ... ok
+test resample::tests::ratio_is_exact_over_long_streams ... ok
+test resample::tests::reset_starts_a_fresh_phase ... ok
+test pipeline::tests::nonzero_correction_shifts_the_quantum_by_the_exact_ratio ... ok
+test resample::tests::special_values_survive_the_exact_tail_identically ... ok
+test resample::tests::the_stream_never_fabricates_samples_past_the_kernel_window ... ok
+test resample::tests::zero_correction_emits_the_input_count_exactly ... ok
+test resample::tests::zero_frame_quantum_is_a_no_op ... ok
+test volume::tests::apply_is_a_pure_multiply ... ok
+test volume::tests::db_construction_matches_the_amplitude_convention ... ok
+test volume::tests::linear_construction_rejects_bad_values ... ok
+test volume::tests::mute_zeroes_everything_finite ... ok
+test volume::tests::unity_is_bit_preserving ... ok
+test resample::tests::restructured_kernel_is_bit_identical_to_the_former_single_loop ... ok
+
+test result: ok. 86 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/audio_bench.rs (/home/z/my-project/target/release/deps/audio_bench-68d459c36e641256)
+
+running 2 tests
+test pipeline_throughput_bypass ... ignored, W5-19 throughput measurement: cargo test -p audio-engine --release --ignored (numbers in the W5-19 worklog entry)
+test pipeline_throughput_drift_corrected ... ignored, W5-19 throughput measurement: cargo test -p audio-engine --release --ignored (numbers in the W5-19 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/zero_alloc_quantum.rs (/home/z/my-project/target/release/deps/zero_alloc_quantum-f6d1538ae9e142db)
+
+running 1 test
+test audio_quantum_path_is_zero_allocation_after_warm_up ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/zero_alloc_resample.rs (/home/z/my-project/target/release/deps/zero_alloc_resample-725b5d4bb590a1ff)
+
+running 1 test
+test drift_corrected_quantum_path_is_zero_allocation_after_warm_up ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/audio_output-f2a588feb9160d60)
+
+running 33 tests
+test counter::tests::counter_is_monotonic_and_rate_carrying ... ok
+test counter::tests::offset_carry_never_rewinds_across_devices ... ok
+test counter::tests::zero_rate_is_typed ... ok
+test cpal::tests::the_constructor_refuses_with_the_typed_marker ... ok
+test cpal::tests::the_gate_is_recorded_closed ... ok
+test error::tests::errors_carry_stage_and_stable_codes ... ok
+test null::tests::backpressure_is_typed_and_all_or_nothing ... ok
+test null::tests::format_and_shape_errors_are_typed ... ok
+test null::tests::latency_reports_the_ring_fill ... ok
+test null::tests::open_stream_roundtrip_and_capture ... ok
+test null::tests::pause_freezes_counter_and_renders ... ok
+test null::tests::renderer_callback_composes_over_the_shared_state ... ok
+test null::tests::stream_mode_shares_the_counter_between_the_halves ... ok
+test null::tests::underruns_are_counted_and_silence_captured ... ok
+test pattern::tests::fill_emits_whole_frames_and_leaves_the_tail_untouched ... ok
+test pattern::tests::invalid_shapes_are_typed ... ok
+test pattern::tests::quarter_rate_tone_hits_the_exact_cardinal_values ... ok
+test pattern::tests::the_oracle_is_a_pure_function_of_the_instant ... ok
+test pump::tests::a_foreign_clock_is_a_typed_mismatch ... ok
+test pump::tests::drop_policy_counts_and_backpressure_is_typed ... ok
+test pump::tests::partial_frames_are_refused_before_the_sink_is_touched ... ok
+test pump::tests::zero_high_water_is_refused_at_construction ... ok
+test render::tests::full_read_copies_everything_and_advances_once ... ok
+test render::tests::renderer_trait_callback_produces_the_same_output ... ok
+test render::tests::ring_segments_stay_within_the_power_of_two_wrap_budget ... ok
+test render::tests::underrun_fills_silence_and_counts_one_event ... ok
+test ring::tests::full_ring_refuses_without_blocking_or_tearing ... ok
+test ring::tests::push_read_roundtrip_in_fifo_order ... ok
+test ring::tests::long_stream_wrap_conservation ... ok
+test ring::tests::shape_validation_is_typed ... ok
+test ring::tests::short_read_reports_what_was_available ... ok
+test ring::tests::unaligned_buffers_are_refused_whole ... ok
+test stub::tests::every_operation_answers_typed_not_supported ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/callback_budget.rs (/home/z/my-project/target/release/deps/callback_budget-a06585f5ddc08153)
+
+running 4 tests
+test callback_budget_holds_across_a_geometry_sweep ... ok
+test paused_device_is_a_zero_operation_callback ... ok
+test starved_callback_fills_silence_and_still_honors_the_budget ... ok
+test callback_ledger_within_budget_over_a_fully_driven_session ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/clock_truth.rs (/home/z/my-project/target/release/deps/clock_truth-9c6358d22e293476)
+
+running 1 test
+test the_device_sample_counter_drives_the_audio_master_clock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pcm_pipeline.rs (/home/z/my-project/target/release/deps/pcm_pipeline-472db2b11132bf35)
+
+running 4 tests
+test backpressure_is_typed_and_clears_as_the_clock_advances ... ok
+test drop_policy_bounds_memory_and_keeps_the_prefix ... ok
+test the_cpal_seam_refuses_with_the_typed_marker ... ok
+test clock_synced_pump_delivers_the_exact_sine_stream ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sine_sink_hash.rs (/home/z/my-project/target/release/deps/sine_sink_hash-9fac77e7d828245d)
+
+running 3 tests
+test sink_buffer_hash_survives_ring_wrap_refusal_and_pacing ... ok
+test specd_sine_is_the_committed_corpus_tone ... ok
+test sine_fixture_sink_buffer_hash_is_byte_stable_across_runs ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/zero_alloc_null_sink.rs (/home/z/my-project/target/release/deps/zero_alloc_null_sink-5de14fa6c6eec3a1)
+
+running 1 test
+test null_sink_write_path_is_zero_allocation_after_warm_up ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/codec_api-33671fb2de609986)
+
+running 16 tests
+test capability::tests::capability_predicates_treat_absence_as_unconstrained ... ok
+test capability::tests::dimension_limits_validate_per_axis ... ok
+test capability::tests::opaque_descriptors_reject_empty_and_control_bytes ... ok
+test config::tests::decoder_config_assembles_and_debugs_its_negotiation ... ok
+test config::tests::encoder_config_mirrors_decoder_config ... ok
+test config::tests::thread_budget_bounds_are_enforced ... ok
+test contract::tests::agreement_rejects_lies_and_accepts_truth ... ok
+test contract::tests::counting_sinks_retain_and_reset ... ok
+test contract::tests::failing_sinks_refuse_and_count_attempts ... ok
+test contract::tests::sink_failure_is_detectable_verbatim_and_chained ... ok
+test contract::tests::violation_reports_its_detail ... ok
+test decode::tests::outcome_is_small_and_comparable ... ok
+test decode::tests::stale_guard_fires_only_for_past_generations ... ok
+test encode::tests::encode_outcome_mirrors_decode_outcome ... ok
+test encode::tests::stale_frame_guard_fires_only_for_past_generations ... ok
+test hw::tests::accelerator_identity_and_downcast_round_trip ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/contract_suite.rs (/home/z/my-project/target/release/deps/contract_suite-a09f4defa693decd)
+
+running 8 tests
+test contract_suite_accepts_a_typed_fatal_error_for_corrupt_input ... ok
+test mock_decoder_outcome_language_behaves_as_documented ... ok
+test mock_decoder_passes_the_contract_suite ... ok
+test mock_encoder_gop_and_recovery_behave_as_documented ... ok
+test mock_encoder_passes_the_contract_suite ... ok
+test trait_objects_and_configs_are_send ... ok
+test unconfigured_use_and_configure_rejection_are_typed_errors ... ok
+test rogue_decoders_are_caught_by_the_suite ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/codecs-a09c6e929c0d0856)
+
+running 506 tests
+test audio::aac::adts::tests::channel_config_table_resolves_the_documented_counts ... ok
+test audio::aac::adts::tests::bad_sync_layer_index_and_short_buffers_are_typed ... ok
+test audio::aac::adts::tests::header_fields_parse_exactly ... ok
+test audio::aac::adts::tests::walk_resyncs_past_garbage_and_drops_the_trailing_partial ... ok
+test audio::aac::decoder::tests::asc_channel_config_sniffing_handles_index_and_escape ... ok
+test audio::aac::decoder::tests::asc_object_type_sniffing_spots_the_he_family ... ok
+test audio::aac::decoder::tests::configure_rejects_foreign_descriptors ... ok
+test audio::aac::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test audio::aac::decoder::tests::descriptor_gate_accepts_aac_only ... ok
+test audio::aac::decoder::tests::he_asc_refuses_typed_and_never_reaches_the_engine ... ok
+test audio::aac::decoder::tests::empty_buffer_and_garbage_refuse_typed_not_panicking ... ok
+test audio::aac::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::aac::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::aac::fuzz::tests::a_header_only_buffer_is_survived ... ok
+test audio::aac::decoder::tests::six_channel_asc_refuses_typed_not_engine_opaque ... ok
+test audio::aac::tests::probe_accepts_validated_headers_only ... ok
+test audio::adpcm::fuzz::tests::empty_and_short_inputs_survive ... ok
+test audio::aac::fuzz::tests::empty_and_garbage_inputs_never_panic ... ok
+test audio::adpcm::fuzz::tests::raw_facts_skeleton_stays_legal ... ok
+test audio::adpcm::ima::tests::block_smaller_than_header_is_skipped_not_panicked ... ok
+test audio::adpcm::ima::tests::header_index_above_88_clamps_and_flags ... ok
+test audio::adpcm::ima::tests::mono_block_decodes_the_pinned_ladder ... ok
+test audio::adpcm::ima::tests::step_table_is_the_published_89_entry_ladder ... ok
+test audio::adpcm::ima::tests::stereo_group_interleave_keeps_channels_separate ... ok
+test audio::adpcm::fuzz::tests::hostile_wide_inputs_survive ... ok
+test audio::adpcm::misc::tests::partial_and_multiply_forms_disagree_on_odd_steps ... ok
+test audio::adpcm::misc::tests::qt_continuation_heuristic_keeps_running_state ... ok
+test audio::adpcm::misc::tests::qt_header_word_splits_predictor_and_index ... ok
+test audio::adpcm::misc::tests::qt_short_packet_and_wild_index_are_skipped ... ok
+test audio::adpcm::misc::tests::qt_stereo_chunks_are_per_channel_then_interleaved ... ok
+test audio::adpcm::misc::tests::sign_extend_helper_matches_c_semantics ... ok
+test audio::adpcm::misc::tests::ws_mono_is_two_samples_per_byte_low_first ... ok
+test audio::adpcm::misc::tests::ws_state_persists_across_calls ... ok
+test audio::adpcm::misc::tests::ws_stereo_packs_one_byte_per_channel_per_pair ... ok
+test audio::adpcm::misc::tests::ws_trailing_byte_of_an_odd_stereo_payload_is_left_unconsumed ... ok
+test audio::adpcm::ms::tests::block_smaller_than_header_is_skipped_not_panicked ... ok
+test audio::adpcm::ms::tests::mono_block_decodes_the_pinned_ladder ... ok
+test audio::adpcm::ms::tests::negative_header_delta_heals_to_the_floor ... ok
+test audio::adpcm::ms::tests::predictor_out_of_table_skips_the_block_typed ... ok
+test audio::adpcm::ms::tests::standard_table_matches_the_published_pairs ... ok
+test audio::adpcm::oki::tests::accumulator_is_twelve_bit_and_output_scaled ... ok
+test audio::adpcm::oki::tests::channel_order_is_high_nibble_first ... ok
+test audio::adpcm::oki::tests::first_nibble_ladder_is_hand_verified ... ok
+test audio::adpcm::oki::tests::index_clamps_at_both_rails ... ok
+test audio::adpcm::oki::tests::state_persists_across_calls ... ok
+test audio::adpcm::oki::tests::step_table_is_the_pinned_49_entry_ladder ... ok
+test audio::adpcm::swf::tests::bit_reader_is_msb_first_and_checked ... ok
+test audio::adpcm::swf::tests::bit_writer_round_trips_the_reader ... ok
+test audio::adpcm::swf::tests::count_cap_chains_a_second_block_in_one_packet ... ok
+test audio::adpcm::swf::tests::empty_and_tiny_packets_are_typed ... ok
+test audio::adpcm::swf::tests::mono_block_seed_then_partial_sum_fields ... ok
+test audio::adpcm::swf::tests::odd_step_rounding_is_the_partial_sum_form ... ok
+test audio::adpcm::swf::tests::packet_short_of_a_header_is_skipped ... ok
+test audio::adpcm::swf::tests::stereo_pair_layout_interleaves_fields ... ok
+test audio::adpcm::tests::gate_accepts_exactly_the_seven_flavors ... ok
+test audio::adpcm::tests::ima_packet_decodes_and_recovers_typed ... ok
+test audio::adpcm::tests::lettered_oki_is_the_honest_typed_gap ... ok
+test audio::adpcm::tests::missing_facts_and_skeleton_damage_are_typed_unsupported ... ok
+test audio::adpcm::tests::missing_facts_and_zero_block_align_are_typed_unsupported ... ok
+test audio::adpcm::tests::ms_packet_decodes_stereo_interleaved ... ok
+test audio::adpcm::tests::swf_and_qt_packet_damage_recovers_typed ... ok
+test audio::adpcm::tests::raw_pooled_rotation_is_reused_across_packets ... ok
+test audio::adpcm::tests::tag_mismatch_and_coef_damage_are_typed_unsupported ... ok
+test audio::adpcm::tests::unconfigured_decode_is_typed_bad_state ... ok
+test audio::adpcm::tests::wav_pooled_rotation_is_reused_across_packets ... ok
+test audio::adpcm::tests::yamaha_packets_decode_with_persistent_state ... ok
+test audio::adpcm::yamaha::tests::fresh_state_seeds_127_and_zero ... ok
+test audio::adpcm::yamaha::tests::mono_two_samples_per_byte_low_first ... ok
+test audio::adpcm::yamaha::tests::state_persists_across_calls ... ok
+test audio::adpcm::yamaha::tests::stereo_pair_keeps_channels_separate ... ok
+test audio::adpcm::yamaha::tests::tables_are_the_pinned_7_1_5_pair ... ok
+test audio::adpcm::yamaha::tests::truncating_division_is_the_negative_case ... ok
+test audio::alac::decoder::tests::cookie_damage_is_typed_per_rule ... ok
+test audio::alac::decoder::tests::cookie_parse_accepts_the_passthrough_shapes ... ok
+test audio::alac::decoder::tests::output_width_follows_the_bit_depth ... ok
+test audio::alac::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::alac::decoder::tests::truncation_maps_to_the_typed_tripwire ... ok
+test audio::alac::error::tests::corrupt_variant_carries_the_structured_class ... ok
+test audio::alac::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::alac::fuzz::tests::hostile_wide_inputs_survive ... ok
+test audio::alac::fuzz::tests::empty_and_short_inputs_survive ... ok
+test audio::alac::tests::output_format_matches_the_decode_mapping ... ok
+test audio::flac::decoder::tests::descriptor_gate_accepts_only_flac ... ok
+test audio::flac::decoder::contract_tests::channel_count_mismatch_is_typed_not_panic ... ok
+test audio::flac::decoder::tests::output_width_mapping_is_left_justifying ... ok
+test audio::flac::decoder::tests::write_i24_is_native_order_low_24_bits ... ok
+test audio::flac::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::flac::error::tests::corrupt_variant_carries_the_structured_class ... ok
+test audio::flac::fuzz::tests::demux_pass_survives_hostile_input ... ok
+test audio::flac::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::flac::fuzz::tests::empty_input_survives_all_passes ... ok
+test audio::flac::fuzz::tests::hostile_wide_inputs_survive ... ok
+test audio::flac::fuzz::tests::marker_only_and_short_inputs_survive ... ok
+test audio::flac::fuzz::tests::synthetic_facts_stay_in_the_legal_domain ... ok
+test audio::flac::metadata::tests::parse_stream_rejects_magic_and_truncation_typed ... ok
+test audio::flac::metadata::tests::parse_stream_walks_blocks_and_finds_frames_start ... ok
+test audio::flac::metadata::tests::probe_accepts_only_the_marker ... ok
+test audio::flac::metadata::tests::seek_index_drops_placeholders_and_keeps_points ... ok
+test audio::flac::metadata::tests::streaminfo_parses_the_packed_field ... ok
+test audio::flac::metadata::tests::streaminfo_rejects_short_bodies_and_bad_geometry ... ok
+test audio::flac::seek::tests::block_size_escape_is_one_based_and_number_comes_first ... ok
+test audio::flac::seek::tests::crc8_guards_false_syncs ... ok
+test audio::flac::seek::tests::eight_bit_escape_and_variable_blocking_parse ... ok
+test audio::flac::seek::tests::fixed_stream_tail_frame_uses_the_stream_block_size ... ok
+test audio::flac::seek::tests::garbage_offsets_do_not_parse_as_headers ... ok
+test audio::flac::seek::tests::planner_refuses_out_of_range_frames_start ... ok
+test audio::flac::tests::output_format_matches_the_decode_mapping ... ok
+test audio::mp2::decoder::tests::a_layer_iii_stream_is_refused_not_misdecoded ... ok
+test audio::mp2::decoder::tests::a_minimal_synthetic_stream_decodes_end_to_end ... ok
+test audio::mp2::decoder::tests::a_truncated_frame_packet_is_a_typed_truncation ... ok
+test audio::mp2::decoder::tests::cbr_seek_plan_from_the_decoded_geometry_lands_on_frames ... ok
+test audio::mp2::decoder::tests::configure_rejects_foreign_descriptors_and_unexpected_facts ... ok
+test audio::mp2::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test audio::mp2::decoder::tests::descriptor_gate_is_exactly_mp2 ... ok
+test audio::mp2::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::mp2::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::mp2::fuzz::tests::a_layer_iii_frame_is_refused_not_decoded ... ok
+test audio::mp2::fuzz::tests::a_header_only_buffer_is_survived ... ok
+test audio::mp2::header::tests::bitrate_tables_match_the_family_parser ... ok
+test audio::mp2::header::tests::family_header_failures_pass_through_typed ... ok
+test audio::mp2::header::tests::geometry_refuses_a_bitrate_switch ... ok
+test audio::mp2::header::tests::mode_extension_decodes_the_layer_ii_bound ... ok
+test audio::mp2::header::tests::non_layer_ii_is_a_typed_refusal ... ok
+test audio::mp2::header::tests::padding_bit_varies_frame_size_but_not_the_nominal_geometry ... ok
+test audio::mp2::header::tests::parses_the_canonical_layer_ii_headers ... ok
+test audio::mp2::header::tests::probe_accepts_layer_ii_only ... ok
+test audio::mp2::header::tests::walk_gates_layer_and_reports_geometry ... ok
+test audio::mp2::header::tests::walk_refuses_a_midstream_layer_switch ... ok
+test audio::mp2::seek::tests::cbr_seek_agrees_with_the_family_planner ... ok
+test audio::mp2::seek::tests::cbr_seek_is_exact_frame_arithmetic ... ok
+test audio::mp2::seek::tests::refine_snaps_a_padded_stream_to_a_real_header ... ok
+test audio::mp2::seek::tests::sample_at_byte_inverts_on_integral_frame_sizes ... ok
+test audio::mp2::tests::the_public_surface_reexports_resolve ... ok
+test audio::mp3::decoder::tests::configure_rejects_foreign_descriptors_and_bad_facts ... ok
+test audio::mp3::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test audio::mp3::decoder::tests::descriptor_gate_accepts_the_mpeg_audio_family ... ok
+test audio::mp3::decoder::tests::facts_blob_round_trips_and_rejects_bad_lengths ... ok
+test audio::mp3::decoder::tests::gapless_window_applies_the_pipeline_latency_shift ... ok
+test audio::mp3::decoder::tests::gapless_window_clamps_when_padding_undercuts_the_latency ... ok
+test audio::mp3::decoder::tests::xing_frame_count_inconsistency_is_typed ... ok
+test audio::mp3::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::mp3::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::mp3::fuzz::tests::a_header_only_buffer_is_survived ... ok
+test audio::mp2::fuzz::tests::empty_and_garbage_inputs_never_panic ... ok
+test audio::mp3::header::tests::error_paths_are_each_typed ... ok
+test audio::mp3::header::tests::layer_ii_and_mpeg2_lengths_match_the_spec_formulas ... ok
+test audio::mp3::header::tests::mode_extension_emphasis_and_crc_bits_round_trip ... ok
+test audio::mp3::header::tests::padding_bit_adds_one_slot ... ok
+test audio::mp3::header::tests::parses_the_canonical_header ... ok
+test audio::mp3::header::tests::scan_sync_recovers_past_garbage ... ok
+test audio::mp3::header::tests::walk_frames_resyncs_and_drops_a_truncated_tail ... ok
+test audio::mp3::id3::tests::a_frame_running_past_the_tag_is_typed ... ok
+test audio::mp3::id3::tests::a_tag_claiming_more_than_the_file_is_typed_truncation ... ok
+test audio::mp3::id3::tests::bad_text_encoding_is_typed ... ok
+test audio::mp3::id3::tests::no_magic_is_none_not_error ... ok
+test audio::mp3::id3::tests::skips_and_parses_a_v23_tag ... ok
+test audio::mp3::id3::tests::unsynchronisation_is_reversed ... ok
+test audio::mp3::id3::tests::v22_three_char_ids_and_picture_frames ... ok
+test audio::mp3::id3::tests::v24_footer_and_syncsafe_frame_sizes ... ok
+test audio::mp3::seek::tests::a_degenerate_zero_toc_pins_the_stream_start ... ok
+test audio::mp3::seek::tests::cbr_seek_is_exact_frame_arithmetic ... ok
+test audio::mp3::seek::tests::refine_snaps_to_a_real_frame_header ... ok
+test audio::mp3::seek::tests::vbr_toc_seek_lands_at_or_before_the_target ... ok
+test audio::mp3::tests::a_minimal_synthetic_stream_decodes_end_to_end ... ok
+test audio::mp3::tests::probe_accepts_id3_and_frame_headers_only ... ok
+test audio::mp3::xing::tests::hand_crafted_vbri_header_parses ... ok
+test audio::mp3::xing::tests::info_magic_is_cbr_flagged ... ok
+test audio::mp3::xing::tests::no_xing_is_none_and_zero_frames_is_typed ... ok
+test audio::mp3::xing::tests::parses_frames_bytes_toc_quality_and_lame ... ok
+test audio::mp3::xing::tests::truncated_field_claims_are_typed ... ok
+test audio::opus::decoder::tests::configure_requires_and_validates_the_head ... ok
+test audio::opus::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test audio::opus::decoder::tests::descriptor_gate_accepts_only_opus ... ok
+test audio::opus::decoder::tests::hostile_packets_never_panic_and_isolate_to_the_packet ... ok
+test audio::mp3::fuzz::tests::empty_and_garbage_inputs_never_panic ... ok
+test audio::opus::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::opus::head::tests::parses_the_51_multistream_geometry ... ok
+test audio::opus::head::tests::parses_the_family0_geometry ... ok
+test audio::opus::head::tests::rejects_broken_multistream_arithmetic ... ok
+test audio::opus::head::tests::rejects_the_constructor_panic_windows_typed ... ok
+test audio::opus::order::tests::permutations_are_total_bijections ... ok
+test audio::opus::order::tests::the_51_row_is_the_measured_vorbis_to_wav_permutation ... ok
+test audio::opus::order::tests::unknown_counts_have_no_row ... ok
+test audio::pcm::decoder::tests::channel_counts_beyond_the_ceiling_are_typed_refusals ... ok
+test audio::pcm::decoder::tests::configure_without_facts_is_a_typed_unsupported ... ok
+test audio::pcm::decoder::tests::converted_path_reuses_pooled_slots_and_stays_bit_exact ... ok
+test audio::pcm::decoder::tests::duration_floors_to_whole_nanoseconds ... ok
+test audio::pcm::decoder::tests::empty_packet_is_need_more_input ... ok
+test audio::pcm::decoder::tests::float_descriptors_demand_the_float_tag ... ok
+test audio::pcm::decoder::tests::flush_drains_and_sticks ... ok
+test audio::pcm::decoder::tests::native_endian_interleaved_decode_is_zero_copy ... ok
+test audio::pcm::decoder::tests::partial_tail_is_concealed_not_dropped ... ok
+test audio::pcm::decoder::tests::planar_clean_passes_through_with_planar_layout ... ok
+test audio::pcm::decoder::tests::planar_truncation_keeps_plane_boundaries_at_whole_frames ... ok
+test audio::pcm::decoder::tests::s16le_stereo_decodes_whole_frames_with_format_and_duration ... ok
+test audio::pcm::decoder::tests::sub_frame_packet_is_skipped_whole ... ok
+test audio::pcm::decoder::tests::swap_groups_into_is_byte_identical_to_the_reference_swapped ... ok
+test audio::pcm::decoder::tests::unconfigured_decode_and_flush_are_typed_bad_state ... ok
+test audio::pcm::decoder::tests::waveformatex_accepts_16_and_18_byte_forms ... ok
+test audio::pcm::decoder::tests::waveformatex_rejects_short_long_and_wrong_tags ... ok
+test audio::pcm::decoder::tests::waveformatex_rejects_width_and_align_lies ... ok
+test audio::pcm::decoder::tests::waveformatextensible_length_ladder_pins_the_physical_bound ... ok
+test audio::pcm::decoder::tests::waveformatextensible_resolves_guids_and_decodes ... ok
+test audio::pcm::decoder::tests::with_format_seeds_facts_and_conflicts_are_typed ... ok
+test audio::pcm::decoder::tests::zero_copy_path_never_materializes_a_pool_slot ... ok
+test audio::pcm::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::pcm::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::pcm::error::tests::unsupported_detail_rides_in_the_source_chain ... ok
+test audio::pcm::fuzz::tests::configurations_spread_is_deterministic_and_bounded ... ok
+test audio::pcm::fuzz::tests::empty_input_survives_both_passes ... ok
+test audio::pcm::fuzz::tests::fixture_shaped_buffer_survives_both_passes ... ok
+test audio::pcm::fuzz::tests::hostile_wide_input_survives_both_passes ... ok
+test audio::pcm::fuzz::tests::sub_frame_lengths_survive_both_passes ... ok
+test audio::pcm::tests::damaged_tail_is_reported_not_failed ... ok
+test audio::pcm::tests::decode_pcm_rejects_broken_configurations_typed ... ok
+test audio::pcm::tests::descriptor_vocabulary_roundtrips_every_format ... ok
+test audio::pcm::tests::every_format_decodes_a_clean_buffer_value_exactly ... ok
+test audio::pcm::tests::f32_values_survive_the_byte_order_normalization ... ok
+test audio::pcm::tests::f64_values_survive_the_byte_order_normalization ... ok
+test audio::pcm::tests::planar_suffix_descriptor_shape ... ok
+test audio::pcm::tests::s24_groups_reverse_as_three_byte_units ... ok
+test audio::pcm::tests::u8_is_identity_and_byte_order_free ... ok
+test audio::vorbis::comments::tests::body_length_measurement_feeds_the_chain_split ... ok
+test audio::vorbis::comments::tests::comments_roundtrip_with_case_insensitive_lookup ... ok
+test audio::vorbis::comments::tests::damage_is_typed_never_panicking ... ok
+test audio::vorbis::comments::tests::repeatable_tags_keep_multiplicity ... ok
+test audio::vorbis::decoder::tests::configure_rejects_foreign_descriptors_and_short_chains ... ok
+test audio::vorbis::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test audio::vorbis::decoder::tests::descriptor_gate_accepts_only_vorbis ... ok
+test audio::vorbis::error::tests::bad_state_is_a_decoder_kind_not_corrupt ... ok
+test audio::vorbis::error::tests::corrupt_variant_carries_the_structured_class ... ok
+test audio::vorbis::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test audio::vorbis::fuzz::tests::empty_input_survives_all_passes ... ok
+test audio::vorbis::fuzz::tests::hostile_wide_inputs_survive ... ok
+test audio::vorbis::fuzz::tests::marker_only_and_short_inputs_survive ... ok
+test audio::vorbis::headers::tests::bad_magic_is_the_typed_unsupported_refusal ... ok
+test audio::vorbis::headers::tests::header_chain_split_rejects_short_and_foreign_remainders ... ok
+test audio::vorbis::headers::tests::identification_roundtrips_every_field ... ok
+test audio::opus::decoder::tests::seek_landing_is_missing_until_the_granule_reanchors ... ok
+test audio::vorbis::headers::tests::truncation_version_geometry_and_framing_are_all_typed ... ok
+test audio::vorbis::seek::tests::landing_and_emission_arithmetic_pin_the_block_math ... ok
+test audio::vorbis::seek::tests::shift_measurement_covers_head_seek_and_tail_shapes ... ok
+test audio::vorbis::seek::tests::time_conversions_roundtrip_at_common_rates ... ok
+test video::av1::decoder::tests::damage_folds_into_recovered ... ok
+test video::av1::decoder::tests::descriptor_gate_accepts_the_delivery_vocabulary ... ok
+test video::av1::decoder::tests::eagain_classification_is_platform_correct ... ok
+test video::av1::decoder::tests::pending_map_bounded_and_lifo_tolerant ... ok
+test video::av1::fuzz::tests::hostile_wide_inputs_survive ... ok
+test video::av1::obu::tests::empty_tu_is_typed_truncation ... ok
+test video::av1::obu::tests::extension_byte_rules ... ok
+test video::av1::obu::tests::forbidden_and_reserved_bits_are_typed ... ok
+test video::av1::obu::tests::frame_header_plus_tile_group_counts_as_picture ... ok
+test video::av1::obu::tests::independent_frame_peek_matches_the_frame_header_bits ... ok
+test video::av1::obu::tests::leb128_boundaries ... ok
+test video::av1::obu::tests::obu_count_guard_fires_typed ... ok
+test video::av1::obu::tests::show_existing_overlay_tu_counts_as_picture ... ok
+test video::av1::obu::tests::sized_obus_chain_with_exact_consumption ... ok
+test video::av1::obu::tests::sizeless_obu_takes_rest_of_unit ... ok
+test video::av1::obu::tests::truncated_payload_is_typed_with_expected_end ... ok
+test video::dnx::decoder::tests::cbr_gate_refuses_short_packets_with_exact_numbers ... ok
+test video::dnx::decoder::tests::color_volumes_map_conservatively ... ok
+test video::dnx::decoder::tests::configure_refuses_foreign_descriptors ... ok
+test video::dnx::decoder::tests::decode_and_flush_before_configure_are_typed_bad_state ... ok
+test video::dnx::decoder::tests::flush_after_configure_is_immediately_drained ... ok
+test video::dnx::decoder::tests::i420_repack_handles_odd_rasters ... ok
+test video::dnx::decoder::tests::inexpressible_outputs_are_typed_refusals ... ok
+test video::dnx::decoder::tests::plane_geometry_mismatch_surfaces_as_corrupt_data ... ok
+test video::dnx::decoder::tests::pooled_slots_reuse_exact_sizes_without_stale_bytes ... ok
+test video::dnx::decoder::tests::stale_packets_are_dropped_on_sight ... ok
+test video::dnx::decoder::tests::yuyv_repack_is_byte_exact ... ok
+test video::dnx::error::tests::engine_error_maps_every_engine_variant ... ok
+test video::dnx::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test video::h264::fuzz::tests::empty_and_marker_inputs_survive ... ok
+test video::h264::fuzz::tests::hostile_wide_inputs_survive ... ok
+test video::h264::hw::capability::tests::available_without_an_accelerator_is_an_honest_inactive ... ok
+test video::h264::hw::capability::tests::backend_labels_are_stable ... ok
+test video::h264::hw::capability::tests::policy_parses_the_settings_vocabulary_exactly ... ok
+test video::h264::hw::capability::tests::prefer_hardware_activates_when_available ... ok
+test video::h264::hw::capability::tests::reasons_render_for_users ... ok
+test video::h264::hw::capability::tests::software_only_never_activates_even_with_hardware_present ... ok
+test video::h264::hw::capability::tests::unavailable_falls_back_with_the_typed_reason ... ok
+test video::h264::hw::feed::tests::annexb_stream_prefixes_every_nal_with_start_codes ... ok
+test video::h264::hw::feed::tests::avcc_length_prefix_refuses_the_u32_overflow_never_truncates ... ok
+test video::h264::hw::feed::tests::avcc_sample_into_reuses_the_buffer_without_regrowing ... ok
+test video::h264::hw::feed::tests::avcc_sample_prefixes_every_nal_with_be32_lengths ... ok
+test video::h264::hw::feed::tests::empty_inputs_produce_empty_outputs ... ok
+test video::h264::hw::feed::tests::stamp_nanos_round_trips_through_the_nanosecond_base ... ok
+test video::h264::hw::frame_pool::tests::acquire_emit_release_lifecycle_is_bounded_and_typed ... ok
+test video::h264::hw::frame_pool::tests::capacity_is_clamped_to_the_safety_cap ... ok
+test video::h264::hw::frame_pool::tests::drain_invalidates_every_prior_handle ... ok
+test video::h264::hw::frame_pool::tests::garbage_handles_are_noops_never_panics ... ok
+test video::h264::hw::frame_pool::tests::steady_state_acquire_release_recycles_without_growth ... ok
+test video::h264::hw::tests::an_enabling_policy_produces_a_typed_trail ... ok
+test video::h264::hw::tests::installed_bridges_are_exactly_the_compiled_lanes ... ok
+test video::h264::hw::tests::the_off_default_touches_nothing_and_says_so ... ok
+test video::av1::fuzz::tests::empty_and_short_inputs_survive ... ok
+test video::h264::hw::vaapi::device::tests::empty_dri_directory_is_typed_empty ... ok
+test video::h264::hw::vaapi::device::tests::missing_dri_directory_is_the_typed_no_hardware_path ... ok
+test video::h264::hw::vaapi::device::tests::discovers_render_nodes_first_then_cards ... ok
+test video::h264::hw::vaapi::device::tests::open_node_maps_permission_denied_verbatim ... ok
+test video::h264::hw::vaapi::device::tests::open_node_succeeds_on_an_openable_fixture ... ok
+test video::h264::hw::vaapi::library::tests::candidate_lists_start_with_the_versioned_sonames ... ok
+test video::h264::hw::vaapi::device::tests::scratch_names_are_not_nodes ... ok
+test video::h264::hw::vaapi::session::tests::coded_size_is_macroblock_math ... ok
+test video::h264::hw::vaapi::library::tests::loads_the_real_installed_libva_or_reports_it_typed ... ok
+test video::h264::hw::vaapi::session::tests::frame_num_wrap_demotes_older_cycle_pictures ... ok
+test video::h264::hw::vaapi::session::tests::initial_ref_list_orders_short_term_desc_then_long_term_asc ... ok
+test video::h264::hw::vaapi::session::tests::missing_target_and_mvc_ops_are_typed_errors ... ok
+test video::h264::hw::vaapi::session::tests::picture_parameter_packs_the_bitfield_words ... ok
+test video::h264::hw::vaapi::session::tests::probe_on_the_real_host_is_the_typed_sandbox_outcome ... ok
+test video::h264::hw::vaapi::session::tests::probe_reports_no_device_node_on_a_dri_less_root ... ok
+test video::h264::hw::vaapi::session::tests::profile_mapping_covers_the_served_profiles_only ... ok
+test video::h264::hw::vaapi::session::tests::reorder_ops_reorder_and_reflag ... ok
+test video::h264::hw::vaapi::session::tests::probe_reports_permission_denied_on_a_locked_node ... ok
+test video::h264::hw::vaapi::session::tests::slice_parameter_carries_the_parsed_facts ... ok
+test video::h264::hw::vaapi::session::tests::session_configure_without_parameter_sets_is_typed ... ok
+test video::h264::hw::vaapi::session::tests::va_api_lane_backend_label_is_stable ... ok
+test video::h264::hw::vaapi::session::tests::wrap_encoded_reorder_target_resolves ... ok
+test video::h264::hw::vaapi::tests::accelerator_is_opaque_but_truthful ... ok
+test video::h264::hw::vaapi::tests::bridge_claims_only_its_own_accelerator ... ok
+test video::h264::parser::nal::tests::annexb_splits_three_and_four_byte_prefixes ... ok
+test video::h264::parser::nal::tests::avc_length_prefixed_split_with_typed_truncation ... ok
+test video::h264::parser::nal::tests::avcc_accepts_ffmpeg_writer_reality ... ok
+test video::h264::parser::nal::tests::avcc_parse_roundtrip_and_error_paths ... ok
+test video::h264::parser::nal::tests::bitreader_exp_golomb_and_trailing_rules ... ok
+test video::h264::parser::nal::tests::emulation_removal_and_typed_violations ... ok
+test video::h264::parser::nal::tests::header_split_checks_forbidden_bit_and_truncation ... ok
+test video::h264::parser::nal::tests::nal_classification_covers_table_7_1 ... ok
+test video::h264::parser::pps::tests::crafted_pps_covers_the_full_field_list ... ok
+test video::h264::parser::pps::tests::error_paths_are_typed ... ok
+test video::h264::parser::pps::tests::fmo_slice_groups_are_unsupported_not_silent ... ok
+test video::h264::parser::nal::tests::property_mutations_never_panic_or_hang ... ok
+test video::h264::parser::sei::tests::corpus_0014_mkv_lane_carries_the_same_x264_uuid ... ok
+test video::h264::parser::sei::tests::error_paths_are_typed ... ok
+test video::h264::parser::sei::tests::corpus_0019_carries_the_x264_build_string_and_a_recovery_point ... ok
+test video::h264::parser::sei::tests::synthesized_payloads_parse_and_round_trip_their_fields ... ok
+test video::h264::parser::sei::tests::trailing_bit_forms_are_tolerated_and_counted ... ok
+test video::h264::parser::sei::tests::mutated_sei_streams_are_typed_or_ok_never_panics ... ok
+test video::h264::parser::slice::tests::corpus_0014_mkv_lane_matches_the_ffmpeg_trace ... ok
+test video::h264::parser::slice::tests::hand_built_headers_exercise_the_optional_syntax_gates ... ok
+test video::h264::parser::slice::tests::idr_header_with_colour_planes_and_poc_type2 ... ok
+test video::h264::parser::slice::tests::invalid_values_are_the_typed_error_paths ... ok
+test video::h264::parser::slice::tests::corpus_0019_slice_headers_match_the_ffmpeg_trace ... ok
+test video::h264::parser::slice::tests::poc_arithmetic_helpers_follow_the_spec_rules ... ok
+test video::h264::parser::slice::tests::slice_type_mapping_covers_all_ten_codes_with_aliases ... ok
+test video::h264::parser::slice::tests::mutated_slice_streams_are_typed_or_ok_never_panics ... ok
+test video::h264::parser::sps::tests::avc_length_prefixed_entry_form_parses_the_same_sps ... ok
+test video::h264::parser::sps::tests::crop_arithmetic_matches_spec_crop_units ... ok
+test video::h264::parser::sps::tests::emulation_damage_in_sps_is_typed ... ok
+test video::h264::parser::sps::tests::invalid_sps_id_is_out_of_range ... ok
+test video::h264::parser::sps::tests::poc_type_1_cycle_offsets_parse_and_bound ... ok
+test video::h264::parser::sps::tests::real_corpus_pps_pairs_with_the_sps ... ok
+test video::h264::parser::sps::tests::real_corpus_sps_parses_field_exact ... ok
+test video::h264::parser::sps::tests::truncation_forbidden_and_wrong_type_are_typed ... ok
+test video::hevc::fuzz::tests::empty_and_marker_inputs_survive ... ok
+test video::hevc::fuzz::tests::hostile_wide_inputs_survive ... ok
+test video::hevc::parser::nal::tests::annexb_splits_three_and_four_byte_prefixes ... ok
+test video::hevc::parser::nal::tests::bit_reader_roundtrip_and_bounds ... ok
+test video::h264::parser::slice::tests::truncated_headers_are_typed_never_panics ... ok
+test video::hevc::parser::nal::tests::emulation_removal_handles_overlapping_escapes ... ok
+test video::hevc::parser::nal::tests::corpus_0044_parameter_sets_and_slice_prefixes_parse ... ok
+test video::hevc::parser::nal::tests::header_split_decodes_two_byte_geometry ... ok
+test video::hevc::parser::nal::tests::hvcc_parse_field_exact_on_corpus_arrays ... ok
+test video::hevc::parser::nal::tests::hvcc_typed_error_paths ... ok
+test video::hevc::parser::nal::tests::length_prefixed_split_and_typed_failures ... ok
+test video::hevc::parser::nal::tests::nal_classification_roundtrips_table_7_1 ... ok
+test video::hevc::parser::slice::tests::annexb_walk_of_vcl_and_parameter_sets_classifies ... ok
+test video::hevc::parser::slice::tests::ceil_log2_table ... ok
+test video::hevc::parser::slice::tests::dependent_segment_stops_before_the_shared_syntax ... ok
+test video::hevc::parser::slice::tests::extra_slice_header_bits_and_cra_nuance ... ok
+test video::hevc::parser::slice::tests::idr_first_slice_reads_the_honest_prefix ... ok
+test video::hevc::parser::slice::tests::non_first_independent_segment_reads_ctb_address ... ok
+test video::hevc::parser::slice::tests::seam_derivation_matches_the_0100_sps ... ok
+test video::hevc::parser::slice::tests::trail_r_b_slice_reads_poc_and_gated_flags ... ok
+test video::hevc::parser::slice::tests::typed_error_paths ... ok
+test video::mjpeg::bitreader::tests::fill_bytes_before_a_restart_are_tolerated ... ok
+test video::mjpeg::bitreader::tests::non_restart_marker_stops_the_scan ... ok
+test video::mjpeg::bitreader::tests::oversized_read_consumes_the_tail_without_panicking ... ok
+test video::mjpeg::bitreader::tests::peek8_pads_with_zeros_past_the_end ... ok
+test video::mjpeg::bitreader::tests::peek_bits_does_not_consume ... ok
+test video::mjpeg::bitreader::tests::read_bits_returns_none_on_partial_availability ... ok
+test video::mjpeg::bitreader::tests::read_bits_spans_the_word_refill ... ok
+test video::mjpeg::bitreader::tests::read_bits_zero_returns_zero ... ok
+test video::mjpeg::bitreader::tests::reads_msb_first_in_order ... ok
+test video::mjpeg::bitreader::tests::restart_marker_stops_feeding_and_can_be_taken ... ok
+test video::mjpeg::bitreader::tests::stuffed_ff_yields_literal_bits ... ok
+test video::mjpeg::bitreader::tests::stuffing_survives_the_word_refill ... ok
+test video::mjpeg::bitreader::tests::take_restart_without_a_pending_marker_fails ... ok
+test video::mjpeg::bitreader::tests::truncated_stuffing_pair_is_end_of_data ... ok
+test video::mjpeg::bitreader::tests::wrong_restart_number_is_rejected ... ok
+test video::mjpeg::color::tests::branchless_round_matches_the_reference_everywhere ... ok
+test video::mjpeg::color::tests::chroma_upsample_box_replication ... ok
+test video::mjpeg::color::tests::compose_row_matches_the_per_pixel_reference ... ok
+test video::mjpeg::color::tests::fast_conversion_matches_the_reference_everywhere ... ok
+test video::mjpeg::color::tests::grayscale_row_passes_through_luma ... ok
+test video::mjpeg::color::tests::inconsistent_plane_geometry_keeps_the_neutral_reads ... ok
+test video::mjpeg::color::tests::known_triples_convert_correctly ... ok
+test video::mjpeg::color::tests::neutral_chroma_is_identity ... ok
+test video::mjpeg::color::tests::out_of_gamut_triples_clamp ... ok
+test video::mjpeg::color::tests::short_output_rows_stay_prefix_safe ... ok
+test video::mjpeg::decoder::tests::assemble_frame_rejects_a_wrong_length_destination ... ok
+test video::mjpeg::decoder::tests::avi1_interleaved_frame_is_metadata_only_bit_exact ... ok
+test video::mjpeg::decoder::tests::avi1_single_field_decodes_at_field_height ... ok
+test video::mjpeg::decoder::tests::concealment_does_not_leak_across_frames ... ok
+test video::mjpeg::decoder::tests::context_reuse_is_bit_exact_and_reallocates_only_on_change ... ok
+test video::mjpeg::decoder::tests::crop_into_fills_neutral_past_the_data ... ok
+test video::mjpeg::decoder::tests::crop_into_trims_padding ... ok
+test video::mjpeg::decoder::tests::dht_key_compare_is_content_sensitive_without_rebuilding_steady_state ... ok
+test video::mjpeg::decoder::tests::gray_blocks_fills_only_the_tail ... ok
+test video::mjpeg::decoder::tests::header_error_does_not_poison_the_persistent_scratch ... ok
+test video::mjpeg::decoder::tests::odd_geometry_420_decodes_without_panic_or_padding_leak ... ok
+test video::mjpeg::decoder::tests::pixel_cap_rejects_oversize_frames ... ok
+test video::mjpeg::decoder::tests::pooled_slot_refill_is_bit_exact_and_stale_byte_safe ... ok
+test video::mjpeg::decoder::tests::pooled_slots_rekey_on_geometry_and_stay_bounded ... ok
+test video::mjpeg::decoder::tests::receive_extend_decodes_negative_and_positive ... ok
+test video::mjpeg::decoder::tests::restart_boundaries_crossing_mcu_rows_decode_bit_exact ... ok
+test video::mjpeg::decoder::tests::staged_full_scan_is_bit_exact_vs_the_production_path ... ok
+test video::mjpeg::decoder::tests::take_output_hands_off_the_buffer ... ok
+test video::mjpeg::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test video::mjpeg::error::tests::unsupported_detail_rides_in_the_source_chain ... ok
+test video::mjpeg::fuzz::tests::empty_input_survives_both_passes ... ok
+test video::mjpeg::fuzz::tests::hostile_marker_soup_survives_both_passes ... ok
+test video::mjpeg::fuzz::tests::soi_only_survives_both_passes ... ok
+test video::mjpeg::fuzz::tests::truncated_valid_stream_survives_both_passes ... ok
+test video::mjpeg::huffman::tests::code_absent_from_table_is_an_error ... ok
+test video::mjpeg::huffman::tests::code_overflow_past_sixteen_bits_is_rejected ... ok
+test video::mjpeg::huffman::tests::decodes_each_present_code ... ok
+test video::mjpeg::huffman::tests::lut_decode_matches_the_bit_walk_on_random_streams ... ok
+test video::mjpeg::huffman::tests::oversubscribed_table_is_rejected_at_build ... ok
+test video::mjpeg::huffman::tests::short_codes_decode_near_the_tail ... ok
+test video::mjpeg::huffman::tests::single_symbol_table_uses_a_one_bit_code ... ok
+test video::mjpeg::huffman::tests::sixteen_bit_codes_decode ... ok
+test video::mjpeg::huffman::tests::truncation_mid_code_is_exhausted_not_fabricated ... ok
+test video::mjpeg::idct::tests::dc_saturation_clips_normatively ... ok
+test video::mjpeg::idct::tests::factored_idct_is_bit_exact_vs_naive ... ok
+test video::mjpeg::idct::tests::horizontal_ramp_highest_frequency ... ok
+test video::mjpeg::idct::tests::hostile_coefficients_cannot_overflow ... ok
+test video::mjpeg::idct::tests::negative_dc_shifts_down ... ok
+test video::mjpeg::idct::tests::pure_dc_block_is_constant ... ok
+test video::mjpeg::idct::tests::quantization_scales_the_dc ... ok
+test video::mjpeg::idct::tests::round_trips_against_a_reference_forward_dct ... ok
+test video::mjpeg::idct::tests::short_output_slices_are_written_prefix_only ... ok
+test video::mjpeg::idct::tests::zero_block_is_flat_mid_gray ... ok
+test video::mjpeg::idct_simd::tests::dispatch_is_bit_exact_vs_scalar ... ok
+test video::mjpeg::idct_simd::tests::sse41_kernel_direct_matches_scalar_when_present ... ok
+test video::mjpeg::parser::tests::avi1_field_polarity_resets_between_walks ... ok
+test video::mjpeg::parser::tests::avi1_polarity_out_of_vocabulary_is_structural ... ok
+test video::mjpeg::parser::tests::avi1_polarity_parses_for_all_three_values ... ok
+test video::mjpeg::parser::tests::avi1_segment_without_the_polarity_byte_is_structural ... ok
+test video::mjpeg::parser::tests::dqt_dezigzag_maps_scan_order_to_natural_positions ... ok
+test video::mjpeg::parser::tests::eoi_before_sos_is_structural ... ok
+test video::mjpeg::parser::tests::jfif_app0_is_detected ... ok
+test video::mjpeg::parser::tests::missing_soi_is_structural ... ok
+test video::mjpeg::parser::tests::non_interleaved_scan_is_unsupported ... ok
+test video::mjpeg::parser::tests::oversubscribed_huffman_counts_are_structural ... ok
+test video::mjpeg::parser::tests::parse_into_reuses_the_scratch_without_leaking_across_walks ... ok
+test video::mjpeg::parser::tests::parses_the_minimal_grayscale_stream ... ok
+test video::mjpeg::parser::tests::progressive_sof2_is_unsupported_not_corrupt ... ok
+test video::mjpeg::parser::tests::sampling_factor_three_is_unsupported ... ok
+test video::mjpeg::parser::tests::segment_overrun_is_truncation ... ok
+test video::mjpeg::parser::tests::short_input_is_truncation ... ok
+test video::mjpeg::parser::tests::sos_before_sof_is_structural ... ok
+test video::mjpeg::parser::tests::two_byte_quant_table_ids_reject_the_upper_half ... ok
+test video::mjpeg::parser::tests::zero_dimensions_are_structural ... ok
+test video::mjpeg::tests::descriptor_gate_accepts_the_vertical_vocabulary ... ok
+test video::mjpeg::tests::jfif_color_tag_is_bt601_full_range ... ok
+test video::mpeg12::bitreader::tests::empty_input_only_truncates ... ok
+test video::mpeg12::bitreader::tests::marker_bit_enforced ... ok
+test video::mpeg12::bitreader::tests::reads_msb_first ... ok
+test video::mpeg12::bitreader::tests::remaining_counts_partial_bytes ... ok
+test video::mpeg12::bitreader::tests::truncation_is_typed ... ok
+test video::mpeg12::bitreader::tests::width_bounds_rejected ... ok
+test video::mpeg12::error::tests::decode_refusal_is_typed_unsupported_for_both_descriptors ... ok
+test video::mpeg12::error::tests::decode_refusal_names_foreign_descriptors ... ok
+test video::mpeg12::error::tests::descriptor_gate_accepts_exactly_the_two_ids ... ok
+test video::mpeg12::error::tests::parse_errors_render_their_rule ... ok
+test video::mpeg12::facts::tests::damage_is_counted_not_fatal ... ok
+test video::mpeg12::facts::tests::empty_and_garbage_inputs_are_total ... ok
+test video::mpeg12::facts::tests::fuzz_lite_scan_is_total ... ok
+test video::mpeg12::facts::tests::mpeg1_stream_classifies_as_mpeg1 ... ok
+test video::mpeg12::facts::tests::sequence_change_is_flagged ... ok
+test video::mpeg12::facts::tests::tiny_stream_facts ... ok
+test video::mpeg12::headers::tests::coding_type_letters_and_motion_vectors ... ok
+test video::mpeg12::headers::tests::frame_rate_extension_refines ... ok
+test video::mpeg12::headers::tests::frame_rate_table_matches_spec ... ok
+test video::mpeg12::headers::tests::gop_header_roundtrip ... ok
+test video::mpeg12::headers::tests::mb_increment_table_covers_one_through_thirty_three ... ok
+test video::mpeg12::headers::tests::picture_coding_extension_roundtrip ... ok
+test video::mpeg12::headers::tests::picture_header_i_p_b_shapes ... ok
+test video::mpeg12::headers::tests::sequence_extension_roundtrip_and_chroma_gate ... ok
+test video::mpeg12::headers::tests::sequence_header_marker_violation_is_typed ... ok
+test video::mpeg12::headers::tests::sequence_header_rejects_forbidden_codes ... ok
+test video::mpeg12::headers::tests::sequence_header_roundtrip_ffmpeg_shaped ... ok
+test video::mpeg12::headers::tests::sequence_header_with_quant_matrices ... ok
+test video::mpeg12::headers::tests::slice_header_with_first_mb_increment ... ok
+test video::mpeg12::startcode::tests::classifies_every_table_6_1_bucket ... ok
+test video::mpeg12::startcode::tests::four_byte_prefixes_and_shared_zeros ... ok
+test video::mpeg12::startcode::tests::garbage_yields_nothing ... ok
+test video::mpeg12::startcode::tests::prefix_detection ... ok
+test video::mpeg12::startcode::tests::walks_a_two_unit_stream ... ok
+test video::vp9::decoder::tests::decode_before_configure_is_typed_bad_state ... ok
+test video::vp9::decoder::tests::garbage_packet_is_recovered_not_fatal ... ok
+test video::vp9::decoder::tests::wrong_descriptor_is_a_typed_refusal ... ok
+test video::vp9::decoder::tests::zero_length_packet_is_recovered_not_fatal ... ok
+test video::vp9::error::tests::taxonomy_maps_each_variant_to_its_public_kind ... ok
+test video::hevc::parser::nal::tests::fuzz_lite_no_panics_on_random_and_mutated_bytes ... ok
+
+test result: ok. 506 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/aac_bench.rs (/home/z/my-project/target/release/deps/aac_bench-c110499bee81d1e4)
+
+running 1 test
+test aac_decode_throughput ... ignored, 5.C2a throughput measurement: cargo test -p codecs --release --test aac_bench -- --ignored (number in the 5.C2a worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/aac_bitexact.rs (/home/z/my-project/target/release/deps/aac_bitexact-11b183fefe20f303)
+
+running 2 tests
+test lc_frames_are_exactly_1024_samples ... ok
+test fixtures_decode_the_recorded_window_exactly ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/aac_corpus_differential.rs (/home/z/my-project/target/release/deps/aac_corpus_differential-aeffac46c178f6f4)
+
+running 1 test
+test corpus_differential_vs_ffmpeg ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/aac_fuzz_survival.rs (/home/z/my-project/target/release/deps/aac_fuzz_survival-9e94ac2b3942386d)
+
+running 2 tests
+test sync_storms_and_garbage_interleaves_never_panic ... ok
+test mutated_fixtures_never_panic_and_settle_typed ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/adpcm_bench.rs (/home/z/my-project/target/release/deps/adpcm_bench-28da8ec189d0c92b)
+
+running 1 test
+test adpcm_decode_throughput_corpus_lanes ... ignored, 6.ADPCM-bench throughput measurement: cargo test -p codecs --release --test adpcm_bench -- --ignored (number in the 6.ADPCM-bench worklog entry + the 5.R1 row it closes)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adpcm_breadth_differential.rs (/home/z/my-project/target/release/deps/adpcm_breadth_differential-d3c331fae0d8030a)
+
+running 4 tests
+test corpus_geometry_matches_the_reference_shapes ... ok
+test breadth_corpus_is_bit_exact_against_ffmpeg_reference ... ok
+test md5_implementation_matches_rfc1321_vectors ... ok
+test fuzz_lite_never_panics_and_stays_bounded ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/adpcm_corpus_differential.rs (/home/z/my-project/target/release/deps/adpcm_corpus_differential-09159c6d6c35c5d8)
+
+running 2 tests
+test committed_fixtures_decode_bit_exact ... ok
+test real_corpus_decodes_bit_exact ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adpcm_fuzz_survival.rs (/home/z/my-project/target/release/deps/adpcm_fuzz_survival-7f4fd761298dca10)
+
+running 4 tests
+test empty_and_tiny_payloads_are_honest ... ok
+test mutated_fmt_headers_fail_typed_not_panicking ... ok
+test unmutated_substrate_decodes_deterministically ... ok
+test mutated_blocks_survive_with_typed_outcomes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/alac_bench.rs (/home/z/my-project/target/release/deps/alac_bench-3c1f2964b1ded021)
+
+running 1 test
+test alac_decode_throughput_fixtures ... ignored, 5.J3a throughput measurement: cargo test -p codecs --release --ignored (number in the 5.J3a worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/alac_bitexact.rs (/home/z/my-project/target/release/deps/alac_bitexact-dfb6f36b7dcb09ba)
+
+running 1 test
+test fixtures_bitexact_vs_ffmpeg ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/alac_fuzz_survival.rs (/home/z/my-project/target/release/deps/alac_fuzz_survival-4549aff725012204)
+
+running 3 tests
+test empty_and_edge_packets_are_typed ... ok
+test mutated_cookies_are_typed_not_panics ... ok
+test mutated_packets_never_panic_or_hang ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/av1_bench.rs (/home/z/my-project/target/release/deps/av1_bench-707588fd2b0a80ef)
+
+running 1 test
+test av1_decode_throughput_1080p_vs_ffmpeg_libdav1d ... ignored, 5.E2 speed-honesty measurement: cargo test -p codecs --all-features --release --test av1_bench -- --ignored --nocapture (numbers in docs/formats/video-av1.md + the 5.E2 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/av1_conformance.rs (/home/z/my-project/target/release/deps/av1_conformance-c0047412df2df381)
+
+running 1 test
+
+Enter command: <target>|all <time>|-1 <command>[ <argument>]
+
+Parse error, at least 3 arguments were expected, only 1 given in string 'e_agent_exit_code=$?'
+test conformance_matrix_vs_ffmpeg_generated_set ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.05s
+
+     Running tests/av1_differential.rs (/home/z/my-project/target/release/deps/av1_differential-7842b0b4f303ac10)
+
+running 6 tests
+test differential_frame_count_dimensions_and_pts_vs_ffprobe ... ok
+test error_paths_are_typed_and_per_packet ... ok
+test fuzz_lite_framing_and_decode_survival ... ok
+test midstream_corruption_resyncs_and_recovers ... ok
+test tenbit_fixture_is_a_typed_refusal_not_a_misdecode ... ok
+test differential_pixel_md5_against_ffmpeg_dump ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/benches.rs (/home/z/my-project/target/release/deps/benches-bb85a1b202ea4a8c)
+
+running 2 tests
+test mjpeg_decode_throughput_contract_path ... ignored, ED-FIX-1 M13 throughput measurement: cargo test -p codecs --release --ignored (numbers in the worklog ED-CORPUS-1 AFTER-report)
+test mjpeg_decode_throughput_dense_4k_budget ... ignored, ED-FIX-1 M13 4K dense-content budget probe: cargo test -p codecs --release --ignored (numbers in the worklog ED-CORPUS-1 AFTER-report)
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/contract.rs (/home/z/my-project/target/release/deps/contract-8d2267da5b1139ab)
+
+running 9 tests
+test configure_rejects_foreign_codec_descriptors ... ok
+test flush_drains_immediately_and_sticks ... ok
+test corrupt_input_recovers_or_errors_typed ... ok
+test per_frame_damage_leaves_the_decoder_usable ... ok
+test sink_errors_propagate_verbatim ... ok
+test stale_packets_are_dropped_on_sight ... ok
+test unconfigured_use_is_a_typed_decoder_state_error ... ok
+test unsupported_features_are_typed_unsupported_not_corrupt ... ok
+test outcome_and_sink_agree_across_the_corpus ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/corpus.rs (/home/z/my-project/target/release/deps/corpus-6929a6c98f867b4f)
+
+running 2 tests
+test corpus_mjpeg_decode_measures_against_oracle ... ignored, randomized-corpus harness: run via tools/corpus/run_harness.py
+test corpus_pcm_decode_is_byte_exact_or_recorded ... ignored, randomized-corpus harness: run via tools/corpus/run_harness.py
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/dnx_differential.rs (/home/z/my-project/target/release/deps/dnx_differential-46ccc56b0fb58be6)
+
+running 6 tests
+test lane_l2_1080p_36m ... ok
+test lane_l1_1080p_175m ... ok
+test lane_l4_720p_90m ... ok
+test lane_l3_1080p_145m ... ok
+test lane_l5_1080p10_185m ... ok
+test truncated_real_frame_refuses_typed ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.33s
+
+     Running tests/fixtures_parent.rs (/home/z/my-project/target/release/deps/fixtures_parent-841d76d7ce326776)
+
+running 9 tests
+test avi_extraction_matches_writer_declared_frame_digests ... ok
+test both_containers_carry_the_identical_frame_essence ... ok
+test decoded_mp4_outputs_match_reference_digests ... ok
+test entropy_truncation_conceals_and_reports_recovery ... ok
+test first_frame_descriptor_matches_the_expectation ... ok
+test header_damage_is_a_typed_error_with_nothing_emitted ... ok
+test mp4_extraction_matches_writer_declared_frame_digests ... ok
+test decoded_avi_outputs_match_reference_digests ... ok
+test sha256_reader_pinned_against_committed_file_digests ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/flac_bench.rs (/home/z/my-project/target/release/deps/flac_bench-a7f7554fafa091e4)
+
+running 1 test
+test flac_decode_throughput_corpus_0046 ... ignored, 5.A1 throughput measurement: cargo test -p codecs --release --ignored (number in the 5.A1 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/flac_bitexact.rs (/home/z/my-project/target/release/deps/flac_bitexact-332b60e05e041897)
+
+running 4 tests
+test channel_mismatch_on_a_decodable_frame_is_typed_not_panic ... ok
+test corpus_flacs_decode_byte_exact_or_reject_typed ... ok
+test seektable_carrier_exposes_six_verified_points ... ok
+test fixtures_decode_byte_exact_against_the_ffmpeg_reference ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/flac_fuzz_survival.rs (/home/z/my-project/target/release/deps/flac_fuzz_survival-680589bcacd96f0b)
+
+running 3 tests
+test deep_exhaustive_flip_sweep_survives ... ignored, deep run: exhaustive flip sweep + 512 seeds per class per fixture
+test corpus_dirty_and_garbage_survive ... ok
+test fixtures_survive_truncation_flips_splices_and_fact_lies ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/flac_seek.rs (/home/z/my-project/target/release/deps/flac_seek-211c59ac9064f80f)
+
+running 4 tests
+test corpus_stream_seeks_by_bisection_alone ... ok
+test past_end_and_frameless_streams_are_typed_errors ... ok
+test corrupted_seektable_degrades_to_bisection ... ok
+test seektable_and_binary_search_agree_across_the_stream ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/flac_vlc_differential.rs (/home/z/my-project/target/release/deps/flac_vlc_differential-c2362e4cf886585f)
+
+running 1 test
+test flac_differential_vs_vlc_or_pending_infra ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/fuzz_loop_stable.rs (/home/z/my-project/target/release/deps/fuzz_loop_stable-d20d51a5997f0107)
+
+running 7 tests
+test mjpeg_seed_loop_long ... ignored, long fuzz run — cargo test -- --ignored --nocapture
+test loop_accounting_is_deterministic ... ok
+test pcm_seed_loop_long ... ignored, long fuzz run — cargo test -- --ignored --nocapture
+test pcm_seed_loop_survives ... ok
+test seeded_generation_is_deterministic_and_decorrelated ... ok
+test sub_magic_lengths_are_survivable_inputs ... ok
+test mjpeg_seed_loop_survives ... ok
+
+test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/fuzz_survival.rs (/home/z/my-project/target/release/deps/fuzz_survival-0436d0a25bd59744)
+
+running 6 tests
+test adversarial_geometries_survive_the_harness ... ok
+test every_extracted_frame_survives_the_harness ... ok
+test every_fixture_file_survives_the_harness ... ok
+test systematic_single_byte_flips_of_a_real_frame_survive ... ok
+test systematic_truncations_of_a_real_frame_survive ... ok
+test avi1_field_marker_mutations_survive_the_harness ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/h264_hw_path.rs (/home/z/my-project/target/release/deps/h264_hw_path-4b6bf6b468e42071)
+
+running 20 tests
+test alien_bridge_leaves_the_stream_unclaimed ... ok
+test accelerator_without_bridge_is_typed_no_bridge ... ok
+test annexb_stream_feeds_aus_and_emits_opaque_frames ... ok
+test avc1_descriptor_aliases_are_accepted ... ok
+test avcc_extradata_configures_and_length_prefixed_samples_decode ... ok
+test damage_is_counted_recovery_and_decoder_stays_usable ... ok
+test decode_before_configure_is_typed_bad_state ... ok
+test engine_accelerator_precedes_the_self_negotiated_one ... ok
+test from_setting_prefer_hardware_records_a_typed_trail ... ok
+test from_setting_rejects_spellings_outside_the_vocabulary ... ok
+test from_setting_software_only_default_is_off_and_refuses_typed ... ok
+test fuzz_lite_configure_with_random_extradata_never_panics ... ok
+test corpus_0019_annexb_full_stream_survives_and_feeds_every_picture ... ok
+test hw_configure_failure_is_typed_unsupported ... ok
+test hw_session_failure_is_typed_engine_error ... ok
+test multi_slice_picture_is_one_au ... ok
+test no_accelerator_is_typed_unsupported_never_silent ... ok
+test stale_packets_are_dropped_on_sight ... ok
+test wrong_codec_descriptor_is_refused_typed ... ok
+test fuzz_lite_random_packets_never_panic ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/h264_parser_corpus.rs (/home/z/my-project/target/release/deps/h264_parser_corpus-6fd918b6573a3cf9)
+
+running 2 tests
+test corpus_mkv_h264_tracks_field_assertions ... ok
+test corpus_raw_annexb_0019_field_assertions ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/h264_sw_differential.rs (/home/z/my-project/target/release/deps/h264_sw_differential-acc76b74030ae12e)
+
+running 17 tests
+test contract_state_rules ... ok
+test contract_damaged_extradata_refuses_typed ... ok
+test hostile_garbage_packets_recover ... ok
+test hostile_garbage_then_real_recovers ... ok
+test lane_a_baseline_annexb ... ok
+test lane_a_baseline_mp4 ... ok
+test lane_b_main_cabac_annexb ... ok
+test lane_b_main_cabac_mp4 ... ok
+test hostile_truncation_sweep_is_panic_free ... ok
+test lane_c_bframes_annexb ... ok
+test lane_c_bframes_mp4 ... ok
+test lane_d_high_ipb_annexb ... ok
+test lane_d_high_ipb_mp4 ... ok
+test lane_e_odd_crop_annexb ... ok
+test lane_e_odd_crop_mp4 ... ok
+test lane_f_still_annexb ... ok
+test lane_f_still_mp4 ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.62s
+
+     Running tests/hevc_hw_path.rs (/home/z/my-project/target/release/deps/hevc_hw_path-324f750d01db5000)
+
+running 17 tests
+test alien_bridge_leaves_the_stream_unclaimed ... ok
+test accelerator_without_bridge_is_typed_no_bridge ... ok
+test annexb_stream_feeds_aus_and_emits_opaque_frames ... ok
+test damage_is_counted_recovery_and_decoder_stays_usable ... ok
+test decode_before_configure_is_typed_bad_state ... ok
+test fuzz_lite_configure_with_random_extradata_never_panics ... ok
+test corpus_0044_annexb_full_stream_survives_and_feeds_every_picture ... ok
+test hvc1_descriptor_aliases_are_accepted ... ok
+test hvcc_extradata_configures_and_length_prefixed_samples_decode ... ok
+test hw_configure_failure_is_typed_unsupported ... ok
+test hw_session_failure_is_typed_engine_error ... ok
+test multi_segment_picture_is_one_au ... ok
+test no_accelerator_is_typed_unsupported_never_silent ... ok
+test orphan_continuation_segment_is_counted_damage ... ok
+test stale_packets_are_dropped_on_sight ... ok
+test wrong_codec_descriptor_is_refused_typed ... ok
+test fuzz_lite_random_packets_never_panic ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/hevc_parser_corpus.rs (/home/z/my-project/target/release/deps/hevc_parser_corpus-9c3e7232533e6bbd)
+
+running 3 tests
+test corpus_raw_annexb_0044_ffprobe_field_assertions ... ok
+test corpus_mp4_0100_hvcc_field_assertions_via_ffprobe ... ok
+test corpus_ts_0091_ffprobe_field_assertions_via_extraction ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/mjpeg_field_differential.rs (/home/z/my-project/target/release/deps/mjpeg_field_differential-9a609b334b71cd2c)
+
+running 3 tests
+test corpus_lanes_match_pinned_truth ... ok
+test fixture_lanes_match_pinned_truth ... ok
+test interlaced_content_fixtures_stay_polarity_free ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/mp2_bench.rs (/home/z/my-project/target/release/deps/mp2_bench-08d6797e5a0f0fd4)
+
+running 1 test
+test mp2_decode_throughput ... ignored, 5.J3 throughput measurement: cargo test -p codecs --release --test mp2_bench -- --ignored (number in the 5.J3 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mp2_corpus_differential.rs (/home/z/my-project/target/release/deps/mp2_corpus_differential-2b43d7954b02ae3f)
+
+running 3 tests
+test cbr_seek_on_the_padded_corpus_stream_refines_exactly ... ok
+test the_generated_lsf_fixture_walks_and_decodes_with_declared_geometry ... ok
+test corpus_and_fixture_differential_vs_ffmpeg ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/mp2_fuzz_survival.rs (/home/z/my-project/target/release/deps/mp2_fuzz_survival-cbea337cd853040d)
+
+running 3 tests
+test corpus_dirty_and_garbage_pools_survive ... ok
+test the_fuzz_harness_survives_the_same_mutations ... ok
+test mutated_fixtures_never_panic_and_settle_typed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/mp3_bench.rs (/home/z/my-project/target/release/deps/mp3_bench-6662ea2cf61aca89)
+
+running 1 test
+test mp3_decode_throughput ... ignored, 5.A3 throughput measurement: cargo test -p codecs --release --test mp3_bench -- --ignored (number in the 5.A3 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mp3_bitexact.rs (/home/z/my-project/target/release/deps/mp3_bitexact-0376eaac1b6a72fe)
+
+running 2 tests
+test tagged_art_is_cbr128_behind_a_tag ... ok
+test fixtures_decode_the_recorded_window_exactly ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running tests/mp3_corpus_differential.rs (/home/z/my-project/target/release/deps/mp3_corpus_differential-80942846330f5284)
+
+running 2 tests
+test vbr_toc_seek_accuracy_is_within_one_frame_and_refines_exactly ... ok
+test corpus_and_fixture_differential_vs_ffmpeg ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/mp3_fuzz_survival.rs (/home/z/my-project/target/release/deps/mp3_fuzz_survival-109c4d81e2fec1d1)
+
+running 2 tests
+test corpus_dirty_and_garbage_pools_survive ... ok
+test mutated_fixtures_never_panic_and_settle_typed ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/mpeg12_corpus.rs (/home/z/my-project/target/release/deps/mpeg12_corpus-598e707db81eee23)
+
+running 3 tests
+test corpus_mpeg2video_lanes_field_assertions ... ok
+test fixture_transport_lanes_ts_and_ps ... ok
+test fixture_raw_es_facts_match_ffprobe ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/opus_corpus_differential.rs (/home/z/my-project/target/release/deps/opus_corpus_differential-c27042f12dcadfaf)
+
+running 2 tests
+test corpus_0077_surround_51 ... ok
+test corpus_0047_mono ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/pcm_bench.rs (/home/z/my-project/target/release/deps/pcm_bench-26e099ad36612360)
+
+running 2 tests
+test pcm_decode_throughput_s16be_converted ... ignored, W5-19 throughput measurement: cargo test -p codecs --release --ignored (numbers in the W5-19 worklog entry)
+test pcm_decode_throughput_s16le_passthrough ... ignored, W5-19 throughput measurement: cargo test -p codecs --release --ignored (numbers in the W5-19 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pcm_extensible_attacks.rs (/home/z/my-project/target/release/deps/pcm_extensible_attacks-68bfae2e433704d1)
+
+running 5 tests
+test block_align_cross_check_must_not_wrap_u16 ... ok
+test cbsize_zero_with_a_complete_guid_is_stage_consistent_today ... ok
+test forty_two_byte_vendor_tail_extensible_configures_like_the_demuxer ... ok
+test with_format_channel_extremes_never_panic_and_skip_honestly ... ok
+test seeded_extensible_blob_mutations_are_typed_or_honestly_decoded ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pcm_fixtures.rs (/home/z/my-project/target/release/deps/pcm_fixtures-25d8e08b12f3d78b)
+
+running 7 tests
+test audio_probe_matches_the_expectation ... ok
+test both_containers_carry_the_identical_audio_essence ... ok
+test avi_audio_extraction_matches_writer_declared_stream_digest ... ok
+test decoded_avi_audio_is_bit_exact_via_the_contract_path ... ok
+test md5_reader_pinned_against_rfc1321_vectors ... ok
+test decoded_mp4_audio_is_bit_exact_via_the_contract_path ... ok
+test mp4_audio_extraction_matches_writer_declared_stream_digest ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/pcm_fuzz_survival.rs (/home/z/my-project/target/release/deps/pcm_fuzz_survival-f883f06539ad7606)
+
+running 9 tests
+test deep_seeded_mutation_run ... ignored, deep run: N=2048 per class, executed on demand for the audit report
+test every_real_chunk_survives_boundary_cuts_and_flips ... ok
+test both_parents_full_audio_tracks_survive_and_account_exactly ... ok
+test seeded_format_header_lies_are_typed_or_honestly_decoded ... ok
+test seeded_bit_flips_survive_with_honest_accounting ... ok
+test seeded_garbage_splices_survive_with_honest_accounting ... ok
+test seeded_truncations_survive_with_honest_accounting ... ok
+test systematic_prefix_truncations_of_a_real_chunk_survive_exactly ... ok
+test systematic_single_byte_flips_of_a_real_chunk_survive_exactly ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/pcm_zero_alloc.rs (/home/z/my-project/target/release/deps/pcm_zero_alloc-cddb0f317d5c082b)
+
+running 1 test
+test pcm_contract_path_is_zero_allocation_per_buffer_after_warm_up ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/vorbis_bench.rs (/home/z/my-project/target/release/deps/vorbis_bench-28261aaa37940339)
+
+running 1 test
+test vorbis_decode_throughput ... ignored, 5.B2 throughput measurement: cargo test -p codecs --release --ignored (number in the 5.B2 worklog entry)
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/vorbis_bitexact.rs (/home/z/my-project/target/release/deps/vorbis_bitexact-f1e22fe6c5ea7019)
+
+running 5 tests
+test corpus_0085_differential_or_skip ... ok
+test mid_stream_corruption_is_typed_and_recovery_scoped ... ok
+test stream_head_encoder_delay_is_trimmed_decoder_side ... ok
+test tagged_fixture_exposes_its_vorbis_comments ... ok
+test fixtures_are_pinned_against_the_ffmpeg_reference ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/vorbis_fuzz_survival.rs (/home/z/my-project/target/release/deps/vorbis_fuzz_survival-73348b5a0f808bfb)
+
+running 1 test
+test mutated_and_truncated_inputs_never_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/vorbis_vlc_differential.rs (/home/z/my-project/target/release/deps/vorbis_vlc_differential-2608c45091a0a3b7)
+
+running 1 test
+test vorbis_differential_vs_vlc_or_pending_infra ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/vp9_differential.rs (/home/z/my-project/target/release/deps/vp9_differential-fd518c229e16644f)
+
+running 4 tests
+test hostile_garbage_is_recovered_and_the_stream_survives ... ok
+test off_by_one_truncation_sweep_is_panic_free ... ok
+test tenbit_lane_is_a_typed_refusal_not_a_misdecode ... ok
+test differential_lanes_vs_ffmpeg_libvpx_vp9 ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.58s
+
+     Running tests/zero_alloc_decode.rs (/home/z/my-project/target/release/deps/zero_alloc_decode-aa8181620ad14b08)
+
+running 1 test
+test mjpeg_contract_path_allocates_nothing_per_frame_after_warm_up ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/commands-41bb5ff7683030b3)
+
+running 57 tests
+test catalog::codegen::tests::checksum_text_carries_the_counts_and_digests ... ok
+test catalog::codegen::tests::generation_is_deterministic_and_idempotent ... ok
+test catalog::codegen::tests::check_reports_doctored_artifacts ... ok
+test catalog::codegen::tests::ts_identifier_check_is_conservative ... ok
+test catalog::codegen::tests::schema_document_references_all_three_envelopes ... ok
+test catalog::command::tests::bookmark_commands_round_trip_the_wire ... ok
+test catalog::command::tests::deep_track_info_round_trips ... ok
+test catalog::command::tests::request_wire_form_matches_doc_example ... ok
+test catalog::command::tests::result_variants_round_trip ... ok
+test catalog::command::tests::unit_commands_take_no_args ... ok
+test catalog::command::tests::unknown_command_ids_are_rejected ... ok
+test catalog::event::tests::completion_evidence_set_matches_section_1_4 ... ok
+test catalog::event::tests::event_wire_form_matches_doc_example ... ok
+test catalog::event::tests::playlist_changed_nests_its_mutation ... ok
+test catalog::event::tests::sessionless_events_omit_optional_envelope_fields ... ok
+test catalog::event::tests::unknown_event_kinds_are_rejected ... ok
+test catalog::ids::tests::catalog_sizes_match_doc_05 ... ok
+test catalog::ids::tests::doc_05_examples_round_trip ... ok
+test catalog::ids::tests::every_id_round_trips_and_is_unique ... ok
+test catalog::ids::tests::unknown_ids_are_rejected_not_guessed ... ok
+test catalog::spec::tests::class_counts_match_the_doc_05_tables ... ok
+test catalog::spec::tests::classification_matches_section_1_5_examples ... ok
+test catalog::spec::tests::fnv1a64_reference_vectors ... ok
+test catalog::spec::tests::gen_bumping_set_is_exactly_section_4_2 ... ok
+test catalog::spec::tests::mutated_table_entry_changes_the_checksum ... ok
+test catalog::spec::tests::pipeline_scoped_set_matches_section_3_2 ... ok
+test catalog::spec::tests::shell_targeted_commands_are_the_shell_owned_surface ... ok
+test catalog::spec::tests::tables_cover_every_id_exactly_once_in_order ... ok
+test catalog::types::tests::closed_shapes_reject_unknown_fields ... ok
+test catalog::types::tests::duration_is_never_a_sentinel ... ok
+test catalog::types::tests::playback_state_transitions_follow_section_3_3 ... ok
+test catalog::types::tests::seek_target_wire_form_matches_doc_example ... ok
+test catalog::types::tests::selector_variants_round_trip ... ok
+test correlation::tests::accepted_responses_raise_the_generation_watermark ... ok
+test correlation::tests::error_responses_track_the_envelope_gen ... ok
+test correlation::tests::request_envelope_carries_the_allocated_id ... ok
+test correlation::tests::request_ids_are_monotonic_and_never_reused ... ok
+test correlation::tests::response_without_session_does_not_touch_watermarks ... ok
+test correlation::tests::responses_must_echo_allocated_requests ... ok
+test correlation::tests::seq_must_be_strictly_increasing ... ok
+test correlation::tests::sessionless_and_genless_events_are_never_dropped ... ok
+test correlation::tests::stale_pipeline_events_are_dropped_current_ones_kept ... ok
+test correlation::tests::the_full_host_side_pipeline_over_a_command_storm ... ok
+test correlation::tests::watermarks_are_per_session ... ok
+test envelope::tests::accepted_exposes_its_generation ... ok
+test envelope::tests::ids_are_plain_newtypes ... ok
+test envelope::tests::pipeline_scoping_requires_session_and_gen ... ok
+test envelope::tests::response_shape_carries_all_correlation_fields ... ok
+test error::tests::command_error_roundtrips_on_the_wire ... ok
+test error::tests::details_are_redacted_too ... ok
+test error::tests::error_construction_collapses_absolute_paths ... ok
+test error::tests::error_construction_redacts_userinfo ... ok
+test error::tests::long_messages_are_capped_without_panicking ... ok
+test error::tests::plain_messages_pass_through_verbatim ... ok
+test error::tests::serde_wire_names_match_as_str ... ok
+test error::tests::stage_and_code_wire_names_are_stable ... ok
+test catalog::codegen::tests::typescript_exports_the_wire_surface ... ok
+
+test result: ok. 57 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/bin/catalog_gen.rs (/home/z/my-project/target/release/deps/catalog_gen-f40c21ff6a9a3ea9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/catalog_drift.rs (/home/z/my-project/target/release/deps/catalog_drift-9777710bafae0d32)
+
+running 2 tests
+test committed_artifacts_match_regeneration ... ok
+test regeneration_is_deterministic ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/catalog_emission_ledger.rs (/home/z/my-project/target/release/deps/catalog_emission_ledger-4294bb8607db0ba1)
+
+running 2 tests
+test the_ledger_partitions_the_catalog_exactly ... ok
+test emitted_rows_carry_the_doc_05_payload_shapes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/catalog_shape.rs (/home/z/my-project/target/release/deps/catalog_shape-a4308b26c7cbc228)
+
+running 4 tests
+test every_id_parses_and_follows_the_grammar ... ok
+test committed_checksum_recomputes ... ok
+test schema_has_the_doc_05_structure_and_counts ... ok
+test spec_table_covers_exactly_the_enum_variants ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/wire_forms.rs (/home/z/my-project/target/release/deps/wire_forms-f73f8e526afacd06)
+
+running 7 tests
+test doc_05_event_example ... ok
+test completed_response_carries_the_result_variant ... ok
+test doc_05_response_example ... ok
+test doc_05_request_example ... ok
+test inline_args_are_camel_case_and_units_are_bare ... ok
+test failure_response_is_the_error_envelope ... ok
+test sessionless_event_omits_optional_fields ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/control_protocol-c5726bed68a9dfda)
+
+running 47 tests
+test base64::tests::dirty_inputs_are_typed_errors ... ok
+test base64::tests::rfc4648_vectors ... ok
+test error::tests::auth_errors_map_to_permission_denied ... ok
+test error::tests::close_codes_are_the_documented_values ... ok
+test error::tests::only_bad_envelope_is_recoverable ... ok
+test error::tests::oversized_maps_to_resource_limit ... ok
+test error::tests::timeouts_map_to_going_away_and_network ... ok
+test error::tests::version_mismatch_maps_to_close_4402 ... ok
+test frame::tests::assembler_rejects_dirty_fragment_sequences ... ok
+test frame::tests::close_payload_validation ... ok
+test base64::tests::roundtrip_all_byte_values ... ok
+test frame::tests::fragmented_text_reassembles_with_interleaved_ping ... ok
+test frame::tests::invalid_utf8_text_is_a_typed_close ... ok
+test frame::tests::oversized_length_claims_reject_before_allocating ... ok
+test frame::tests::rsv_bits_and_bad_opcode_are_rejected ... ok
+test frame::tests::server_writer_roundtrips_through_the_parser_via_masking ... ok
+test frame::tests::truncated_headers_are_typed_errors ... ok
+test frame::tests::unmasked_client_frame_is_rejected ... ok
+test frame::tests::unmasked_server_frames_parse_without_phantom_mask_bytes ... ok
+test frame::tests::roundtrip_all_length_forms ... ok
+test http::tests::accept_value_matches_rfc6455_example ... ok
+test http::tests::client_roundtrip_against_server_validation ... ok
+test http::tests::dirty_requests_are_stable_reason_tokens ... ok
+test http::tests::valid_request_parses ... ok
+test http::tests::non_loopback_hosts_are_refused_and_loopback_forms_accepted ... ok
+test policy::tests::deny_by_default_and_granted_when_enabled ... ok
+test policy::tests::policy_file_serde_shape_is_strict ... ok
+test policy::tests::request_id_extraction_covers_payload_shapes ... ok
+test policy::tests::sensitive_list_is_exactly_the_documented_categories ... ok
+test policy::tests::unauthenticated_sessions_get_the_read_only_subset_only ... ok
+test policy::tests::unknown_grant_entries_are_typed_errors ... ok
+test protocol::tests::client_frame_request_roundtrips ... ok
+test protocol::tests::hello_roundtrips_with_and_without_token ... ok
+test protocol::tests::negotiation_picks_the_highest_mutual_major ... ok
+test protocol::tests::redact_name_bounds_client_controlled_text ... ok
+test protocol::tests::server_frame_protocol_error_shape ... ok
+test protocol::tests::request_shape_validation_rejects_unknown_fields_and_bad_ids ... ok
+test server::tests::documented_limits_are_the_doc_05_numbers ... ok
+test server::tests::loopback_binds_succeed_on_both_families ... ok
+test server::tests::non_loopback_binds_are_refused_at_construction ... ok
+test sha1::tests::external_vectors ... ok
+test sha1::tests::rfc6455_handshake_vector ... ok
+test sha1::tests::streaming_matches_oneshot_at_boundaries ... ok
+test token::tests::equal_and_unequal_comparisons ... ok
+test token::tests::generated_tokens_are_256_bit_and_distinct ... ok
+test token::tests::weak_fallback_is_well_formed ... ok
+test server::tests::failure_book_engages_the_documented_lockout ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/conformance.rs (/home/z/my-project/target/release/deps/conformance-f2d1afc80e240f24)
+
+running 25 tests
+test close_without_code_is_echoed_empty_then_eof ... ok
+test binary_application_frames_are_rejected_but_survive ... ok
+test dns_rebound_host_names_never_upgrade ... ok
+test fragmented_hello_round_trips_with_interleaved_ping ... ok
+test frames_before_authentication_are_refused ... ok
+test five_failures_lock_out_even_the_right_token ... ok
+test garbage_masked_payload_is_a_recoverable_json_error ... ok
+test handshake_failure_non_upgrade_http_gets_an_http_error ... ok
+test hello_twice_closes ... ok
+test handshake_success_full_session_round_trip ... ok
+test invalid_utf8_text_closes_1007 ... ok
+test non_loopback_bind_is_refused_at_construction_conformance ... ok
+test non_monotonic_request_id_closes_the_connection ... ok
+test oversized_length_claim_closes_1009_before_allocation ... ok
+test ping_is_answered_by_a_matching_pong ... ok
+test request_validation_rejects_dirty_payloads_and_survives ... ok
+test sensitive_command_allowed_when_config_grants_it ... ok
+test sensitive_command_denied_by_default_and_connection_survives ... ok
+test truncated_frame_header_closes_1002 ... ok
+test unauthenticated_read_only_mode_serves_the_safe_subset_only ... ok
+test unknown_protocol_name_is_rejected ... ok
+test unmasked_client_frame_closes_1002 ... ok
+test version_mismatch_is_a_typed_error_and_close_4402 ... ok
+test wrong_token_closes_4401_and_counts ... ok
+test idle_session_is_closed_by_the_read_deadline_1001 ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/control_server-64ab3ed614025ce1)
+
+running 11 tests
+test config::tests::a_missing_config_file_is_the_strict_default_not_an_error ... ok
+test config::tests::repo_product_today_refuses_the_feature_gate ... ok
+test config::tests::engine_info_carries_product_identity_and_catalog_checksum ... ok
+test dispatch::tests::engine_info_and_list_commands_serve_the_catalog_subset ... ok
+test dispatch::tests::everything_else_is_a_typed_not_ready_never_a_fake_success ... ok
+test dispatch::tests::the_catalog_lists_all_65_commands_from_the_live_spec ... ok
+test logging::tests::memory_sink_captures_in_order ... ok
+test logging::tests::records_serialize_to_stable_json_lines ... ok
+test logging::tests::session_summaries_map_to_records_with_close_kinds ... ok
+test config::tests::resolve_maps_the_operator_file_onto_the_wire_config ... ok
+test run::tests::the_cap_stops_the_loop_after_serving_that_many_sessions ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/home/z/my-project/target/release/deps/lumen_control_server-7fa7a7bfd5e6f131)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/e2e.rs (/home/z/my-project/target/release/deps/e2e-ebe41f26d17e6d90)
+
+running 6 tests
+test a_typoed_sensitive_grant_is_a_typed_startup_error ... ok
+test a_non_loopback_bind_in_the_operator_config_is_refused_at_bind ... ok
+test dirty_operator_toml_is_a_typed_config_error ... ok
+test operator_toml_parses_into_the_strict_shape ... ok
+test the_production_sink_renders_one_parseable_json_line_per_record ... ok
+test e2e_full_session_through_the_app_stack ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/demux-48464ff9787933ef)
+
+running 462 tests
+test adts::error::tests::not_adts_sniff_capped_by_display ... ok
+test adts::error::tests::errors_carry_demux_stage_and_adts_codes ... ok
+test adts::tests::adif_bad_params_are_typed ... ok
+test adts::tests::adif_cbr_walk_matches_the_block_arithmetic ... ok
+test adts::tests::adif_header_without_data_is_typed ... ok
+test adts::tests::adif_multi_program_is_the_typed_refusal ... ok
+test adts::tests::adif_partial_final_block_is_marked ... ok
+test adts::tests::adif_vbr_is_the_typed_refusal ... ok
+test adts::tests::adif_seek_is_format_inherent_arithmetic ... ok
+test adts::tests::adts_seek_past_the_end_lands_at_the_last_frame ... ok
+test adts::tests::adts_and_adif_agree_on_the_same_payload ... ok
+test adts::tests::channel_config_zero_is_typed ... ok
+test adts::tests::adts_seek_roundtrip_lands_at_or_before_the_target ... ok
+test adts::tests::clean_walk_stamps_frame_arithmetic ... ok
+test adts::tests::crc_mismatch_is_typed_and_good_crc_walks ... ok
+test adts::tests::frame_shorter_than_its_header_is_typed_bad_header ... ok
+test adts::tests::garbage_head_without_sync_is_the_typed_not_adts ... ok
+test adts::tests::header_parse_roundtrips_the_field_set ... ok
+test adts::tests::id3_head_and_interframe_tags_are_skipped ... ok
+test adts::tests::lost_sync_mid_stream_resyncs_with_recovered_events ... ok
+test adts::tests::mid_stream_parameter_change_is_a_discontinuity ... ok
+test adts::tests::nonzero_layer_head_is_not_adts ... ok
+test adts::tests::not_started_is_typed ... ok
+test adts::tests::pool_memory_stays_bounded ... ok
+test adts::tests::probe_detects_adts_adif_and_rejects_the_rest ... ok
+test adts::tests::rate_table_matches_the_spec ... ok
+test adts::tests::sampling_index_fifteen_is_typed ... ok
+test adts::tests::trailing_fragment_and_lost_sync_at_end_are_clean ... ok
+test adts::tests::truncated_first_frame_is_the_typed_truncation_at_start ... ok
+test adts::tests::truncated_frame_is_the_typed_truncation ... ok
+test aiff::chunks::tests::aifc_comm_resolves_the_compression_vocabulary ... ok
+test aiff::chunks::tests::broken_comms_are_typed ... ok
+test aiff::chunks::tests::classic_comm_parses ... ok
+test aiff::chunks::tests::extended80_rejects_non_normalized_shapes ... ok
+test aiff::chunks::tests::extended80_roundtrips_the_corpus_rates ... ok
+test aiff::chunks::tests::ssnd_header_parses ... ok
+test aiff::chunks::tests::unsupported_widths_and_compressions_are_typed ... ok
+test aiff::error::tests::errors_carry_demux_stage_and_aiff_codes ... ok
+test aiff::fuzz::tests::adversarial_size_fields_survive ... ok
+test aiff::fuzz::tests::empty_and_tiny_inputs_survive ... ok
+test aiff::fuzz::tests::scrambled_structured_files_survive ... ok
+test aiff::fuzz::tests::truncations_at_every_header_site_survive ... ok
+test aiff::tests::aifc_compression_vocabulary_demuxes ... ok
+test aiff::tests::big_endian_samples_arrive_verbatim ... ok
+test aiff::tests::comm_declarations_disagreeing_with_ssnd_are_damage ... ok
+test aiff::tests::declared_ssnd_past_actual_delivers_prefix_then_truncated ... ok
+test aiff::tests::drains_classic_pcm16be_whole_frames ... ok
+test aiff::tests::error_constructors_keep_their_codes ... ok
+test aiff::tests::mark_and_inst_chunks_are_skip_tolerant ... ok
+test aiff::tests::missing_comm_and_ssnd_are_typed ... ok
+test adts::tests::committed_mutation_fixtures_are_typed_or_recover_never_panics ... ok
+test aiff::tests::non_normalizable_rate_is_structural ... ok
+test aiff::tests::probe_recognizes_both_forms ... ok
+test aiff::tests::odd_comm_payload_takes_its_pad ... ok
+test aiff::tests::pts_ladder_and_span_count_sample_frames ... ok
+test aiff::tests::seek_maps_frames_and_reanchors ... ok
+test aiff::tests::ssnd_offset_skips_into_the_sound_data ... ok
+test aiff::tests::trailing_partial_frame_is_damaged_and_dropped ... ok
+test aiff::tests::trait_misuse_is_typed_not_a_panic ... ok
+test aiff::tests::truncated_comm_is_typed_truncation ... ok
+test aiff::tests::truncated_head_is_typed ... ok
+test aiff::tests::unsupported_depths_are_typed ... ok
+test aiff::tests::zero_or_offset_past_ssnd_is_no_ssnd ... ok
+test asf::error::tests::encrypted_stream_names_the_stream_on_the_source_chain ... ok
+test asf::error::tests::errors_carry_demux_stage_and_asf_codes ... ok
+test asf::error::tests::not_asf_sniff_capped_at_sixteen_bytes_by_display ... ok
+test asf::guid::tests::header_guid_round_trips_from_wire_bytes ... ok
+test asf::guid::tests::known_table_covers_the_verified_set ... ok
+test asf::guid::tests::readers_decode_little_endian_and_tolerate_short_buffers ... ok
+test asf::tests::assembler_refusals_are_typed ... ok
+test asf::fuzz::tests::hostile_sweeps_survive_without_panics ... ok
+test asf::tests::broadcast_flags_refuse_typed ... ok
+test asf::tests::declared_child_count_mismatch_is_damage_not_failure ... ok
+test asf::tests::error_constructors_table ... ok
+test asf::tests::broadcast_fixture_refuses_typed_where_ffprobe_refuses ... ok
+test asf::tests::fixture_family_walks_match_the_measured_truth ... ok
+test asf::tests::fragments_reassemble_into_whole_objects ... ok
+test asf::tests::header_above_memory_ceiling_refuses_typed ... ok
+test asf::tests::header_size_below_floor_and_overrun_refuse_bad_object_size ... ok
+test asf::tests::indexless_files_seek_by_bounded_linear_scan ... ok
+test asf::tests::indexless_seeks_past_the_scan_budget_refuse_typed ... ok
+test asf::tests::malformed_packets_refuse_typed_never_guess ... ok
+test asf::tests::minimal_audio_file_walks_to_one_pcm_track ... ok
+test asf::tests::multi_payload_packets_parse_in_order ... ok
+test asf::tests::non_audio_video_stream_types_skip_with_notes ... ok
+test asf::tests::non_fixed_packet_sizes_refuse_typed ... ok
+test asf::tests::not_asf_bytes_refuse_typed ... ok
+test asf::tests::packet_fields_parse_and_close_exactly ... ok
+test asf::tests::payloads_for_undeclared_streams_are_skipped_not_fatal ... ok
+test asf::tests::pcm_descriptor_maps_by_bits ... ok
+test asf::tests::probe_anchors_on_the_header_guid_only ... ok
+test asf::tests::simple_index_seek_reanchors_the_walk ... ok
+test asf::tests::trait_order_and_post_start_lanes_are_exact ... ok
+test asf::tests::truncated_head_is_truncation_not_not_asf ... ok
+test asf::tests::unknown_header_children_skip_by_size ... ok
+test asf::tests::unknown_waveformatex_tags_pass_through_raw ... ok
+test asf::tests::walk_emits_whole_objects_with_preroll_subtracted_stamps ... ok
+test asf::tests::zero_channel_waveformatex_refuses_typed ... ok
+test avi::fuzz::tests::adversarial_size_fields_survive ... ok
+test avi::fuzz::tests::empty_and_tiny_inputs_survive ... ok
+test avi::fuzz::tests::scrambled_extensible_audio_headers_survive ... ok
+test avi::fuzz::tests::scrambled_structured_prefixes_survive ... ok
+test avi::index::tests::out_of_order_idx1_parses_to_the_file_ordered_table ... ok
+test avi::index::tests::search_index_finds_last_keyframe_at_or_below ... ok
+test avi::riff::tests::arena_growth_stays_under_the_declared_bound ... ok
+test avi::riff::tests::fourcc_render_printable_and_hex ... ok
+test avi::riff::tests::header_parses_from_stack_bytes ... ok
+test avi::riff::tests::little_endian_readers ... ok
+test avi::riff::tests::movi_chunk_classification ... ok
+test avi::riff::tests::pad_is_one_only_for_odd_payloads ... ok
+test avi::riff::tests::payload_slots_over_a_real_reader_recycle ... ok
+test avi::riff::tests::payload_slots_recycle_exact_size_buffers ... ok
+test avi::riff::tests::payload_slots_short_reads_deliver_exact_lengths ... ok
+test avi::riff::tests::payload_slots_spill_varying_sizes_and_stay_bounded ... ok
+test avi::riff::tests::peek_header_does_not_move_the_position ... ok
+test avi::riff::tests::peek_header_into_restores_the_position ... ok
+test avi::riff::tests::peek_header_past_end_is_typed_truncation ... ok
+test avi::riff::tests::read_exact_and_end_detection ... ok
+test avi::riff::tests::read_exact_into_fills_or_errors_typed ... ok
+test avi::riff::tests::read_exact_or_end_agrees_with_the_borrow_twin ... ok
+test avi::riff::tests::read_prefix_at_clamps_to_the_stream ... ok
+test avi::riff::tests::read_prefix_into_clamps_like_read_prefix_at ... ok
+test avi::test_support::tests::reads_advance_and_clean_eof_is_sticky ... ok
+test avi::test_support::tests::seek_bounds ... ok
+test avi::test_support::tests::size_and_uri_are_honest ... ok
+test avi::tests::absolute_idx1_offsets_are_autodetected_and_seek ... ok
+test avi::tests::all_streams_degenerate_is_typed_no_supported_streams ... ok
+test avi::tests::all_streams_unsupported_is_typed ... ok
+test avi::tests::block_align_disagreements_are_damage_notes_not_skips ... ok
+test avi::tests::broken_magic_is_typed_not_avi ... ok
+test avi::tests::channels_over_ceiling_skips_the_stream_siblings_survive ... ok
+test avi::tests::chunk_size_past_movi_bound_clamps_and_continues ... ok
+test avi::tests::cut_exactly_at_a_chunk_payload_start_is_damage_then_eos ... ok
+test avi::tests::duplicate_movi_and_duplicate_idx1_count_as_damage ... ok
+test avi::tests::eos_is_idempotent_and_terminates ... ok
+test avi::tests::error_module_constructors_stay_demux_staged ... ok
+test avi::tests::float_pcm_without_sample_ladder_skips_the_stream ... ok
+test avi::tests::garbage_chunk_jump_inside_rec_hands_back_to_parent ... ok
+test avi::tests::garbage_chunk_jump_past_bound_resyncs_by_scan_without_idx1 ... ok
+test avi::tests::garbage_chunk_jump_past_bound_resyncs_via_idx1 ... ok
+test avi::tests::garbage_chunk_jump_without_landing_is_typed_never_silent_eos ... ok
+test avi::tests::idx1_damage_coalesces_per_reason ... ok
+test avi::tests::idx1_keyframe_flag_is_the_truth_when_present ... ok
+test avi::tests::impossible_pcm_combinations_skip_the_stream_siblings_survive ... ok
+test avi::tests::lying_hdrl_size_does_not_swallow_the_movi ... ok
+test avi::tests::lying_idx1_size_clamps_to_available_bytes ... ok
+test avi::tests::methods_before_start_are_typed_not_panics ... ok
+test avi::tests::missing_header_and_missing_movi_are_distinct_typed_errors ... ok
+test avi::tests::mjpa_handler_is_filtered_like_any_unsupported_handler ... ok
+test avi::tests::negative_biheight_accepts_bottom_up_dib_with_damage ... ok
+test avi::tests::odd_payloads_strip_the_word_pad ... ok
+test avi::tests::packets_carry_the_avi_ladder_timing ... ok
+test avi::tests::pcm_misalignment_is_damage_not_silence ... ok
+test avi::tests::pcm_wave_tag_matrix_maps_every_width_and_kind ... ok
+test avi::tests::reanchor_at_end_lands_last_and_past_end_is_typed ... ok
+test avi::tests::reanchor_clears_pending_events_stale_packets_never_reappear ... ok
+test avi::tests::reanchor_failure_leaves_the_demuxer_at_its_position_d4 ... ok
+test avi::tests::reanchor_from_eof_revives_the_stream ... ok
+test avi::tests::reanchor_landing_agrees_with_the_pure_query ... ok
+test avi::tests::reanchor_moves_the_stream_and_packets_continue_from_the_landing ... ok
+test avi::tests::reanchor_on_interleaved_streams_keeps_both_ladders_true ... ok
+test avi::tests::reanchor_without_idx1_scans_and_continues ... ok
+test avi::tests::rec_list_overrunning_parent_bound_clamps_with_damage ... ok
+test avi::tests::rec_lists_are_transparent ... ok
+test avi::tests::resync_budget_exhaustion_is_the_typed_terminal_not_an_endless_walk ... ok
+test avi::tests::riff_extent_clamps_the_walk_to_real_bytes ... ok
+test avi::tests::seek_does_not_move_the_read_position ... ok
+test avi::tests::seek_lands_on_last_keyframe_at_or_below_target ... ok
+test avi::tests::seek_out_of_range_is_typed ... ok
+test avi::tests::seek_without_idx1_walks_the_movi ... ok
+test avi::tests::seekability_reports_the_container_shape ... ok
+test avi::tests::short_strf_skips_the_stream_siblings_survive ... ok
+test avi::tests::short_strh_skips_the_stream_siblings_survive ... ok
+test avi::tests::slow_linear_scan_is_bounded_and_typed ... ok
+test avi::tests::strn_title_surfaces_on_the_track ... ok
+test avi::tests::truncated_head_is_typed_at_the_boundary ... ok
+test avi::tests::truncated_movi_payload_delivers_prefix_damage_then_eos ... ok
+test avi::tests::two_stream_start_reports_the_track_table ... ok
+test avi::tests::unknown_movi_chunks_skip_with_damage ... ok
+test avi::tests::unsupported_stream_types_are_filtered_with_damage ... ok
+test avi::tests::unusable_sources_are_rejected_at_construction ... ok
+test avi::tests::wave_format_extensible_resolves_subformat_guids ... ok
+test avi::tests::zero_rate_or_scale_skips_the_stream_not_the_file ... ok
+test error::tests::errors_carry_demux_stage_and_stable_codes ... ok
+test error::tests::kinds_map_to_the_documented_taxonomy ... ok
+test error::tests::not_avi_sniff_capped_at_sixteen_bytes_by_display ... ok
+test es::fuzz::tests::empty_and_marker_inputs_survive ... ok
+test es::fuzz::tests::hostile_wide_inputs_survive ... ok
+test es::tests::aac_lane_is_the_landed_adts_demuxer ... ok
+test es::tests::empty_source_refuses_at_construction ... ok
+test es::tests::fuzz_lite_mutations_never_panic_or_hang ... ok
+test es::tests::h264_aus_follow_the_nal_type_rule ... ok
+test es::tests::h264_no_sync_is_typed_unsupported_after_scan ... ok
+test es::tests::hevc_aus_group_on_first_slice_flag_and_vps ... ok
+test es::tests::mp3_midstream_garbage_resyncs_with_recovered_event ... ok
+test es::tests::mp3_no_sync_is_typed_unsupported_after_scan ... ok
+test es::tests::mp3_truncated_final_frame_is_typed_sticky ... ok
+test es::tests::mp3_walks_frames_with_exact_sample_clock ... ok
+test es::tests::next_event_before_start_is_typed ... ok
+test ivf::error::tests::errors_carry_demux_stage_and_ivf_codes ... ok
+test ivf::error::tests::kinds_map_to_the_documented_taxonomy ... ok
+test ivf::error::tests::not_ivf_sniff_capped_by_display ... ok
+test ivf::tests::clean_walk_passes_the_container_truth ... ok
+test ivf::tests::declared_frame_count_is_advisory_the_walk_is_truth ... ok
+test ivf::tests::fuzz_lite_bit_flips_never_panic_or_hang ... ok
+test ivf::tests::fuzz_lite_truncations_never_panic_or_hang ... ok
+test ivf::tests::fuzz_lite_wild_declared_sizes_are_refused_not_allocated ... ok
+test ivf::tests::header_parse_roundtrips_the_field_set ... ok
+test ivf::tests::header_refuses_bad_magic_typed ... ok
+test ivf::tests::header_refuses_short_buffers_typed ... ok
+test ivf::tests::header_refuses_structural_lies_typed ... ok
+test ivf::tests::probe_detects_dkif_and_rejects_the_rest ... ok
+test ivf::tests::reanchor_resumes_the_walk_from_the_landing ... ok
+test ivf::tests::seek_lands_on_the_last_frame_at_or_before_the_target ... ok
+test ivf::tests::seek_out_of_range_only_when_no_frame_exists ... ok
+test ivf::tests::start_refuses_every_malformed_shape_typed ... ok
+test ivf::tests::trailing_fragment_is_recovered_then_clean_end ... ok
+test ivf::tests::trait_calls_before_start_refuse_typed ... ok
+test ivf::tests::walk_passes_vfr_gaps_and_zero_size_frames_through ... ok
+test ivf::tests::walk_refuses_ceiling_sized_frames_before_allocating ... ok
+test ivf::tests::walk_refuses_frame_beyond_file_sticky ... ok
+test ivf::tests::walk_refuses_i64_impossible_pts ... ok
+test mkv::attachments::tests::attached_file_without_data_is_damage_skipped ... ok
+test mkv::attachments::tests::attached_files_parse_the_full_record ... ok
+test mkv::attachments::tests::attachment_count_ceiling_skips_with_damage ... ok
+test mkv::attachments::tests::cover_art_picks_the_image_attachment_not_the_font ... ok
+test mkv::attachments::tests::file_data_overrunning_the_master_is_the_typed_truncation ... ok
+test mkv::attachments::tests::invalid_utf8_labels_are_tolerated_as_absent ... ok
+test mkv::attachments::tests::over_ceiling_data_stays_the_non_inline_note ... ok
+test mkv::attachments::tests::truncated_file_data_is_the_typed_truncation ... ok
+test mkv::attachments::tests::unknown_size_inside_the_master_is_bad_structure ... ok
+test mkv::chapters::tests::atom_table_ceiling_is_the_typed_resource_limit ... ok
+test mkv::chapters::tests::atom_without_time_start_is_damage_skipped ... ok
+test mkv::chapters::tests::default_edition_selects_flag_then_first_visible_then_first ... ok
+test mkv::chapters::tests::edition_ceiling_skips_with_damage ... ok
+test mkv::chapters::tests::editions_atoms_and_displays_parse_the_full_record ... ok
+test mkv::chapters::tests::empty_chapters_element_is_an_empty_list ... ok
+test mkv::chapters::tests::extreme_times_land_in_the_tolerant_bucket ... ok
+test mkv::chapters::tests::nested_atoms_parse_to_the_depth_guard ... ok
+test mkv::chapters::tests::times_past_the_duration_are_the_tolerant_note ... ok
+test mkv::chapters::tests::truncated_atom_field_is_the_typed_truncation ... ok
+test mkv::chapters::tests::unknown_size_inside_chapters_is_bad_structure ... ok
+test mkv::cluster::tests::absolute_ticks_checks_the_timeline ... ok
+test mkv::cluster::tests::ebml_lacing_sizes_decode ... ok
+test mkv::cluster::tests::fixed_lacing_divides_exactly ... ok
+test mkv::cluster::tests::fixed_lacing_remainder_is_refused ... ok
+test mkv::cluster::tests::lacing_overrun_is_typed_mismatch ... ok
+test mkv::cluster::tests::no_lacing_single_frame ... ok
+test mkv::cluster::tests::short_block_header_is_typed ... ok
+test mkv::cluster::tests::xiph_lacing_splits_and_remainder_last ... ok
+test mkv::cues::tests::landing_before_is_floor_binary_search ... ok
+test mkv::ebml::tests::id_vints_reject_invalid_grammar ... ok
+test mkv::ebml::tests::id_vints_roundtrip_all_four_lengths ... ok
+test mkv::ebml::tests::size_vints_roundtrip_and_flag_unknown ... ok
+test mkv::ebml::tests::typed_values_follow_the_grammar ... ok
+test mkv::editions::tests::budget_error_is_typed_resource_limit ... ok
+test mkv::editions::tests::default_edition_selects_flag_then_first_visible ... ok
+test mkv::error::tests::errors_carry_demux_stage_and_stable_codes ... ok
+test mkv::error::tests::kinds_map_to_the_documented_taxonomy ... ok
+test mkv::error::tests::not_matroska_sniff_capped_at_sixteen_bytes_by_display ... ok
+test mkv::fuzz::tests::empty_and_marker_inputs_survive ... ok
+test mkv::fuzz::tests::hostile_wide_inputs_survive ... ok
+test mkv::header::tests::codec_descriptors_follow_the_registry_vocabulary ... ok
+test mkv::header::tests::info_title_and_track_uid_parse_into_the_models ... ok
+test mkv::header::tests::segment_info_defaults_and_duration_ticks ... ok
+test mkv::header::tests::track_type_maps_to_the_l0_vocabulary ... ok
+test mkv::tags::tests::budget_error_is_typed_resource_limit ... ok
+test mkv::tags::tests::default_targets_are_track_level ... ok
+test mkv::tags::tests::global_and_track_pairs_shape_the_differential ... ok
+test mkv::tags::tests::global_text_finds_names_case_insensitively ... ok
+test mkv::tags::tests::targets_globally_scope_the_uid_zero_form ... ok
+test mkv::tags::tests::text_values_strip_nul_padding_like_ffmpeg ... ok
+test mp4::tests::absent_stss_means_all_sync ... ok
+test mp4::tests::chap_tref_chapters_surface_with_titles ... ok
+test mp4::tests::child_beyond_parent_is_typed ... ok
+test mp4::tests::co64_count_over_ceiling_is_bounded_and_damage_noted ... ok
+test mp4::tests::cover_and_chapters_keep_packet_handles_aligned_with_tracks ... ok
+test mp4::tests::cover_art_surfaces_as_a_still_image_video_track ... ok
+test mp4::tests::ctts_shifts_pts_off_dts ... ok
+test mp4::tests::elst_empty_edit_delays_and_media_time_trims ... ok
+test mp4::tests::fragmented_demuxes_moofs_with_tfdt_ladder ... ok
+test mp4::tests::fragmented_seek_scans_moofs ... ok
+test mp4::tests::fragmented_two_tracks_per_moof ... ok
+test mp4::tests::fuzz_lite_fragment_mutations_never_panic ... ok
+test mp4::tests::fuzz_lite_mutations_never_panic ... ok
+test mp4::tests::ipcm_fpcm_pcmc_mapping_table ... ok
+test mp4::tests::ipcm_fpcm_with_pcmc_demux_as_pcm_codecs ... ok
+test mp4::tests::ipcm_pcmc_unmapped_width_notes_unknown_entry ... ok
+test mp4::tests::ipcm_without_pcmc_defaults_to_entry_name_convention ... ok
+test mp4::tests::missing_moov_is_typed ... ok
+test mp4::tests::mov_quirks_wide_and_qt_brand_open ... ok
+test mp4::tests::not_mp4_is_typed_refusal ... ok
+test mp4::tests::not_started_calls_are_typed ... ok
+test mp4::tests::png_cover_and_unknown_cover_types_map_or_note ... ok
+test mp4::tests::probe_accepts_known_brands_and_qt_heads ... ok
+test mp4::tests::progressive_seek_lands_on_keyframe ... ok
+test mp4::tests::progressive_single_track_demuxes_samples_in_order ... ok
+test mp4::tests::progressive_two_tracks_interleave_by_file_offset ... ok
+test mp4::tests::seek_failure_leaves_state_usable_d4 ... ok
+test mp4::tests::size_one_reads_64bit_largesize ... ok
+test mp4::tests::size_zero_convention_extends_to_stream_end ... ok
+test mp4::tests::sowt_entry_maps_to_pcm_s16le ... ok
+test mp4::tests::stco_count_over_ceiling_is_bounded_and_damage_noted ... ok
+test mp4::tests::stsc_count_over_ceiling_is_bounded_and_damage_noted ... ok
+test mp4::tests::stss_unsorted_with_duplicates_matches_sorted_flags ... ok
+test mp4::tests::threegp_brand_and_samr_entry_open ... ok
+test mp4::tests::truncated_box_header_is_typed_truncation ... ok
+test mp4::tests::truncated_sample_read_is_typed_after_start ... ok
+test mp4::tests::unknown_boxes_between_ftyp_and_moov_are_tolerated ... ok
+test mp4::tests::zero_sample_tables_in_progressive_is_typed ... ok
+test ogg::clock_unit::clock_conversions_are_exact ... ok
+test ogg::clock_unit::find_capture_ignores_short_tails ... ok
+test ogg::clock_unit::flac_streaminfo_rate_bits ... ok
+test ogg::clock_unit::identify_parses_the_magic_set ... ok
+test ogg::clock_unit::theora_header_offsets_pin_the_corpus_layout ... ok
+test ogg::error::tests::errors_carry_demux_stage_and_ogg_codes ... ok
+test ogg::error::tests::not_ogg_sniff_capped_by_display ... ok
+test ogg::page::tests::crc_matches_the_ogg_variant_check_value ... ok
+test ogg::page::tests::crc_round_trips_and_catches_flips ... ok
+test ogg::page::tests::header_fields_parse_little_endian ... ok
+test ogg::page::tests::lacing_runs_mark_packet_boundaries ... ok
+test ogg::page::tests::nonzero_version_and_zero_segments_are_typed ... ok
+test ogg::tests::bad_crc_page_is_dropped_with_sync_recovery ... ok
+test ogg::tests::chained_links_boundary_discontinuity_and_fresh_tracks ... ok
+test ogg::tests::continued_flag_lies_are_damage_noted ... ok
+test ogg::tests::continued_packet_assembles_across_pages ... ok
+test ogg::tests::granule_regression_is_an_honest_discontinuity ... ok
+test ogg::tests::mid_stream_garbage_recovers_at_the_next_capture ... ok
+test ogg::tests::minus_one_data_page_punches_a_visible_hole ... ok
+test ogg::tests::mux_two_serials_two_tracks_interleaved ... ok
+test ogg::tests::no_bos_page_is_a_typed_no_streams ... ok
+test ogg::tests::not_started_and_not_ogg_are_typed ... ok
+test ogg::tests::only_the_last_packet_on_a_page_owns_the_granule ... ok
+test ogg::tests::pool_stays_bounded_and_packets_are_zero_copy_views ... ok
+test ogg::tests::seek_and_reanchor_land_on_the_last_page_before_the_target ... ok
+test ogg::tests::sequence_discontinuity_is_damage_noted_and_continues ... ok
+test ogg::tests::single_stream_start_packets_and_duration ... ok
+test ogg::tests::skeleton_stream_mints_no_track_and_no_packets ... ok
+test ogg::tests::truncated_page_is_a_typed_sticky_error ... ok
+test ogg::tests::unknown_codec_demuxes_opaque_with_missing_stamps ... ok
+test ogg::tests::unterminated_lacing_run_is_a_typed_overrun ... ok
+test ps::error::tests::errors_carry_demux_stage_and_stable_codes ... ok
+test ps::error::tests::not_ps_sniff_is_capped_by_display ... ok
+test ps::tests::bad_pack_prefix_is_typed ... ok
+test ps::tests::bad_pes_flags_and_stuffing_are_typed ... ok
+test ps::tests::damaged_bytes_resync_within_the_window ... ok
+test ps::tests::demo_stream_yields_two_tracks_and_packets ... ok
+test ps::tests::fuzz_lite_clean_fixtures_drain_without_terminating_errors ... ok
+test ps::tests::fuzz_lite_mutations_of_the_committed_fixtures_never_panic ... ok
+test ps::tests::mpeg1_no_stamp_packet_carries_the_single_0x0f_byte ... ok
+test ps::tests::mpeg1_pack_carries_ffmpegs_trailing_rate_bits_not_the_specs ... ok
+test ps::tests::mpeg1_pack_roundtrips_scr_and_rate ... ok
+test ps::tests::mpeg1_stamped_pes_roundtrips_pts ... ok
+test ps::tests::mpeg2_pack_marker_bits_are_data_never_enforced ... ok
+test ps::tests::mpeg2_pack_roundtrips_scr_rate_and_stuffing ... ok
+test ps::tests::mpeg2_pes_flags_use_marker_bit_zero_and_one_stuffing_byte ... ok
+test ps::tests::mpeg2_pts_dts_pair_parses_both ... ok
+test ps::tests::not_started_is_typed_and_start_is_idempotent ... ok
+test ps::tests::padding_stream_and_system_header_are_skipped_positionally ... ok
+test ps::tests::private1_ac3_strips_substream_and_three_filler_bytes ... ok
+test ps::tests::private1_dts_lpcm_and_spu_route_with_their_strips ... ok
+test ps::tests::private1_unclassified_substream_is_skipped_loudly ... ok
+test ps::tests::private2_nav_packets_form_a_data_track ... ok
+test ps::tests::program_end_stops_the_walk_before_trailing_garbage ... ok
+test ps::tests::seek_clamps_into_the_scr_extent_and_reanchor_marks_discontinuity ... ok
+test ps::tests::stamp_bytes_roundtrip_with_the_parser ... ok
+test ps::tests::truncated_pack_is_the_typed_truncation ... ok
+test ps::tests::wrong_head_is_the_typed_not_ps ... ok
+test ps::tests::zero_pes_length_is_damage_noted_never_an_unbounded_read ... ok
+test ts::fuzz::tests::empty_and_sync_inputs_survive ... ok
+test ts::fuzz::tests::hostile_wide_inputs_survive ... ok
+test ts::pes::tests::bad_pts_marker_is_typed_damage_midstream ... ok
+test ts::pes::tests::bounded_audio_completes_at_declared_length ... ok
+test ts::pes::tests::discontinuity_surfaces_as_event_and_packet_flag ... ok
+test ts::pes::tests::dts_regression_and_jump_are_events ... ok
+test ts::pes::tests::error_kinds_are_stable_and_staged ... ok
+test ts::pes::tests::forbidden_pts_dts_flags_refuse_typed ... ok
+test ts::pes::tests::header_swallowing_the_declared_packet_is_refused ... ok
+test ts::pes::tests::length_overrun_is_recovered_damage ... ok
+test ts::pes::tests::non_pes_pid_goes_dormant_instead_of_accumulating ... ok
+test ts::pes::tests::payload_ceiling_is_the_typed_refusal ... ok
+test ts::pes::tests::pcr_regression_is_an_event_and_discontinuity_resets ... ok
+test ts::pes::tests::pts_regression_without_dts_is_an_event_bframe_pts_with_dts_is_not ... ok
+test ts::pes::tests::pts_stamp_maps_to_the_ninety_kilohertz_base ... ok
+test ts::pes::tests::stray_continuation_before_any_start_is_counted ... ok
+test ts::pes::tests::stream_id_classification_table ... ok
+test ts::pes::tests::tiny_bounded_pes_without_optional_header_completes ... ok
+test ts::pes::tests::truncated_bounded_pes_at_eos_is_typed ... ok
+test ts::pes::tests::ts5_roundtrip_and_marker_guard ... ok
+test ts::pes::tests::unbounded_video_assembles_across_packets ... ok
+test ts::tests::af_discontinuity_indicator_raises_the_event ... ok
+test ts::tests::bad_sync_resyncs_with_recovery_event ... ok
+test ts::tests::cat_and_future_and_short_sections_skip ... ok
+test ts::tests::cat_sections_skip_with_a_note ... ok
+test ts::tests::continuity_jump_and_duplicate_are_tolerant_and_counted ... ok
+test ts::tests::crc32_matches_the_corpus_shape ... ok
+test ts::tests::crc_damaged_psi_is_dropped_not_fatal ... ok
+test ts::tests::crc_mismatch_is_typed ... ok
+test ts::tests::dvb_text_prefixes_and_composition ... ok
+test ts::tests::multi_program_surface ... ok
+test ts::tests::next_event_before_start_is_typed ... ok
+test ts::tests::no_pat_is_typed ... ok
+test ts::tests::not_ts_is_typed ... ok
+test ts::tests::packet_fields_parse ... ok
+test ts::tests::partial_tail_packet_is_a_note_not_an_error ... ok
+test ts::tests::pat_parses_program_entries ... ok
+test ts::tests::pes_seam_receives_payloads_and_errors_propagate ... ok
+test ts::tests::pmt_parses_pcr_and_es_loop ... ok
+test ts::tests::probe_requires_synced_stride ... ok
+test ts::tests::sdt_parses_service_names_the_5_byte_loop_header ... ok
+test ts::tests::sections_spanning_packets_and_multi_section_payloads ... ok
+test ts::tests::seek_refuses_typed ... ok
+test ts::tests::single_program_surface ... ok
+test ts::tests::tei_and_scrambling_and_af_overrun ... ok
+test ts::tests::tei_packets_are_skipped_and_counted ... ok
+test ts::tests::truncated_and_bad_structure_are_typed ... ok
+test ts::tests::truncated_psi_section_drops_and_continues ... ok
+test ts::tests::unresyncable_garbage_is_typed ... ok
+test wav::error::tests::errors_carry_demux_stage_and_wav_codes ... ok
+test wav::error::tests::not_wav_sniff_capped_at_sixteen_bytes_by_display ... ok
+test wav::format::tests::adpcm_tags_parse_their_block_framing ... ok
+test wav::format::tests::extensible_flac_guid_exposes_streaminfo_and_descriptor ... ok
+test wav::format::tests::extensible_float_guid_maps_to_f32 ... ok
+test wav::format::tests::extensible_without_body_is_a_structural_lie ... ok
+test wav::format::tests::parses_extensible_pcm24_like_ffmpeg_writes ... ok
+test wav::format::tests::parses_plain_pcm16 ... ok
+test wav::format::tests::short_fmt_is_structural ... ok
+test wav::format::tests::unknown_tags_and_depths_are_typed_refusals ... ok
+test wav::format::tests::valid_bits_below_container_bits_are_refused ... ok
+test wav::format::tests::zero_or_inconsistent_params_are_bad_fmt ... ok
+test wav::fuzz::tests::adversarial_size_fields_survive ... ok
+test wav::fuzz::tests::empty_and_tiny_inputs_survive ... ok
+test wav::fuzz::tests::scrambled_extensible_headers_survive ... ok
+test wav::fuzz::tests::scrambled_structured_files_survive ... ok
+test wav::fuzz::tests::truncations_at_every_header_site_survive ... ok
+test wav::tests::adpcm_packets_are_block_aligned_with_frame_accounting ... ok
+test wav::tests::adpcm_seek_lands_on_block_boundaries ... ok
+test wav::tests::data_sliver_below_one_frame_is_no_data ... ok
+test wav::tests::declared_size_past_actual_is_typed_truncation_after_packets ... ok
+test wav::tests::drains_plain_pcm16_whole_frames ... ok
+test wav::tests::error_constructors_keep_their_codes ... ok
+test wav::tests::fact_and_info_metadata_are_parsed ... ok
+test wav::tests::flac_in_wav_enumerates_with_declared_span_and_unstamped_packets ... ok
+test wav::tests::flac_packets_carry_no_stamps ... ok
+test wav::tests::missing_fmt_and_data_are_typed ... ok
+test wav::tests::odd_data_payload_strips_its_pad ... ok
+test wav::tests::odd_sized_chunks_skip_their_pad_byte ... ok
+test wav::tests::oversized_info_value_is_damage_not_fatal ... ok
+test wav::tests::packets_are_bounded_and_laddered ... ok
+test wav::tests::plain_riff_data_sentinel_means_to_stream_end ... ok
+test wav::tests::probe_recognizes_the_three_magics_and_rejects_other_forms ... ok
+test wav::tests::pts_ladder_counts_sample_frames ... ok
+test wav::tests::rf64_ds64_sizes_are_the_truth ... ok
+test wav::tests::rf64_sentinel_without_ds64_is_a_declared_lie ... ok
+test wav::tests::seek_errors_stay_sticky_free_and_demuxer_unmoved ... ok
+test wav::tests::seek_maps_frames_and_reanchors ... ok
+test wav::tests::trailing_partial_frame_is_damaged_and_dropped ... ok
+test wav::tests::trait_misuse_is_typed_not_a_panic ... ok
+test wav::tests::truncated_head_is_typed_not_wav_or_truncated ... ok
+test wav::tests::truncated_mid_header_is_typed_truncation ... ok
+test wav::tests::zero_data_size_is_typed_no_data ... ok
+test asf::tests::fixture_family_cross_checks_against_live_ffprobe ... ok
+
+test result: ok. 462 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+     Running tests/adts_corpus.rs (/home/z/my-project/target/release/deps/adts_corpus-10c42115a03320fe)
+
+running 4 tests
+test corpus_adts_seek_roundtrip ... ok
+test corpus_adts_lanes_match_the_ffmpeg_truth ... ok
+test corpus_adts_survive_the_fuzz_harness ... ok
+test corpus_dirty_tail_garbage_is_honest ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/adversarial_gaps.rs (/home/z/my-project/target/release/deps/adversarial_gaps-ae9e5001cd2cea5a)
+
+running 13 tests
+test avi_with_mp4_bytes_as_junk_payload_demuxes_as_avi ... ok
+test avi_bytes_behind_a_lying_mp4_name_demux_fully ... ok
+test dribbled_no_index_scan_seeks_and_lands_within_tolerance ... ok
+test dribbled_parent_reanchor_revives_and_resumes_the_canonical_tail ... ok
+test duplicate_offset_entries_seek_typed_and_never_loop ... ok
+test ftyp_magic_with_an_embedded_avi_body_is_refused_not_rescued ... ok
+test fully_reversed_idx1_walks_and_seeks_like_the_canonical_file ... ok
+test mid_table_reversed_offset_run_seeks_and_reanchors_typed ... ok
+test mp4_signatured_bytes_refuse_typed_in_the_avi_path ... ok
+test probe_hit_demux_refuse_disagreement_is_typed ... ok
+test search_index_on_time_backwards_entries_stays_keyframe_safe ... ok
+test shuffled_idx1_walks_and_seeks_like_the_canonical_file ... ok
+test dribbled_parent_walk_matches_the_plain_walk ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/corpus.rs (/home/z/my-project/target/release/deps/corpus-93c7951dd902a034)
+
+running 3 tests
+test corpus_avi_audio_matrix_recognizes_every_pcm_format ... ignored, randomized-corpus harness: run via tools/corpus/run_harness.py (audio matrix)
+test corpus_avi_walk_records_every_file ... ignored, randomized-corpus harness: run via tools/corpus/run_harness.py
+test corpus_dirty_zero_mid_walks_recover_the_tail_to_oracle_counts ... ignored, randomized-corpus harness: run via tools/corpus/run_harness.py (W2-07 oracles)
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/corpus_mp4.rs (/home/z/my-project/target/release/deps/corpus_mp4-9c5b91a88985aef6)
+
+running 2 tests
+test corpus_mp4_seek_lands_and_resumes ... ok
+test corpus_mp4_family_matches_the_ffmpeg_truth ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/corpus_ogg.rs (/home/z/my-project/target/release/deps/corpus_ogg-d94e4c8442653159)
+
+running 2 tests
+test corpus_oggs_survive_the_fuzz_harness ... ok
+test corpus_oggs_match_the_ffmpeg_truth ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/corpus_wav.rs (/home/z/my-project/target/release/deps/corpus_wav-2800762f46b0c893)
+
+running 2 tests
+test corpus_wavs_survive_the_fuzz_harness ... ok
+test corpus_wavs_match_the_ffmpeg_truth ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/es_corpus.rs (/home/z/my-project/target/release/deps/es_corpus-b4a780748f72735a)
+
+running 4 tests
+test corpus_h264_lane_matches_ffprobe_packet_geometry ... ok
+test corpus_aac_lanes_match_ffprobe_packet_counts ... ok
+test corpus_hevc_lane_matches_ffprobe_packet_geometry ... ok
+test corpus_mp3_lanes_match_ffprobe_packet_counts ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/fixtures_class_b.rs (/home/z/my-project/target/release/deps/fixtures_class_b-c6b91c5efba3eaf9)
+
+running 11 tests
+test flip16_broken_magic_is_a_typed_parse_error ... ok
+test flip1_advisory_field_flip_demuxes_identically ... ok
+test flip4_lying_sizes_recover_with_counted_damage ... ok
+test every_avi_fixture_survives_the_fuzz_harness ... ok
+test garbage0_appended_past_extent_is_invisible ... ok
+test trunc0_after_magic_is_typed_truncation ... ok
+test trunc1_mid_avih_is_typed_truncation ... ok
+test trunc2_at_first_movi_chunk_starts_but_errors_at_the_boundary ... ok
+test trunc3_mid_payload_delivers_prefix_with_counted_damage ... ok
+test noidx0_demuxes_fully_via_the_movi_walk ... ok
+test trunc4_last_byte_demuxes_fully_with_index_salvage ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/fixtures_parent.rs (/home/z/my-project/target/release/deps/fixtures_parent-c1c8f7a3048ec0c6)
+
+running 6 tests
+test parent_events_survive_the_fuzz_harness ... ok
+test parent_demuxes_fully_per_frame_hash_and_pcm_digest ... ok
+test parent_seek_targets_land_within_tolerance ... ok
+test parent_track_table_matches_the_expectation ... ok
+test parent_reanchor_continues_the_stream_within_tolerance ... ok
+test sha256_impl_matches_the_recorded_file_digest ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fuzz_loop_stable.rs (/home/z/my-project/target/release/deps/fuzz_loop_stable-ee34da49a3cd5c38)
+
+running 5 tests
+test avi_seed_loop_long ... ignored, long fuzz run — cargo test -- --ignored --nocapture
+test loop_accounting_is_deterministic ... ok
+test seeded_generation_is_deterministic_and_decorrelated ... ok
+test sub_magic_lengths_are_survivable_inputs ... ok
+test avi_seed_loop_survives ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/idx1_stream_scope.rs (/home/z/my-project/target/release/deps/idx1_stream_scope-77227e56ff75d5ef)
+
+running 3 tests
+test filtered_and_unknown_idx1_entries_discriminate ... ok
+test filtered_stream_idx1_entries_are_silent ... ok
+test genuinely_unknown_idx1_stream_is_damage ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ivf_fixtures.rs (/home/z/my-project/target/release/deps/ivf_fixtures-771ed6da7aacd909)
+
+running 5 tests
+test crafted_frame_beyond_file_refuses_where_ffmpeg_shortens ... ok
+test frame_counts_pts_ladders_and_payload_md5_match_ffmpeg ... ok
+test stream_parameters_match_ffprobe ... ok
+test truncated_derivatives_are_typed_never_panics ... ok
+test fuzz_lite_over_the_real_ffmpeg_bytes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/mkv_attachments_chapters.rs (/home/z/my-project/target/release/deps/mkv_attachments_chapters-c9def5ed6a72f21d)
+
+running 2 tests
+test corpus_attachments_chapters_differential_vs_ffprobe ... ok
+test generated_fixture_attachments_chapters_differential ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/mkv_corpus.rs (/home/z/my-project/target/release/deps/mkv_corpus-a05c51ec834e4d48)
+
+running 2 tests
+test corpus_matroska_seek_roundtrip ... ok
+test corpus_matroska_differential_vs_ffprobe ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/mkv_editions_tags.rs (/home/z/my-project/target/release/deps/mkv_editions_tags-07a244afc61411a9)
+
+running 14 tests
+test atom_nesting_depth_guard_is_typed ... ok
+test corpus_editions_match_ffprobe_chapter_counts ... ok
+test corpus_tags_match_ffprobe_format_and_stream_scopes ... ok
+test chapter_bomb_ceiling_is_the_typed_resource_limit ... ok
+test edition_defaults_follow_the_spec_when_absent ... ok
+test edition_flags_and_chapter_uid_links_parse ... ok
+test global_and_track_scoped_tags_parse_with_languages ... ok
+test nested_simple_tags_and_binary_values_parse ... ok
+test over_deep_simple_tag_nesting_is_the_typed_structure_error ... ok
+test tag_bomb_ceilings_are_typed_resource_limits ... ok
+test truncated_simple_tag_is_the_typed_truncation ... ok
+test uid_zero_targets_are_the_global_form ... ok
+test unknown_target_type_value_is_tolerantly_recorded ... ok
+test generated_metadata_files_match_ffprobe ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/mkv_extras_wiring.rs (/home/z/my-project/target/release/deps/mkv_extras_wiring-90e20fff9d767d70)
+
+running 9 tests
+test chapter_targets_seek_lands_at_or_before ... ok
+test damaged_block_recovers_once_and_still_reaches_eos ... ok
+test degenerate_attachment_damage_folds_into_the_counter ... ok
+test multi_edition_chapters_retain_all_and_target_the_default ... ok
+test tags_attachments_chapters_wire_through_start_retained ... ok
+test title_falls_back_to_the_global_title_tag ... ok
+test track_uids_are_stable_across_reopens ... ok
+test unknown_size_tags_master_parses_and_playback_reaches_eos ... ok
+test generated_lane_wires_title_font_cover_and_chapters ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/mkv_fixtures.rs (/home/z/my-project/target/release/deps/mkv_fixtures-cb16400bd2d1e54a)
+
+running 9 tests
+test hand_built_laced_fixture_decodes_all_three_codings ... ok
+test laced_frame_payloads_are_byte_exact ... ok
+test malformed_derivatives_are_typed_or_recover_never_panics ... ok
+test probe_matches_the_ebml_magic ... ok
+test truncated_cluster_is_the_typed_truncation ... ok
+test unknown_doctype_is_the_typed_refusal ... ok
+test valid_fixtures_match_ffprobe_packet_counts ... ok
+test zero_head_is_the_typed_bad_vint ... ok
+test audio_payload_is_bit_exact_vs_ffmpeg ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/mp4_fixtures.rs (/home/z/my-project/target/release/deps/mp4_fixtures-1d751e87fa21df1c)
+
+running 5 tests
+test edts_fixture_shifts_the_first_pts ... ok
+test chapters_fixture_surfaces_titled_markers ... ok
+test malformed_mp4_fixtures_only_ever_refuse_or_demux_typed ... ok
+test malformed_mp4_fixtures_survive_the_fuzz_harness ... ok
+test valid_mp4_fixtures_demux_fully ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/ogg_fixtures.rs (/home/z/my-project/target/release/deps/ogg_fixtures-26b154e8a0049f24)
+
+running 4 tests
+test ogg_chain_two_links_is_two_links_with_a_fresh_track ... ok
+test every_ogg_fixture_matches_the_ffmpeg_truth ... ok
+test ogg_derivatives_stay_inside_the_typed_vocabulary ... ok
+test ogg_fixtures_and_derivatives_survive_the_fuzz_harness ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/ps_fixtures.rs (/home/z/my-project/target/release/deps/ps_fixtures-ce9830abe2b07ddf)
+
+running 4 tests
+test fixture_stream_tables_and_packet_counts_match_the_pins ... ok
+test fixture_payload_streams_match_ffmpeg_extractions_bit_for_bit ... ok
+test lpcm_packets_strip_the_full_dvd_prefix ... ok
+test vob_nav_packets_are_real_and_zero_padded_by_ffmpeg ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/strl_advisory.rs (/home/z/my-project/target/release/deps/strl_advisory-be012e293cbb7202)
+
+running 4 tests
+test full_advisory_set_is_silently_skipped ... ok
+test clean_ffmpeg_strl_shape_walks_with_zero_damage ... ok
+test unknown_strl_child_is_damage_counted_not_fatal ... ok
+test vprp_does_not_mask_unknown_neighbors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ts_corpus.rs (/home/z/my-project/target/release/deps/ts_corpus-a4ea1363ef94184e)
+
+running 2 tests
+test corpus_ts_pes_seam_accounting ... ok
+test corpus_ts_programs_streams_and_names_match_ffprobe ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ts_fuzz_survival.rs (/home/z/my-project/target/release/deps/ts_fuzz_survival-fc892de0664137c6)
+
+running 3 tests
+test corpus_head_mutations_survive ... ok
+test truncation_sweep_over_packet_boundaries ... ok
+test mutations_never_panic_and_stay_deterministic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/ts_pes_corpus.rs (/home/z/my-project/target/release/deps/ts_pes_corpus-05252c1d0be6631d)
+
+running 4 tests
+test corpus_ts_lanes_match_the_ffprobe_truth ... ok
+test bframe_reorder_pts_series_matches_ffprobe_exactly ... ok
+test fuzz_lite_mutations_never_panic_or_hang ... ok
+test midchange_lane_timestamps_are_uniform_and_events_absent ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/wav_aiff_fixtures.rs (/home/z/my-project/target/release/deps/wav_aiff_fixtures-617da726c6ee1534)
+
+running 8 tests
+test derivative_payloads_are_parent_prefixes ... ok
+test aiff_mutated_family_outcomes_are_pinned_exactly ... ok
+test every_aiff_fixture_matches_the_ffmpeg_truth ... ok
+test every_wav_fixture_matches_the_ffmpeg_truth ... ok
+test md5_impl_matches_rfc1321_vectors ... ok
+test rf64_fixture_carries_the_ds64_truth ... ok
+test wav_mutated_family_outcomes_are_pinned_exactly ... ok
+test every_wav_and_aiff_fixture_survives_the_fuzz_harnesses ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/zero_alloc_read_chain.rs (/home/z/my-project/target/release/deps/zero_alloc_read_chain-bfff09cc00cc64fa)
+
+running 10 tests
+test borrow_reads_allocate_nothing ... ok
+test big_payload_reads_are_one_source_call_per_frame ... ok
+test header_peek_loop_allocates_nothing_when_warm ... ok
+test idx1_parse_allocates_per_block_not_per_entry ... ok
+test over_ceiling_spill_is_exactly_two_allocs_per_payload ... ok
+test pooled_movi_walk_allocates_nothing_when_warm ... ok
+test real_movi_walk_allocates_nothing_per_packet ... ok
+test two_stream_interleaved_walk_allocates_nothing_per_packet ... ok
+test varying_size_payloads_pack_into_the_arena_zero_alloc ... ok
+test vec_twins_cost_exactly_one_allocation_per_call ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running unittests src/lib.rs (/home/z/my-project/target/release/deps/desktop-2a40c2588145f345)
+
+running 65 tests
+test bridge::tests::monotonic_emit_clock_advances ... ok
+test bridge::tests::present_ships_a_decodable_record_and_echoes_the_slot ... ok
+test bridge::tests::repeat_entry_flags_the_record_and_reships_the_payload ... ok
+test bridge::tests::yuv_and_opaque_frames_are_typed_refusals ... ok
+test bridge::tests::truncated_frames_are_refused_not_padded ... ok
+test diagnostics::tests::crash_log_path_is_the_deterministic_temp_sink ... ok
+test diagnostics::tests::iso_utc_pins_known_instants ... ok
+test diagnostics::tests::panic_hook_writes_the_log_and_still_runs_the_previous_hook ... ok
+test diagnostics::tests::with_stamp_rotates_alongside_without_clobbering_the_default ... ok
+test diagnostics::tests::write_crash_log_records_version_stage_and_full_chain ... ok
+test diagnostics::tests::a_failing_sink_returns_the_intended_path_and_never_panics ... ok
+test dispatch::tests::file_open_funnel_is_the_catalog_command ... ok
+test dispatch::tests::open_path_request_classifies_by_kind ... ok
+test dispatch::tests::served_commands_reach_the_engine_and_answer ... ok
+test dispatch::tests::unserved_commands_refuse_typed_and_echo ... ok
+test files::tests::drops_become_the_open_command_first_media_wins ... ok
+test files::tests::drops_without_media_are_noops_not_errors ... ok
+test files::tests::native_dialog_is_the_typed_pending_state ... ok
+test files::tests::path_classification_is_exact ... ok
+test files::tests::playlist_drops_load_the_list_not_a_session ... ok
+test frame_tap::tests::a_full_mailbox_drops_oldest_never_blocks ... ok
+test frame_tap::tests::repeat_taps_ship_the_repeat_flag ... ok
+test frame_tap::tests::tapped_frames_drain_as_luf1_records ... ok
+test host::tests::generation_bumps_signal_the_mailbox_flush ... ok
+test host::tests::ids_are_monotonic_and_responses_echo_legally ... ok
+test host::tests::stale_events_are_dropped_current_ones_kept ... ok
+test host::tests::strategy_table_is_the_adr_landing ... ok
+test host::tests::webview_open_is_a_typed_pending_never_a_fake ... ok
+test mailbox::tests::generation_flush_drops_everything_counted_once ... ok
+test mailbox::tests::latency_accountant_is_exact_floor_arithmetic ... ok
+test mailbox::tests::latest_wins_drops_oldest_and_counts ... ok
+test mailbox::tests::zero_capacity_is_unconstructible_but_typed ... ok
+test shell::tests::config_writes_round_trip_through_dispatch ... ok
+test shell::tests::dialog_picks_dispatch_cancels_noop_and_pending ... ok
+test shell::tests::dispatch_routes_observes_and_emits ... ok
+test shell::tests::drops_funnel_through_the_runtime ... ok
+test shell::tests::egress_queue_is_bounded_drop_oldest_and_conserves ... ok
+test dispatch::tests::events_forward_in_order_exactly_once ... ok
+test shell::tests::frame_channel_bind_is_intercepted_by_the_shell ... ok
+test shell::tests::engine_events_reach_the_bounded_queue_in_order ... ok
+test shell::tests::invalid_config_writes_refuse_typed ... ok
+test shell::tests::non_openable_paths_are_noops ... ok
+test shell::tests::frame_channel_proof_pump_once_ships_luf1_records ... ok
+test shell::tests::pacer_tick_is_one_render_quantum ... ok
+test shell::tests::playlist_files_load_the_list_through_the_command ... ok
+test window_config::tests::bounds_and_cross_fields_are_typed_errors ... ok
+test window_config::tests::media_titles_render_through_the_template ... ok
+test window_config::tests::other_sections_and_comments_do_not_leak ... ok
+test window_config::tests::the_shipped_product_toml_parses ... ok
+test window_config::tests::the_shipped_product_toml_yields_the_build_spec ... ok
+test wire::tests::chunked_feed_at_every_split_point ... ok
+test wire::tests::clones_and_hand_built_frames_behave_like_plain_owners ... ok
+test wire::tests::decode_record_is_the_streaming_result_direct_from_the_slice ... ok
+test wire::tests::decode_record_refuses_truncated_and_trailing_input ... ok
+test wire::tests::encoder_refuses_unexpressible_records ... ok
+test wire::tests::extension_headers_are_skipped_not_guessed ... ok
+test wire::tests::format_code_table_is_exactly_the_upload_path ... ok
+test wire::tests::golden_bytes_match_the_spec_table ... ok
+test wire::tests::header_overhead_is_recorded_math_not_assertions ... ok
+test wire::tests::malformed_inputs_are_typed_refusals ... ok
+test wire::tests::one_decoder_recycles_payload_buffers_across_records ... ok
+test wire::tests::partial_records_compact_without_losing_bytes ... ok
+test wire::tests::round_trip_exact_fields ... ok
+test wire::tests::truncated_streams_report_exact_missing_bytes ... ok
+test shell::tests::pacer_proof_pump_once_drives_a_real_session_to_end ... ok
+
+test result: ok. 65 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (/home/z/my-project/target/release/deps/lumen_desktop-4524ffde84bde4b3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pipeline.rs (/home/z/my-project/target/release/deps/pipeline-46e79a1b1b95d77b)
+
+running 4 tests
+test generation_bump_flushes_in_flight_frames ... ok
+test nominal_pipeline_delivers_every_frame_with_exact_latency ... ok
+test slow_consumer_latest_wins_with_structural_bounds ... ok
+test stub_binary_reports_pending_state ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/protocol.rs (/home/z/my-project/target/release/deps/protocol-ab2a77d1c5d5f555)
+
+running 4 tests
+test bad_magic_reports_stream_offset_after_consumed_records ... ok
+test bridge_stream_round_trips_sixty_frames_varied_sizes ... ok
+test renderer_composited_output_streams_byte_exact ... ok
+test full_hd_frame_round_trips ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/zero_alloc_transport.rs (/home/z/my-project/target/release/deps/zero_alloc_transport-67d108d2e4b09f98)
+
+running 2 tests
+test streaming_decoder_path_is_zero_allocation_after_warm_up ... ok
+test mailbox_frame_path_is_zero_allocation_after_warm_up ... FAILED
+
+failures:
+
+---- mailbox_frame_path_is_zero_allocation_after_warm_up stdout ----
+
+thread 'mailbox_frame_path_is_zero_allocation_after_warm_up' (25545) panicked at apps/desktop/tests/zero_alloc_transport.rs:98:11:
+desktop mailbox frame path: present -> serialize -> send -> decode_record -> offer -> draw over 256 cycles: allocated 608 bytes across 1 allocation events (dealloc events: 0) — the path is NOT zero-allocation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    mailbox_frame_path_is_zero_allocation_after_warm_up
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p desktop --test zero_alloc_transport`
+TEST_EXIT=101

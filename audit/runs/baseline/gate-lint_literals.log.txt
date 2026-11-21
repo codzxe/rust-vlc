@@ -1,0 +1,15 @@
+CMD: cargo xtask lint-literals
+DATE: 2026-11-21T06:32:01Z
+  allowed: crates/subtitles/src/model/wire.rs:67: identity — LUMEN-CUES wire-format magic — frozen format identifier, not display identity
+  allowed: crates/subtitles/src/srt/tags.rs:350: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:364: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/subtitles/src/srt/tags.rs:369: hex-color — markup/validation test vector — data under test, not a theme color
+  allowed: crates/testkit/src/lib.rs:126: identity — env-var name — test-harness strictness knob (doc 04), not product config
+  allowed: crates/testkit/src/lib.rs:130: identity — diagnostic quoting the harness knob’s own name — user-facing text, not config
+  allowed: crates/testkit/src/lib.rs:148: identity — skip diagnostic quoting the harness knob’s name — user-facing text, not config
+  allowed: crates/testkit/src/lib.rs:475: identity — cfg(test) scratch filename — test-only, never a shipped surface
+  allowed: crates/testkit/src/lib.rs:493: identity — cfg(test) scratch dir — test-only
+lint-literals: FAIL — 1 violation(s):
+  apps/cli/src/host.rs:1799: identity — identity(identity.name)
+  fix: read the value from the config layer (crates/product-config at runtime; product.toml / theme tokens at build time), or mark a legitimate site with `// lumen-allow-literal: <reason>` on or directly above the line — never delete the check
+EXIT=1

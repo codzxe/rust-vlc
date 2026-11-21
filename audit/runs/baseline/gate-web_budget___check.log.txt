@@ -1,0 +1,15 @@
+CMD: cargo xtask web-budget --check
+DATE: 2026-11-21T06:32:02Z
+record:  /home/z/my-project/audit-workspace/docs/web/size-record.toml
+rebuild: `floor` — raw 1302846 B, gzip -n 301101 B, sha256 4ed2d7dda0e5… (33.2s)
+
+row                class                  gzip B    ceiling B     pct  source
+floor              phase2-vertical        301101      3145728    9.6%  measured
+builtin-inhouse    phase2-vertical        334759      3145728   10.6%  recorded
+flac               full-p0                349963      6291456    5.6%  recorded
+mp3                full-p0                385300      6291456    6.1%  recorded
+external-all       full-p0                704996      6291456   11.2%  recorded
+note: row `floor` sha256 4ed2d7dda0e5… differs from the record 4a0f33831d64… (size within tolerance) — the record predates this build; refresh it with `cargo xtask web-budget`
+
+result: PASS — no budget breach, no >5% growth on rebuilt rows (5 rows checked)
+EXIT=0

@@ -1,0 +1,5 @@
+CMD: npm run hotkeys:check
+> node scripts/gen-hotkeys-data.mjs --check
+
+gen-hotkeys-data --check: OK (141 bindings, 9 platform overrides)
+EXIT=0

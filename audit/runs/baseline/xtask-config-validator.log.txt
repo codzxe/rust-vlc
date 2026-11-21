@@ -1,0 +1,17 @@
+CMD: cargo xtask config-validator
+DATE: 2026-11-21T06:15:43Z
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/z/my-project/target/debug/xtask config-validator`
+=== LUMEN CONFIG-VALIDATOR REPORT ===
+product: /home/z/my-project/audit-workspace/product.toml
+schema:  /home/z/my-project/audit-workspace/product.schema.json
+tables: 16
+note: pattern constraints not enforced by this v0 (std has no regex; the product-config crate's CI suite owns them)
+note: defaults.theme: `themes/` has no *.toml candidates — enum injection skipped until the plane lands (doc 07 §9 C4)
+note: defaults.profile: `profiles/` does not exist yet — enum injection skipped (parked plane, doc 07 §9 C4)
+violation: brand.icon_ico: asset path `assets/brand/icon.ico` does not exist under the root
+violation: brand.icon_icns: asset path `assets/brand/icon.icns` does not exist under the root
+violation: brand.icon_png_512: asset path `assets/brand/icon-512.png` does not exist under the root
+violation: brand.logo_svg: asset path `assets/brand/logo.svg` does not exist under the root
+result: FAILURE (4 violation(s))
+EXIT=1

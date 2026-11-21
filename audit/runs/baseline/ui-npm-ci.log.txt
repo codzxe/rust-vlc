@@ -1,0 +1,5 @@
+CMD: npm ci --no-audit --no-fund (in ui/)
+DATE: 2026-11-21T06:18:43Z
+
+added 259 packages in 4s
+EXIT=0

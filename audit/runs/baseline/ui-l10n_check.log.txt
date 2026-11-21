@@ -1,0 +1,5 @@
+CMD: npm run l10n:check
+> node scripts/l10n-check.mjs
+
+PASS l10n:check — 1448 MessageKeys, 1448 en-US strings: missing 0, duplicates 0, orphans 0, key-grammar ok, placeholders 13 ok, allowlist 6 entries (0 stale), dead keys 125/1448 grandfathered (ui/i18n-dead-keys.json)
+EXIT=0

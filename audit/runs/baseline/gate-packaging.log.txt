@@ -1,0 +1,11 @@
+CMD: bash scripts/packaging/gate.sh
+DATE: 2026-11-21T06:32:36Z
+gate.sh:    gen-desktop-entry.sh content matches config
+gate.sh: 6. sign-windows.sh / sign-macos.sh .UNSIGNED fallback (credentials absent)
+gate.sh:    sign-windows.sh: unsigned sidecar contract holds
+gate.sh:    sign-macos.sh: unsigned sidecar contract holds
+gate.sh: 7. .wxs generator self-tests (gen-wxs.sh --self-test; build-msi.ps1 -SelfTest if pwsh)
+gate.sh:    gen-wxs.sh --self-test PASS (hostile fixtures parse, round-trip, escape set pinned)
+gate.sh:    build-msi.ps1 -SelfTest skipped: no pwsh on PATH (step 4's structural check stays the local floor; real -SelfTest: Windows runner [VERIFY at first live run])
+gate.sh: PASS (packaging config + scripts + self-tests + local-provable halves)
+EXIT=0

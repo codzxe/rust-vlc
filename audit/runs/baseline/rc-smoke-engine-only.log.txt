@@ -1,0 +1,67 @@
+CMD: RC_SMOKE_SKIP_WEB=1 bash scripts/rc-smoke.sh
+DATE: 2026-11-21T06:18:13Z
+=== rc-smoke environment ===
+Linux 5.10.134-013.15.kangaroo.al8.x86_64 x86_64
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+v24.22.3
+fixture: tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+=== 1. engine-build (cargo build --release --locked -p lumen-cli -p desktop) ===
+    Finished `release` profile [optimized] target(s) in 0.07s
+engine-build: PASS
+=== 2. engine-version ===
+engine-version: PASS (lumen 0.1.3)
+=== 3. engine-info ===
+engine-info: PASS
+  ok: engine
+    version: 0.1.3
+    host: cli
+    features: first-vertical:avi-mjpeg-pcm, audio.null-device, video.software-compositor
+    decoders: mjpeg, pcm_s16le
+=== 4. headless-decode (decode-bench; every frame must decode) ===
+BENCH file=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi bytes=425516 v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.008 decode_s=0.008
+headless-decode: PASS (v_decoded==v_frames, a_decoded==a_frames)
+=== 5. command-layer-play (open -> Playing -> Stopped through the catalog) ===
+command-layer-play: PASS (reached Playing, ended Stopped, exit 0)
+=== 6. wasm-web-build (cargo build -p lumen-web --target wasm32-unknown-unknown --locked) ===
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling syn v3.0.9
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling winnow v1.0.4
+   Compiling serde_derive v1.0.229
+   Compiling zmij v1.0.23
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling thiserror-impl v2.0.21
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling ref-cast v1.0.27
+   Compiling serde_json v1.0.154
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling ref-cast-impl v1.0.27
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+   Compiling serde_derive_internals v0.30.0
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling schemars_derive v1.2.3
+   Compiling plugin-api v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-api)
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.2.3
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/audit-workspace/crates/packet-queue)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling demux v0.1.0 (/home/z/my-project/audit-workspace/crates/demux)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+   Compiling lumen-web v0.1.0 (/home/z/my-project/audit-workspace/apps/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 22.91s
+wasm-web-build: PASS (38062701 bytes, \0asm magic)
+=== 7/8. web-ui: SKIPPED (RC_SMOKE_SKIP_WEB=1 — engine-only smoke, NOT a full RC smoke) ===
+=== RC SMOKE RESULT: PASS ===
+EXIT=0

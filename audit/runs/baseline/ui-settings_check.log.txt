@@ -1,0 +1,5 @@
+CMD: npm run settings:check
+> node scripts/gen-settings-screens.mjs --check
+
+gen-settings-screens --check: OK (10 ui areas, 102 ui entries, 121 total)
+EXIT=0

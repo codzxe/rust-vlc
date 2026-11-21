@@ -1,0 +1,7 @@
+CMD: cargo install cargo-deny --locked (attempt, sandbox)
+DATE: 2026-11-21T06:32:48Z
+   Compiling cargo-deny v0.22.0
+    Finished `release` profile [optimized] target(s) in 2m 32s
+  Installing /home/z/.cargo/bin/cargo-deny
+   Installed package `cargo-deny v0.22.0` (executable `cargo-deny`)
+EXIT=0

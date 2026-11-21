@@ -1,0 +1,15 @@
+CMD: cargo xtask check-architecture
+DATE: 2026-11-21T06:31:54Z
+
+1 edges.................  FAIL   (1 violation)
+     [EDGE] apps/cli/Cargo.toml [dependencies]: `lumen-cli` depends on `streaming`, which is not in [crates.lumen-cli].internal_deps (doc 01 §5.2 step 3, ARCH-2)
+       fix: remove the dependency, or extend [crates.<name>].internal_deps in boundaries.toml with Lead review (doc 01 §6.3)
+2 cycles................  PASS   (39 nodes, 143 internal edges (normal + dev), 0 cycles)
+3 unsafe-lints..........  PASS   (39/39 crates inherit [lints] workspace = true; root denies unsafe_code)
+4 static-mut............  PASS   (0 occurrences wanted; scanned 632 files across 39 src trees)
+5 testkit-direction.....  PASS   (dev-only crates [testkit] appear in [dev-dependencies] tables only)
+
+result: FAILURE (1 of 5 checks failed)
+architecture: result=fail edges=fail cycles=pass unsafe-lints=pass static-mut=pass testkit-direction=pass
+full log: target/architecture-report.json
+EXIT=1

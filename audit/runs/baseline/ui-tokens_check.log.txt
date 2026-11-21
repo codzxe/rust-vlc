@@ -1,0 +1,5 @@
+CMD: npm run tokens:check
+> node scripts/gen-tokens.mjs --check
+
+gen-tokens --check: OK (86 semantic tokens, 2 modes, 9 accents, sha256 26c55ab2b319…)
+EXIT=0

@@ -1,0 +1,9 @@
+CMD: cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
+DATE: 2026-11-21T06:35:46Z
+  The file `gdk-3.0.pc` needs to be installed and the PKG_CONFIG_PATH environment variable must contain its parent directory.
+  The PKG_CONFIG_PATH environment variable is not set.
+
+  HINT: if you have installed the library, try setting PKG_CONFIG_PATH to the directory containing `gdk-3.0.pc`.
+
+warning: build failed, waiting for other jobs to finish...
+EXIT=101
