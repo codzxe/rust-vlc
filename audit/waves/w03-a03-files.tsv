@@ -1,0 +1,12 @@
+path	kind
+crates/platform-linux/src/linux/pulse.rs	file
+crates/playback-engine/src/session.rs#part1	chunk
+crates/video-engine/src/scheduler.rs#part3	chunk
+crates/playback-engine/src/event.rs#part1	chunk
+crates/renderer-wgpu/src/renderer.rs	file
+crates/platform-macos/src/macos/metal.rs	file
+crates/input/src/uri.rs	file
+crates/renderer-wgpu/src/color.rs	file
+crates/media-clock/src/lib.rs	file
+crates/platform-windows/src/error.rs	file
+crates/platform-linux/src/linux/mod.rs	file
