@@ -1,0 +1,10 @@
+path	kind
+crates/demux/src/avi/mod.rs#part2	chunk
+crates/demux/src/avi/tests.rs#part3	chunk
+crates/demux/src/wav/mod.rs#part1	chunk
+crates/demux/src/asf/tests.rs#part3	chunk
+crates/demux/src/wav/format.rs#part2	chunk
+crates/demux/src/wav/fuzz.rs	file
+crates/demux/src/aiff/error.rs	file
+crates/demux/src/lib.rs	file
+crates/demux/fixtures/ps/ps-vob-ac3.vob	file
