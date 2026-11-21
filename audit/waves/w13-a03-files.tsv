@@ -1,0 +1,5 @@
+apps/cli/src/containers/ogg.rs	file
+apps/desktop/src/wire.rs#part1	chunk
+apps/cli/src/demux_host.rs#part2	chunk
+apps/desktop/src/host.rs	file
+apps/desktop/examples/emit_stream.rs	file

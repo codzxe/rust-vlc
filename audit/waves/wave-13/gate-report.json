@@ -1,0 +1,22 @@
+{
+ "wave": "W13",
+ "assignments": 57,
+ "audit_files_ok": 57,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 2,
+  "S2": 27,
+  "S3": 67,
+  "S4": 113
+ },
+ "verdicts": {
+  "REAL": 54,
+  "UNREACHABLE": 2,
+  "REAL/REAL-UNPROVEN": 1
+ },
+ "citations_checked": 11,
+ "citation_failures": [],
+ "gate": "PASS"
+}
