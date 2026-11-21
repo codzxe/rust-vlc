@@ -1,0 +1,3 @@
+crates/settings-schema/src/model.rs	file
+crates/product-config/src/lines.rs	file
+crates/product-config/src/load.rs	file

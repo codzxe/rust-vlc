@@ -1,0 +1,4 @@
+crates/localization/src/message.rs#part1	chunk
+crates/product-config/src/patterns.rs	file
+crates/localization/src/plural.rs	file
+locales/en-US.toml	file

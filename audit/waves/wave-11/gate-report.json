@@ -1,0 +1,25 @@
+{
+ "wave": "W11",
+ "assignments": 33,
+ "audit_files_ok": 33,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 0,
+  "S2": 22,
+  "S3": 58,
+  "S4": 71
+ },
+ "verdicts": {
+  "REAL": 11,
+  "UNREACHABLE": 17,
+  "SHALLOW": 2,
+  "REAL (shipped CLI config seam; doc/diag contract drift S3s)": 1,
+  "UNREACHABLE (real+tested layering API; zero shipped callers; blame misattributes S2; settings never persist)": 1,
+  "REAL (format-locked, baseline-tested renderer; lexicographic sort scramble S3 + hard-coded filename S3)": 1
+ },
+ "citations_checked": 9,
+ "citation_failures": [],
+ "gate": "PASS"
+}

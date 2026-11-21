@@ -1,0 +1,4 @@
+crates/settings-schema/src/emit.rs	file
+crates/product-config/src/model.rs	file
+crates/localization/src/locale.rs	file
+crates/product-config/src/lib.rs	file
