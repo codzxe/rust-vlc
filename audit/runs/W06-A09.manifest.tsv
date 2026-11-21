@@ -1,0 +1,10 @@
+# W06-A09 manifest (path#part<TAB>verdict<TAB>S-counts)
+crates/codecs/src/video/hevc/parser/sps.rs	UNREACHABLE	S0:0 S1:0 S2:3 S3:3 S4:1
+crates/codecs/src/video/vp9/decoder.rs	REAL	S0:0 S1:0 S2:0 S3:3 S4:2
+crates/codecs/src/video/h264/hw/vaapi/session.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:4
+crates/codec-api/src/contract.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/codecs/src/video/mjpeg/color.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/video/mjpeg/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codec-api/src/encode.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/video/h264/parser/nal.rs#part1	REAL	S0:0 S1:0 S2:1 S3:0 S4:1
+crates/codecs/src/video/hevc/parser/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:0
