@@ -1,0 +1,6 @@
+path	kind
+crates/demux/src/ts/tests.rs	file
+crates/demux/src/mkv/cluster.rs	file
+crates/demux/src/ts/test_support.rs	file
+crates/demux/src/mp4/error.rs	file
+crates/demux/src/ps/fuzz.rs	file
