@@ -1,0 +1,7 @@
+apps/web/src/host.rs#part3	chunk
+apps/web/src/audio/clock.rs	file
+apps/web/src/render/canvas.rs	file
+apps/web/src/io/fetch_port.rs	file
+crates/plugin-api/src/discovery.rs	file
+apps/web/src/render/mod.rs	file
+asset-group://w12-g001	asset-group

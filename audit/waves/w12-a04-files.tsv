@@ -1,0 +1,6 @@
+apps/web/src/host.rs#part1	chunk
+apps/web/src/open.rs	file
+apps/web/src/abi.rs#part2	chunk
+crates/plugin-api/src/access.rs	file
+crates/plugin-api/src/filter.rs	file
+crates/plugin-host-wasm/src/crc32.rs	file

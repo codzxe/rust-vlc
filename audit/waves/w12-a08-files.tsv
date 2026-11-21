@@ -1,0 +1,6 @@
+crates/plugin-api/src/manifest.rs#part1	chunk
+apps/web/src/render/backend.rs	file
+apps/web/src/abi.rs#part1	chunk
+crates/plugin-api/src/playlist.rs	file
+crates/plugin-api/src/codec.rs	file
+apps/web/worker.js	file

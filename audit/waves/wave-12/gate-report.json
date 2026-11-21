@@ -1,0 +1,23 @@
+{
+ "wave": "W12",
+ "assignments": 63,
+ "audit_files_ok": 63,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 1,
+  "S2": 14,
+  "S3": 77,
+  "S4": 118
+ },
+ "verdicts": {
+  "UNREACHABLE": 39,
+  "REAL": 21,
+  "REAL/UNREACHABLE-loss-lane": 1,
+  "REAL-UNPROVEN": 2
+ },
+ "citations_checked": 9,
+ "citation_failures": [],
+ "gate": "PASS"
+}

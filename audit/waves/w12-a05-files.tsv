@@ -1,0 +1,7 @@
+apps/web/src/host.rs#part2	chunk
+crates/plugin-host-wasm/src/package.rs	file
+apps/web/src/render/present.rs#part2	chunk
+crates/plugin-host-wasm/src/fsjail.rs	file
+apps/web/src/audio/autoplay.rs	file
+apps/web/src/audio/mod.rs	file
+plugins/extensions/.gitignore	file

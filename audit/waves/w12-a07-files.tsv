@@ -1,0 +1,6 @@
+crates/plugin-api/src/manifest.rs#part2	chunk
+crates/plugin-host-wasm/src/api.rs	file
+apps/web/src/protocol.rs	file
+crates/plugin-api/src/kind.rs	file
+crates/plugin-api/src/subtitle.rs	file
+apps/web/src/io/mod.rs	file

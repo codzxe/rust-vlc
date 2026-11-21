@@ -1,0 +1,6 @@
+crates/plugin-host-wasm/src/supervisor.rs	file
+crates/plugin-host-wasm/src/imports.rs#part1	chunk
+apps/web/src/capabilities.rs	file
+apps/web/src/audio/sink.rs	file
+crates/plugin-api/src/metadata.rs	file
+crates/plugin-api/src/ui.rs	file

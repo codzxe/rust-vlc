@@ -1,0 +1,7 @@
+apps/web/src/io/mock_fetch.rs	file
+apps/web/src/io/seekability.rs	file
+apps/web/src/render/present.rs#part1	chunk
+apps/web/src/source.rs	file
+crates/plugin-host-wasm/src/http.rs	file
+plugins/extensions/metadata-provider/manifest.toml	file
+plugins/extensions/ui-panel/manifest.toml	file
