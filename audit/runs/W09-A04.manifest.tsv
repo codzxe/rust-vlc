@@ -1,0 +1,6 @@
+crates/subtitles/src/dvb/segment.rs	UNREACHABLE	S0:0 S1:1 S2:1 S3:2 S4:2
+crates/subtitles/src/font/pipeline.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/subtitles/src/model/position.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/subtitles/src/cc/render.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/subtitles/src/model/cue.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/subtitles/src/model/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
