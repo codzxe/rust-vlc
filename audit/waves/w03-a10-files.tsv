@@ -1,0 +1,12 @@
+path	kind
+crates/playback-engine/src/pipeline.rs#part4	chunk
+crates/playback-engine/src/events.rs#part2	chunk
+crates/platform-windows/src/windows/dialogs.rs	file
+crates/playback-engine/src/recovery.rs#part2	chunk
+crates/media-clock/src/mapping.rs	file
+crates/playback-engine/src/hotplug.rs	file
+crates/media-clock/src/drift.rs	file
+crates/video-engine/src/test_support.rs	file
+crates/playback-engine/src/lib.rs	file
+crates/platform-windows/src/audio.rs	file
+crates/platform-macos/src/macos/mod.rs	file
