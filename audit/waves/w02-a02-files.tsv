@@ -1,0 +1,5 @@
+path	kind
+crates/media-types/src/time.rs#part1	chunk
+crates/commands/src/catalog/types.rs#part1	chunk
+crates/commands/src/bin/catalog_gen.rs	file
+crates/control-protocol/src/base64.rs	file
