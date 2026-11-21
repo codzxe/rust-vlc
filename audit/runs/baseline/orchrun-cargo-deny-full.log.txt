@@ -1,0 +1,43 @@
+CMD: cargo deny check licenses sources bans advisories (requested by W01-A06; cargo-deny 0.20.2 prebuilt musl; first attempt failed — binary missing after session recycle)
+DATE: 2026-11-21T07:29:05Z
+59 │ plugin-api = { path = "../plugin-api" }
+   │              ━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+63 │ codecs = { path = "../codecs" }
+   │          ━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+64 │ # The real file access stack for the fixture e2e suites (dev-only).
+65 │ input = { path = "../input" }
+   │         ━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+66 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ transcode v0.1.0
+
+warning[wildcard]: found 3 wildcard dependencies for crate 'video-engine'
+   ┌─ /home/z/my-project/audit-workspace/crates/video-engine/Cargo.toml:25:15
+   │
+25 │ media-types = { path = "../media-types" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+26 │ media-clock = { path = "../media-clock" }
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   ·
+32 │ testkit = { path = "../testkit" }
+   │           ━━━━━━━━━━━━━━━━━━━━━━━ wildcard dependency
+   │
+   ├ video-engine v0.1.0
+     ├── desktop v0.1.3
+     ├── lumen-cli v0.1.3
+     │   ├── desktop v0.1.3 (*)
+     │   └── first-vertical v0.1.0
+     └── renderer-wgpu v0.1.0
+         ├── desktop v0.1.3 (*)
+         └── lumen-cli v0.1.3 (*)
+
+warning[unused-wrapper]: wrapper for banned crate was not encountered
+    ┌─ /home/z/my-project/audit-workspace/deny.toml:189:41
+    │
+189 │     { name = "libloading", wrappers = ["libappindicator-sys"] },  # nagisa/rust_libloading
+    │                                         ━━━━━━━━━━━━━━━━━━━ unmatched wrapper
+
+advisories FAILED, bans ok, licenses ok, sources ok
+EXIT=0

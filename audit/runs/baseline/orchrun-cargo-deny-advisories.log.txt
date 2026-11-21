@@ -1,0 +1,33 @@
+CMD: cargo deny check advisories (detail capture for W01-A06)
+DATE: 2026-11-21T07:29:17Z
+error[yanked]: detected yanked crate (try `cargo update -p wasmi`)
+    ┌─ /home/z/my-project/audit-workspace/Cargo.lock:130:1
+    │
+130 │ wasmi 2.0.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ yanked version
+    │
+    ├ wasmi v2.0.0
+      └── plugin-host-wasm v0.1.0
+
+error[yanked]: detected yanked crate (try `cargo update -p wasmi_core`)
+    ┌─ /home/z/my-project/audit-workspace/Cargo.lock:132:1
+    │
+132 │ wasmi_core 2.0.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ yanked version
+    │
+    ├ wasmi_core v2.0.0
+      ├── wasmi v2.0.0
+      │   └── plugin-host-wasm v0.1.0
+      └── wasmi_ir v2.0.0
+          └── wasmi v2.0.0 (*)
+
+warning[advisory-not-detected]: advisory was not encountered
+   ┌─ /home/z/my-project/audit-workspace/deny.toml:69:13
+   │
+69 │     { id = "RUSTSEC-2024-0370", reason = "proc-macro-error 1.0.4 via glib-macros 0.18.5 (tauri admission tree only): unmaintained-but-functional, no fixed upstream release; drop when the gtk-rs stack past 0.18 regenerates apps/desktop-tauri/Cargo.lock" },
+   │             ━━━━━━━━━━━━━━━━━             ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ignore reason
+   │             │                              
+   │             no crate matched advisory criteria
+
+advisories FAILED
+EXIT=0

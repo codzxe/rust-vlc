@@ -1,0 +1,31 @@
+# AUDIT-OF-THE-AUDITORS — FABRICATION RECORD
+
+Per §7.3 step 4 and §13. Every fabricated citation found by the wave gate or
+Wave-20 A04 sweep is recorded here with the agent, file, and disposition.
+An agent with any confirmed fabrication is re-run on all its files.
+
+## Wave 1 gate (2026-11-21)
+
+Sample: 14 audit files × up to 3 citations (citecheck.py, seed 43).
+Raw result: PASS 1 · PARTIAL 1 · FAIL 2 · SKIP (no extractable code block) rest.
+
+Adjudication (orchestrator, manual `sed -n` verification):
+
+1. `w01-a08/audit/files/LICENSE.audit.md` — F-001 `Where: LICENSE:1-21
+   (cross-evidence: …; deny.toml:28-30)`, code block labeled "Code (the
+   admission):" quotes deny.toml:28-30. Verified verbatim vs deny.toml:28-30 →
+   **genuine, not a fabrication** (extractor paired the first path of a
+   compound citation with the wrong quote).
+2. `w01-a07/audit/files/product.schema.json.audit.md` — F-003 `Where:
+   product.schema.json:21-25, 120-125; tools/xtask/…vs crates/…`, code blocks
+   labeled with their exact sources (config_validator.rs:607-612,
+   semantic.rs:128-129). Both verified verbatim; product.schema.json:21-25
+   confirmed to lack a `pattern` on `name`. → **genuine, same extractor
+   artifact.**
+
+Confirmed fabrications in Wave 1: **0**.
+
+Systemic note for Wave 20 A04: citecheck.py's `Where:` regex takes only the
+first `path:a-b` of compound citations; adjudicate FAILs manually before
+recording. Agents should keep quoting with explicit per-block source labels
+(A07/A08 style is acceptable and precise).

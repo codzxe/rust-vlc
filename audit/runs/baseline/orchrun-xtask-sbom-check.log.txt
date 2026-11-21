@@ -1,0 +1,14 @@
+CMD: cargo run -p xtask --locked -- sbom --check (requested by W01-A04)
+DATE: 2026-11-21T07:28:40Z
+    Updating crates.io index
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.37s
+     Running `target/debug/xtask sbom --check`
+=== LUMEN SBOM REPORT ===
+lock: /home/z/my-project/audit-workspace/Cargo.lock
+out:  /home/z/my-project/audit-workspace/docs/security/sbom/cyclonedx.json
+components: 158 (119 registry, 39 workspace/path), lockfile format v4
+subject:    Lumen 0.1.3
+drift: docs/security/sbom/cyclonedx.json differs from the regenerated output — run `cargo xtask sbom` and commit the refreshed SBOM
+result: DRIFT — regenerate with `cargo xtask sbom` and commit
+EXIT=0
