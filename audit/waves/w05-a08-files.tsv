@@ -1,0 +1,4 @@
+path	kind
+crates/demux/src/ts/psi.rs	file
+crates/demux/src/mp4/mod.rs#part1	chunk
+crates/demux/src/mkv/mod.rs#part1	chunk
