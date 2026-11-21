@@ -1,0 +1,6 @@
+crates/subtitles/src/ass/layout.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:3 S4:1
+crates/subtitles/src/ass/render.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:3
+crates/subtitles/src/ass/parser.rs#part1	REAL (library; UNREACHABLE from shipped)	S0:0 S1:0 S2:1 S3:1 S4:4
+crates/subtitles/src/model/time.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:1
+crates/subtitles/src/vtt/damage.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/subtitles/src/pgs/fuzz.rs	REAL (in-crate harness; UNREACHABLE from shipped)	S0:0 S1:0 S2:1 S3:1 S4:1
