@@ -1,0 +1,4 @@
+CMD: printf 'open audit/runs/baseline/samples/sample.mp4\ninfo\nplay\ninfo\ntime\ntracks\nclose\n' | timeout -k 5 25 /home/z/my-project/target/release/lumen
+DATE: 2026-11-21T06:14:52Z
+usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`
+EXIT=64

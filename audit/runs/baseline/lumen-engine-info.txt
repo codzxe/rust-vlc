@@ -1,0 +1,5 @@
+ok: engine
+  version: 0.1.3
+  host: cli
+  features: first-vertical:avi-mjpeg-pcm, audio.null-device, video.software-compositor
+  decoders: mjpeg, pcm_s16le

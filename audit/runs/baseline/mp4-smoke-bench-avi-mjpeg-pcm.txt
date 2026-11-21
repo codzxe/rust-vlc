@@ -1,0 +1,5 @@
+CMD: timeout -k 5 60 /home/z/my-project/target/release/lumen decode-bench tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+DATE: 2026-11-21T06:14:52Z
+bench: video track#0 mjpeg — decoding; audio track#1 pcm_s16le — decoding (container avi)
+BENCH file=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi bytes=425516 v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.011 decode_s=0.007
+EXIT=0

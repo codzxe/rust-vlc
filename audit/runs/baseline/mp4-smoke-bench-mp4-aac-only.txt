@@ -1,0 +1,5 @@
+CMD: timeout -k 5 60 /home/z/my-project/target/release/lumen decode-bench audit/runs/baseline/samples/sample-aac.mp4
+DATE: 2026-11-21T06:14:52Z
+bench: audio track#0 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=audit/runs/baseline/samples/sample-aac.mp4 bytes=27652 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.004 decode_s=0.000
+EXIT=0

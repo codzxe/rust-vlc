@@ -1,0 +1,57 @@
+# per-file counts (git grep) — baseline evidence
+## unwrap\(\)
+     67 crates/demux/src/mp4/mod.rs
+     59 crates/demux/src/ogg/tests.rs
+     51 crates/demux/src/mp4/tests.rs
+     51 crates/demux/src/asf/tests.rs
+     47 crates/streaming/src/ranged.rs
+     47 crates/codecs/tests/hevc_hw_path.rs
+     47 crates/codecs/tests/h264_hw_path.rs
+     44 crates/media-clock/src/backends.rs
+     41 crates/demux/src/wav/tests.rs
+     41 crates/codecs/src/video/h264/hw/vaapi/session.rs
+     35 crates/codecs/src/video/h264/parser/slice.rs
+     33 crates/media-types/src/time.rs
+     33 crates/demux/src/aiff/tests.rs
+     31 crates/media-types/src/ids.rs
+     28 crates/input/src/contract.rs
+     28 apps/cli/src/containers/mkv.rs
+     27 crates/settings-schema/tests/integration.rs
+     26 crates/codecs/src/audio/opus/decoder.rs
+     25 crates/playback-engine/tests/track_switch.rs
+     25 crates/demux/src/es/tests.rs
+## todo!
+      3 tools/xtask/src/cmd/check_panics.rs
+      1 tools/xtask/src/main.rs
+      1 crates/media-probe/src/lib.rs
+      1 crates/localization/src/lib.rs
+      1 crates/demux/src/lib.rs
+      1 crates/_template/src/lib.rs
+## unimplemented!
+      3 tools/xtask/src/cmd/check_panics.rs
+      1 tools/xtask/src/main.rs
+      1 crates/localization/src/lib.rs
+      1 crates/_template/src/lib.rs
+## unsafe 
+     63 crates/platform-windows/src/windows/dialogs.rs
+     60 crates/platform-windows/src/windows/wasapi.rs
+     45 crates/platform-linux/src/linux/pulse_ffi.rs
+     45 crates/codecs/src/video/h264/hw/videotoolbox/session.rs
+     37 crates/platform-linux/src/linux/pulse.rs
+     28 crates/codecs/src/video/h264/hw/vaapi/session.rs
+     27 crates/platform-windows/src/windows/com.rs
+     25 crates/platform-macos/src/macos/coreaudio.rs
+     23 crates/codecs/src/video/av1/decoder.rs
+     22 crates/platform-windows/src/windows/dxgi.rs
+     22 crates/platform-macos/src/macos/metal.rs
+     22 crates/codecs/src/video/h264/hw/vaapi/library.rs
+     21 crates/platform-macos/src/macos/dialogs.rs
+     20 crates/codecs/src/video/h264/hw/vaapi/ffi.rs
+     15 crates/platform-macos/src/macos/objc.rs
+     13 tools/mem-audit/src/allocator.rs
+     12 crates/testkit/src/alloc_count.rs
+      8 crates/codecs/src/video/mjpeg/idct_simd.rs
+      6 tools/mem-audit/examples/mjpeg-frame-attribution.rs
+      6 crates/platform-linux/src/linux/dl.rs
+## unreachable!
+total 4154

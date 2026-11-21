@@ -1,0 +1,5 @@
+CMD: timeout -k 5 60 /home/z/my-project/target/release/lumen decode-bench audit/runs/baseline/samples/sample-hevc.mp4
+DATE: 2026-11-21T06:14:52Z
+bench: video track#0 hevc — not benched (no decoder in this build (first vertical: mjpeg + pcm)); audio track#1 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=audit/runs/baseline/samples/sample-hevc.mp4 bytes=45541 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.001 decode_s=0.000
+EXIT=0

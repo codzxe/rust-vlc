@@ -1,0 +1,7 @@
+manifest files: 3279
+assigned file/chunk paths: 2394
+asset files grouped: 885 in 23 groups
+missing (unassigned): 0
+extra (not in manifest): 0
+matrix rows assigned: 252/252 (W18: 126, W19: 126)
+COVERAGE VERDICT: PASS
