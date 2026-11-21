@@ -1,0 +1,9 @@
+crates/codecs/src/video/mjpeg/decoder.rs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/video/mpeg12/headers.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:4 S4:2
+crates/codecs/src/video/mjpeg/parser.rs#part2	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/video/hevc/parser/nal.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/video/mjpeg/idct_simd.rs	REAL-UNPROVEN	S0:0 S1:0 S2:2 S3:0 S4:1
+crates/codecs/src/video/mjpeg/bitreader.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/video/vp9/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/video/hevc/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/video/mpeg12/error.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:4
