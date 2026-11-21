@@ -1,0 +1,12 @@
+path	kind
+crates/media-clock/src/sync.rs	file
+crates/playback-engine/src/events.rs#part4	chunk
+crates/media-clock/src/clock.rs#part2	chunk
+crates/media-clock/src/backends.rs#part4	chunk
+crates/playback-engine/src/state.rs#part1	chunk
+crates/playback-engine/src/epoch.rs	file
+crates/platform-windows/src/lib.rs	file
+crates/playback-engine/src/error.rs	file
+crates/platform-linux/src/linux/dl.rs	file
+crates/platform-linux/src/audio.rs	file
+crates/platform-linux/src/dialog.rs	file
