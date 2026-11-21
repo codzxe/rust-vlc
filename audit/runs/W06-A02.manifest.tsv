@@ -1,0 +1,10 @@
+crates/codecs/src/video/hevc/decode.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:4 S4:2
+crates/codecs/src/video/dnx/decoder.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/video/mjpeg/parser.rs#part1	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/video/hevc/parser/slice.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:0 S4:2
+crates/codec-api/src/contract.rs#part2	REAL	S0:0 S1:0 S2:0 S3:3 S4:1
+crates/codecs/examples/huffman_bench.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codec-api/src/config.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/video/h264/fuzz.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codec-api/src/hw.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:0
+crates/codecs/src/video/h264/parser/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
