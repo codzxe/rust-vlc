@@ -1,0 +1,6 @@
+apps/web/src/host.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:1
+apps/web/src/open.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/web/src/abi.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/plugin-api/src/access.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/plugin-api/src/filter.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/plugin-host-wasm/src/crc32.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:0
