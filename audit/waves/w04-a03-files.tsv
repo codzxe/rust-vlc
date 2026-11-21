@@ -1,0 +1,11 @@
+path	kind
+crates/demux/src/aiff/mod.rs	file
+crates/demux/src/avi/riff.rs#part2	chunk
+crates/demux/src/aiff/tests.rs	file
+crates/demux/src/ogg/mod.rs#part3	chunk
+crates/demux/src/avi/header.rs#part2	chunk
+crates/demux/src/adts/error.rs	file
+crates/demux/src/adts/test_support.rs	file
+crates/demux/src/es/aac.rs	file
+crates/demux/src/es/hevc.rs	file
+crates/demux/fixtures/ps/ps-vob-dts.vob#part1	chunk
