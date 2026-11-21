@@ -1,0 +1,5 @@
+path	kind
+crates/commands/src/catalog/codegen.rs	file
+crates/commands/src/catalog/types.rs#part2	chunk
+crates/control-protocol/src/protocol.rs	file
+crates/commands/src/catalog/mod.rs	file
