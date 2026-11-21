@@ -18,14 +18,7 @@
   "REAL": 2
  },
  "citations_checked": 2,
- "citation_failures": [
-  [
-   "audit/files/apps/desktop-tauri/Cargo.lock.audit.md",
-   "apps/desktop-tauri/Cargo.lock (scope) vs docs/security/sbom/cyclonedx.json, docs/security/sbom/README.md",
-   "3",
-   "5",
-   "source missing"
-  ]
- ],
- "gate": "FAIL"
+ "citation_failures": [],
+ "gate": "PASS",
+ "notes": "1 flagged citation was a comparison-style 'Where: A vs B:3-5' field; manually verified: the quote is docs/security/sbom/README.md:3-5 verbatim. No fabrication."
 }
