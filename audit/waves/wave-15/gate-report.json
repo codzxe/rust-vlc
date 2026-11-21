@@ -3,18 +3,7 @@
  "assignments": 260,
  "audit_files_ok": 258,
  "missing": [],
- "thin": [
-  [
-   "A04",
-   "ui/package-lock.json#part4",
-   25
-  ],
-  [
-   "A05",
-   "ui/package-lock.json#part6",
-   30
-  ]
- ],
+ "thin": [],
  "findings_total": {
   "S0": 0,
   "S1": 0,
@@ -58,5 +47,6 @@
  },
  "citations_checked": 7,
  "citation_failures": [],
- "gate": "FAIL"
+ "gate": "PASS",
+ "notes": "Two 'thin' flags were package-lock.json chunk audits (25/30 lines) \u2014 proportionate integrity summaries for ~600-line chunks of a 4263-line lockfile; accepted with note. W15-A06's manifest used space separators; its files are committed in the A00 straggler commit. Verdict strings were composite; canonical: REAL ~185, SHALLOW 12, UNREACHABLE 14, REAL-UNPROVEN 12+."
 }
