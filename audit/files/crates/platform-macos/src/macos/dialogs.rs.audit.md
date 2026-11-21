@@ -128,7 +128,7 @@ No tests exist in or for this file. N/A — recorded as F-003.
 |---|---|---|---|
 | "compile-verified via cargo check --target aarch64-apple-darwin and x86_64-apple-darwin" | dialogs.rs:26-28 | REAL-UNPROVEN (no committed evidence) | F-001; audit/runs/baseline/ has no darwin run; W01's Cargo.toml audit reached the same verdict |
 | "Cancel … is a first-class FilePick::Cancelled, never an error" | dialogs.rs:16-18 | REAL (as code) | run_panel:127-129 |
-| "setAllowedFileTypes: … soft-deprecated … [PROPOSAL]: move to setAllowedContentTypes:" | dialogs.rs:19-24 | REAL (honest admission) | the deprecated API is what the code calls (apply_filters:271) |
+| "setAllowedFileTypes: … soft-deprecated … [PROPOSAL]: move to setAllowedContentTypes:" | dialogs.rs:19-24 | REAL (honest admission) | the deprecated API is what the code calls (apply_filters:275) |
 | main-thread guard via pthread_main_np | dialogs.rs:6-9 | REAL (as code) | run_panel:107-118 + is_main_thread |
 
 ## 7. Dead / duplicated / unreachable code

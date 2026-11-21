@@ -26,7 +26,7 @@ across threads, and the chunk boundary slicing one test in half.
 
 ## 2. What actually works (verified)
 — All media-clock tests pass in the no-fail-fast baseline: audit/runs/baseline/orchrun-test-workspace-nofailfast.log.txt — suite totals 4534 passed / 7 failed / 49 ignored; the 7 failures (listed in its summary footer) are apps/desktop, tests/integration/first-vertical, crates/localization — none in media-clock.
-— Fixtures are real-trait doubles: `impl crate::SampleCounterSource for FakeCounter` (backends.rs:1036-1043) and `impl crate::MonotonicSource for FakeMonotonic` (backends.rs:1063-1067) — verified by reading the straddling definitions.
+— Fixtures are real-trait doubles: `impl crate::SampleCounterSource for FakeCounter` (backends.rs:1042-1049) and `impl crate::MonotonicSource for FakeMonotonic` (backends.rs:1064-1068) — verified by reading the straddling definitions.
 
 ## 3. Findings
 
