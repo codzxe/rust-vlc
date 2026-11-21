@@ -1,0 +1,7 @@
+crates/codecs/src/audio/adpcm/mod.rs#part1	REAL	S0:0 S1:0 S2:0 S3:2 S4:4
+crates/codecs/src/audio/pcm/decoder.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/audio-engine/src/effects.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/audio/adpcm/misc.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/audio/flac/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+crates/codecs/src/audio/aac/fuzz.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/audio/mp2/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
