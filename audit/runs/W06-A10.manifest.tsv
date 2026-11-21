@@ -1,0 +1,9 @@
+crates/codecs/src/video/h264/parser/sei.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:1
+crates/codecs/src/video/h264/hw/capability.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/video/h264/hw/vaapi/session.rs#part3	UNREACHABLE	S0:0 S1:1 S2:3 S3:3 S4:1
+crates/codecs/src/video/av1/decoder.rs#part1	REAL	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/codecs/src/video/mjpeg/mod.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/video/hevc/parser/vps.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/codecs/src/video/mpeg12/startcode.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/video/h264/hw/vaapi/dl.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/lib.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
