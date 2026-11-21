@@ -1,0 +1,8 @@
+crates/codecs/src/audio/mp3/id3.rs	UNREACHABLE	S0:0 S1:1 S2:0 S3:2 S4:2
+crates/codecs/src/audio/mp2/header.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/audio/aac/decoder.rs#part2	REAL	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/audio-engine/src/channel_map.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/audio/flac/fuzz.rs	SHALLOW	S0:0 S1:0 S2:1 S3:0 S4:3
+crates/codecs/src/audio/pcm/fuzz.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/codecs/src/audio/adpcm/fuzz.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/audio/vorbis/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
