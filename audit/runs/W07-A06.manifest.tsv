@@ -1,0 +1,7 @@
+crates/codecs/src/audio/mp3/header.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/audio/pcm/mod.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/audio/adpcm/swf.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/audio-engine/src/effects/eq.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/audio/vorbis/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/audio-engine/src/volume.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/audio-engine/src/error.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
