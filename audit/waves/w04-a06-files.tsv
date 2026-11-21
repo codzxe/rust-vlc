@@ -1,0 +1,10 @@
+path	kind
+crates/demux/src/adts/tests.rs	file
+crates/demux/src/avi/tests.rs#part4	chunk
+crates/demux/src/asf/header.rs#part2	chunk
+crates/demux/src/asf/tests.rs#part2	chunk
+crates/demux/src/wav/format.rs#part1	chunk
+crates/demux/src/error.rs	file
+crates/demux/src/ogg/test_support.rs	file
+crates/demux/src/adts/fuzz.rs	file
+crates/demux/fixtures/ps/ps-mp2-video-audio.mpg	file
