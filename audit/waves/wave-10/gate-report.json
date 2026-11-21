@@ -1,0 +1,42 @@
+{
+ "wave": "W10",
+ "assignments": 82,
+ "audit_files_ok": 82,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 6,
+  "S2": 25,
+  "S3": 96,
+  "S4": 138
+ },
+ "verdicts": {
+  "REAL": 8,
+  "UNREACHABLE": 50,
+  "verdict": 2,
+  "REAL (tests; subject UNREACHABLE)": 1,
+  "REAL (open_http) / UNREACHABLE (classify half)": 1,
+  "REAL (unreachable from shipped entry points)": 1,
+  "REAL (unreachable; S2 interrupt race)": 1,
+  "REAL (unreachable; S2 year-overflow)": 1,
+  "REAL (crate not linked into any shipped binary)": 1,
+  "REAL (unreachable; cancel-finalize promise falsified by runner)": 1,
+  "REAL (library; UNREACHABLE from shipped entry points)": 5,
+  "REAL (tests executed; production classify UNREACHABLE, open_http reachable)": 1,
+  "REAL (testkit; ships in binary but production-unused)": 1,
+  "REAL (reachable via shipped HTTP lane)": 1,
+  "REAL (reachable; tests unexecuted in baseline)": 1,
+  "UNREACHABLE (dead in shipped; careful code)": 1,
+  "REAL as tests / UNREACHABLE feature (auth never wired into shipped lane; tests never ran in baseline)": 1,
+  "UNREACHABLE (executor real but never wired; \"v0 ships both layers on\" is false)": 1,
+  "REAL (library; UNREACHABLE from shipped)": 1,
+  "UNREACHABLE (zero-dependent crate; real muxer + round-trip suite never baseline-run)": 1,
+  "REAL / UNREACHABLE (clean vocabulary; is_live dead + misnamed)": 1,
+  "REAL / UNREACHABLE (orphan crate; docs verified accurate; zero findings)": 1,
+  "UNREACHABLE (real tested budget struct in orphan crate; doc claims overreach)": 1
+ },
+ "citations_checked": 8,
+ "citation_failures": [],
+ "gate": "PASS"
+}

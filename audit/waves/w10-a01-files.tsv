@@ -1,0 +1,8 @@
+crates/streaming/src/fetch.rs	file
+crates/playlists/src/mpd.rs#part4	chunk
+crates/streaming/src/auth.rs#part2	chunk
+crates/streaming/src/client.rs#part1	chunk
+crates/playlists/src/cue.rs#part2	chunk
+crates/streaming/src/buffer.rs#part1	chunk
+crates/transcode/src/error.rs#part1	chunk
+crates/streaming/src/lib.rs	file

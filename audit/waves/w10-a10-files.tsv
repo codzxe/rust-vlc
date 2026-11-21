@@ -1,0 +1,8 @@
+crates/streaming/src/ranged.rs#part2	chunk
+crates/playlists/src/probe.rs#part2	chunk
+crates/streaming/src/mockhttp.rs#part3	chunk
+crates/streaming/src/reconnect.rs#part1	chunk
+crates/streaming/src/client.rs#part2	chunk
+crates/transcode/src/convert.rs	file
+crates/streaming/src/dash/fuzz.rs	file
+crates/device-discovery/src/lib.rs	file

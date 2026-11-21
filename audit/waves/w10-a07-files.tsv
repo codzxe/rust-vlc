@@ -1,0 +1,8 @@
+crates/streaming/src/dash/resolve.rs#part1	chunk
+crates/streaming/src/hls/master.rs#part1	chunk
+crates/transcode/src/job.rs	file
+crates/playlists/src/xspf.rs#part2	chunk
+crates/streaming/src/hls/live.rs#part2	chunk
+crates/playlists/src/m3u.rs#part2	chunk
+crates/transcode/src/limits.rs	file
+crates/device-discovery/src/device.rs	file

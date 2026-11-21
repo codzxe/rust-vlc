@@ -1,0 +1,8 @@
+crates/streaming/src/dash/sched.rs	file
+crates/playlists/src/mpd.rs#part3	chunk
+crates/streaming/src/auth.rs#part1	chunk
+crates/streaming/src/remote_playlist.rs	file
+crates/streaming/src/hls/live.rs#part1	chunk
+crates/playlists/src/m3u.rs#part1	chunk
+crates/device-discovery/src/events.rs	file
+crates/playlists/src/error.rs	file
