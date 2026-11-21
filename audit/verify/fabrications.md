@@ -64,3 +64,16 @@ not a fabrication** — finding genuine, stands. Recorded as a precision
 warning for the agent.
 
 Confirmed fabrications in Wave 4: **0**.
+
+## Wave 5 gate (2026-11-21)
+
+Sample: 10 audit files × up to 3 citations. Raw: PASS 28 · FAIL 2.
+
+Adjudication: both FAILs are the known compound-citation extractor artifact —
+1. w05-a02 mkv/cluster.rs.audit.md F-001 `Where: …:254-262 (Fixed), 283-291
+   (Xiph), 316-323 (EBML)`, quote labeled "Code (Xiph head…)" — verified
+   verbatim at cluster.rs:283-291.
+2. w05-a08 mkv/mod.rs.part1.audit.md F-001 `Where: …:249-254 (title), … with
+   the admission at 270-274`, quote is that admission — verified verbatim at
+   mkv/mod.rs:270-274.
+Both genuine. Confirmed fabrications in Wave 5: **0**.
