@@ -1,0 +1,7 @@
+apps/web/src/io/mock_fetch.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:4
+apps/web/src/io/seekability.rs	REAL	S0:0 S1:0 S2:1 S3:2 S4:2
+apps/web/src/render/present.rs#part1	REAL	S0:0 S1:0 S2:0 S3:0 S4:4
+apps/web/src/source.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/plugin-host-wasm/src/http.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+plugins/extensions/metadata-provider/manifest.toml	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
+plugins/extensions/ui-panel/manifest.toml	REAL	S0:0 S1:0 S2:0 S3:0 S4:0
