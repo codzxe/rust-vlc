@@ -1,0 +1,9 @@
+path#part	verdict	S-counts
+crates/codecs/src/audio/mp2/decoder.rs	REAL	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/codecs/src/audio/pcm/decoder.rs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/audio/alac/decoder.rs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/audio/adpcm/ima.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/codecs/src/audio/mp2/seek.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:0
+crates/codecs/src/audio/mp2/fuzz.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/audio/flac/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/codecs/src/audio/opus/order.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:1
