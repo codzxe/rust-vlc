@@ -1,0 +1,10 @@
+path	kind
+crates/_template/src/lib.rs	file
+crates/plugin-host-wasm/Cargo.toml	file
+apps/desktop-tauri/Cargo.toml	file
+crates/device-discovery/Cargo.toml	file
+crates/platform-linux/Cargo.toml	file
+crates/audio-output/Cargo.toml	file
+crates/plugin-api/Cargo.toml	file
+crates/playlists/Cargo.toml	file
+.env.example	file
