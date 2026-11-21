@@ -1,0 +1,4 @@
+path	kind
+crates/media-types/src/error.rs	file
+crates/control-protocol/src/http.rs	file
+crates/commands/src/correlation.rs	file
