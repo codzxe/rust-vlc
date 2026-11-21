@@ -1,0 +1,6 @@
+crates/subtitles/src/font/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:3
+crates/subtitles/src/model/wire.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:0 S4:3
+crates/subtitles/src/cc/cea708.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/subtitles/src/compositing/target.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/subtitles/src/cc/fuzz.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/subtitles/src/vtt/fuzz.rs	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:0 S4:2
