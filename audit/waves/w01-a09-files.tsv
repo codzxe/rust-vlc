@@ -1,0 +1,8 @@
+path	kind
+crates/codecs/Cargo.toml	file
+apps/desktop/Cargo.toml	file
+crates/platform-macos/Cargo.toml	file
+crates/demux/Cargo.toml	file
+crates/media-types/Cargo.toml	file
+.editorconfig	file
+.cargo/config.toml	file
