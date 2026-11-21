@@ -1,0 +1,8 @@
+path	kind
+apps/web/Cargo.toml	file
+Cargo.toml	file
+crates/subtitles/Cargo.toml	file
+crates/settings-schema/Cargo.toml	file
+crates/input/Cargo.toml	file
+crates/media-clock/Cargo.toml	file
+crates/localization/Cargo.toml	file
