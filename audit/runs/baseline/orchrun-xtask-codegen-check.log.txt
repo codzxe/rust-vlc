@@ -1,0 +1,6 @@
+CMD: cargo run -p xtask --locked -- codegen --check
+DATE: 2026-11-21T07:07:14Z
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/z/my-project/target/debug/xtask codegen --check`
+catalog-gen: no drift — outputs match the catalog (65 commands / 26 events)
+EXIT=0

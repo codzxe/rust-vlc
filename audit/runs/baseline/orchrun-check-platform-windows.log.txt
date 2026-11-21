@@ -1,0 +1,8 @@
+CMD: cargo check -p platform-windows --target x86_64-pc-windows-msvc (requested by W01-A03)
+DATE: 2026-11-21T07:07:29Z
+    Checking media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+    Checking audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+    Checking audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+    Checking platform-windows v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-windows)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.61s
+EXIT=0
