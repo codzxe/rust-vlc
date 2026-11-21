@@ -1,0 +1,6 @@
+crates/plugin-api/src/manifest.rs#part2	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:3
+crates/plugin-host-wasm/src/api.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+apps/web/src/protocol.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:0
+crates/plugin-api/src/kind.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/plugin-api/src/subtitle.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+apps/web/src/io/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
