@@ -1,0 +1,6 @@
+apps/cli/src/parse.rs	REAL	S0:0 S1:0 S2:2 S3:3 S4:1
+apps/cli/src/containers/ps.rs#part1	REAL	S0:0 S1:0 S2:1 S3:0 S4:2
+apps/cli/src/containers/ps.rs#part2	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+apps/desktop/src/shell.rs#part1	REAL	S0:0 S1:0 S2:1 S3:1 S4:3
+apps/desktop/src/error.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+apps/control-server/src/run.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
