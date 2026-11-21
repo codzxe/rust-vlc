@@ -41,3 +41,13 @@ verbatim at apps/cli/src/dispatch.rs:154-155 → **genuine; extractor paired the
 quote with the first path of a compound citation** (same class as wave 1).
 
 Confirmed fabrications in Wave 2: **0**.
+
+## Wave 3 gate (2026-11-21)
+
+Sample: 12 audit files × up to 3 citations. Raw: PASS 25 · FAIL 0.
+Confirmed fabrications in Wave 3: **0**.
+
+Process note: W03-A08 and W03-A09 initial spawns failed at the orchestration
+platform level (timeout before any result); both were re-spawned. A08's
+interrupted incarnation had already committed 7 file audits in its worktree;
+the retry completed the remaining 4. No work was lost or duplicated.

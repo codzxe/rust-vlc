@@ -1,0 +1,15 @@
+CMD: rustup target add aarch64-apple-darwin x86_64-apple-darwin; cargo check -p platform-macos --target aarch64-apple-darwin --locked; then --target x86_64-apple-darwin (requested by W03-A01/A02/A03/A08/A10 — 'compile-verified' claim has no committed artifact)
+DATE: 2026-11-21T09:07:54Z
+info: downloading 2 components
+--- aarch64-apple-darwin:
+    Checking audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+    Checking audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+    Checking platform-macos v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-macos)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.94s
+EXIT_aarch64=0
+--- x86_64-apple-darwin:
+    Checking audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+    Checking audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+    Checking platform-macos v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-macos)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.85s
+EXIT_x86_64=0

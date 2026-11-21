@@ -1,0 +1,15 @@
+CMD: cargo test -p input --features contract --release --locked (requested by W03-A02/A06/A08 — truncation acceptance suite executed in zero committed runs)
+DATE: 2026-11-21T09:08:08Z
+test truncation_below_the_cursor_drains_the_snapshot_then_errors_typed ... ok
+test truncation_lands_mid_refill ... ok
+test truncation_to_zero_is_typed ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests input
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+EXIT=0
