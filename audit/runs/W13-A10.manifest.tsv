@@ -1,0 +1,6 @@
+apps/cli/src/containers/adts.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+apps/cli/src/host.rs#part3	REAL	S0:0 S1:0 S2:1 S3:3 S4:2
+apps/desktop/src/window_config.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+apps/cli/src/help.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
+apps/cli/src/exit.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
+apps/desktop/src/lib.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:1
