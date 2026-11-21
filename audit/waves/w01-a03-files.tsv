@@ -1,0 +1,10 @@
+path	kind
+crates/_template/build.rs	file
+.gitignore	file
+crates/transcode/Cargo.toml	file
+crates/media-probe/Cargo.toml	file
+crates/platform-windows/Cargo.toml	file
+crates/audio-engine/Cargo.toml	file
+crates/codec-api/Cargo.toml	file
+crates/_template/Cargo.toml	file
+rust-toolchain.toml	file
