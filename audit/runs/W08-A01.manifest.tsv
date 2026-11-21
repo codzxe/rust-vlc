@@ -1,0 +1,2 @@
+path	verdict	S-counts
+crates/audio-output/src/null.rs	REAL	S0:1 S1:1 S2:0 S3:2 S4:2
