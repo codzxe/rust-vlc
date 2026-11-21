@@ -1,0 +1,6 @@
+crates/plugin-host-wasm/src/supervisor.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:3
+crates/plugin-host-wasm/src/imports.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+apps/web/src/capabilities.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/web/src/audio/sink.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/plugin-api/src/metadata.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:0
+crates/plugin-api/src/ui.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
