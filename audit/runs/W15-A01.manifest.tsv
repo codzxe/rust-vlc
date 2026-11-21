@@ -1,0 +1,25 @@
+ui/src/screens/player/states/states.css	REAL (code) / UNREACHABLE (shipped binary, W14)	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/components/button/button.css	REAL (code) with 2 undeliverable claims / UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:2 S4:2
+ui/src/components/surface/Surface.tsx	REAL (code); Sheet/Well/HeroPill DEAD in production; UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:2 S4:1
+ui/src/screens/settings/SettingField.tsx	REAL (code); writes dead-end at HEAD (W11/W14); int branch drift	S0:0 S1:0 S2:0 S3:3 S4:2
+ui/src/components/slider/slider.css	REAL (code), geometry verified; UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/components/menu/MenuPopup.tsx	REAL (code), clamp math verified; UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/player/customize/toolbarItems.tsx	REAL (code); dead-button generator; engine tiles dead-end (W14)	S0:0 S1:0 S2:0 S3:2 S4:2
+ui/src/screens/player/tools/dynamics/dynamics.css	REAL (code), contrast claims recomputed; UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/settings/areas/audio.tsx	REAL (code); audio.list-devices has NO runtime handler (W8 class); unhandled rejection path	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/theme-tokens/src/lib.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/screens/media-info/media-info.css	REAL (code); 2 stale "pending fix" comments; UNREACHABLE (W14)	S0:0 S1:0 S2:0 S3:0 S4:2
+ui/src/screens/player/tools/equalizer/EqualizerTool.tsx	REAL (code); honest ghost (audio.set-eq absent, W8); onChange seam DEAD	S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/screens/player/tools/video/EssentialTool.tsx	REAL (code); honest ghost, 8 controls guaranteed no-op	S0:0 S1:0 S2:0 S3:1 S4:0
+ui/src/screens/settings/areas/library.tsx	REAL (code); ENTIRE routed area staged-inert (0 schema keys); systemic (4 areas)	S0:0 S1:0 S2:1 S3:0 S4:0
+ui/src/screens/player/tools/visualizer/VisualizerTool.tsx	REAL (code); honest ghost; levels/onChange seams DEAD, 2 of 3 claimed mounts false	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/components/form/RadioGroup.tsx	REAL (code); DEAD COMPONENT (0 production consumers); 4th pattern copy lives in SettingsPanel	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/components/form/SegmentedControl.tsx	REAL (live, 4 mounts); arrows move selection NOT focus (APG violation)	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/scripts/dev-shots-drift-check.mjs	REAL (code); drift guard invoked NOWHERE (CI/gate/baseline); vacuous pass here	S0:0 S1:0 S2:0 S3:1 S4:2
+ui/src/main.tsx	REAL (code); global.language setting unwired to locale seam (W11 pin); no error boundary	S0:0 S1:0 S2:0 S3:1 S4:1
+ui/src/screens/playlist/options/harness.css	REAL; dev-only verified (test-only import chain); no findings	S0:0 S1:0 S2:0 S3:0 S4:0
+ui/src/screens/player/tools/video/harness.css	REAL; dev-only verified; global body rule noted	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/client/ClientProvider.tsx	REAL; correct 26-line seam; decorative memo	S0:0 S1:0 S2:0 S3:0 S4:1
+ui/src/a11y/focus.css	REAL; light layering verified; 1.40:1 claim is dark-accent number (light=1.70)	S0:0 S1:0 S2:0 S3:0 S4:1
+themes/tokens.json#part1	REAL (data; mining counts 26/26 exact, WCAG arithmetic exact) with 2 FALSE claims (E8E8E8 "measured" = 0 corpus hits; "lightness-ranked" = 39 inversions); dev-lane only, no shipped consumer (W14)	S0:0 S1:0 S2:0 S3:2 S4:4
+themes/tokens.json#part2	REAL (data; alias layer clean, 0/86 orphan roles, WCAG numbers exact) with 1 FALSE claim (tertiary ">=4.5 on raised" — dark measures 4.14:1); 8 dead semantic vars; dev-lane only (W14)	S0:0 S1:0 S2:0 S3:1 S4:7
