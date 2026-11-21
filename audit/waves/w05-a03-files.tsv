@@ -1,0 +1,5 @@
+path	kind
+crates/demux/src/mkv/ebml.rs	file
+crates/demux/src/mkv/attachments.rs	file
+crates/demux/src/mkv/error.rs	file
+crates/demux/src/ps/test_support.rs	file
