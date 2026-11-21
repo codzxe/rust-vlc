@@ -1,0 +1,31 @@
+{
+ "wave": "W14",
+ "assignments": 9,
+ "audit_files_ok": 9,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 4,
+  "S1": 3,
+  "S2": 5,
+  "S3": 19,
+  "S4": 18
+ },
+ "verdicts": {
+  "FALSE": 1,
+  "REAL-UNPROVEN": 5,
+  "UNREACHABLE": 1,
+  "REAL": 2
+ },
+ "citations_checked": 2,
+ "citation_failures": [
+  [
+   "audit/files/apps/desktop-tauri/Cargo.lock.audit.md",
+   "apps/desktop-tauri/Cargo.lock (scope) vs docs/security/sbom/cyclonedx.json, docs/security/sbom/README.md",
+   "3",
+   "5",
+   "source missing"
+  ]
+ ],
+ "gate": "FAIL"
+}
