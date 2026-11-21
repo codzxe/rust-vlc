@@ -1,0 +1,7 @@
+path	kind
+product.toml	file
+crates/commands/Cargo.toml	file
+crates/control-protocol/Cargo.toml	file
+crates/packet-queue/Cargo.toml	file
+LICENSE	file
+package-lock.json	file
