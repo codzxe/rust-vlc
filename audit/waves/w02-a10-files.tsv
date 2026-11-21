@@ -1,0 +1,5 @@
+path	kind
+crates/media-types/src/ids.rs#part2	chunk
+crates/media-types/src/ids.rs#part1	chunk
+crates/commands/src/envelope.rs	file
+crates/control-protocol/src/sha1.rs	file
