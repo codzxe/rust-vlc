@@ -1,0 +1,10 @@
+path	kind
+crates/demux/src/avi/mod.rs#part1	chunk
+crates/demux/src/avi/tests.rs#part2	chunk
+crates/demux/src/wav/mod.rs#part2	chunk
+crates/media-probe/src/signature/mod.rs	file
+crates/media-probe/src/lib.rs	file
+crates/demux/src/asf/test_support.rs	file
+crates/media-probe/src/config.rs	file
+crates/demux/src/aiff/test_support.rs	file
+crates/demux/fixtures/ps/ps-vob-lpcm.vob#part4	chunk
