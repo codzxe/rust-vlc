@@ -1,0 +1,12 @@
+path	kind
+crates/video-engine/src/policy.rs	file
+crates/playback-engine/src/session.rs#part5	chunk
+crates/renderer-wgpu/src/staging.rs	file
+crates/media-clock/src/backends.rs#part2	chunk
+crates/platform-windows/src/windows/com.rs	file
+crates/platform-linux/src/linux/pulse_ffi.rs	file
+crates/playback-engine/src/snapshot.rs	file
+crates/platform-linux/src/capability.rs	file
+crates/playback-engine/src/frame_step.rs	file
+crates/platform-linux/src/error.rs	file
+crates/platform-windows/src/gpu.rs	file
