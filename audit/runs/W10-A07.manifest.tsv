@@ -1,0 +1,9 @@
+path	verdict	findings
+crates/streaming/src/dash/resolve.rs#part1	UNREACHABLE	S0:0 S1:2 S2:1 S3:1 S4:3
+crates/streaming/src/hls/master.rs#part1	UNREACHABLE	S0:0 S1:1 S2:1 S3:2 S4:2
+crates/transcode/src/job.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/playlists/src/xspf.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/streaming/src/hls/live.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/playlists/src/m3u.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/transcode/src/limits.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/device-discovery/src/device.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:0
