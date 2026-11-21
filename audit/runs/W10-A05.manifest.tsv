@@ -1,0 +1,8 @@
+crates/transcode/src/runner.rs#part2	REAL (library; UNREACHABLE from shipped entry points)	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/playlists/src/mpd.rs#part1	REAL (library; UNREACHABLE from shipped entry points)	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/streaming/src/schemes.rs#part2	REAL (tests executed; production classify UNREACHABLE, open_http reachable)	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/streaming/src/mockhttp.rs#part1	REAL (testkit; ships in binary but production-unused)	S0:0 S1:0 S2:0 S3:0 S4:4
+crates/streaming/src/error.rs	REAL (reachable via shipped HTTP lane)	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/streaming/src/buffer.rs#part2	REAL (library; UNREACHABLE from shipped entry points)	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/transcode/src/error.rs#part2	REAL (library; UNREACHABLE from shipped entry points)	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/streaming/src/dash/mod.rs	REAL (library; UNREACHABLE from shipped entry points)	S0:0 S1:0 S2:0 S3:1 S4:1
