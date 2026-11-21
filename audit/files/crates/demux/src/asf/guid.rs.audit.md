@@ -87,3 +87,25 @@ No deps beyond `std::fmt`. No feature flags, no unsafe, no allocation hazards (r
 - Whoever audits `crates/demux/src/asf/mod.rs`: confirm whether the `[FORMAT KNOWLEDGE]` GUIDs truly never gate parsing, and whether the module's own docs claim any wiring that F-001 refutes.
 - The eight asf fixtures in my assignment are consumed only by this unreachable module's tests — their audits will carry the same UNREACHABLE verdict context.
 - If a later wave wires the ASF lane (probe + containers arm), F-001 retires and the verdict flips to REAL-UNPROVEN pending an executed open.
+
+## CORRECTION (2026-11-21, appended by W04-A05 during the fixture-family audits)
+§6's row for guid.rs:11-13 ("the GUIDs marked *observed* were byte-verified
+against ffmpeg 7.1.5 output this session" → REAL-UNPROVEN) and §2's "all 15
+GUID constants carry the exact wire-byte form of the standard ASF object
+GUIDs" are WRONG for the two error-correction constants. Byte dumps of the
+committed fixtures (which I proved ARE ffmpeg 7.1.5 output by regenerating
+them byte-exactly from the in-repo recipes):
+- every VIDEO SP's EC field is `00 57 fb 20 55 5b cf 11 a8 fd 00 80 5f 5c
+  44 2b` = 20FB5700-5B55-11CF-A8FD-00805F5C442B (the spec's no-error-
+  correction GUID) — EC_NONE's all-zero value and its "observed … in ffmpeg
+  output" comment (guid.rs:168-169) are FALSE;
+- every AUDIO SP's EC field is `50 cd c3 bf 8f 61 cf 11 8b b2 00 aa 00 b4
+  e2 20` = BFC3CD50-618F-11CF-8BB2-00AA00B4E220 — EC_AUDIO_SPREAD
+  (guid.rs:165-167) drops the `00` after `AA` and appends a phantom `C0`.
+The other 13 constants match the fixture bytes. known_name()'s EC rows can
+never fire on real ffmpeg output. Filed as F-001 [S3] in
+audit/files/crates/demux/src/asf/fixtures/asf_mjpeg.asf.audit.md with od
+evidence and blast-radius analysis (no parse path branches on the EC type —
+no functional impact; S3). File verdict stands (UNREACHABLE); this correction
+lowers §2/§6's constant-verification claim from "spec-correct" to "13/15
+correct, 2 contradicted by the fixtures".
