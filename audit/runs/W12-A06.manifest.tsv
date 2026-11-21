@@ -1,0 +1,7 @@
+apps/web/src/host.rs#part3	REAL	S0:0 S1:0 S2:1 S3:2 S4:2
+apps/web/src/audio/clock.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+apps/web/src/render/canvas.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+apps/web/src/io/fetch_port.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/plugin-api/src/discovery.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+apps/web/src/render/mod.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
+asset-group://w12-g001	REAL	S0:0 S1:0 S2:0 S3:1 S4:1
