@@ -1,0 +1,5 @@
+path	kind
+product.schema.json	file
+crates/theme-tokens/Cargo.toml	file
+crates/testkit/Cargo.toml	file
+tools/xtask/Cargo.toml	file
