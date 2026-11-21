@@ -1,0 +1,6 @@
+crates/subtitles/src/ass/tags.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:3 S4:1
+crates/subtitles/src/dvb/rle.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:2
+crates/subtitles/src/srt/tags.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/subtitles/src/srt/damage.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/subtitles/src/model/error.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/subtitles/src/srt/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:0
