@@ -1,0 +1,8 @@
+crates/streaming/src/fetch.rs	REAL	S0:0 S1:0 S2:2 S3:2 S4:2
+crates/playlists/src/mpd.rs#part4	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/streaming/src/auth.rs#part2	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:2
+crates/streaming/src/client.rs#part1	REAL	S0:0 S1:0 S2:0 S3:1 S4:5
+crates/playlists/src/cue.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/streaming/src/buffer.rs#part1	UNREACHABLE	S0:0 S1:0 S2:1 S3:1 S4:2
+crates/transcode/src/error.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/streaming/src/lib.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
