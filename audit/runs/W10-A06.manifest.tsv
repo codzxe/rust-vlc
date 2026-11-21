@@ -1,0 +1,9 @@
+crates/streaming/src/dash/resolve.rs#part2	UNREACHABLE	S0:0 S1:1 S2:1 S3:2 S4:1
+crates/device-discovery/src/ssdp.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/streaming/src/hls/media.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:1
+crates/playlists/src/hls.rs#part2	UNREACHABLE	S0:0 S1:0 S2:1 S3:2 S4:1
+crates/streaming/src/dash/abr.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/transcode/src/mp4mux.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/streaming/src/clock.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/device-discovery/src/capability.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/streaming/src/hls/mod.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:1
