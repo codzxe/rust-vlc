@@ -1,0 +1,8 @@
+CMD: printf 0x47+187 zero bytes to g188.bin; /home/z/my-project/target/release/lumen open file:///tmp/g188.bin (requested by W04-A04 — TsSignature off-by-one panic repro on shipped open path)
+DATE: 2026-11-21T10:22:40Z
+
+thread 'main' (3077) panicked at crates/media-probe/src/signature/phase5.rs:161:16:
+index out of bounds: the len is 188 but the index is 188
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+EXIT=0
+EXIT=101

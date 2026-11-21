@@ -1,0 +1,139 @@
+{
+ "wave": 4,
+ "agents": {
+  "A01": {
+   "files": 14,
+   "audited": 14,
+   "s": {
+    "2": 3,
+    "4": 20,
+    "3": 4
+   },
+   "verdicts": {
+    "REAL": 8,
+    "UNREACHABLE": 5
+   }
+  },
+  "A02": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "2": 3,
+    "3": 10,
+    "4": 19
+   },
+   "verdicts": {
+    "UNREACHABLE": 1,
+    "REAL": 7,
+    "SHALLOW": 1
+   }
+  },
+  "A03": {
+   "files": 10,
+   "audited": 10,
+   "s": {
+    "3": 7,
+    "4": 18,
+    "2": 3
+   },
+   "verdicts": {
+    "REAL": 8,
+    "UNREACHABLE": 2
+   }
+  },
+  "A04": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "2": 1,
+    "3": 3,
+    "4": 15,
+    "1": 1
+   },
+   "verdicts": {
+    "REAL": 7,
+    "UNREACHABLE": 1
+   }
+  },
+  "A05": {
+   "files": 20,
+   "audited": 20,
+   "s": {
+    "2": 3,
+    "3": 10,
+    "4": 24,
+    "0": 1
+   },
+   "verdicts": {
+    "REAL": 15,
+    "SHALLOW": 1,
+    "UNREACHABLE": 2
+   }
+  },
+  "A06": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "3": 9,
+    "4": 19,
+    "2": 1
+   },
+   "verdicts": {
+    "REAL": 8,
+    "UNREACHABLE": 1
+   }
+  },
+  "A07": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "3": 8,
+    "4": 11
+   },
+   "verdicts": {
+    "REAL": 9
+   }
+  },
+  "A08": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "3": 7,
+    "4": 16,
+    "2": 1
+   },
+   "verdicts": {
+    "REAL": 5
+   }
+  },
+  "A09": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "2": 1,
+    "3": 13,
+    "4": 20
+   },
+   "verdicts": {
+    "REAL": 8,
+    "UNREACHABLE": 1
+   }
+  },
+  "A10": {
+   "files": 9,
+   "audited": 9,
+   "s": {
+    "2": 2,
+    "3": 5,
+    "4": 17
+   },
+   "verdicts": {
+    "REAL": 9
+   }
+  }
+ },
+ "missing": [],
+ "thin": [],
+ "citations_checked": [],
+ "fabrications": []
+}

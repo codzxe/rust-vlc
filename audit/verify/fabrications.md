@@ -51,3 +51,16 @@ Process note: W03-A08 and W03-A09 initial spawns failed at the orchestration
 platform level (timeout before any result); both were re-spawned. A08's
 interrupted incarnation had already committed 7 file audits in its worktree;
 the retry completed the remaining 4. No work was lost or duplicated.
+
+## Wave 4 gate (2026-11-21)
+
+Sample: 12 audit files × up to 3 citations. Raw: PASS 20 · FAIL 1.
+
+Adjudication: `w04-a02/audit/files/crates/demux/src/es/tests.rs.audit.md`
+F-002 cites tests.rs:302-303 and quotes the doc comment that actually lives
+at :298-299 (verbatim, verified); the anchor line :303 (fn name) is correctly
+cited and explicitly called out in the audit text. **Citation imprecision,
+not a fabrication** — finding genuine, stands. Recorded as a precision
+warning for the agent.
+
+Confirmed fabrications in Wave 4: **0**.
