@@ -1,0 +1,6 @@
+crates/subtitles/src/cc/eia608.rs	file
+crates/subtitles/src/ass/parser.rs#part3	chunk
+crates/subtitles/src/srt/encoding.rs	file
+crates/subtitles/src/vobsub/idx.rs	file
+crates/subtitles/src/vtt/timestamp.rs	file
+crates/subtitles/src/srt/fuzz.rs	file

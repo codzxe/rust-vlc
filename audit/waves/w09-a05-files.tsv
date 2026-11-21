@@ -1,0 +1,6 @@
+crates/subtitles/src/vobsub/spu.rs	file
+crates/subtitles/src/pgs/mod.rs#part2	chunk
+crates/subtitles/src/compositing/layout.rs	file
+crates/subtitles/src/vtt/settings.rs	file
+crates/subtitles/src/compositing/compose.rs	file
+crates/subtitles/src/vobsub/fuzz.rs	file

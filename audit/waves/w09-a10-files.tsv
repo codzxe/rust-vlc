@@ -1,0 +1,6 @@
+crates/subtitles/src/pgs/segment.rs	file
+crates/subtitles/src/cc/cc_data.rs	file
+crates/subtitles/src/ass/parser.rs#part2	chunk
+crates/subtitles/src/model/style.rs	file
+crates/subtitles/src/pgs/palette.rs	file
+crates/subtitles/src/dvb/fuzz.rs	file

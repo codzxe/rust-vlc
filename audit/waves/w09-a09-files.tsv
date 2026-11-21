@@ -1,0 +1,6 @@
+crates/subtitles/src/ass/layout.rs	file
+crates/subtitles/src/ass/render.rs#part1	chunk
+crates/subtitles/src/ass/parser.rs#part1	chunk
+crates/subtitles/src/model/time.rs	file
+crates/subtitles/src/vtt/damage.rs	file
+crates/subtitles/src/pgs/fuzz.rs	file

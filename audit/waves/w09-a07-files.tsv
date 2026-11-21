@@ -1,0 +1,6 @@
+crates/subtitles/src/dvb/mod.rs#part1	chunk
+crates/subtitles/src/srt/parser.rs	file
+crates/subtitles/src/vtt/mod.rs	file
+crates/subtitles/src/dvb/clut.rs	file
+crates/subtitles/src/compositing/timing.rs	file
+crates/subtitles/src/ass/mod.rs	file

@@ -1,0 +1,6 @@
+crates/subtitles/src/vobsub/mod.rs	file
+crates/subtitles/src/ass/render.rs#part2	chunk
+crates/subtitles/src/cc/mod.rs	file
+crates/subtitles/src/compositing/bitmap.rs	file
+crates/subtitles/src/lib.rs	file
+crates/subtitles/src/compositing/mod.rs	file

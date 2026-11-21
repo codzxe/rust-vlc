@@ -1,0 +1,6 @@
+crates/subtitles/src/dvb/segment.rs	file
+crates/subtitles/src/font/pipeline.rs	file
+crates/subtitles/src/model/position.rs	file
+crates/subtitles/src/cc/render.rs	file
+crates/subtitles/src/model/cue.rs	file
+crates/subtitles/src/model/mod.rs	file

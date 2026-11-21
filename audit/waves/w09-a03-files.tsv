@@ -1,0 +1,6 @@
+crates/subtitles/src/font/mod.rs	file
+crates/subtitles/src/model/wire.rs	file
+crates/subtitles/src/cc/cea708.rs	file
+crates/subtitles/src/compositing/target.rs	file
+crates/subtitles/src/cc/fuzz.rs	file
+crates/subtitles/src/vtt/fuzz.rs	file

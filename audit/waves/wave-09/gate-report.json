@@ -1,0 +1,28 @@
+{
+ "wave": "W09",
+ "assignments": 60,
+ "audit_files_ok": 60,
+ "missing": [],
+ "thin": [],
+ "findings_total": {
+  "S0": 0,
+  "S1": 4,
+  "S2": 28,
+  "S3": 74,
+  "S4": 120
+ },
+ "verdicts": {
+  "UNREACHABLE": 43,
+  "REAL": 2,
+  "REAL-UNPROVEN": 9,
+  "REAL (tests) / subject UNREACHABLE": 1,
+  "REAL (contract layer; UNREACHABLE from shipped)": 1,
+  "FALSE (contract narrative) / modules UNREACHABLE": 1,
+  "REAL (wiring) / pipeline UNREACHABLE": 1,
+  "REAL (library; UNREACHABLE from shipped)": 1,
+  "REAL (in-crate harness; UNREACHABLE from shipped)": 1
+ },
+ "citations_checked": 9,
+ "citation_failures": [],
+ "gate": "PASS"
+}

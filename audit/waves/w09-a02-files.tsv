@@ -1,0 +1,6 @@
+crates/subtitles/src/ass/tags.rs	file
+crates/subtitles/src/dvb/rle.rs	file
+crates/subtitles/src/srt/tags.rs	file
+crates/subtitles/src/srt/damage.rs	file
+crates/subtitles/src/model/error.rs	file
+crates/subtitles/src/srt/mod.rs	file
