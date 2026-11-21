@@ -1,0 +1,12 @@
+path	kind
+crates/playback-engine/src/pipeline.rs#part1	chunk
+crates/renderer-wgpu/src/params.rs	file
+crates/media-clock/src/clock.rs#part1	chunk
+crates/playback-engine/src/seek.rs	file
+crates/input/src/error.rs	file
+crates/renderer-wgpu/src/backend.rs	file
+crates/platform-windows/src/windows/dxgi.rs	file
+crates/platform-windows/src/capability.rs	file
+crates/platform-windows/src/events.rs	file
+crates/media-clock/src/source.rs	file
+crates/platform-windows/src/dialog.rs	file
