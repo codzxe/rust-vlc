@@ -35,7 +35,7 @@ None specific to this file. Cross-references (filed and counted in the asf_mjpeg
 | No-extradata shape verified | YES | data_size=biSize=40, extradata 0 (vs wmv2 sibling's 44/4) — one of `parse_video_info`'s two verified shapes (header.rs:810-815) |
 | Referenced by code/docs | YES | tests.rs:962, :1489; plan §1.2:59, §4.4:454 |
 | Determinism / drift gate | TEST-TIME ONLY | sha pin in-test (cross-ref F-002) |
-| Hostile value | N/A | Clean-file fixture; wmv1 not a shipped decoder (demux-only lane by design, plan §1.2:98) |
+| Hostile value | N/A | Clean-file fixture; wmv1 not a shipped decoder (demux-only lane by design, plan §1.3:98) |
 
 ## 5. Test honesty
 | Test | Would it fail if the code were broken? | Reason |

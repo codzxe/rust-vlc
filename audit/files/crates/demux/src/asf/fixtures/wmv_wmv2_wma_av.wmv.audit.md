@@ -48,7 +48,7 @@ None specific to this file. Cross-references (filed and counted in the asf_mjpeg
 |---|---|---|---|
 | "wmv_wmv2_wma_av.wmv 10,499 5bd8c76fa14e31aa" + lane "A/V multi-payload" | plan §4.4:457 | REAL | sha256sum + 2 SPs / 2 tracks verified in bytes |
 | "wmv_wmv2_wma_av: streams[0] tsd 55 = VIDEOINFOHEADER" | tests.rs:1223-1224 (comment) | REAL | Video SP TSD length 55 in bytes (walk) |
-| wmav2/wmv2 codecs not in the shipped decoder set → "demux + typed cli.codec_unavailable" | plan §1.2:98 | REAL-UNPROVEN (as to this crate) | Demux side proven; the typed codec-unavailable refusal on the ASF lane is unreachable today (module unwired; engine-info ships mjpeg+pcm only) |
+| wmav2/wmv2 codecs not in the shipped decoder set → "demux + typed cli.codec_unavailable" | plan §1.3:98 | REAL-UNPROVEN (as to this crate) | Demux side proven; the typed codec-unavailable refusal on the ASF lane is unreachable today (module unwired; engine-info ships mjpeg+pcm only) |
 
 ## 7. Dead / duplicated / unreachable code
 Alive test input; consumer module dead in the shipped product (guid.rs audit F-001).
