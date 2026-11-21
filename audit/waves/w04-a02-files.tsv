@@ -1,0 +1,10 @@
+path	kind
+crates/demux/src/asf/mod.rs	file
+crates/media-probe/src/signature/es.rs	file
+crates/demux/src/asf/tests.rs#part1	chunk
+crates/demux/src/avi/index.rs#part2	chunk
+crates/demux/src/es/tests.rs	file
+crates/demux/src/ogg/page.rs	file
+crates/demux/src/asf/fuzz.rs	file
+crates/demux/src/ogg/fuzz.rs	file
+crates/demux/fixtures/ps/ps-vob-dts.vob#part2	chunk
