@@ -1,0 +1,10 @@
+path	kind
+crates/demux/src/adts/mod.rs#part1	chunk
+crates/demux/src/avi/tests.rs#part5	chunk
+crates/demux/src/ivf/tests.rs	file
+crates/media-probe/src/contract.rs	file
+crates/demux/src/asf/data.rs	file
+crates/demux/src/ivf/error.rs	file
+crates/demux/src/wav/error.rs	file
+crates/demux/src/es/error.rs	file
+crates/demux/fixtures/ps/ps-vob-lpcm.vob#part3	chunk
