@@ -1,0 +1,7 @@
+apps/web/src/host.rs#part2	REAL	S0:0 S1:0 S2:3 S3:2 S4:2
+crates/plugin-host-wasm/src/package.rs	REAL	S0:0 S1:0 S2:0 S3:2 S4:3
+apps/web/src/render/present.rs#part2	REAL	S0:0 S1:0 S2:0 S3:0 S4:3
+crates/plugin-host-wasm/src/fsjail.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:3
+apps/web/src/audio/autoplay.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+apps/web/src/audio/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+plugins/extensions/.gitignore	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
