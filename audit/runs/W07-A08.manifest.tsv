@@ -1,0 +1,8 @@
+crates/audio-engine/src/governor.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/audio/vorbis/decoder.rs#part2	REAL-UNPROVEN	S0:0 S1:0 S2:2 S3:4 S4:1
+crates/codecs/src/audio/alac/decoder.rs#part2	REAL-UNPROVEN	S0:0 S1:0 S2:1 S3:1 S4:1
+crates/codecs/src/audio/opus/head.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
+crates/codecs/src/audio/adpcm/oki.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:2
+crates/codecs/src/audio/aac/error.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:0
+crates/codecs/src/audio/pcm/error.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:0
+crates/codecs/src/audio/mod.rs	REAL	S0:0 S1:0 S2:0 S3:0 S4:1
