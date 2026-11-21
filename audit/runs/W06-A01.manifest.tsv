@@ -1,0 +1,9 @@
+crates/codecs/src/video/h264/decode.rs	UNREACHABLE	S0:0 S1:0 S2:1 S3:4 S4:2
+crates/codecs/src/video/dnx/decoder.rs#part1	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/src/video/h264/parser/nal.rs#part2	UNREACHABLE	S0:0 S1:0 S2:0 S3:2 S4:2
+crates/codecs/examples/stage_bench.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:0 S4:4
+crates/codecs/src/video/mjpeg/color.rs#part1	REAL-UNPROVEN	S0:0 S1:0 S2:0 S3:1 S4:3
+crates/codecs/src/video/h264/hw/vaapi/device.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:2
+crates/codecs/src/video/h264/hw/vaapi/library.rs	UNREACHABLE	S0:0 S1:0 S2:0 S3:1 S4:1
+crates/codecs/src/video/av1/fuzz.rs	SHALLOW	S0:0 S1:0 S2:1 S3:0 S4:2
+crates/codecs/src/video/vp9/mod.rs	REAL	S0:0 S1:0 S2:0 S3:1 S4:2
