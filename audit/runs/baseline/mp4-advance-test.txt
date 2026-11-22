@@ -1,0 +1,11 @@
+=== MP4 + advance-pump: does h264/aac ACTUALLY decode? ===
+ok: accepted session=1 gen=0
+event: state-changed Idle → Opening
+event: state-changed Opening → Buffering
+event: TimingDurationKnown { duration: Timestamp(3000000) }
+event: state-changed Buffering → Playing
+ok: time 0.000000s (0.0%), 1 buffered range(s)
+event: state-changed Playing → Ended
+ok: time 3.041814s (100.0%), 1 buffered range(s)
+ok: 2 track(s)
+event: state-changed Ended → Idle
