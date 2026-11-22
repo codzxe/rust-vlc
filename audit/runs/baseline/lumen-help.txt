@@ -1,0 +1,66 @@
+lumen 0.1.3
+The Lumen command-line player — headless host of the engine's first
+vertical, driven through the one command layer (doc 05 §5.3).
+
+Usage:
+  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive
+  lumen --control-stdio                NDJSON machine mode
+  lumen --help [AREA]                  this help / one settings area
+
+Commands (the playing subset of the command catalog):
+  open <path> [--start-time T] [--start-paused] [--no-video] [--no-audio] session.open
+      open a media file (starts the interactive session)
+  close                                                      session.close
+      close the session
+  play                                                       playback.play
+      play / resume
+  pause                                                      playback.pause
+      pause
+  toggle                                                     playback.toggle-play-pause
+      toggle play/pause
+  stop                                                       playback.stop
+      stop playback (the session survives)
+  seek 90s | +10s | -1m | 50% | chapter 3                    playback.seek
+      seek (v0: reopen at the target through the engine's real transitions)
+  info                                                       media.get-info
+      the media snapshot (container, duration, tracks)
+  time                                                       media.get-current-time
+      current position
+  duration                                                   media.get-duration
+      media duration
+  tracks                                                     tracks.list
+      the track list
+  engine-info                                                system.get-engine-info
+      engine self-description
+  commands                                                   system.list-commands
+      the full command catalog (introspection)
+  setting get <area.key> | setting set <area.key> <value>    config.get-setting / config.set-setting
+      read/write a settings-schema key
+  decode-bench <path>                                        (host verb)
+      decode-to-null speed benchmark (ffmpeg parity): one BENCH line, argv-only
+  advance [ticks]                                            (host verb)
+      pump the engine N ticks — deterministic, no wall clock
+  help                                                       (host verb)
+      this command list
+  quit | q                                                   (host verb)
+      leave the interactive session
+
+Settings-derived flags (--<area>-<key> <value>):
+  `lumen --help` lists areas with counts; `lumen --help <area>` lists that
+  area's flags (the VLC --longhelp pattern, generated).
+  Reserved (non-settings) flags: -h/--help, -v/--version, --json,
+  --control-stdio.
+
+Areas:
+  audio          11 options
+  controls       9 options
+  engine         6 options  (engine-internal: ui = false)
+  extensions     6 options
+  global         13 options
+  interface      18 options
+  performance    15 options
+  playback       17 options
+  privacy        11 options
+  recording      2 options
+  video          13 options
+

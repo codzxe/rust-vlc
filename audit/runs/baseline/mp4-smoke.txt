@@ -1,0 +1,5 @@
+=== SMOKE 1: one-shot open ===
+exit=124
+=== SMOKE 2: scripted session (clock advance?) ===
+exit=64
+--- last 10 lines ---

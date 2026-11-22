@@ -1,0 +1,12 @@
+=== decode-bench MJPEG+PCM MOV (mp4 container) ===
+bench: video track#0 mjpeg — decoding; audio track#1 pcm_s16le — decoding (container mp4)
+BENCH file=/home/z/my-project/sample-mjpeg-pcm.mov bytes=648314 v_frames=75 v_decoded=75 a_frames=130 a_decoded=130 wall_s=0.041 decode_s=0.038
+=== scripted play of MJPEG AVI (clock check) ===
+ok: accepted session=1 gen=0
+event: state-changed Idle → Opening
+event: state-changed Opening → Buffering
+event: TimingDurationKnown { duration: Timestamp(3000000) }
+event: state-changed Buffering → Playing
+ok: time 0.000000s (0.0%), 1 buffered range(s)
+event: state-changed Playing → Stopped
+event: state-changed Stopped → Idle

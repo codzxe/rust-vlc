@@ -1,0 +1,12 @@
+=== decode-bench H264+AAC ===
+bench: video track#0 h264 — not benched (no decoder in this build (first vertical: mjpeg + pcm)); audio track#1 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=/home/z/my-project/sample-h264-aac.mp4 bytes=45682 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.000 decode_s=0.000
+exit=0
+=== decode-bench AAC-only ===
+bench: audio track#0 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=/home/z/my-project/sample-aac-only.mp4 bytes=27652 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.000 decode_s=0.000
+exit=0
+=== decode-bench HEVC ===
+bench: video track#0 hevc — not benched (no decoder in this build (first vertical: mjpeg + pcm)); audio track#1 aac — not benched (no decoder in this build (first vertical: mjpeg + pcm)) (container mp4)
+BENCH file=/home/z/my-project/sample-hevc-aac.mp4 bytes=41879 v_frames=0 v_decoded=0 a_frames=0 a_decoded=0 wall_s=0.000 decode_s=0.000
+exit=0

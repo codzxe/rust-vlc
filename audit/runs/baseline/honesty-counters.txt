@@ -1,0 +1,30 @@
+=== honesty counters (git-tracked source, excluding audit/) ===
+unwrap(: 26
+expect(: 45
+todo!: 8
+unimplemented!: 6
+unreachable!: 4154
+unsafe: 730
+#\[ignore: 0
+#\[allow: 0
+panic!: 30
+unsafe blocks (unsafe {): 316
+      6 crates/codecs/src
+      4 crates/platform-windows/src
+      4 crates/platform-macos/src
+      3 crates/platform-linux/src
+      2 tools/mem-audit/src
+      1 tools/xtask/src
+      1 tools/mem-audit/examples
+      1 crates/testkit/src
+      1 apps/desktop-tauri/src
+    103 crates/codecs
+     48 crates/demux
+     41 crates/playback-engine
+     24 crates/streaming
+     20 apps/cli
+     17 tools/xtask
+     13 crates/media-probe
+     12 crates/plugin-host-wasm
+Diff in /home/z/my-project/audit-workspace/crates/plugin-api/tests/testkit_wiring.rs:40:
+Diff in /home/z/my-project/audit-workspace/crates/plugin-api/tests/testkit_wiring.rs:47:
