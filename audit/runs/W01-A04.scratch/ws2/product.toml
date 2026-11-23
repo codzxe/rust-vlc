@@ -1,0 +1,18 @@
+schema_version = 1
+[identity]
+name = "Lumen"
+short_name = "Lumen"
+publisher = "Lumen Contributors"
+[identity.ids]
+reverse_dns = "dev.lumen"
+[identity.ids.windows]
+app_user_model_id = "dev.lumen.Lumen"
+msi_upgrade_code = "7c1f6a52-9d3e-4b8a-a001-3f9c2d64e701"
+[identity.ids.macos]
+bundle_id = "dev.lumen.Lumen"
+[identity.ids.linux]
+appstream_id = "dev.lumen.Lumen"
+[identity.ids.web]
+app_id = "dev.lumen.Lumen"
+[brand]
+accent_color = "#4f8cff"
