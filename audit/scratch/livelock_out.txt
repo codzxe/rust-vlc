@@ -1,0 +1,8 @@
+fixed count=2 (ffmpeg-legal: 3 frames): tracks=1 packets=2 sizes=[3, 3] key=[true, true] recovered=0 damage=0
+fixed count=3 (repo convention): tracks=1 packets=3 sizes=[2, 2, 2] key=[true, true, true] recovered=0 damage=0
+xiph count=2 (ffmpeg-legal: 3 frames): tracks=1 packets=2 sizes=[4, 12] key=[true, true] recovered=0 damage=0
+ebml count=2 (ffmpeg-legal: 3 frames): tracks=1 packets=2 sizes=[3, 8] key=[true, true] recovered=0 damage=0
+ebml count=3 (repo convention): tracks=1 packets=3 sizes=[3, 3, 4] key=[true, true, true] recovered=0 damage=0
+blockgroup no-refblock (keyframe expected): tracks=1 packets=1 sizes=[7] key=[false] recovered=0 damage=0
+simpleblock keyframe bit set: tracks=1 packets=1 sizes=[7] key=[true] recovered=0 damage=0
+block-before-timecode (damage counted?): tracks=1 packets=1 sizes=[2] key=[true] recovered=0 damage=0
