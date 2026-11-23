@@ -1,0 +1,2 @@
+line1: #[must_use]
+line2: aaust_use bb
