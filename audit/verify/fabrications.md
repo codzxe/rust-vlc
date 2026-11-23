@@ -25,3 +25,16 @@ Policy (orchestrator adjudication, applied from Wave 1 onward):
     web_budget.rs:776-781 (truncation), one parser no-block case.
     Logged, not re-run.
 - No fully invented code found in Wave 1.
+
+## Wave 2 gate (2026-11-24)
+- Citations checked: 97, verbatim 87 (89.7%), flagged 10.
+- Adjudication: all 10 anchor/format defects (quote text verified present in
+  the cited file at or near the range: main.rs:35-39 dropped doc-comment
+  line, Cargo.toml:8-12 range shifted ~3, error.rs:210-219/238-249 dedented
+  subsets, lib.rs:54 multi-line misanchor, testkit 23-24 whitespace, plus 4
+  similar). No misattribution, no invented code. Logged, not re-run.
+- Housekeeping: A09 wrote the doc-05 ledger at audit/docs/05-command-layer.md.audit.md
+  (path convention violation); orchestrator moved it to
+  audit/docs/docs/05-command-layer.md.audit.md. Coverage now 57/57.
+- A02's reported accidental catalog-gen write (stray --check file) left NO
+  residue: tree purity clean, artifacts byte-identical (verified git status).
