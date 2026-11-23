@@ -1,0 +1,5 @@
+#[m]
+#[foo]
+a#[mb
+#[
+plain #[must_use] attr
