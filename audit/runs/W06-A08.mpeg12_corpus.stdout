@@ -1,0 +1,16 @@
+
+running 3 tests
+SKIP mpeg12 corpus: corpus-v4 absent (LUMEN_CORPUS unset)
+test corpus_mpeg2video_lanes_field_assertions ... ok
+ROW mpeg2-in-ts.ts: PASS 192x108 profile=Some("Main") level=Some(8) chroma=yuv420p rate=25/1 interlaced=false pics=15 slices=105 mb_addr=64 seqs=2 changes=false (ts demux)
+ROW mpeg2-main-ipb.m2v: PASS 320x240 profile=Some("Main") level=Some(8) chroma=yuv420p rate=25/1 interlaced=false pics=25 slices=375 mb_addr=64 seqs=3 changes=false (raw es)
+ROW ps-mp2-video-audio.mpg: PASS 160x120 profile=Some("Main") level=Some(8) chroma=yuv420p rate=25/1 interlaced=false pics=25 slices=200 mb_addr=64 seqs=3 changes=false (ps demux)
+ROW mpeg2-422.m2v: PASS 192x108 profile=Some("4:2:2") level=Some(5) chroma=yuv422p rate=25/1 interlaced=false pics=15 slices=105 mb_addr=64 seqs=2 changes=false (raw es)
+ROW ps-vob-ac3.vob: PASS 720x480 profile=Some("Main") level=Some(8) chroma=yuv420p rate=24000/1001 interlaced=false pics=25 slices=750 mb_addr=64 seqs=2 changes=false (ps demux)
+test fixture_transport_lanes_ts_and_ps ... ok
+ROW mpeg2-interlaced-ntsc.m2v: PASS 192x108 profile=Some("Main") level=Some(8) chroma=yuv420p rate=30000/1001 interlaced=true pics=18 slices=144 mb_addr=64 seqs=2 changes=false (raw es)
+ROW mpeg1-ipb.m1v: PASS 320x240 profile=None level=None chroma=yuv420p rate=25/1 interlaced=false pics=25 slices=75 mb_addr=64 seqs=3 changes=false (raw es)
+test fixture_raw_es_facts_match_ffprobe ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+
