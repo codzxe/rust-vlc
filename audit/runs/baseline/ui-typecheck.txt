@@ -1,0 +1,6 @@
+# cmd: npm run typecheck (ui)
+# started: 2026-11-23T18:03:20Z
+
+> lumen-ui@0.1.0 typecheck
+> tsc --noEmit
+

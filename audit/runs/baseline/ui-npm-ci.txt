@@ -1,0 +1,17 @@
+# cmd: npm ci (ui)
+# started: 2026-11-23T18:02:35Z
+
+added 259 packages, and audited 260 packages in 42s
+
+67 packages are looking for funding
+  run `npm fund` for details
+
+9 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.

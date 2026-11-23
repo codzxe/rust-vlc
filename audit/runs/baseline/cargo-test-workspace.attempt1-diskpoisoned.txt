@@ -1,0 +1,707 @@
+# cmd: cargo test --workspace --locked
+# started: 2026-11-23T17:45:39Z
+ Downloading crates ...
+  Downloaded foldhash v0.1.5
+  Downloaded spin v0.9.9
+  Downloaded string-interner v0.19.0
+  Downloaded wasmi_collections v2.0.0
+  Downloaded wasmi_ir v2.0.0
+  Downloaded wasmi_core v2.0.0
+  Downloaded hashbrown v0.15.5
+  Downloaded libm v0.2.16
+  Downloaded wasmparser v0.228.0
+  Downloaded wasmi v2.0.0
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling syn v3.0.9
+   Compiling testkit v0.1.0 (/home/z/my-project/audit-workspace/crates/testkit)
+   Compiling thiserror v2.0.21
+   Compiling thiserror-impl v2.0.21
+   Compiling serde v1.0.229
+   Compiling serde_derive v1.0.229
+   Compiling winnow v1.0.4
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+   Compiling plugin-api v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-api)
+   Compiling bitflags v2.13.2
+   Compiling libc v0.2.191
+   Compiling log v0.4.34
+   Compiling input v0.1.0 (/home/z/my-project/audit-workspace/crates/input)
+   Compiling demux v0.1.0 (/home/z/my-project/audit-workspace/crates/demux)
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.15
+   Compiling cc v1.10.0
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+   Compiling smallvec v1.16.4
+   Compiling cfg-if v1.0.5
+   Compiling num-complex v0.4.6
+   Compiling syn v2.0.119
+   Compiling lazy_static v1.5.1
+   Compiling bytemuck v1.25.2
+   Compiling symphonia-core v0.6.1
+   Compiling rustversion v1.0.23
+   Compiling regex-lite v0.1.9
+   Compiling jobserver v0.1.35
+   Compiling parking_lot_core v0.9.12
+   Compiling symphonia-metadata v0.6.1
+   Compiling symphonia-common v0.6.1
+   Compiling nasm-rs v0.3.2
+   Compiling scopeguard v1.2.0
+   Compiling paste v1.0.15
+   Compiling heck v0.5.0
+   Compiling lock_api v0.4.14
+   Compiling strum_macros v0.26.4
+   Compiling rav1d v1.1.0
+   Compiling zerocopy-derive v0.7.35
+   Compiling atomig-macro v0.4.0
+   Compiling byteorder v1.5.0
+   Compiling zerocopy v0.7.35
+   Compiling strum v0.26.3
+   Compiling atomig v0.4.3
+   Compiling parking_lot v0.12.5
+   Compiling raw-cpuid v11.6.0
+   Compiling assert_matches v1.5.0
+   Compiling filmcraft-bitstream v0.9.0
+   Compiling to_method v1.1.0
+   Compiling filmcraft-dnx v0.9.0
+   Compiling symphonia-codec-vorbis v0.6.1
+   Compiling symphonia-codec-alac v0.6.1
+   Compiling symphonia-codec-aac v0.6.1
+   Compiling symphonia-bundle-mp3 v0.6.1
+   Compiling rust_h264 v0.6.1
+   Compiling claxon v0.4.3
+   Compiling ruopus v0.1.2
+   Compiling rusty_vp9 v0.1.3
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+   Compiling itoa v1.0.18
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.154
+   Compiling memchr v2.8.3
+   Compiling codecs v0.1.0 (/home/z/my-project/audit-workspace/crates/codecs)
+   Compiling ref-cast v1.0.27
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.30.0
+   Compiling schemars_derive v1.2.3
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.2.3
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/audit-workspace/crates/packet-queue)
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+   Compiling ring v0.17.14
+   Compiling playlists v0.1.0 (/home/z/my-project/audit-workspace/crates/playlists)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+   Compiling zeroize v1.9.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling getrandom v0.2.17
+   Compiling httparse v1.10.1
+   Compiling untrusted v0.9.0
+   Compiling bytes v1.12.1
+   Compiling rustls v0.23.46
+   Compiling http v1.5.0
+   Compiling rustls-webpki v0.103.16
+   Compiling settings-schema v0.1.0 (/home/z/my-project/audit-workspace/crates/settings-schema)
+   Compiling subtle v2.6.1
+   Compiling once_cell v1.21.4
+   Compiling base64 v0.23.1
+   Compiling ureq-proto v0.6.5
+   Compiling webpki-roots v1.0.11
+   Compiling percent-encoding v2.3.2
+   Compiling utf8-zero v0.8.1
+   Compiling video-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/video-engine)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling renderer-wgpu v0.1.0 (/home/z/my-project/audit-workspace/crates/renderer-wgpu)
+   Compiling libm v0.2.16
+   Compiling ureq v3.5.0
+   Compiling streaming v0.1.0 (/home/z/my-project/audit-workspace/crates/streaming)
+   Compiling subtitles v0.1.0 (/home/z/my-project/audit-workspace/crates/subtitles)
+   Compiling lumen-cli v0.1.3 (/home/z/my-project/audit-workspace/apps/cli)
+   Compiling wasmi_ir v2.0.0
+   Compiling wasmparser v0.228.0
+   Compiling wasmi_core v2.0.0
+   Compiling wasmi v2.0.0
+   Compiling product-config v0.1.0 (/home/z/my-project/audit-workspace/crates/product-config)
+   Compiling spin v0.9.9
+   Compiling wasmi_collections v2.0.0
+   Compiling control-protocol v0.1.0 (/home/z/my-project/audit-workspace/crates/control-protocol)
+   Compiling first-vertical v0.1.0 (/home/z/my-project/audit-workspace/tests/integration/first-vertical)
+   Compiling plugin-host-wasm v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-host-wasm)
+   Compiling desktop v0.1.3 (/home/z/my-project/audit-workspace/apps/desktop)
+   Compiling theme-tokens v0.1.0 (/home/z/my-project/audit-workspace/crates/theme-tokens)
+   Compiling transcode v0.1.0 (/home/z/my-project/audit-workspace/crates/transcode)
+   Compiling template v0.1.0 (/home/z/my-project/audit-workspace/crates/_template)
+   Compiling control-server v0.1.0 (/home/z/my-project/audit-workspace/apps/control-server)
+   Compiling device-discovery v0.1.0 (/home/z/my-project/audit-workspace/crates/device-discovery)
+   Compiling platform-linux v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-linux)
+   Compiling localization v0.1.0 (/home/z/my-project/audit-workspace/crates/localization)
+   Compiling platform-windows v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-windows)
+   Compiling platform-macos v0.1.0 (/home/z/my-project/audit-workspace/crates/platform-macos)
+   Compiling lumen-web v0.1.0 (/home/z/my-project/audit-workspace/apps/web)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/home/z/my-project/audit-workspace/target/debug/deps/rustcfkB5Vb/symbols.o" "<37 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/home/z/my-project/audit-workspace/target/debug/deps/{libsubtitles-efb44b6be28d361a,libmedia_types-90550932653cd8ba}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/z/my-project/audit-workspace/target/debug/deps/rustcfkB5Vb/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/z/my-project/audit-workspace/target/debug/deps/dvb_vobsub_fuzz_survival-712e2bfc04f56940" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `subtitles` (test "dvb_vobsub_fuzz_survival") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/home/z/my-project/audit-workspace/target/debug/deps/rustc9fMmCK/symbols.o" "<47 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/home/z/my-project/audit-workspace/target/debug/deps/{libsubtitles-efb44b6be28d361a,libmedia_types-90550932653cd8ba}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/z/my-project/audit-workspace/target/debug/deps/rustc9fMmCK/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/z/my-project/audit-workspace/target/debug/deps/timing_edges-d2ce4d2cf9009541" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+          0  libLLVM.so.23.1-rust-1.99.1-stable 0x00007fa2b6d40ada llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 42
+          1  libLLVM.so.23.1-rust-1.99.1-stable 0x00007fa2b6d4145d
+          2  libc.so.6                          0x00007fa2b084bd70
+          3  libc.so.6                          0x00007fa2b0987b72
+          4  rust-lld                           0x000055c88dfae254
+          5  rust-lld                           0x000055c88e03137b
+          6  libLLVM.so.23.1-rust-1.99.1-stable 0x00007fa2b6ce70e3
+          7  libLLVM.so.23.1-rust-1.99.1-stable 0x00007fa2b6ce6f63
+          8  libLLVM.so.23.1-rust-1.99.1-stable 0x00007fa2b6c57a70
+          9  libc.so.6                          0x00007fa2b089e8bb
+          10 libc.so.6                          0x00007fa2b091c538
+          collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `subtitles` (test "timing_edges") due to 1 previous error
+   Compiling subtitles v0.1.0 (/home/z/my-project/audit-workspace/crates/subtitles)
+   Compiling renderer-wgpu v0.1.0 (/home/z/my-project/audit-workspace/crates/renderer-wgpu)
+   Compiling lumen-cli v0.1.3 (/home/z/my-project/audit-workspace/apps/cli)
+   Compiling streaming v0.1.0 (/home/z/my-project/audit-workspace/crates/streaming)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling lumen-mem-audit v0.1.0 (/home/z/my-project/audit-workspace/tools/mem-audit)
+   Compiling lumen-web v0.1.0 (/home/z/my-project/audit-workspace/apps/web)
+   Compiling lumen-sweep v0.1.0 (/home/z/my-project/audit-workspace/tools/sweep)
+   Compiling video-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/video-engine)
+   Compiling settings-schema v0.1.0 (/home/z/my-project/audit-workspace/crates/settings-schema)
+   Compiling playlists v0.1.0 (/home/z/my-project/audit-workspace/crates/playlists)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rmetaJIzWUU"
+
+error: could not compile `playback-engine` (test "events_contract") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rustcFvMwSS"
+
+error: could not compile `playback-engine` (test "property") due to 1 previous error
+ Downloading crates ...
+  Downloaded autocfg v1.5.1
+  Downloaded atomig-macro v0.4.0
+  Downloaded atomig v0.4.3
+  Downloaded assert_matches v1.5.0
+  Downloaded itoa v1.0.18
+  Downloaded lazy_static v1.5.1
+  Downloaded zeroize v1.9.1
+  Downloaded strum v0.26.3
+  Downloaded heck v0.5.0
+  Downloaded serde_spanned v1.1.2
+  Downloaded to_method v1.1.0
+  Downloaded cfg-if v1.0.5
+  Downloaded subtle v2.6.1
+  Downloaded symphonia-codec-alac v0.6.1
+  Downloaded scopeguard v1.2.0
+  Downloaded percent-encoding v2.3.2
+  Downloaded ref-cast-impl v1.0.27
+  Downloaded equivalent v1.0.3
+  Downloaded nasm-rs v0.3.2
+  Downloaded dyn-clone v1.0.20
+  Downloaded filmcraft-bitstream v0.9.0
+  Downloaded zerocopy v0.7.35
+  Downloaded jobserver v0.1.35
+  Downloaded utf8-zero v0.8.1
+  Downloaded untrusted v0.9.0
+  Downloaded toml_writer v1.1.3+spec-1.1.0
+  Downloaded shlex v2.0.1
+  Downloaded byteorder v1.5.0
+  Downloaded ref-cast v1.0.27
+  Downloaded toml_datetime v1.1.2+spec-1.1.0
+  Downloaded lock_api v0.4.14
+  Downloaded rustversion v1.0.23
+  Downloaded schemars_derive v1.2.3
+  Downloaded symphonia-common v0.6.1
+  Downloaded paste v1.0.15
+  Downloaded wasmi_collections v2.0.0
+  Downloaded thiserror v2.0.21
+  Downloaded serde_derive_internals v0.30.0
+  Downloaded string-interner v0.19.0
+  Downloaded symphonia-codec-vorbis v0.6.1
+  Downloaded find-msvc-tools v0.1.15
+  Downloaded foldhash v0.1.5
+  Downloaded num-complex v0.4.6
+  Downloaded zmij v1.0.23
+  Downloaded wasmi_ir v2.0.0
+  Downloaded spin v0.9.9
+  Downloaded thiserror-impl v2.0.21
+  Downloaded rustls-pki-types v1.15.1
+  Downloaded once_cell v1.21.4
+  Downloaded parking_lot_core v0.9.12
+  Downloaded quote v1.0.47
+  Downloaded symphonia-codec-aac v0.6.1
+  Downloaded toml_parser v1.1.5+spec-1.1.0
+  Downloaded getrandom v0.2.17
+  Downloaded zerocopy-derive v0.7.35
+  Downloaded bytemuck v1.25.2
+  Downloaded bitflags v2.13.2
+  Downloaded httparse v1.10.1
+  Downloaded strum_macros v0.26.4
+  Downloaded smallvec v1.16.4
+  Downloaded filmcraft-dnx v0.9.0
+  Downloaded unicode-ident v1.0.27
+  Downloaded serde_core v1.0.229
+  Downloaded parking_lot v0.12.5
+  Downloaded num-traits v0.2.19
+  Downloaded toml v1.1.8+spec-1.1.0
+  Downloaded symphonia-metadata v0.6.1
+  Downloaded serde_derive v1.0.229
+  Downloaded proc-macro2 v1.0.107
+  Downloaded wasmi_core v2.0.0
+  Downloaded bytes v1.12.1
+  Downloaded base64 v0.23.1
+  Downloaded ureq-proto v0.6.5
+  Downloaded log v0.4.34
+  Downloaded symphonia-bundle-mp3 v0.6.1
+  Downloaded indexmap v2.14.2
+  Downloaded claxon v0.4.3
+  Downloaded schemars v1.2.3
+  Downloaded serde v1.0.229
+  Downloaded rustls-webpki v0.103.16
+  Downloaded memchr v2.8.3
+  Downloaded regex-lite v0.1.9
+  Downloaded raw-cpuid v11.6.0
+  Downloaded http v1.5.0
+  Downloaded cc v1.10.0
+  Downloaded libm v0.2.16
+  Downloaded symphonia-core v0.6.1
+  Downloaded hashbrown v0.15.5
+  Downloaded serde_json v1.0.154
+  Downloaded hashbrown v0.17.1
+  Downloaded ureq v3.5.0
+  Downloaded winnow v1.0.4
+  Downloaded webpki-roots v1.0.11
+  Downloaded wasmparser v0.228.0
+  Downloaded rust_h264 v0.6.1
+  Downloaded syn v3.0.9
+  Downloaded wasmi v2.0.0
+  Downloaded syn v2.0.119
+  Downloaded ruopus v0.1.2
+  Downloaded rusty_vp9 v0.1.3
+  Downloaded rustls v0.23.46
+  Downloaded libc v0.2.191
+  Downloaded rav1d v1.1.0
+  Downloaded ring v0.17.14
+   Compiling desktop v0.1.3 (/home/z/my-project/audit-workspace/apps/desktop)
+   Compiling lumen-mem-audit v0.1.0 (/home/z/my-project/audit-workspace/tools/mem-audit)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/home/z/my-project/audit-workspace/target/debug/deps/rustcqPbhUK/symbols.o" "<44 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/home/z/my-project/audit-workspace/target/debug/deps/{libtestkit-6c87b9f0c0e73b8a,libplayback_engine-a24d0f17bbb7b3fa,libplugin_api-a66781c92cf1b619,libtoml-66c5af2750ac9d34,libtoml_writer-4551f2e52a2fe1d3,libtoml_parser-d2de298739d37e0f,libwinnow-5a8fa2e2d4217887,libserde_spanned-db89702cbfa1b4b3,libtoml_datetime-9237c479e6265c6c,libthiserror-dbf6722bc4db9823,libpacket_queue-bc7a8b4b2ad6c796,libcommands-802037ad66df76ae,libschemars-bac57be9672bb37d,libdyn_clone-fdc7231c3798c7ef,libserde-32f1267000564ae1,libref_cast-d4a3292a07904517,libserde_json-c3d6ec8a59ae4c27,libmemchr-2974315c36bbf455,libitoa-b101c554dc96d6c2,libzmij-017fa04e9bfbd0ce,libserde_core-620e41238864dea4,libmedia_clock-f7fef988b5647851,libcodec_api-588050f874dc99d9,libmedia_types-90550932653cd8ba}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/z/my-project/audit-workspace/target/debug/deps/rustcqPbhUK/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/z/my-project/audit-workspace/target/debug/deps/eom_playout-6c128b1686b2cd16" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `playback-engine` (test "eom_playout") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/home/z/my-project/audit-workspace/target/debug/deps/rustcJSQrT3/symbols.o" "<68 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/home/z/my-project/audit-workspace/target/debug/deps/{libplayback_engine-a24d0f17bbb7b3fa,libplugin_api-a66781c92cf1b619,libtoml-66c5af2750ac9d34,libtoml_writer-4551f2e52a2fe1d3,libtoml_parser-d2de298739d37e0f,libwinnow-5a8fa2e2d4217887,libserde_spanned-db89702cbfa1b4b3,libtoml_datetime-9237c479e6265c6c,libthiserror-dbf6722bc4db9823,libpacket_queue-bc7a8b4b2ad6c796,libcodec_api-588050f874dc99d9,libmedia_clock-f7fef988b5647851,libmedia_types-90550932653cd8ba,libcommands-802037ad66df76ae,libschemars-bac57be9672bb37d,libdyn_clone-fdc7231c3798c7ef,libserde-32f1267000564ae1,libref_cast-d4a3292a07904517,libserde_json-c3d6ec8a59ae4c27,libmemchr-2974315c36bbf455,libitoa-b101c554dc96d6c2,libzmij-017fa04e9bfbd0ce,libserde_core-620e41238864dea4}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/z/my-project/audit-workspace/target/debug/deps/rustcJSQrT3/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/z/my-project/audit-workspace/target/debug/deps/table-8118fae155be51e5" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `playback-engine` (test "table") due to 1 previous error
+
+# ===== PER-CRATE MODE NOTE =====
+# The single `cargo test --workspace --locked` invocation could not complete in
+# this sandbox: linking all test targets simultaneously exceeded available disk
+# (linker SIGBUS / "No space left on device"). Those errors above are
+# ENVIRONMENT artifacts, NOT repo defects. Tests are instead run per package
+# below, with `cargo clean -p <pkg>` between packages to reclaim disk.
+# Deviation from 7.1 recorded; coverage per package is equivalent, ordering differs.
+# ===============================
+### PACKAGE audio-engine
+# started 2026-11-23T17:49:53Z disk_free=0
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/audio_engine-20df3lahpxmfi`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/zero_alloc_quantum-2gt0360su7p2n`: No space left on device (os error 28)
+
+error: could not compile `audio-engine` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `audio-engine` (test "zero_alloc_quantum") due to 1 previous error
+### PACKAGE audio-engine exit_code=101
+### PACKAGE audio-engine FINISHED (real failure ec=101)
+### PACKAGE audio-output
+# started 2026-11-23T17:49:53Z disk_free=2.7M
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rmetaHjCOMa"
+
+error: could not compile `audio-output` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rustcTRo3gb"
+
+error: could not compile `audio-engine` (lib) due to 1 previous error
+### PACKAGE audio-output exit_code=101
+### PACKAGE audio-output DISK-retryable
+### PACKAGE codec-api
+# started 2026-11-23T17:49:53Z disk_free=0
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/codec_api-0y24zv9be8pv6`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/contract_suite-392abi1vqwmx3`: No space left on device (os error 28)
+
+error: could not compile `codec-api` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `codec-api` (test "contract_suite") due to 1 previous error
+### PACKAGE codec-api exit_code=101
+### PACKAGE codec-api FINISHED (real failure ec=101)
+### PACKAGE codecs
+# started 2026-11-23T17:49:53Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codecs-a0d7a93b7072ff58`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE codecs exit_code=101
+### PACKAGE codecs DISK-retryable
+### PACKAGE commands
+# started 2026-11-23T17:49:54Z disk_free=0
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/commands-3e7n3gst9d7ah`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/catalog_gen-21ehz578bruh5`: No space left on device (os error 28)
+
+error: could not compile `commands` (bin "catalog-gen" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `commands` (lib test) due to 1 previous error
+### PACKAGE commands exit_code=101
+### PACKAGE commands FINISHED (real failure ec=101)
+### PACKAGE control-protocol
+# started 2026-11-23T17:49:54Z disk_free=19M
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rmetaHxLm8f"
+
+error: could not compile `commands` (lib) due to 1 previous error
+### PACKAGE control-protocol exit_code=101
+### PACKAGE control-protocol DISK-retryable
+### PACKAGE control-server
+# started 2026-11-23T17:49:57Z disk_free=0
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+error: could not create incremental compilation session directory `/home/z/my-project/audit-workspace/target/debug/incremental/commands-1e6uwwngp2txy/s-hofp6uhp11-1hpoq4q-working`: No space left on device (os error 28)
+
+error: could not compile `commands` (lib) due to 1 previous error
+### PACKAGE control-server exit_code=101
+### PACKAGE control-server DISK-retryable
+### PACKAGE demux
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/demux-036dd705535b2fb3`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE demux exit_code=101
+### PACKAGE demux DISK-retryable
+### PACKAGE desktop
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE desktop exit_code=101
+### PACKAGE desktop DISK-retryable
+### PACKAGE device-discovery
+# started 2026-11-23T17:49:57Z disk_free=0
+   Compiling device-discovery v0.1.0 (/home/z/my-project/audit-workspace/crates/device-discovery)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/device_discovery-3iy73hsdiwdfj`: No space left on device (os error 28)
+
+error: could not compile `device-discovery` (lib test) due to 1 previous error
+### PACKAGE device-discovery exit_code=101
+### PACKAGE device-discovery DISK-retryable
+### PACKAGE first-vertical
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE first-vertical exit_code=101
+### PACKAGE first-vertical DISK-retryable
+### PACKAGE input
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/input-97acee896534c79f`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE input exit_code=101
+### PACKAGE input DISK-retryable
+### PACKAGE localization
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/localization-59558d0212b9967a`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE localization exit_code=101
+### PACKAGE localization DISK-retryable
+### PACKAGE lumen-cli
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE lumen-cli exit_code=101
+### PACKAGE lumen-cli DISK-retryable
+### PACKAGE lumen-mem-audit
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/lumen-mem-audit-d412f0a551708a0e`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE lumen-mem-audit exit_code=101
+### PACKAGE lumen-mem-audit DISK-retryable
+### PACKAGE lumen-sweep
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/lumen-sweep-ac3c9102ba8d57d2`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE lumen-sweep exit_code=101
+### PACKAGE lumen-sweep DISK-retryable
+### PACKAGE lumen-web
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE lumen-web exit_code=101
+### PACKAGE lumen-web DISK-retryable
+### PACKAGE media-clock
+# started 2026-11-23T17:49:57Z disk_free=0
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/media_clock-3f4ae2g0amoym`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/zero_alloc_backends-2k29h2pn8xtgh`: No space left on device (os error 28)
+
+error: could not compile `media-clock` (test "zero_alloc_backends") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `media-clock` (lib test) due to 1 previous error
+### PACKAGE media-clock exit_code=101
+### PACKAGE media-clock FINISHED (real failure ec=101)
+### PACKAGE media-probe
+# started 2026-11-23T17:49:57Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-probe-440f45029f776138`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE media-probe exit_code=101
+### PACKAGE media-probe DISK-retryable
+### PACKAGE media-types
+# started 2026-11-23T17:49:58Z disk_free=0
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/testkit_wiring-2nxm27twjqwju`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/shared_bytes_alloc-16excuhxczqpc`: No space left on device (os error 28)
+
+error: could not compile `media-types` (test "testkit_wiring") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `media-types` (test "shared_bytes_alloc") due to 1 previous error
+### PACKAGE media-types exit_code=101
+### PACKAGE media-types FINISHED (real failure ec=101)
+### PACKAGE packet-queue
+# started 2026-11-23T17:49:58Z disk_free=2.4M
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rmetaHFNm8b"
+
+error: could not compile `media-types` (lib) due to 1 previous error
+### PACKAGE packet-queue exit_code=101
+### PACKAGE packet-queue DISK-retryable
+### PACKAGE platform-linux
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE platform-linux exit_code=101
+### PACKAGE platform-linux DISK-retryable
+### PACKAGE platform-macos
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE platform-macos exit_code=101
+### PACKAGE platform-macos DISK-retryable
+### PACKAGE platform-windows
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE platform-windows exit_code=101
+### PACKAGE platform-windows DISK-retryable
+### PACKAGE playback-engine
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE playback-engine exit_code=101
+### PACKAGE playback-engine DISK-retryable
+### PACKAGE playlists
+# started 2026-11-23T17:49:58Z disk_free=0
+   Compiling playlists v0.1.0 (/home/z/my-project/audit-workspace/crates/playlists)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/playlists-2l5obt5zns6d2`: No space left on device (os error 28)
+
+error: could not compile `playlists` (lib test) due to 1 previous error
+### PACKAGE playlists exit_code=101
+### PACKAGE playlists DISK-retryable
+### PACKAGE plugin-api
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/plugin-api-ab7d285b50a67060`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE plugin-api exit_code=101
+### PACKAGE plugin-api DISK-retryable
+### PACKAGE plugin-host-wasm
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/codec-api-588050f874dc99d9`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE plugin-host-wasm exit_code=101
+### PACKAGE plugin-host-wasm DISK-retryable
+### PACKAGE product-config
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/product-config-c5582ae85ef99110`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE product-config exit_code=101
+### PACKAGE product-config DISK-retryable
+### PACKAGE renderer-wgpu
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE renderer-wgpu exit_code=101
+### PACKAGE renderer-wgpu DISK-retryable
+### PACKAGE settings-schema
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/settings-schema-a04a3e7c1885842d`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE settings-schema exit_code=101
+### PACKAGE settings-schema DISK-retryable
+### PACKAGE streaming
+# started 2026-11-23T17:49:58Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/streaming-032d0d746c2d060d`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE streaming exit_code=101
+### PACKAGE streaming DISK-retryable
+### PACKAGE subtitles
+# started 2026-11-23T17:49:59Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE subtitles exit_code=101
+### PACKAGE subtitles DISK-retryable
+### PACKAGE template
+# started 2026-11-23T17:49:59Z disk_free=0
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/template-9467d118f9ff2ce5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/smoke.rs (target/debug/deps/smoke-0edc818923401040)
+
+running 1 test
+test template_marker_is_stable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests template
+error: failed to create temporary directory: Custom { kind: StorageFull, error: PathError { path: "/tmp/rustdoctestlEOBbb", err: Os { code: 28, kind: StorageFull, message: "No space left on device" } } }
+
+error: doctest failed, to rerun pass `-p template --doc`
+
+Caused by:
+  process didn't exit successfully: `/home/z/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustdoc --edition=2024 --crate-type lib --color auto --crate-name template --test crates/_template/src/lib.rs --test-run-directory /home/z/my-project/audit-workspace/crates/_template '--deny=clippy::unwrap_used' --deny=unused_variables --deny=unused_must_use --deny=unused_imports --deny=unsafe_code '--deny=clippy::unimplemented' '--deny=clippy::todo' '--deny=clippy::panic' '--deny=clippy::expect_used' '--deny=clippy::dbg_macro' '--deny=clippy::await_holding_lock' --extern template=/home/z/my-project/audit-workspace/target/debug/deps/libtemplate-6adc5170646ad1d6.rlib -L dependency=/home/z/my-project/audit-workspace/target/debug/deps -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' --check-cfg 'cfg(lint_canary)' --error-format human` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+### PACKAGE template exit_code=1
+### PACKAGE template FINISHED (real failure ec=1)
+### PACKAGE testkit
+# started 2026-11-23T17:49:59Z disk_free=18M
+   Compiling testkit v0.1.0 (/home/z/my-project/audit-workspace/crates/testkit)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/home/z/my-project/audit-workspace/target/debug/deps/rustchtXezQ/symbols.o" "<106 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*,libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/z/my-project/audit-workspace/target/debug/deps/rustchtXezQ/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/z/my-project/audit-workspace/target/debug/deps/testkit-bccc972dd54af951" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: collect2: fatal error: ld terminated with signal 7 [Bus error]
+          compilation terminated.
+          
+
+error: could not compile `testkit` (lib test) due to 1 previous error
+### PACKAGE testkit exit_code=101
+### PACKAGE testkit FINISHED (real failure ec=101)
+### PACKAGE theme-tokens
+# started 2026-11-23T17:49:59Z disk_free=21M
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.154
+   Compiling theme-tokens v0.1.0 (/home/z/my-project/audit-workspace/crates/theme-tokens)
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rustcLFCNF3"
+
+error: could not compile `serde_json` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: couldn't create a temp dir: No space left on device (os error 28) at path "/home/z/my-project/audit-workspace/target/debug/deps/rmetahChjkw"
+
+error: could not compile `theme-tokens` (lib) due to 1 previous error
+### PACKAGE theme-tokens exit_code=101
+### PACKAGE theme-tokens DISK-retryable
+### PACKAGE transcode
+# started 2026-11-23T17:50:02Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/transcode-f9d0085741b124a5`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE transcode exit_code=101
+### PACKAGE transcode DISK-retryable
+### PACKAGE video-engine
+# started 2026-11-23T17:50:02Z disk_free=0
+error: failed to create directory `/home/z/my-project/audit-workspace/target/debug/.fingerprint/media-clock-f7fef988b5647851`
+
+Caused by:
+  No space left on device (os error 28)
+### PACKAGE video-engine exit_code=101
+### PACKAGE video-engine DISK-retryable
+### PACKAGE xtask
+# started 2026-11-23T17:50:02Z disk_free=0
+   Compiling xtask v0.1.0 (/home/z/my-project/audit-workspace/tools/xtask)
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/xtask-01audcnykmcy7`: No space left on device (os error 28)
+
+error: could not create incremental compilation crate directory `/home/z/my-project/audit-workspace/target/debug/incremental/config_validator-04s9xnrmwzot0`: No space left on device (os error 28)
+
+error: could not compile `xtask` (bin "xtask") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `xtask` (test "config_validator") due to 1 previous error
+### PACKAGE xtask exit_code=101
+### PACKAGE xtask FINISHED (real failure ec=101)

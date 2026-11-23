@@ -1,0 +1,74 @@
+# LOC + anti-pattern census (Wave 0)
+# generated: 2026-11-23T18:16:30Z
+
+## Total LOC by language (from manifest.tsv)
+rust             445395
+json             117242
+other            110715
+markdown          94768
+typescript        79659
+image             62972
+svg-xml           35390
+text              23864
+toml              21335
+no-ext            16679
+css               16651
+lockfile          14561
+python            12237
+shell              6323
+javascript         5145
+yaml               4236
+font               1389
+powershell          993
+snapshot            521
+html                 54
+wasm-binary          38
+
+## Pattern counts (tracked tree)
+unreachable!             4126
+let _ =                   931
+unsafe                    660
+.ok()                     370
+unwrap_or_default         210
+#[allow                   121
+#[ignore]                  66
+expect(                    33
+ts eslint-disable          26
+unwrap(                    19
+panic!                     13
+ts any                      6
+todo!                       2
+unimplemented!              2
+ts @ts-ignore               1
+rust TODO comments          1
+ts TODO                     0
+
+## Top files by unsafe / unwrap / todo! / unimplemented!
+### unsafe
+   63  crates/platform-windows/src/windows/dialogs.rs
+   60  crates/platform-windows/src/windows/wasapi.rs
+   45  crates/platform-linux/src/linux/pulse_ffi.rs
+   45  crates/codecs/src/video/h264/hw/videotoolbox/session.rs
+   37  crates/platform-linux/src/linux/pulse.rs
+   28  crates/platform-windows/src/windows/com.rs
+   28  crates/codecs/src/video/h264/hw/vaapi/session.rs
+   28  crates/codecs/src/video/av1/decoder.rs
+   25  crates/platform-macos/src/macos/coreaudio.rs
+   23  crates/codecs/src/video/h264/hw/vaapi/library.rs
+   22  crates/platform-windows/src/windows/dxgi.rs
+   22  crates/platform-macos/src/macos/metal.rs
+
+### unwrap(
+    6  tools/xtask/src/cmd/check_panics.rs
+    5  tools/vta/ac3/src/main.rs
+    3  tools/xtask/tests/check_panics.rs
+    2  tools/vta/ruopus/src/main.rs
+    2  tools/vta/dnx/src/main.rs
+    1  crates/_template/src/lint_canary.rs
+
+### todo!
+    2  tools/xtask/src/cmd/check_panics.rs
+
+### unimplemented!
+    2  tools/xtask/src/cmd/check_panics.rs
+

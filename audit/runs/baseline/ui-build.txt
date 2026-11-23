@@ -1,0 +1,58 @@
+# cmd: npm run build (ui)
+# started: 2026-11-23T18:06:03Z
+
+> lumen-ui@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 343 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                 1.72 kB │ gzip:   0.51 kB
+dist/assets/InterVariable-DiVDrmQJ.woff2      352.24 kB
+dist/assets/NotFoundScreen-DTWmy6t8.css         0.76 kB │ gzip:   0.36 kB
+dist/assets/DiscoveryScreen-DB55mCaV.css        1.36 kB │ gzip:   0.46 kB
+dist/assets/TokenSandbox-CdaCYKHS.css           1.86 kB │ gzip:   0.48 kB
+dist/assets/open-media-BkY7Egap.css             2.79 kB │ gzip:   0.84 kB
+dist/assets/NetworkStreamScreen-CQHNJKEH.css    3.96 kB │ gzip:   1.06 kB
+dist/assets/ConvertScreen-BucUA2lR.css          4.44 kB │ gzip:   1.00 kB
+dist/assets/ClientProvider-DIw_nJtN.css         6.33 kB │ gzip:   1.45 kB
+dist/assets/ShortcutsScreen-CzvRpTVz.css        6.47 kB │ gzip:   1.59 kB
+dist/assets/TextField-B3XUxDk-.css              7.15 kB │ gzip:   1.47 kB
+dist/assets/Dropdown-DRxrWxlv.css               7.51 kB │ gzip:   1.49 kB
+dist/assets/Button-BKhT0rWj.css                 7.57 kB │ gzip:   1.37 kB
+dist/assets/form-BmfI9rpK.css                   9.90 kB │ gzip:   1.57 kB
+dist/assets/SettingsScreen-ZJ7m9FcI.css        28.75 kB │ gzip:   4.67 kB
+dist/assets/index-BHysrVXp.css                129.67 kB │ gzip:  18.32 kB
+dist/assets/w26.b13-D0z89pPg.js                 0.30 kB │ gzip:   0.22 kB
+dist/assets/icon-ByukILig.js                    0.32 kB │ gzip:   0.24 kB
+dist/assets/IconButton-CqoMIgZe.js              0.48 kB │ gzip:   0.33 kB
+dist/assets/switchCore-CzWkiL1p.js              0.81 kB │ gzip:   0.45 kB
+dist/assets/TokenSandbox-8Oyu7udZ.js            1.14 kB │ gzip:   0.56 kB
+dist/assets/NotFoundScreen-DQHdM16D.js          1.90 kB │ gzip:   0.92 kB
+dist/assets/DiscoveryScreen-D3M9aMGA.js         4.19 kB │ gzip:   1.47 kB
+dist/assets/open-media-CDgD_WpH.js              4.48 kB │ gzip:   1.67 kB
+dist/assets/Dropdown-IErxJ93t.js                4.69 kB │ gzip:   1.90 kB
+dist/assets/NetworkStreamScreen-BSowl9__.js     4.77 kB │ gzip:   1.78 kB
+dist/assets/w26.c6-FarwLxp2.js                  5.44 kB │ gzip:   2.10 kB
+dist/assets/ShortcutsScreen-CQgBWVv5.js         7.23 kB │ gzip:   2.58 kB
+dist/assets/ConvertScreen-DAuRiNE-.js           7.75 kB │ gzip:   2.53 kB
+dist/assets/menu-Bze4UudE.js                    8.86 kB │ gzip:   3.28 kB
+dist/assets/TextField-GrcfDLjA.js              19.90 kB │ gzip:   5.83 kB
+dist/assets/ClientProvider-fHUX_UyU.js         34.04 kB │ gzip:  10.83 kB
+dist/assets/Button-DGRcxNnt.js                 39.45 kB │ gzip:  14.15 kB
+dist/assets/messages-BjJIzfkT.js               85.75 kB │ gzip:  23.24 kB
+dist/assets/SettingsScreen-TmbJruIu.js         98.02 kB │ gzip:  22.71 kB
+dist/assets/index-CHz8maUu.js                 552.40 kB │ gzip: 146.42 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/media-info/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, dynamic import will not move module into another chunk.
+
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/playlist/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, src/screens/player/controls/ControlBar.tsx, src/screens/player/states/PlaylistBrowse.tsx, src/screens/player/variants/MiniPlayer.tsx, src/screens/player/variants/MusicMode.tsx, dynamic import will not move module into another chunk.
+
+✓ built in 389ms

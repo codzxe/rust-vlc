@@ -1,0 +1,12 @@
+
+# cmd: cargo run -p xtask -- feature-audit --locked-independent (xtask tool)
+# started: 2026-11-23T18:02:21Z
+=== LUMEN FEATURE-AUDIT REPORT ===
+matrix: docs/feature-matrix.toml (root /home/z/my-project/audit-workspace)
+rows: 252
+per-phase rows: 2=10 3=5 4=93 5=49 6=18 7=25 8=52
+per-category rows: audio-codec=19 audio-feature=11 config-feature=20 container=21 extension=1 hotkey=17 menu-item=16 network-feature=7 platform-feature=18 playback-op=13 playlist-feature=9 playlist-format=7 plugin-feature=4 protocol-access=11 services-discovery=6 subtitle-format=17 text-render=3 ui-dialog=15 ui-screen=11 video-codec=16 video-feature=10
+per-platform-status cells: blocked=129 implemented=193 not_started=503 partial=147 unsupported=36
+violation: 23: evidence cites missing path `crates/codecs/src/video/h264/sw` (R4)
+violation: 163: evidence cites missing path `ui/src/screens/settings/areas/advanced.tsx` (R4)
+result: FAILURE (2 violation(s))

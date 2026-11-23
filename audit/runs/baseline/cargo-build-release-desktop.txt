@@ -1,0 +1,4 @@
+# cmd: cargo build --release --locked -p desktop (release.yml lane)
+# started: 2026-11-23T17:45:32Z
+   Compiling desktop v0.1.3 (/home/z/my-project/audit-workspace/apps/desktop)
+    Finished `release` profile [optimized] target(s) in 1.62s

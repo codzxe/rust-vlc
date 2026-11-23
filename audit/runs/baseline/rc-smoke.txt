@@ -1,0 +1,243 @@
+# cmd: bash scripts/rc-smoke.sh (repo root, default fixture)
+# started: 2026-11-23T18:12:06Z
+=== rc-smoke environment ===
+Linux 5.10.134-013.15.kangaroo.al8.x86_64 x86_64
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+v24.22.3
+fixture: tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+=== 1. engine-build (cargo build --release --locked -p lumen-cli -p desktop) ===
+   Compiling libc v0.2.191
+   Compiling quote v1.0.47
+   Compiling syn v3.0.9
+   Compiling serde_core v1.0.229
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.15
+   Compiling cc v1.10.0
+   Compiling thiserror v2.0.21
+   Compiling log v0.4.34
+   Compiling autocfg v1.5.1
+   Compiling thiserror-impl v2.0.21
+   Compiling num-traits v0.2.19
+   Compiling serde v1.0.229
+   Compiling smallvec v1.16.4
+   Compiling serde_derive v1.0.229
+   Compiling cfg-if v1.0.5
+   Compiling bitflags v2.13.2
+   Compiling winnow v1.0.4
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling num-complex v0.4.6
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling syn v2.0.119
+   Compiling bytemuck v1.25.2
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling lazy_static v1.5.1
+   Compiling itoa v1.0.18
+   Compiling symphonia-core v0.6.1
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling ring v0.17.14
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+   Compiling zmij v1.0.23
+   Compiling rustversion v1.0.23
+   Compiling zeroize v1.9.1
+   Compiling regex-lite v0.1.9
+   Compiling symphonia-metadata v0.6.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling jobserver v0.1.35
+   Compiling plugin-api v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-api)
+   Compiling getrandom v0.2.17
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+   Compiling ref-cast v1.0.27
+   Compiling parking_lot_core v0.9.12
+   Compiling httparse v1.10.1
+   Compiling untrusted v0.9.0
+   Compiling serde_json v1.0.154
+   Compiling nasm-rs v0.3.2
+   Compiling symphonia-common v0.6.1
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.30.0
+   Compiling scopeguard v1.2.0
+   Compiling memchr v2.8.3
+   Compiling rustls v0.23.46
+   Compiling heck v0.5.0
+   Compiling bytes v1.12.1
+   Compiling paste v1.0.15
+   Compiling strum_macros v0.26.4
+   Compiling http v1.5.0
+   Compiling schemars_derive v1.2.3
+   Compiling lock_api v0.4.14
+   Compiling rav1d v1.1.0
+   Compiling rustls-webpki v0.103.16
+   Compiling atomig-macro v0.4.0
+   Compiling zerocopy-derive v0.7.35
+   Compiling base64 v0.23.1
+   Compiling byteorder v1.5.0
+   Compiling subtle v2.6.1
+   Compiling once_cell v1.21.4
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.2.3
+   Compiling zerocopy v0.7.35
+   Compiling ureq-proto v0.6.5
+   Compiling atomig v0.4.3
+   Compiling parking_lot v0.12.5
+   Compiling strum v0.26.3
+   Compiling webpki-roots v1.0.11
+   Compiling raw-cpuid v11.6.0
+   Compiling to_method v1.1.0
+   Compiling filmcraft-bitstream v0.9.0
+   Compiling percent-encoding v2.3.2
+   Compiling assert_matches v1.5.0
+   Compiling utf8-zero v0.8.1
+   Compiling ureq v3.5.0
+   Compiling filmcraft-dnx v0.9.0
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+   Compiling symphonia-codec-alac v0.6.1
+   Compiling symphonia-codec-aac v0.6.1
+   Compiling symphonia-codec-vorbis v0.6.1
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling video-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/video-engine)
+   Compiling symphonia-bundle-mp3 v0.6.1
+   Compiling playlists v0.1.0 (/home/z/my-project/audit-workspace/crates/playlists)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/audit-workspace/crates/packet-queue)
+   Compiling ruopus v0.1.2
+   Compiling claxon v0.4.3
+   Compiling rusty_vp9 v0.1.3
+   Compiling rust_h264 v0.6.1
+   Compiling codecs v0.1.0 (/home/z/my-project/audit-workspace/crates/codecs)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+   Compiling streaming v0.1.0 (/home/z/my-project/audit-workspace/crates/streaming)
+   Compiling renderer-wgpu v0.1.0 (/home/z/my-project/audit-workspace/crates/renderer-wgpu)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+   Compiling demux v0.1.0 (/home/z/my-project/audit-workspace/crates/demux)
+   Compiling input v0.1.0 (/home/z/my-project/audit-workspace/crates/input)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling settings-schema v0.1.0 (/home/z/my-project/audit-workspace/crates/settings-schema)
+   Compiling lumen-cli v0.1.3 (/home/z/my-project/audit-workspace/apps/cli)
+   Compiling desktop v0.1.3 (/home/z/my-project/audit-workspace/apps/desktop)
+    Finished `release` profile [optimized] target(s) in 2m 29s
+engine-build: PASS
+=== 2. engine-version ===
+engine-version: PASS (lumen 0.1.3)
+=== 3. engine-info ===
+engine-info: PASS
+  ok: engine
+    version: 0.1.3
+    host: cli
+    features: first-vertical:avi-mjpeg-pcm, audio.null-device, video.software-compositor
+    decoders: mjpeg, pcm_s16le
+=== 4. headless-decode (decode-bench; every frame must decode) ===
+BENCH file=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi bytes=425516 v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.008 decode_s=0.008
+headless-decode: PASS (v_decoded==v_frames, a_decoded==a_frames)
+=== 5. command-layer-play (open -> Playing -> Stopped through the catalog) ===
+command-layer-play: PASS (reached Playing, ended Stopped, exit 0)
+=== 6. wasm-web-build (cargo build -p lumen-web --target wasm32-unknown-unknown --locked) ===
+   Compiling serde_core v1.0.229
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+error[E0463]: can't find crate for `std`
+  |
+  = note: the `wasm32-unknown-unknown` target may not be installed
+  = help: consider downloading the target with `rustup target add wasm32-unknown-unknown`
+
+For more information about this error, try `rustc --explain E0463`.
+error: could not compile `media-types` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `serde_core` (lib) due to 1 previous error
+wasm-web-build: FAILED (cargo build)
+=== 7. web-ui-build (ui/: npm run build = tsc --noEmit && vite build) ===
+
+> lumen-ui@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 343 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                 1.72 kB │ gzip:   0.51 kB
+dist/assets/InterVariable-DiVDrmQJ.woff2      352.24 kB
+dist/assets/NotFoundScreen-DTWmy6t8.css         0.76 kB │ gzip:   0.36 kB
+dist/assets/DiscoveryScreen-DB55mCaV.css        1.36 kB │ gzip:   0.46 kB
+dist/assets/TokenSandbox-CdaCYKHS.css           1.86 kB │ gzip:   0.48 kB
+dist/assets/open-media-BkY7Egap.css             2.79 kB │ gzip:   0.84 kB
+dist/assets/NetworkStreamScreen-CQHNJKEH.css    3.96 kB │ gzip:   1.06 kB
+dist/assets/ConvertScreen-BucUA2lR.css          4.44 kB │ gzip:   1.00 kB
+dist/assets/ClientProvider-DIw_nJtN.css         6.33 kB │ gzip:   1.45 kB
+dist/assets/ShortcutsScreen-CzvRpTVz.css        6.47 kB │ gzip:   1.59 kB
+dist/assets/TextField-B3XUxDk-.css              7.15 kB │ gzip:   1.47 kB
+dist/assets/Dropdown-DRxrWxlv.css               7.51 kB │ gzip:   1.49 kB
+dist/assets/Button-BKhT0rWj.css                 7.57 kB │ gzip:   1.37 kB
+dist/assets/form-BmfI9rpK.css                   9.90 kB │ gzip:   1.57 kB
+dist/assets/SettingsScreen-ZJ7m9FcI.css        28.75 kB │ gzip:   4.67 kB
+dist/assets/index-BHysrVXp.css                129.67 kB │ gzip:  18.32 kB
+dist/assets/w26.b13-D0z89pPg.js                 0.30 kB │ gzip:   0.22 kB
+dist/assets/icon-ByukILig.js                    0.32 kB │ gzip:   0.24 kB
+dist/assets/IconButton-CqoMIgZe.js              0.48 kB │ gzip:   0.33 kB
+dist/assets/switchCore-CzWkiL1p.js              0.81 kB │ gzip:   0.45 kB
+dist/assets/TokenSandbox-8Oyu7udZ.js            1.14 kB │ gzip:   0.56 kB
+dist/assets/NotFoundScreen-DQHdM16D.js          1.90 kB │ gzip:   0.92 kB
+dist/assets/DiscoveryScreen-D3M9aMGA.js         4.19 kB │ gzip:   1.47 kB
+dist/assets/open-media-CDgD_WpH.js              4.48 kB │ gzip:   1.67 kB
+dist/assets/Dropdown-IErxJ93t.js                4.69 kB │ gzip:   1.90 kB
+dist/assets/NetworkStreamScreen-BSowl9__.js     4.77 kB │ gzip:   1.78 kB
+dist/assets/w26.c6-FarwLxp2.js                  5.44 kB │ gzip:   2.10 kB
+dist/assets/ShortcutsScreen-CQgBWVv5.js         7.23 kB │ gzip:   2.58 kB
+dist/assets/ConvertScreen-DAuRiNE-.js           7.75 kB │ gzip:   2.53 kB
+dist/assets/menu-Bze4UudE.js                    8.86 kB │ gzip:   3.28 kB
+dist/assets/TextField-GrcfDLjA.js              19.90 kB │ gzip:   5.83 kB
+dist/assets/ClientProvider-fHUX_UyU.js         34.04 kB │ gzip:  10.83 kB
+dist/assets/Button-DGRcxNnt.js                 39.45 kB │ gzip:  14.15 kB
+dist/assets/messages-BjJIzfkT.js               85.75 kB │ gzip:  23.24 kB
+dist/assets/SettingsScreen-TmbJruIu.js         98.02 kB │ gzip:  22.71 kB
+dist/assets/index-CHz8maUu.js                 552.40 kB │ gzip: 146.42 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/media-info/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, dynamic import will not move module into another chunk.
+
+[33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/screens/playlist/index.ts is dynamically imported by src/App.tsx but also statically imported by src/screens/player/PlayerScreen.tsx, src/screens/player/controls/ControlBar.tsx, src/screens/player/states/PlaylistBrowse.tsx, src/screens/player/variants/MiniPlayer.tsx, src/screens/player/variants/MusicMode.tsx, dynamic import will not move module into another chunk.
+
+✓ built in 424ms
+web-ui-build: PASS
+=== 8. web-ui-browser-load (vite preview + Playwright chromium) ===
+rc-smoke-web: loaded http://127.0.0.1:4173/
+rc-smoke-web: level-1 heading: "Player"
+rc-smoke-web: chromium: 143.0.7499.4
+rc-smoke-web: PASS (loaded, booted to the app surface, 0 page errors)
+web-ui-browser-load: PASS
+=== RC SMOKE RESULT: FAIL ===
+
+=== ADDENDUM: wasm build retried with rust-std for toolchain 1.99.1 installed ===
+$ cargo build -p lumen-web --target wasm32-unknown-unknown --locked
+   Compiling serde_core v1.0.229
+   Compiling media-types v0.1.0 (/home/z/my-project/audit-workspace/crates/media-types)
+   Compiling serde v1.0.229
+   Compiling winnow v1.0.4
+   Compiling zmij v1.0.23
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling thiserror v2.0.21
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling serde_json v1.0.154
+   Compiling ref-cast v1.0.27
+   Compiling codec-api v0.1.0 (/home/z/my-project/audit-workspace/crates/codec-api)
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling plugin-api v0.1.0 (/home/z/my-project/audit-workspace/crates/plugin-api)
+   Compiling media-clock v0.1.0 (/home/z/my-project/audit-workspace/crates/media-clock)
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.2.3
+   Compiling audio-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-engine)
+   Compiling packet-queue v0.1.0 (/home/z/my-project/audit-workspace/crates/packet-queue)
+   Compiling commands v0.1.0 (/home/z/my-project/audit-workspace/crates/commands)
+   Compiling audio-output v0.1.0 (/home/z/my-project/audit-workspace/crates/audio-output)
+   Compiling demux v0.1.0 (/home/z/my-project/audit-workspace/crates/demux)
+   Compiling playback-engine v0.1.0 (/home/z/my-project/audit-workspace/crates/playback-engine)
+   Compiling media-probe v0.1.0 (/home/z/my-project/audit-workspace/crates/media-probe)
+   Compiling lumen-web v0.1.0 (/home/z/my-project/audit-workspace/apps/web)
+    Finished `dev` profile [unoptimized] target(s) in 11.45s

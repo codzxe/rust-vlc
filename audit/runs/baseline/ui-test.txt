@@ -1,0 +1,186 @@
+# cmd: npm run test (ui)
+# started: 2026-11-23T18:03:30Z
+
+> lumen-ui@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 /home/z/my-project/audit-workspace/ui
+
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+ ✓ src/screens/player/PlayerScreen.test.tsx (60 tests) 3216ms
+   ✓ PlayerScreen — the real media surface (w26.i02, h03 #2) (2)
+     ✓ a session mounts the <video> surface; url sources carry REAL bytes, file sources mount without a src 351ms
+     ✓ the surface follows the session state and never drives it (engine truth only) 345ms
+   ✓ PlayerScreen — playlist browse face + floating now-playing card (w26.i02, Player-4/Player-3 Lead ruling) (5)
+     ✓ Player-3: a session up over the browse face mounts the floating now-playing card; ✕ collapses, the header toggle re-opens 377ms
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+ ✓ src/screens/player/controls/ControlBar.test.tsx (60 tests) 1791ms
+ ✓ src/screens/player/customize/CustomizePanels.test.tsx (39 tests) 2141ms
+ ✓ src/components/appshell/AppShell.test.tsx (43 tests) 1396ms
+ ✓ src/screens/player/variants/variants.test.tsx (33 tests) 663ms
+ ✓ src/components/list/List.test.tsx (53 tests) 363ms
+ ✓ src/screens/player/states/StateRouter.test.tsx (47 tests) 297ms
+ ✓ src/screens/playlist/PlaylistScreen.test.tsx (31 tests) 1165ms
+ ✓ src/screens/onboarding/OnboardingScreen.test.tsx (28 tests) 692ms
+ ✓ src/components/surface/Surface.test.tsx (33 tests) 371ms
+ ✓ src/screens/playlist/PlaylistPanel.test.tsx (26 tests) 924ms
+ ✓ src/components/icon/Icon.test.tsx (27 tests) 318ms
+ ✓ src/screens/settings/SettingsScreen.test.tsx (26 tests) 1640ms
+   ✓ SettingsScreen shell (card 4.E1) (24)
+     ✓ renders the schema-generated area navigation 328ms
+ ✓ src/client/frame-channel.test.ts (24 tests) 416ms
+ ✓ src/screens/open-media/OpenMediaDialog.test.tsx (22 tests) 437ms
+ ✓ src/screens/playlist/subtitles/AddSubtitlesDialog.test.tsx (22 tests) 728ms
+ ✓ src/screens/player/dialogs/BookmarksDialog.test.tsx (11 tests) 377ms
+ ✓ src/screens/player/useChromeAutoHide.test.tsx (16 tests) 76ms
+ ✓ src/screens/player/context.test.tsx (11 tests) 161ms
+ ✓ src/components/slider/Slider.test.tsx (17 tests) 180ms
+ ✓ src/screens/discovery/DiscoveryScreen.test.tsx (16 tests) 337ms
+ ✓ src/screens/playlist/PlaylistProvider.test.tsx (15 tests) 619ms
+ ✓ src/screens/shortcuts/ShortcutsScreen.test.tsx (14 tests) 2089ms
+   ✓ ShortcutsScreen (/keyboard-shortcuts) (14)
+     ✓ renders the four reference groups as sections of the shortcuts window 345ms
+     ✓ renders the window grammar: dialog semantics, search pill, scope filter, column headers, footer 315ms
+ ✓ src/screens/player/tools/equalizer/EqualizerTool.test.tsx (18 tests) 569ms
+ ✓ src/screens/settings/areas/areas.test.tsx (18 tests) 648ms
+ ✓ src/screens/player/tools/visualizer/VisualizerTool.test.tsx (18 tests) 342ms
+ ✓ src/components/menu/MenuBar.test.tsx (19 tests) 448ms
+ ✓ src/components/menu/Dropdown.test.tsx (18 tests) 348ms
+ ✓ src/screens/playlist/subtitles/SubtitlePickList.test.tsx (17 tests) 282ms
+ ✓ src/screens/settings/areas/audio.test.tsx (11 tests) 445ms
+ ✓ src/screens/media-info/MediaInfoPanel.test.tsx (13 tests) 478ms
+ ✓ src/screens/settings/generated.test.ts (11 tests) 277ms
+ ✓ src/tokens/tokens.test.ts (8 tests) 12ms
+ ✓ src/screens/settings/areas/effects.test.tsx (11 tests) 531ms
+ ✓ src/screens/convert/ConvertScreen.test.tsx (9 tests) 322ms
+ ✓ src/screens/playlist/options/PlaylistOptionsMenu.test.tsx (19 tests) 341ms
+ ✓ src/App.test.tsx (12 tests) 1898ms
+   ✓ App routing skeleton (doc 08 §1.6) (8)
+     ✓ w26.i20 (h20 #3): first run, the gate guards the WHOLE app — every shell route redirects into the wizard 429ms
+     ✓ renders the settings route via the schema-generated framework (4.E1); unknown areas redirect to the first schema area 392ms
+     ✓ renders unknown paths as the not-found screen 316ms
+   ✓ App — persisted theme + accent hydration (w26.f08, e03-F1/e19-F1) (4)
+     ✓ a fresh load of /discovery (non-settings, non-player) boots LIGHT too — every route hydrates (e19-F1) 314ms
+ ✓ src/client/config-settings.test.ts (11 tests) 160ms
+ ✓ src/screens/player/tools/video/ColorsTool.test.tsx (16 tests) 480ms
+ ✓ src/screens/settings/areas/subtitles.test.tsx (11 tests) 422ms
+ ✓ src/screens/playlist/options/PlaylistOptionsProvider.test.tsx (17 tests) 156ms
+ ✓ src/components/player/MediaSurface.test.tsx (5 tests) 244ms
+ ✓ src/screens/playlist/options/MediaList.test.tsx (17 tests) 247ms
+ ✓ src/screens/settings/SettingField.test.tsx (9 tests) 224ms
+ ✓ src/screens/playlist/enqueueSources.test.tsx (8 tests) 39ms
+ ✓ src/components/button/Toggle.test.tsx (17 tests) 171ms
+ ✓ src/client/tauri-transport.test.ts (10 tests) 11ms
+ ✓ src/components/button/Button.test.tsx (22 tests) 138ms
+ ✓ src/components/slider/EQSlider.test.tsx (10 tests) 147ms
+ ✓ src/screens/network-stream/NetworkStreamScreen.test.tsx (11 tests) 315ms
+ ✓ src/screens/player/tools/equalizer/GraphicEQ.test.tsx (15 tests) 368ms
+ ✓ src/screens/settings/SettingsProvider.test.tsx (14 tests) 42ms
+ ✓ src/screens/player/dialogs/GotoTimeDialog.test.tsx (10 tests) 253ms
+ ✓ src/screens/settings/areas/privacy-network.test.tsx (8 tests) 413ms
+ ✓ src/theme/ThemeProvider.test.tsx (15 tests) 79ms
+ ✓ src/screens/player/dialogs/ToolsDialog.test.tsx (14 tests) 1271ms
+ ✓ src/screens/player/tools/video/useDropdownScrollportFlip.test.ts (12 tests) 30ms
+ ✓ src/screens/settings/areas/controls.test.tsx (8 tests) 659ms
+ ✓ src/screens/settings/areas/extensions.test.tsx (11 tests) 231ms
+ ✓ src/screens/settings/areas/video.test.tsx (6 tests) 455ms
+ ✓ src/screens/player/keymap.test.ts (18 tests) 9ms
+ ✓ src/theme/settingsThemeSync.test.tsx (13 tests) 73ms
+ ✓ src/screens/playlist/options/sorting.test.ts (22 tests) 9ms
+ ✓ src/screens/convert/convertQueue.test.ts (13 tests) 8ms
+ ✓ src/screens/settings/areas/performance.test.tsx (6 tests) 403ms
+ ✓ src/components/slider/Seekbar.test.tsx (12 tests) 157ms
+ ✓ src/screens/player/tools/video/EssentialTool.test.tsx (10 tests) 378ms
+ ✓ src/screens/playlist/options/OptionsMenus.test.tsx (10 tests) 377ms
+ ✓ src/components/menu/MenuPopup.test.tsx (8 tests) 204ms
+ ✓ src/screens/settings/areas/library.test.tsx (6 tests) 294ms
+ ✓ src/components/menu/ProfilesFlyout.test.tsx (9 tests) 137ms
+ ✓ src/screens/player/tools/video/harness.test.tsx (6 tests) 200ms
+ ✓ src/screens/settings/areas/recording.test.tsx (6 tests) 316ms
+ ✓ src/components/form/SegmentedControl.test.tsx (12 tests) 169ms
+ ✓ src/components/form/SwatchGroup.test.tsx (13 tests) 177ms
+ ✓ src/components/menu/Tooltip.test.tsx (8 tests) 188ms
+ ✓ src/screens/media-info/MediaInfoScreen.test.tsx (4 tests) 193ms
+ ✓ src/screens/settings/areas/codecs.test.tsx (8 tests) 299ms
+ ✓ src/components/button/IconButton.test.tsx (12 tests) 132ms
+ ✓ src/screens/settings/areas/hotkeys/HotkeysEditor.test.tsx (8 tests) 249ms
+ ✓ src/components/form/Switch.test.tsx (9 tests) 131ms
+ ✓ src/screens/player/tools/visualizer/harness.test.tsx (5 tests) 51ms
+ ✓ src/screens/settings/persistence.test.ts (13 tests) 9ms
+ ✓ src/screens/player/controls/state-mapping.test.ts (24 tests) 6ms
+ ✓ src/screens/player/tools/video/HdrTool.test.tsx (6 tests) 237ms
+ ✓ src/screens/player/tools/dynamics/StereoWidenerTool.test.tsx (9 tests) 312ms
+ ✓ src/components/menu/ContextMenu.test.tsx (7 tests) 231ms
+ ✓ src/client/app-transport.test.ts (6 tests) 7ms
+ ✓ src/screens/settings/areas/updates-about.test.tsx (6 tests) 288ms
+ ✓ src/screens/player/tools/dynamics/SpatializerTool.test.tsx (9 tests) 346ms
+ ✓ src/screens/player/tools/dynamics/CompressorTool.test.tsx (9 tests) 298ms
+ ✓ src/screens/player/tools/dynamics/harness.test.tsx (6 tests) 115ms
+ ✓ src/components/slider/Volume.test.tsx (7 tests) 146ms
+ ✓ src/screens/player/controls/SettingsPanel.test.tsx (4 tests) 210ms
+ ✓ src/screens/player/tools/equalizer/harness.test.tsx (4 tests) 52ms
+ ✓ src/client/demo-bookmarks.test.ts (5 tests) 6ms
+ ✓ src/screens/playlist/subtitles/matching.test.ts (14 tests) 7ms
+ ✓ src/components/form/RadioGroup.test.tsx (10 tests) 163ms
+ ✓ src/screens/playlist/options/ThumbnailGrid.test.tsx (9 tests) 176ms
+ ✓ src/screens/player/layout.test.ts (12 tests) 8ms
+ ✓ src/components/form/NumberField.test.tsx (9 tests) 78ms
+ ✓ src/client/window-controls.test.ts (6 tests) 6ms
+ ✓ src/screens/player/dialogs/ToolsDialogShell.test.tsx (7 tests) 177ms
+ ✓ src/screens/settings/SettingWidgets.test.tsx (3 tests) 147ms
+ ✓ src/screens/player/useFullscreen.test.tsx (5 tests) 50ms
+ ✓ tools/eslint-plugin-local/rules/semantic-tokens-only.test.js (1 test) 82ms
+ ✓ src/screens/player/tools/video/CropTool.test.tsx (9 tests) 316ms
+ ✓ tools/eslint-plugin-local/rules/i18n-no-literals.test.js (2 tests) 80ms
+ ✓ src/components/form/BrowseField.test.tsx (9 tests) 142ms
+ ✓ src/components/form/TextField.test.tsx (8 tests) 131ms
+ ✓ src/screens/playlist/subtitles/harness.test.tsx (2 tests) 197ms
+ ✓ src/screens/settings/areas/language/LocalePicker.test.tsx (4 tests) 158ms
+ ✓ src/client/open-path.test.ts (9 tests) 5ms
+ ✓ src/screens/playlist/options/harness.test.tsx (2 tests) 58ms
+ ✓ src/screens/settings/areas/appearance/ThemeModePicker.test.tsx (4 tests) 147ms
+ ✓ src/components/menu/MenuItem.test.tsx (4 tests) 127ms
+ ✓ src/i18n/messages.test.ts (6 tests) 36ms
+ ✓ src/screens/player/dialogs/harness.test.tsx (2 tests | 1 skipped) 341ms
+   ✓ w26.c5 vision harness (dev-only) (2)
+     ✓ renders the tools dialog on both tabs without crashing 339ms
+ ✓ src/screens/settings/areas/appearance/AccentColorPicker.test.tsx (3 tests) 125ms
+ ✓ src/screens/settings/search.test.ts (5 tests) 5ms
+ ✓ src/screens/playlist/subtitles/FilenameMatchControl.test.tsx (5 tests) 166ms
+ ✓ src/screens/playlist/queue.test.ts (12 tests) 5ms
+ ✓ src/i18n/pseudo.render.test.tsx (7 tests) 178ms
+ ✓ src/screens/not-found/NotFoundScreen.test.tsx (4 tests) 137ms
+ ✓ src/screens/player/dialogs/naturalSort.test.ts (7 tests) 4ms
+ ✓ tools/eslint-plugin-local/rules/boundary-imports.test.js (1 test) 67ms
+ ✓ src/screens/settings/areas/playlist-services.test.tsx (3 tests) 145ms
+ ✓ src/screens/playlist/subtitles/MatchedPairsList.test.tsx (4 tests) 121ms
+ ✓ src/screens/settings/areas/updates-about.nova.test.tsx (1 test) 28ms
+ ✓ src/screens/player/dialogs/parseTimeInput.test.ts (7 tests) 5ms
+ ✓ src/screens/settings/areas/hotkeys/hotkeysData.test.ts (2 tests) 55ms
+ ✓ src/screens/settings/areas/advanced.test.tsx (2 tests) 158ms
+ ✓ src/screens/settings/areas/hotkeys/conflicts.test.ts (7 tests) 5ms
+ ✓ src/components/form/Checkbox.test.tsx (5 tests) 50ms
+ ✓ src/client/transport.test.ts (4 tests) 5ms
+ ✓ src/components/form/ValueChip.test.tsx (4 tests) 38ms
+
+ Test Files  136 passed (136)
+      Tests  1705 passed | 1 skipped (1706)
+   Start at  18:03:30
+   Duration  152.60s (environment 51%, tests 32%, setup 9%, import 5%, transform 3%)
+
+Environment  jsdom was created 136 times · 70.13s total, 51% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
