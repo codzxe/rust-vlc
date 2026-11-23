@@ -1,0 +1,22 @@
+
+running 17 tests
+test contract_state_rules ... ok
+test contract_damaged_extradata_refuses_typed ... ok
+test hostile_garbage_packets_recover ... ok
+test hostile_garbage_then_real_recovers ... ok
+test lane_a_baseline_annexb ... ok
+test lane_a_baseline_mp4 ... ok
+test lane_b_main_cabac_annexb ... ok
+test lane_b_main_cabac_mp4 ... ok
+test lane_c_bframes_annexb ... ok
+test lane_c_bframes_mp4 ... ok
+test lane_d_high_ipb_annexb ... ok
+test lane_d_high_ipb_mp4 ... ok
+test lane_e_odd_crop_annexb ... ok
+test lane_e_odd_crop_mp4 ... ok
+test lane_f_still_annexb ... ok
+test lane_f_still_mp4 ... ok
+test hostile_truncation_sweep_is_panic_free ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.65s
+
