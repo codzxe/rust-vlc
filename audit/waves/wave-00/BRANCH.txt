@@ -1,0 +1,3 @@
+branch=audit/devil-20261124
+created=2026-11-23T17:36Z
+note=orchestrator centralized git; agents never run git or see credentials
