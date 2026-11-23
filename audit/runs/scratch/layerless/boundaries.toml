@@ -1,0 +1,20 @@
+[manifest]
+version = 1
+
+[rules]
+same_layer_pairs = []
+dev_only = []
+static_mut_allow = []
+
+[crates.alpha]
+layer = 1
+internal_deps = ["beta"]
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
+
+[crates.beta]
+internal_deps = []
+dev_deps = []
+external_allowlist = []
+external_dev_allowlist = []
