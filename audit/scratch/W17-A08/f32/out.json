@@ -1,0 +1,28 @@
+{
+ "schema": "corpus/vlc-f32-tolerance/1",
+ "issue": 19,
+ "decision": {
+  "ratified": "2026-11-09 (Lead decision, ratified by the orchestrator)",
+  "policy": "f32 parity is tolerance-based, not bit-based: PASS iff per-row RMS deviation <= 1e-4 (-80 dB) AND peak deviation <= 1e-3 (-60 dB)",
+  "rationale": "thresholds derived from f32 rounding at VLC's float pipeline scale (doc 10 \u00a76.6 deviation path)"
+ },
+ "rows": [
+  {
+   "rel": "t.avi",
+   "payload_md5": "6f4e09e4cdf4929cb3b47592f9e18d17",
+   "lumen_digest_assert": true,
+   "samples_compared": 6,
+   "lumen_bytes": 24,
+   "vlc_bytes": 24,
+   "rms_dev": 0.00040207918327341436,
+   "peak_dev": 0.0009000003337860107,
+   "rms_max": 0.0001,
+   "peak_max": 0.001,
+   "verdict": "FAIL"
+  }
+ ],
+ "summary": {
+  "pass": 0,
+  "fail": 1
+ }
+}
