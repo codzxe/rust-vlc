@@ -1,0 +1,30 @@
+# W16-RR1 batch fixture identity table (python3+file+sha256, generated this run)
+# path	size	sha256	identity
+ui/e2e/visual/baselines/linux/player-music-1920x1080-1x-light.png	307668	6323f60744a929170c20ce2c67db23a23024de94024f2d531bba0acbf2ba2aa1	PNG 1920x1080 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1280x720-2x-light.png	113062	3305586c78803f2d2d11f41972be5e9b91de7e4cfb5616d2c5137c6f466ef731	PNG 1280x720 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1920x1080-2x-dark.png	95230	32e990003389686f8c8ce0e5a0bd02aeaa7c15bdfd360d1e70afac5857cf6685	PNG 1920x1080 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-2x-light.png	72088	cac5f41618ec6e5e604ae0b0b4ce0d9be4fbfe821ee90052ad2d157eb0c95648	PNG 1280x720 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-1x-light.png	82433	30b841ec17e1cd877397403371c72d90ce2ad0e5f3bd22de7c69bb338affb03e	PNG 1920x1080 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-1x-light.png	51354	31ed5b378b33e4c9835e047769e0f5171de00c84b18ab513722e0703480d4921	PNG 1280x720 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-2x-light.png	42673	c73c3ee4e72c9bba55667b68df9174ac902bae2914a902a118325bdbe95cdad5	PNG 1280x720 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1920x1080-1x-light.png	56373	b5389d466aba57bcc6b390d0505059d309523e7f8e3702793a43ba2cc714e35f	PNG 1920x1080 8-bit RGB non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1280x720-1x-light.png	27266	1d30d3ad3f352c7d9ad8f7ee3c26b8867510874c99fc1feefdbf5aab12736d9d	PNG 1280x720 8-bit RGB non-interlaced
+tests/integration/first-vertical/evidence/transcripts/seek.json	4883	2f3d69b87ca04ec729c6ece1456375fae062404d0fd8cea9d1c90978433dacdf	JSON text data
+tests/integration/first-vertical/evidence/transcripts/corrupt-noidx.json	3834	fb90a57a223bcdb2490df0ea31dcdc0ca7a9a93966343afc98f475976ddad77b	JSON text data
+tests/fixtures/generated/malformed/mkv_h264_aac__flip16.mkv	26105	e16ef19d1be49119b7bd53c0c519c0ab7df2def72e0b15ef73ea0c6d26773a7f	EBML (Matroska)
+tests/fixtures/generated/malformed/webm_vp9_opus__flip1.webm	27259	8593fc66a5e5eb9a1fab8e80d0966deb60298d35660095dcd7ebe693936e86d8	WebM
+fuzz/corpus/fuzz_codec_pcm/seed_pcm_f32le.bin	2048	0230fcc90bcfffc63c8ac9357d65978a18bc074c5adb4771e1971ffdfcbe934e	data (2048 B = 512 f32le frames?)
+tests/fixtures/generated/malformed/mp4_edts__trunc0.mp4	13100	9f46d300a37be82d8e21804e6b4d0a97acad1d18a075eea6a988e4a981bfdd9c	ISO Media MP4 v1
+fuzz/corpus/fuzz_demux_mpd/hand_static_cenc.mpd	1985	7d842381641a15698cd9eee7f0d7c53b1e4114bc14dc5d46fd9845a60607e197	XML 1.0 ASCII
+fuzz/corpus/fuzz_demux_mpd/hand_dynamic.mpd	1490	aae78cd62e971a3aaba4cd3dc5fad543459e82f22616847cae656dd7e8441a8c	XML 1.0 ASCII
+fuzz/corpus/fuzz_codec_mp3/seed_mp3_vbr.mp3	9276	0816a2ddca85d6b6ae4636c649497ae54de61526abaff2aade91348399323935	MP3 ID3v2.4, MPEG L3 v1 64kbps 44.1kHz stereo
+tests/fixtures/expectations/malformed/avi_mjpeg_pcm__absidx1.avi.toml	1080	3399e89ed032edc606e0307650723f7a3ef1ff3c0a5b552495af4c37c275fd2f	UTF-8 TOML
+tests/fixtures/expectations/malformed/avi_mjpeg_pcm__trunc0.avi.toml	929	8faa915abbfbb8f66d84c33f15b65b8b94ead9fdc1c6169b50418186b32d694c	UTF-8 TOML
+tests/fixtures/hls/adts_vod/seg003.aac	4448	f430762fe9694d11664c2dfdabd2ba05cfcc7464f6501987333a632e188d1b3d	MPEG ADTS AAC v4 LC 44.1kHz mono
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__flip1	3245	1c6062cfed7e3971f1a026900dc26c804b088a78ab90149669440d54df897b3c	Ogg Vorbis stereo 8kHz
+fuzz/corpus/fuzz_playlist_pls/seed_basic.pls	247	aee7ebfa9d417da7036df4fe0fb1c875ae1e0d61f51a8da01ba0b73c3268b09c	PLS playlist ASCII
+fuzz/corpus/fuzz_http_headers/chunked_200.txt	63	6cb05389beace47c3468707df87754ca1cd92eff81b519205cfca07b333429fa	ASCII text CRLF
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc2	1500	19d48391206fdb70cab45ed7ba374811bf8dedb875bbc84b965e621da91102eb	Ogg Vorbis stereo 8kHz
+fuzz/corpus/fuzz_demux_ogg/seed_ogg_trunc0.bin	12	80e46d0d62e25a5a0c35cbc5e71002aa7965e4817a3e46889a55e2f632a9be6b	Ogg data (truncated magic only?)
+fuzz/corpus/fuzz_demux_aiff/seed_aifc_u8.aifc	8892	85ae4c5103a4fbc346d4b0423885a0eb1504541ff4a8e70c40c438023067d8d3	AIFF-C compressed audio
+tests/fixtures/generated/valid/avi_mjpeg_pcm.avi.structure.json	6123	dc24d8b6bec5d3ff030ed234e0f3e491c2016c9d33354b331586d02d51cf0a32	JSON text data
