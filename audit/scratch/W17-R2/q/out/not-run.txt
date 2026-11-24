@@ -1,0 +1,2 @@
+2026-11-24T17:53:38Z	cargo-spellcheck	not installed (run scripts/quality/00_install_tools.sh)
+2026-11-24T17:53:38Z	cargo-spellcheck	not installed (EVAL tier)
