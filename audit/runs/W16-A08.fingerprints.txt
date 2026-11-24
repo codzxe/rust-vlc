@@ -1,0 +1,63 @@
+tests/fixtures/generated/malformed/mp4_mjpeg_pcm__stszlie0.mp4	424452	sha256=c7d9ece0d4e564cda2025b616ccf305abd0d540e9cdbe214450e3ce424097185	ISO Media, MP4 Base Media v1 [ISO 14496-12:2003]	head=0000001c6674797069736f6d
+tests/fixtures/generated/malformed/avi_mjpeg_pcm__flip4.avi	425516	sha256=004ba5af67591b8d235e950ec729b0139329fb206877cdab8ca92030516f6d2b	RIFF (little-endian) data, AVI, 320 x 240, 30.00 fps, video: Motion JPEG, audio: uncompressed PCM (stereo, 44100 Hz)	head=52494646247e060241564920
+tests/fixtures/generated/malformed/wav_pcm_s16le_44k1_st__garbage0	39454	sha256=f10e6af3f98229b9f9b6c36ac61bd2785da19b25bf625f69a7953bb110d27d72	RIFF (little-endian) data, WAVE audio, Microsoft PCM, 16 bit, stereo 44100 Hz	head=52494646168a000057415645
+tests/fixtures/generated/malformed/aiff_pcm_s16be_44k1_st__flip4	35334	sha256=888afc3707477255623bbbb944358849aeb160c6e5fe98f6dccc0d525e700beb	IFF data, AIFF audio	head=464f524d000089fe41494646
+tests/fixtures/generated/malformed/webm_vp9_opus__trunc4.webm	27251	sha256=51bbcb7fc53b0ef5d689c5b38261ab3a9e2f141b692eb46163fcfa50cd27e4e4	WebM	head=1a45dfa39f4286810142f781
+tests/fixtures/generated/malformed/mp4_frag__flip1.mp4	14045	sha256=33ee37cdfade5cd4509167dc6680ef478d0b987d44b99f9646fff10bc9b7997f	ISO Media	head=0000001c6674797061736f35
+tests/fixtures/generated/malformed/mp4_edts__trunc0.mp4	13100	sha256=9f46d300a37be82d8e21804e6b4d0a97acad1d18a075eea6a988e4a981bfdd9c	ISO Media, MP4 Base Media v1 [ISO 14496-12:2003]	head=000000206674797069736f6d
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc2	1500	sha256=19d48391206fdb70cab45ed7ba374811bf8dedb875bbc84b965e621da91102eb	Ogg data, Vorbis audio, stereo, 8000 Hz, ~27200 bps	head=4f6767530002000000000000
+tests/fixtures/generated/malformed/aiff_pcm_s16be_44k1_st__trunc1	24	sha256=bede6b917e031b316915b30fab7a104a162409f4dca1559103fe47715042229e	IFF data, AIFF audio	head=464f524d000089fe41494646
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc0	12	sha256=80e46d0d62e25a5a0c35cbc5e71002aa7965e4817a3e46889a55e2f632a9be6b	Ogg data	head=4f6767530002000000000000
+tests/fixtures/generated/MANIFEST.toml	6675	sha256=1cb274b6cc9bf4c27330aafaf2edb118d6ef4890131160923aa2c85d304a9b10	Unicode text, UTF-8 text	head=232047656e65726174656420
+tests/fixtures/generated/ivf/vp9_64x48_25fps.ivf	2546	sha256=c5d58b77bac47c26d4b5b93d8224f4338df6072bf5b4766c13570fe783eda2cc	Duck IVF video file, codec VP90@, 64x48, 25 frames	head=444b49460000200056503930
+tests/fixtures/generated/valid/avi_mjpeg_pcm.avi.structure.json	6123	sha256=dc24d8b6bec5d3ff030ed234e0f3e491c2016c9d33354b331586d02d51cf0a32	JSON text data	head=7b22736368656d61223a2273
+tests/fixtures/hls/adts_vod/pl.m3u8	227	sha256=8792f750905b25b57ebe58b680ad12f27b464c709cd98b0d9aa3d3c1d009cf8a	M3U playlist, ASCII text	head=234558544d33550a23455854
+tests/fixtures/mjpeg_h3/mjpeg_interlaced_tff.avi	30150	sha256=ced848152a1fa94e6d1abcdd89024304fa6c758c751653d763728944e195db9d	RIFF (little-endian) data, AVI, 160 x 112, 5.00 fps, video: Motion JPEG	head=52494646be75000041564920
+tests/integration/first-vertical/evidence/transcripts/corrupt-noidx.json	3834	sha256=fb90a57a223bcdb2490df0ea31dcdc0ca7a9a93966343afc98f475976ddad77b	JSON text data	head=7b0a202022736368656d6122
+tests/fixtures/expectations/malformed/avi_mjpeg_pcm__flip16.avi.toml	1038	sha256=0c4504e90d8aba70fdb438838793f97c30484c3e386ac6409bda35927382c369	Unicode text, UTF-8 text	head=232047656e65726174656420
+tests/fixtures/expectations/malformed/avi_mjpeg_pcm__trunc0.avi.toml	929	sha256=8faa915abbfbb8f66d84c33f15b65b8b94ead9fdc1c6169b50418186b32d694c	Unicode text, UTF-8 text	head=232047656e65726174656420
+tests/fixtures/expectations/malformed/mp4_mjpeg_pcm__trunc4.mp4.toml	923	sha256=2035e8c1eaad83f8e299308a5be0edef127be8032a8c2346d886c9a7f0b1cff8	Unicode text, UTF-8 text	head=232047656e65726174656420
+fuzz/corpus/fuzz_demux_flac/seed_flac_s24.flac	44112	sha256=d9968c8399532f30d2ab4c5af8a78267af847d9f6453c2e8df6cd50077b526d2	FLAC audio bitstream data, 24 bit, stereo, 48 kHz, 19200 samples	head=664c61430000002212001200
+fuzz/corpus/fuzz_demux_mkv/seed_mkv_h264_aac.mkv	26105	sha256=42ece741f5d2986c1fde4066b8a3fe3d5c83b4e435ba843edc77ffa237dbcbdc	Matroska data	head=1a45dfa3a34286810142f781
+fuzz/corpus/fuzz_codec_pcm/seed_pcm_f32le.bin	2048	sha256=0230fcc90bcfffc63c8ac9357d65978a18bc074c5adb4771e1971ffdfcbe934e	data	head=000000bf48e1fabe8fc2f5be
+fuzz/corpus/fuzz_demux_mpd/hand_dynamic.mpd	1490	sha256=aae78cd62e971a3aaba4cd3dc5fad543459e82f22616847cae656dd7e8441a8c	XML 1.0 document, ASCII text	head=3c3f786d6c2076657273696f
+fuzz/corpus/fuzz_demux_ogg/seed_ogg_vorbis16k.ogg	3796	sha256=58046ef1733838a4716108059be5c7d130eb1ea5ec8c6ed334148d026c6a8638	Ogg data, Vorbis audio, mono, 16000 Hz, ~40000 bps	head=4f6767530002000000000000
+fuzz/corpus/fuzz_codec_mp2/seed_crossformat_mp3.mp3	6476	sha256=f9e387c2b3fdddb69e23725bfe1c938a28c6e300798c3c7232d2737058ab92d7	Audio file with ID3 version 2.4.0, contains:\012- MPEG ADTS, layer III, v2,  64 kbps, 24 kHz, Stereo	head=494433040000000000225453
+fuzz/corpus/fuzz_demux_ivf/seed_ivf_av1.ivf	1937	sha256=fa649131fde4eaa9be22a7ba9ee25dbd9807c41d0a88006ba17488eaffab54a5	Duck IVF video file, codec AV01@, 64x48, 30 frames	head=444b49460000200041563031
+fuzz/corpus/fuzz_playlist_pls/seed_basic.pls	247	sha256=aee7ebfa9d417da7036df4fe0fb1c875ae1e0d61f51a8da01ba0b73c3268b09c	PLS playlist, ASCII text	head=5b706c61796c6973745d0a46
+fuzz/corpus/fuzz_http_headers/ranged_206.txt	88	sha256=a677471110c0bfa08f29e249e14d901396e95a67922bb316c8339f85df9c0814	ASCII text, with CRLF line terminators	head=485454502f312e3120323036
+fuzz/corpus/fuzz_codec_alac/seed_cookie_badch.bin	26	sha256=f5d7670cdbe0fe79ddef530f5a6074d3ce7d5f180af9df28ac90fbbf703ee6a7	Targa image data 65536 x 65536 x 32 +2318	head=000010000010280a0e090000
+fuzz/corpus/fuzz_demux_aiff/seed_aifc_u8.aifc	8892	sha256=85ae4c5103a4fbc346d4b0423885a0eb1504541ff4a8e70c40c438023067d8d3	IFF data, AIFF-C compressed audio	head=464f524d000022b441494643
+keyboard-shortcuts-1280x720-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/keyboard-shortcuts-1280x720-1x-dark.png'
+media-info-1280x720-1x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/media-info-1280x720-1x-light.png'
+miniplayer-1280x720-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/miniplayer-1280x720-1x-dark.png'
+onboarding-1280x720-1x-dark-red.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/onboarding-1280x720-1x-dark-red.png'
+onboarding-1280x720-1x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/onboarding-1280x720-1x-light.png'
+open-network-stream-1280x720-2x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/open-network-stream-1280x720-2x-dark.png'
+open-network-stream-1920x1080-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/open-network-stream-1920x1080-1x-dark.png'
+player-1280x720-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/player-1280x720-1x-dark.png'
+settings-audio-1280x720-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-audio-1280x720-1x-dark.png'
+settings-controls-1280x720-2x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-controls-1280x720-2x-light.png'
+settings-global-1280x720-1x-dark-violet.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-global-1280x720-1x-dark-violet.png'
+settings-global-1920x1080-1x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-global-1920x1080-1x-light.png'
+settings-library-1920x1080-1x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-library-1920x1080-1x-light.png'
+settings-performance-1920x1080-1x-dark.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-performance-1920x1080-1x-dark.png'
+settings-performance-1920x1080-2x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-performance-1920x1080-2x-light.png'
+settings-privacy-1280x720-2x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-privacy-1280x720-2x-light.png'
+settings-subtitles-1920x1080-2x-light.png	ERROR [Errno 2] No such file or directory: '/home/z/my-project/audit-workspace/settings-subtitles-1920x1080-2x-light.png'
+ui/e2e/visual/baselines/linux/settings-subtitles-1920x1080-2x-light.png	101096	sha256=09c1ed462c6b89bf696b470a4df407ad953a25496a8092320897ac781c75642d	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-privacy-1280x720-2x-light.png	70290	sha256=c53ef6206073cdbfe5c01b904efee78977e7ed56f1b027ebe3fcbc906c77eb83	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-library-1920x1080-1x-light.png	83869	sha256=982f2262693d44bcdc3b9506ffeab5ccb604662ed2fbd5a41d4873b4fad21bcd	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-controls-1280x720-2x-light.png	73411	sha256=bdd256d59e9be50060782df587bcc1bb4da657b0946374332ea720ff12ceec63	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-violet.png	71259	sha256=e8dfbbf5ae7376e3f01441254aae727f68ab2061fe1400dbac8126aba89c574e	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-audio-1280x720-1x-dark.png	72320	sha256=9eeb1bd74135521c485811ae46e0b6e95f0b78dbfe6693998f76d98dafad6b91	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-1x-dark.png	81319	sha256=b6b8b3a4737689b5696b3cb40a8226336070aab9d54bae3f807deb5d3a7c650a	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-2x-light.png	82398	sha256=0143426c9e7556b99150ab18943bd75261cc60f40516f3f941b4f42029779ea9	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/settings-global-1920x1080-1x-light.png	85250	sha256=a1261f8d54dc3b699442f40b143def682b06cd8b23278b8d14516c5d5f531b90	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-1x-dark.png	50857	sha256=b9e5aece563f39990aa012d75b54ea42010d0671f6d48638a5323cbbd32a13f6	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-2x-dark.png	41242	sha256=3bcd6539e364ce9a516863fa1836d757c57f774a3111c5a48e516b656933db9c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/player-1280x720-1x-dark.png	33423	sha256=1f17549a0705c068e9a86111a3ed59ebf8ec7383770332de260c282be0a6183a	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-1x-dark.png	50387	sha256=bb5b63244b61279b45d85f375ca3d5f09b5b738180c180474269654a282d705d	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-light.png	26078	sha256=3c67c25021136fb3986735dd9ad988c262ba014b64d6215fc7ab35e2c9425d67	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/media-info-1280x720-1x-light.png	27290	sha256=d7ce1fc1ce71b3dc627b885d31ce7e87c6fb11951fb3ea86cdcd90a3183dfc48	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-red.png	25389	sha256=518d39e4d59d90fd63e256eddd4c07f22b39661563d71551dd27944a851cec62	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced	head=89504e470d0a1a0a0000000d
