@@ -1,0 +1,44 @@
+# Panic budget ratchet
+
+Shipped panic primitives (test regions excluded). Every one is a
+process-abort reachable from input if the guarding invariant breaks.
+
+`unreachable!` | `panic!` | `.unwrap()` | `.expect(` | `todo!`
+
+| crate | unreachable | panic | unwrap | expect | todo | total |
+|---|---|---|---|---|---|---|
+| tools/xtask | 10 | 0 | 0 | 0 | 0 | **10** |
+| crates/playlists | 6 | 0 | 0 | 0 | 0 | **6** |
+| crates/input | 5 | 0 | 0 | 0 | 0 | **5** |
+| crates/control-protocol | 4 | 0 | 0 | 0 | 0 | **4** |
+| apps/desktop | 4 | 0 | 0 | 0 | 0 | **4** |
+| crates/testkit | 3 | 0 | 0 | 0 | 0 | **3** |
+| crates/demux | 2 | 0 | 0 | 0 | 0 | **2** |
+| crates/_template | 0 | 0 | 1 | 0 | 0 | **1** |
+| crates/audio-engine | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/codecs | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/media-probe | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/playback-engine | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/plugin-host-wasm | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/transcode | 1 | 0 | 0 | 0 | 0 | **1** |
+
+**grand total: 41 shipped panic sites**
+
+Baseline grand total: 41 -> now 41.
+
+- **GREW** crates/_template: 0 -> 1 (+1)
+- **GREW** crates/audio-engine: 0 -> 1 (+1)
+- **GREW** crates/codecs: 0 -> 1 (+1)
+- **GREW** crates/control-protocol: 0 -> 4 (+4)
+- **GREW** crates/demux: 0 -> 2 (+2)
+- **GREW** crates/input: 0 -> 5 (+5)
+- **GREW** crates/media-probe: 0 -> 1 (+1)
+- **GREW** crates/playback-engine: 0 -> 1 (+1)
+- **GREW** crates/playlists: 0 -> 6 (+6)
+- **GREW** crates/plugin-host-wasm: 0 -> 1 (+1)
+- **GREW** crates/testkit: 0 -> 3 (+3)
+- **GREW** crates/transcode: 0 -> 1 (+1)
+- **GREW** apps/desktop: 0 -> 4 (+4)
+- **GREW** tools/xtask: 0 -> 10 (+10)
+
+**RATCHET FAILED**: 14 crate(s) added panic sites. A panic on hostile input is a denial of service - return a typed error instead.
