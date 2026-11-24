@@ -1,0 +1,1 @@
+[{"file": "crates/a/src/lib.rs", "range": {"start": {"line": 1}}, "lines": "  todo!()"}, {"file": "crates/a/src/lib.rs", "range": {"start": {"line": 2}}, "lines": "  todo!()"}, {"file": "crates/b/tests/helper_tests.rs", "range": {"start": {"line": 4}}, "lines": "  todo!()"}]
