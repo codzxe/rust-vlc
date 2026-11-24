@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# fake typos-cli: brief-format sample + exit 1 (findings present)
+cat <<'OUT'
+crates/demux/src/avi/mod.rs:120:5 - error: `decompress` should be `decompress`
+crates/playback-engine/src/lib.rs:45:1 - error: `teh` should be `the`
+docs/README.md:3:1 - error: `recieve` should be `receive`
+docs/README.md:9:2 - error: `recieve` should be `receive`
+OUT
+exit 1
