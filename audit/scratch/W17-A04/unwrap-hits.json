@@ -1,0 +1,3176 @@
+[
+{
+  "text": "maybe.unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 1423,
+      "end": 1437
+    },
+    "start": {
+      "line": 29,
+      "column": 4
+    },
+    "end": {
+      "line": 29,
+      "column": 18
+    }
+  },
+  "file": "crates/_template/src/lint_canary.rs",
+  "lines": "    maybe.unwrap() // clippy::unwrap_used — denied via [workspace.lints]",
+  "charCount": {
+    "leading": 4,
+    "trailing": 54
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "maybe",
+        "range": {
+          "byteOffset": {
+            "start": 1423,
+            "end": 1428
+          },
+          "start": {
+            "line": 29,
+            "column": 4
+          },
+          "end": {
+            "line": 29,
+            "column": 9
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "maybe.unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 1423,
+          "end": 1437
+        },
+        "start": {
+          "line": 29,
+          "column": 4
+        },
+        "end": {
+          "line": 29,
+          "column": 18
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'{')",
+  "range": {
+    "byteOffset": {
+      "start": 7962,
+      "end": 7979
+    },
+    "start": {
+      "line": 196,
+      "column": 8
+    },
+    "end": {
+      "line": 196,
+      "column": 25
+    }
+  },
+  "file": "tests/integration/first-vertical/tests/baselines_consistency.rs",
+  "lines": "        self.expect(b'{')?;",
+  "charCount": {
+    "leading": 8,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 7962,
+            "end": 7966
+          },
+          "start": {
+            "line": 196,
+            "column": 8
+          },
+          "end": {
+            "line": 196,
+            "column": 12
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'{'",
+        "range": {
+          "byteOffset": {
+            "start": 7974,
+            "end": 7978
+          },
+          "start": {
+            "line": 196,
+            "column": 20
+          },
+          "end": {
+            "line": 196,
+            "column": 24
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'{')",
+      "range": {
+        "byteOffset": {
+          "start": 7962,
+          "end": 7979
+        },
+        "start": {
+          "line": 196,
+          "column": 8
+        },
+        "end": {
+          "line": 196,
+          "column": 25
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b':')",
+  "range": {
+    "byteOffset": {
+      "start": 8282,
+      "end": 8299
+    },
+    "start": {
+      "line": 207,
+      "column": 12
+    },
+    "end": {
+      "line": 207,
+      "column": 29
+    }
+  },
+  "file": "tests/integration/first-vertical/tests/baselines_consistency.rs",
+  "lines": "            self.expect(b':')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 8282,
+            "end": 8286
+          },
+          "start": {
+            "line": 207,
+            "column": 12
+          },
+          "end": {
+            "line": 207,
+            "column": 16
+          }
+        }
+      },
+      "MSG": {
+        "text": "b':'",
+        "range": {
+          "byteOffset": {
+            "start": 8294,
+            "end": 8298
+          },
+          "start": {
+            "line": 207,
+            "column": 24
+          },
+          "end": {
+            "line": 207,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b':')",
+      "range": {
+        "byteOffset": {
+          "start": 8282,
+          "end": 8299
+        },
+        "start": {
+          "line": 207,
+          "column": 12
+        },
+        "end": {
+          "line": 207,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'[')",
+  "range": {
+    "byteOffset": {
+      "start": 8958,
+      "end": 8975
+    },
+    "start": {
+      "line": 228,
+      "column": 8
+    },
+    "end": {
+      "line": 228,
+      "column": 25
+    }
+  },
+  "file": "tests/integration/first-vertical/tests/baselines_consistency.rs",
+  "lines": "        self.expect(b'[')?;",
+  "charCount": {
+    "leading": 8,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 8958,
+            "end": 8962
+          },
+          "start": {
+            "line": 228,
+            "column": 8
+          },
+          "end": {
+            "line": 228,
+            "column": 12
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'['",
+        "range": {
+          "byteOffset": {
+            "start": 8970,
+            "end": 8974
+          },
+          "start": {
+            "line": 228,
+            "column": 20
+          },
+          "end": {
+            "line": 228,
+            "column": 24
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'[')",
+      "range": {
+        "byteOffset": {
+          "start": 8958,
+          "end": 8975
+        },
+        "start": {
+          "line": 228,
+          "column": 8
+        },
+        "end": {
+          "line": 228,
+          "column": 25
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'\"')",
+  "range": {
+    "byteOffset": {
+      "start": 9884,
+      "end": 9901
+    },
+    "start": {
+      "line": 257,
+      "column": 8
+    },
+    "end": {
+      "line": 257,
+      "column": 25
+    }
+  },
+  "file": "tests/integration/first-vertical/tests/baselines_consistency.rs",
+  "lines": "        self.expect(b'\"')?;",
+  "charCount": {
+    "leading": 8,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "b'\"'",
+        "range": {
+          "byteOffset": {
+            "start": 9896,
+            "end": 9900
+          },
+          "start": {
+            "line": 257,
+            "column": 20
+          },
+          "end": {
+            "line": 257,
+            "column": 24
+          }
+        }
+      },
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 9884,
+            "end": 9888
+          },
+          "start": {
+            "line": 257,
+            "column": 8
+          },
+          "end": {
+            "line": 257,
+            "column": 12
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'\"')",
+      "range": {
+        "byteOffset": {
+          "start": 9884,
+          "end": 9901
+        },
+        "start": {
+          "line": 257,
+          "column": 8
+        },
+        "end": {
+          "line": 257,
+          "column": 25
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "args[i + 1].parse().unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 1003,
+      "end": 1031
+    },
+    "start": {
+      "line": 25,
+      "column": 52
+    },
+    "end": {
+      "line": 25,
+      "column": 80
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "            \"--trim-per-ch\" => { trim_per_ch = Some(args[i + 1].parse().unwrap()); i += 2; }",
+  "charCount": {
+    "leading": 52,
+    "trailing": 12
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "args[i + 1].parse()",
+        "range": {
+          "byteOffset": {
+            "start": 1003,
+            "end": 1022
+          },
+          "start": {
+            "line": 25,
+            "column": 52
+          },
+          "end": {
+            "line": 25,
+            "column": 71
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "args[i + 1].parse().unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 1003,
+          "end": 1031
+        },
+        "start": {
+          "line": 25,
+          "column": 52
+        },
+        "end": {
+          "line": 25,
+          "column": 80
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(&path).expect(\"read input\")",
+  "range": {
+    "byteOffset": {
+      "start": 1212,
+      "end": 1253
+    },
+    "start": {
+      "line": 30,
+      "column": 15
+    },
+    "end": {
+      "line": 30,
+      "column": 56
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "    let data = std::fs::read(&path).expect(\"read input\");",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"read input\"",
+        "range": {
+          "byteOffset": {
+            "start": 1240,
+            "end": 1252
+          },
+          "start": {
+            "line": 30,
+            "column": 43
+          },
+          "end": {
+            "line": 30,
+            "column": 55
+          }
+        }
+      },
+      "RECV": {
+        "text": "std::fs::read(&path)",
+        "range": {
+          "byteOffset": {
+            "start": 1212,
+            "end": 1232
+          },
+          "start": {
+            "line": 30,
+            "column": 15
+          },
+          "end": {
+            "line": 30,
+            "column": 35
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(&path).expect(\"read input\")",
+      "range": {
+        "byteOffset": {
+          "start": 1212,
+          "end": 1253
+        },
+        "start": {
+          "line": 30,
+          "column": 15
+        },
+        "end": {
+          "line": 30,
+          "column": 56
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "demux::avi::test_support::mem_stream(data).expect(\"mem stream\")",
+  "range": {
+    "byteOffset": {
+      "start": 1272,
+      "end": 1335
+    },
+    "start": {
+      "line": 31,
+      "column": 17
+    },
+    "end": {
+      "line": 31,
+      "column": 80
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "    let stream = demux::avi::test_support::mem_stream(data).expect(\"mem stream\");",
+  "charCount": {
+    "leading": 17,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"mem stream\"",
+        "range": {
+          "byteOffset": {
+            "start": 1322,
+            "end": 1334
+          },
+          "start": {
+            "line": 31,
+            "column": 67
+          },
+          "end": {
+            "line": 31,
+            "column": 79
+          }
+        }
+      },
+      "RECV": {
+        "text": "demux::avi::test_support::mem_stream(data)",
+        "range": {
+          "byteOffset": {
+            "start": 1272,
+            "end": 1314
+          },
+          "start": {
+            "line": 31,
+            "column": 17
+          },
+          "end": {
+            "line": 31,
+            "column": 59
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "demux::avi::test_support::mem_stream(data).expect(\"mem stream\")",
+      "range": {
+        "byteOffset": {
+          "start": 1272,
+          "end": 1335
+        },
+        "start": {
+          "line": 31,
+          "column": 17
+        },
+        "end": {
+          "line": 31,
+          "column": 80
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "demux::ogg::OggDemuxer::new(stream).expect(\"ogg open\")",
+  "range": {
+    "byteOffset": {
+      "start": 1355,
+      "end": 1409
+    },
+    "start": {
+      "line": 32,
+      "column": 18
+    },
+    "end": {
+      "line": 32,
+      "column": 72
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "    let mut ogg = demux::ogg::OggDemuxer::new(stream).expect(\"ogg open\");",
+  "charCount": {
+    "leading": 18,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"ogg open\"",
+        "range": {
+          "byteOffset": {
+            "start": 1398,
+            "end": 1408
+          },
+          "start": {
+            "line": 32,
+            "column": 61
+          },
+          "end": {
+            "line": 32,
+            "column": 71
+          }
+        }
+      },
+      "RECV": {
+        "text": "demux::ogg::OggDemuxer::new(stream)",
+        "range": {
+          "byteOffset": {
+            "start": 1355,
+            "end": 1390
+          },
+          "start": {
+            "line": 32,
+            "column": 18
+          },
+          "end": {
+            "line": 32,
+            "column": 53
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "demux::ogg::OggDemuxer::new(stream).expect(\"ogg open\")",
+      "range": {
+        "byteOffset": {
+          "start": 1355,
+          "end": 1409
+        },
+        "start": {
+          "line": 32,
+          "column": 18
+        },
+        "end": {
+          "line": 32,
+          "column": 72
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "ogg.start().expect(\"ogg start\")",
+  "range": {
+    "byteOffset": {
+      "start": 1703,
+      "end": 1734
+    },
+    "start": {
+      "line": 37,
+      "column": 18
+    },
+    "end": {
+      "line": 37,
+      "column": 49
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "    let started = ogg.start().expect(\"ogg start\");",
+  "charCount": {
+    "leading": 18,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "ogg.start()",
+        "range": {
+          "byteOffset": {
+            "start": 1703,
+            "end": 1714
+          },
+          "start": {
+            "line": 37,
+            "column": 18
+          },
+          "end": {
+            "line": 37,
+            "column": 29
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"ogg start\"",
+        "range": {
+          "byteOffset": {
+            "start": 1722,
+            "end": 1733
+          },
+          "start": {
+            "line": 37,
+            "column": 37
+          },
+          "end": {
+            "line": 37,
+            "column": 48
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "ogg.start().expect(\"ogg start\")",
+      "range": {
+        "byteOffset": {
+          "start": 1703,
+          "end": 1734
+        },
+        "start": {
+          "line": 37,
+          "column": 18
+        },
+        "end": {
+          "line": 37,
+          "column": 49
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "ogg.serial_link(serial)\n        .and_then(|idx| ogg.tracks().get(idx).map(|t| t.id))\n        .expect(\"opus track\")",
+  "range": {
+    "byteOffset": {
+      "start": 2973,
+      "end": 3087
+    },
+    "start": {
+      "line": 65,
+      "column": 19
+    },
+    "end": {
+      "line": 67,
+      "column": 29
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "    let track_id = ogg.serial_link(serial)\n        .and_then(|idx| ogg.tracks().get(idx).map(|t| t.id))\n        .expect(\"opus track\");",
+  "charCount": {
+    "leading": 19,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "ogg.serial_link(serial)\n        .and_then(|idx| ogg.tracks().get(idx).map(|t| t.id))",
+        "range": {
+          "byteOffset": {
+            "start": 2973,
+            "end": 3057
+          },
+          "start": {
+            "line": 65,
+            "column": 19
+          },
+          "end": {
+            "line": 66,
+            "column": 60
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"opus track\"",
+        "range": {
+          "byteOffset": {
+            "start": 3074,
+            "end": 3086
+          },
+          "start": {
+            "line": 67,
+            "column": 16
+          },
+          "end": {
+            "line": 67,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "ogg.serial_link(serial)\n        .and_then(|idx| ogg.tracks().get(idx).map(|t| t.id))\n        .expect(\"opus track\")",
+      "range": {
+        "byteOffset": {
+          "start": 2973,
+          "end": 3087
+        },
+        "start": {
+          "line": 65,
+          "column": 19
+        },
+        "end": {
+          "line": 67,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::write(p, bytes).expect(\"write pcm\")",
+  "range": {
+    "byteOffset": {
+      "start": 4810,
+      "end": 4854
+    },
+    "start": {
+      "line": 103,
+      "column": 8
+    },
+    "end": {
+      "line": 103,
+      "column": 52
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "        std::fs::write(p, bytes).expect(\"write pcm\");",
+  "charCount": {
+    "leading": 8,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::write(p, bytes)",
+        "range": {
+          "byteOffset": {
+            "start": 4810,
+            "end": 4834
+          },
+          "start": {
+            "line": 103,
+            "column": 8
+          },
+          "end": {
+            "line": 103,
+            "column": 32
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"write pcm\"",
+        "range": {
+          "byteOffset": {
+            "start": 4842,
+            "end": 4853
+          },
+          "start": {
+            "line": 103,
+            "column": 40
+          },
+          "end": {
+            "line": 103,
+            "column": 51
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::write(p, bytes).expect(\"write pcm\")",
+      "range": {
+        "byteOffset": {
+          "start": 4810,
+          "end": 4854
+        },
+        "start": {
+          "line": 103,
+          "column": 8
+        },
+        "end": {
+          "line": 103,
+          "column": 52
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "o.write_all(&f.to_le_bytes()).unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 4966,
+      "end": 5004
+    },
+    "start": {
+      "line": 107,
+      "column": 23
+    },
+    "end": {
+      "line": 107,
+      "column": 61
+    }
+  },
+  "file": "tools/vta/ruopus/src/main.rs",
+  "lines": "        for f in out { o.write_all(&f.to_le_bytes()).unwrap(); }",
+  "charCount": {
+    "leading": 23,
+    "trailing": 3
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "o.write_all(&f.to_le_bytes())",
+        "range": {
+          "byteOffset": {
+            "start": 4966,
+            "end": 4995
+          },
+          "start": {
+            "line": 107,
+            "column": 23
+          },
+          "end": {
+            "line": 107,
+            "column": 52
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "o.write_all(&f.to_le_bytes()).unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 4966,
+          "end": 5004
+        },
+        "start": {
+          "line": 107,
+          "column": 23
+        },
+        "end": {
+          "line": 107,
+          "column": 61
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "args[2].parse::<usize>().unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 1004,
+      "end": 1037
+    },
+    "start": {
+      "line": 24,
+      "column": 16
+    },
+    "end": {
+      "line": 24,
+      "column": 49
+    }
+  },
+  "file": "tools/vta/dnx/src/main.rs",
+  "lines": "        let n = args[2].parse::<usize>().unwrap();",
+  "charCount": {
+    "leading": 16,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "args[2].parse::<usize>()",
+        "range": {
+          "byteOffset": {
+            "start": 1004,
+            "end": 1028
+          },
+          "start": {
+            "line": 24,
+            "column": 16
+          },
+          "end": {
+            "line": 24,
+            "column": 40
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "args[2].parse::<usize>().unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 1004,
+          "end": 1037
+        },
+        "start": {
+          "line": 24,
+          "column": 16
+        },
+        "end": {
+          "line": 24,
+          "column": 49
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(path).expect(\"read input\")",
+  "range": {
+    "byteOffset": {
+      "start": 1299,
+      "end": 1339
+    },
+    "start": {
+      "line": 33,
+      "column": 15
+    },
+    "end": {
+      "line": 33,
+      "column": 55
+    }
+  },
+  "file": "tools/vta/dnx/src/main.rs",
+  "lines": "    let data = std::fs::read(path).expect(\"read input\");",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::read(path)",
+        "range": {
+          "byteOffset": {
+            "start": 1299,
+            "end": 1318
+          },
+          "start": {
+            "line": 33,
+            "column": 15
+          },
+          "end": {
+            "line": 33,
+            "column": 34
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"read input\"",
+        "range": {
+          "byteOffset": {
+            "start": 1326,
+            "end": 1338
+          },
+          "start": {
+            "line": 33,
+            "column": 42
+          },
+          "end": {
+            "line": 33,
+            "column": 54
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(path).expect(\"read input\")",
+      "range": {
+        "byteOffset": {
+          "start": 1299,
+          "end": 1339
+        },
+        "start": {
+          "line": 33,
+          "column": 15
+        },
+        "end": {
+          "line": 33,
+          "column": 55
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::write(out_path, &out).expect(\"write output\")",
+  "range": {
+    "byteOffset": {
+      "start": 1951,
+      "end": 2004
+    },
+    "start": {
+      "line": 54,
+      "column": 4
+    },
+    "end": {
+      "line": 54,
+      "column": 57
+    }
+  },
+  "file": "tools/vta/dnx/src/main.rs",
+  "lines": "    std::fs::write(out_path, &out).expect(\"write output\");",
+  "charCount": {
+    "leading": 4,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"write output\"",
+        "range": {
+          "byteOffset": {
+            "start": 1989,
+            "end": 2003
+          },
+          "start": {
+            "line": 54,
+            "column": 42
+          },
+          "end": {
+            "line": 54,
+            "column": 56
+          }
+        }
+      },
+      "RECV": {
+        "text": "std::fs::write(out_path, &out)",
+        "range": {
+          "byteOffset": {
+            "start": 1951,
+            "end": 1981
+          },
+          "start": {
+            "line": 54,
+            "column": 4
+          },
+          "end": {
+            "line": 54,
+            "column": 34
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::write(out_path, &out).expect(\"write output\")",
+      "range": {
+        "byteOffset": {
+          "start": 1951,
+          "end": 2004
+        },
+        "start": {
+          "line": 54,
+          "column": 4
+        },
+        "end": {
+          "line": 54,
+          "column": 57
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(path).expect(\"read input\")",
+  "range": {
+    "byteOffset": {
+      "start": 3342,
+      "end": 3382
+    },
+    "start": {
+      "line": 99,
+      "column": 15
+    },
+    "end": {
+      "line": 99,
+      "column": 55
+    }
+  },
+  "file": "tools/vta/dnx/src/main.rs",
+  "lines": "    let data = std::fs::read(path).expect(\"read input\");",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"read input\"",
+        "range": {
+          "byteOffset": {
+            "start": 3369,
+            "end": 3381
+          },
+          "start": {
+            "line": 99,
+            "column": 42
+          },
+          "end": {
+            "line": 99,
+            "column": 54
+          }
+        }
+      },
+      "RECV": {
+        "text": "std::fs::read(path)",
+        "range": {
+          "byteOffset": {
+            "start": 3342,
+            "end": 3361
+          },
+          "start": {
+            "line": 99,
+            "column": 15
+          },
+          "end": {
+            "line": 99,
+            "column": 34
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(path).expect(\"read input\")",
+      "range": {
+        "byteOffset": {
+          "start": 3342,
+          "end": 3382
+        },
+        "start": {
+          "line": 99,
+          "column": 15
+        },
+        "end": {
+          "line": 99,
+          "column": 55
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::File::create(\"/tmp/vta-dnx-hostile.log\").unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 5902,
+      "end": 5960
+    },
+    "start": {
+      "line": 167,
+      "column": 18
+    },
+    "end": {
+      "line": 167,
+      "column": 76
+    }
+  },
+  "file": "tools/vta/dnx/src/main.rs",
+  "lines": "    let mut log = std::fs::File::create(\"/tmp/vta-dnx-hostile.log\").unwrap();",
+  "charCount": {
+    "leading": 18,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::File::create(\"/tmp/vta-dnx-hostile.log\")",
+        "range": {
+          "byteOffset": {
+            "start": 5902,
+            "end": 5951
+          },
+          "start": {
+            "line": 167,
+            "column": 18
+          },
+          "end": {
+            "line": 167,
+            "column": 67
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::File::create(\"/tmp/vta-dnx-hostile.log\").unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 5902,
+          "end": 5960
+        },
+        "start": {
+          "line": 167,
+          "column": 18
+        },
+        "end": {
+          "line": 167,
+          "column": 76
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::write(o, &raw).expect(\"write out\")",
+  "range": {
+    "byteOffset": {
+      "start": 4966,
+      "end": 5009
+    },
+    "start": {
+      "line": 136,
+      "column": 8
+    },
+    "end": {
+      "line": 136,
+      "column": 51
+    }
+  },
+  "file": "tools/vta/vp9/src/main.rs",
+  "lines": "        std::fs::write(o, &raw).expect(\"write out\");",
+  "charCount": {
+    "leading": 8,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::write(o, &raw)",
+        "range": {
+          "byteOffset": {
+            "start": 4966,
+            "end": 4989
+          },
+          "start": {
+            "line": 136,
+            "column": 8
+          },
+          "end": {
+            "line": 136,
+            "column": 31
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"write out\"",
+        "range": {
+          "byteOffset": {
+            "start": 4997,
+            "end": 5008
+          },
+          "start": {
+            "line": 136,
+            "column": 39
+          },
+          "end": {
+            "line": 136,
+            "column": 50
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::write(o, &raw).expect(\"write out\")",
+      "range": {
+        "byteOffset": {
+          "start": 4966,
+          "end": 5009
+        },
+        "start": {
+          "line": 136,
+          "column": 8
+        },
+        "end": {
+          "line": 136,
+          "column": 51
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(path).expect(\"read input\")",
+  "range": {
+    "byteOffset": {
+      "start": 4332,
+      "end": 4372
+    },
+    "start": {
+      "line": 110,
+      "column": 15
+    },
+    "end": {
+      "line": 110,
+      "column": 55
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    let data = std::fs::read(path).expect(\"read input\");",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::read(path)",
+        "range": {
+          "byteOffset": {
+            "start": 4332,
+            "end": 4351
+          },
+          "start": {
+            "line": 110,
+            "column": 15
+          },
+          "end": {
+            "line": 110,
+            "column": 34
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"read input\"",
+        "range": {
+          "byteOffset": {
+            "start": 4359,
+            "end": 4371
+          },
+          "start": {
+            "line": 110,
+            "column": 42
+          },
+          "end": {
+            "line": 110,
+            "column": 54
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(path).expect(\"read input\")",
+      "range": {
+        "byteOffset": {
+          "start": 4332,
+          "end": 4372
+        },
+        "start": {
+          "line": 110,
+          "column": 15
+        },
+        "end": {
+          "line": 110,
+          "column": 55
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "make_decoder(&params).expect(\"make_decoder\")",
+  "range": {
+    "byteOffset": {
+      "start": 4532,
+      "end": 4576
+    },
+    "start": {
+      "line": 113,
+      "column": 18
+    },
+    "end": {
+      "line": 113,
+      "column": 62
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    let mut dec = make_decoder(&params).expect(\"make_decoder\");",
+  "charCount": {
+    "leading": 18,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"make_decoder\"",
+        "range": {
+          "byteOffset": {
+            "start": 4561,
+            "end": 4575
+          },
+          "start": {
+            "line": 113,
+            "column": 47
+          },
+          "end": {
+            "line": 113,
+            "column": 61
+          }
+        }
+      },
+      "RECV": {
+        "text": "make_decoder(&params)",
+        "range": {
+          "byteOffset": {
+            "start": 4532,
+            "end": 4553
+          },
+          "start": {
+            "line": 113,
+            "column": 18
+          },
+          "end": {
+            "line": 113,
+            "column": 39
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "make_decoder(&params).expect(\"make_decoder\")",
+      "range": {
+        "byteOffset": {
+          "start": 4532,
+          "end": 4576
+        },
+        "start": {
+          "line": 113,
+          "column": 18
+        },
+        "end": {
+          "line": 113,
+          "column": 62
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "Command::new(\"md5sum\")\n        .stdin(std::process::Stdio::piped())\n        .stdout(std::process::Stdio::piped())\n        .spawn()\n        .and_then(|mut c| {\n            use std::io::Write;\n            c.stdin.as_mut().unwrap().write_all(bytes)?;\n            c.wait_with_output()\n        })\n        .expect(\"md5sum\")",
+  "range": {
+    "byteOffset": {
+      "start": 5867,
+      "end": 6184
+    },
+    "start": {
+      "line": 152,
+      "column": 14
+    },
+    "end": {
+      "line": 161,
+      "column": 25
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    let out = Command::new(\"md5sum\")\n        .stdin(std::process::Stdio::piped())\n        .stdout(std::process::Stdio::piped())\n        .spawn()\n        .and_then(|mut c| {\n            use std::io::Write;\n            c.stdin.as_mut().unwrap().write_all(bytes)?;\n            c.wait_with_output()\n        })\n        .expect(\"md5sum\");",
+  "charCount": {
+    "leading": 14,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"md5sum\"",
+        "range": {
+          "byteOffset": {
+            "start": 6175,
+            "end": 6183
+          },
+          "start": {
+            "line": 161,
+            "column": 16
+          },
+          "end": {
+            "line": 161,
+            "column": 24
+          }
+        }
+      },
+      "RECV": {
+        "text": "Command::new(\"md5sum\")\n        .stdin(std::process::Stdio::piped())\n        .stdout(std::process::Stdio::piped())\n        .spawn()\n        .and_then(|mut c| {\n            use std::io::Write;\n            c.stdin.as_mut().unwrap().write_all(bytes)?;\n            c.wait_with_output()\n        })",
+        "range": {
+          "byteOffset": {
+            "start": 5867,
+            "end": 6158
+          },
+          "start": {
+            "line": 152,
+            "column": 14
+          },
+          "end": {
+            "line": 160,
+            "column": 10
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "Command::new(\"md5sum\")\n        .stdin(std::process::Stdio::piped())\n        .stdout(std::process::Stdio::piped())\n        .spawn()\n        .and_then(|mut c| {\n            use std::io::Write;\n            c.stdin.as_mut().unwrap().write_all(bytes)?;\n            c.wait_with_output()\n        })\n        .expect(\"md5sum\")",
+      "range": {
+        "byteOffset": {
+          "start": 5867,
+          "end": 6184
+        },
+        "start": {
+          "line": 152,
+          "column": 14
+        },
+        "end": {
+          "line": 161,
+          "column": 25
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "c.stdin.as_mut().unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 6070,
+      "end": 6095
+    },
+    "start": {
+      "line": 158,
+      "column": 12
+    },
+    "end": {
+      "line": 158,
+      "column": 37
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "            c.stdin.as_mut().unwrap().write_all(bytes)?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 19
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "c.stdin.as_mut()",
+        "range": {
+          "byteOffset": {
+            "start": 6070,
+            "end": 6086
+          },
+          "start": {
+            "line": 158,
+            "column": 12
+          },
+          "end": {
+            "line": 158,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "c.stdin.as_mut().unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 6070,
+          "end": 6095
+        },
+        "start": {
+          "line": 158,
+          "column": 12
+        },
+        "end": {
+          "line": 158,
+          "column": 37
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "String::from_utf8_lossy(&out.stdout)\n        .split_whitespace()\n        .next()\n        .unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 6190,
+      "end": 6288
+    },
+    "start": {
+      "line": 162,
+      "column": 4
+    },
+    "end": {
+      "line": 165,
+      "column": 17
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    String::from_utf8_lossy(&out.stdout)\n        .split_whitespace()\n        .next()\n        .unwrap()",
+  "charCount": {
+    "leading": 4,
+    "trailing": 0
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "String::from_utf8_lossy(&out.stdout)\n        .split_whitespace()\n        .next()",
+        "range": {
+          "byteOffset": {
+            "start": 6190,
+            "end": 6270
+          },
+          "start": {
+            "line": 162,
+            "column": 4
+          },
+          "end": {
+            "line": 164,
+            "column": 15
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "String::from_utf8_lossy(&out.stdout)\n        .split_whitespace()\n        .next()\n        .unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 6190,
+          "end": 6288
+        },
+        "start": {
+          "line": 162,
+          "column": 4
+        },
+        "end": {
+          "line": 165,
+          "column": 17
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::write(format!(\"{DIR}/out_{name}.s16\"), &pcm).unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 7426,
+      "end": 7488
+    },
+    "start": {
+      "line": 195,
+      "column": 8
+    },
+    "end": {
+      "line": 195,
+      "column": 70
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "        std::fs::write(format!(\"{DIR}/out_{name}.s16\"), &pcm).unwrap();",
+  "charCount": {
+    "leading": 8,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::write(format!(\"{DIR}/out_{name}.s16\"), &pcm)",
+        "range": {
+          "byteOffset": {
+            "start": 7426,
+            "end": 7479
+          },
+          "start": {
+            "line": 195,
+            "column": 8
+          },
+          "end": {
+            "line": 195,
+            "column": 61
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::write(format!(\"{DIR}/out_{name}.s16\"), &pcm).unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 7426,
+          "end": 7488
+        },
+        "start": {
+          "line": 195,
+          "column": 8
+        },
+        "end": {
+          "line": 195,
+          "column": 70
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "Command::new(\"ffmpeg\")\n            .args([\n                \"-v\", \"error\", \"-y\", \"-i\", &path, \"-map\", \"0:a\", \"-c:a\", \"pcm_s16le\",\n                \"-f\", \"s16le\", &format!(\"{DIR}/ff_{name}.s16\"),\n            ])\n            .status()\n            .expect(\"ffmpeg\")",
+  "range": {
+    "byteOffset": {
+      "start": 7507,
+      "end": 7766
+    },
+    "start": {
+      "line": 196,
+      "column": 17
+    },
+    "end": {
+      "line": 202,
+      "column": 29
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "        let ff = Command::new(\"ffmpeg\")\n            .args([\n                \"-v\", \"error\", \"-y\", \"-i\", &path, \"-map\", \"0:a\", \"-c:a\", \"pcm_s16le\",\n                \"-f\", \"s16le\", &format!(\"{DIR}/ff_{name}.s16\"),\n            ])\n            .status()\n            .expect(\"ffmpeg\");",
+  "charCount": {
+    "leading": 17,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "Command::new(\"ffmpeg\")\n            .args([\n                \"-v\", \"error\", \"-y\", \"-i\", &path, \"-map\", \"0:a\", \"-c:a\", \"pcm_s16le\",\n                \"-f\", \"s16le\", &format!(\"{DIR}/ff_{name}.s16\"),\n            ])\n            .status()",
+        "range": {
+          "byteOffset": {
+            "start": 7507,
+            "end": 7736
+          },
+          "start": {
+            "line": 196,
+            "column": 17
+          },
+          "end": {
+            "line": 201,
+            "column": 21
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"ffmpeg\"",
+        "range": {
+          "byteOffset": {
+            "start": 7757,
+            "end": 7765
+          },
+          "start": {
+            "line": 202,
+            "column": 20
+          },
+          "end": {
+            "line": 202,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "Command::new(\"ffmpeg\")\n            .args([\n                \"-v\", \"error\", \"-y\", \"-i\", &path, \"-map\", \"0:a\", \"-c:a\", \"pcm_s16le\",\n                \"-f\", \"s16le\", &format!(\"{DIR}/ff_{name}.s16\"),\n            ])\n            .status()\n            .expect(\"ffmpeg\")",
+      "range": {
+        "byteOffset": {
+          "start": 7507,
+          "end": 7766
+        },
+        "start": {
+          "line": 196,
+          "column": 17
+        },
+        "end": {
+          "line": 202,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(format!(\"{DIR}/ff_{name}.s16\")).unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 7821,
+      "end": 7875
+    },
+    "start": {
+      "line": 204,
+      "column": 22
+    },
+    "end": {
+      "line": 204,
+      "column": 76
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "        let ref_pcm = std::fs::read(format!(\"{DIR}/ff_{name}.s16\")).unwrap();",
+  "charCount": {
+    "leading": 22,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::read(format!(\"{DIR}/ff_{name}.s16\"))",
+        "range": {
+          "byteOffset": {
+            "start": 7821,
+            "end": 7866
+          },
+          "start": {
+            "line": 204,
+            "column": 22
+          },
+          "end": {
+            "line": 204,
+            "column": 67
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(format!(\"{DIR}/ff_{name}.s16\")).unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 7821,
+          "end": 7875
+        },
+        "start": {
+          "line": 204,
+          "column": 22
+        },
+        "end": {
+          "line": 204,
+          "column": 76
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(format!(\"{DIR}/lanes/corpus_0001.ac3\")).unwrap()",
+  "range": {
+    "byteOffset": {
+      "start": 8709,
+      "end": 8771
+    },
+    "start": {
+      "line": 232,
+      "column": 15
+    },
+    "end": {
+      "line": 232,
+      "column": 77
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    let data = std::fs::read(format!(\"{DIR}/lanes/corpus_0001.ac3\")).unwrap();",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::read(format!(\"{DIR}/lanes/corpus_0001.ac3\"))",
+        "range": {
+          "byteOffset": {
+            "start": 8709,
+            "end": 8762
+          },
+          "start": {
+            "line": 232,
+            "column": 15
+          },
+          "end": {
+            "line": 232,
+            "column": 68
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(format!(\"{DIR}/lanes/corpus_0001.ac3\")).unwrap()",
+      "range": {
+        "byteOffset": {
+          "start": 8709,
+          "end": 8771
+        },
+        "start": {
+          "line": 232,
+          "column": 15
+        },
+        "end": {
+          "line": 232,
+          "column": 77
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "make_decoder(&params).expect(\"make_decoder\")",
+  "range": {
+    "byteOffset": {
+      "start": 9991,
+      "end": 10035
+    },
+    "start": {
+      "line": 268,
+      "column": 22
+    },
+    "end": {
+      "line": 268,
+      "column": 66
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "        let mut dec = make_decoder(&params).expect(\"make_decoder\");",
+  "charCount": {
+    "leading": 22,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "\"make_decoder\"",
+        "range": {
+          "byteOffset": {
+            "start": 10020,
+            "end": 10034
+          },
+          "start": {
+            "line": 268,
+            "column": 51
+          },
+          "end": {
+            "line": 268,
+            "column": 65
+          }
+        }
+      },
+      "RECV": {
+        "text": "make_decoder(&params)",
+        "range": {
+          "byteOffset": {
+            "start": 9991,
+            "end": 10012
+          },
+          "start": {
+            "line": 268,
+            "column": 22
+          },
+          "end": {
+            "line": 268,
+            "column": 43
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "make_decoder(&params).expect(\"make_decoder\")",
+      "range": {
+        "byteOffset": {
+          "start": 9991,
+          "end": 10035
+        },
+        "start": {
+          "line": 268,
+          "column": 22
+        },
+        "end": {
+          "line": 268,
+          "column": 66
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "std::fs::read(path).expect(\"read\")",
+  "range": {
+    "byteOffset": {
+      "start": 11180,
+      "end": 11214
+    },
+    "start": {
+      "line": 299,
+      "column": 15
+    },
+    "end": {
+      "line": 299,
+      "column": 49
+    }
+  },
+  "file": "tools/vta/ac3/src/main.rs",
+  "lines": "    let data = std::fs::read(path).expect(\"read\");",
+  "charCount": {
+    "leading": 15,
+    "trailing": 1
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "std::fs::read(path)",
+        "range": {
+          "byteOffset": {
+            "start": 11180,
+            "end": 11199
+          },
+          "start": {
+            "line": 299,
+            "column": 15
+          },
+          "end": {
+            "line": 299,
+            "column": 34
+          }
+        }
+      },
+      "MSG": {
+        "text": "\"read\"",
+        "range": {
+          "byteOffset": {
+            "start": 11207,
+            "end": 11213
+          },
+          "start": {
+            "line": 299,
+            "column": 42
+          },
+          "end": {
+            "line": 299,
+            "column": 48
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "std::fs::read(path).expect(\"read\")",
+      "range": {
+        "byteOffset": {
+          "start": 11180,
+          "end": 11214
+        },
+        "start": {
+          "line": 299,
+          "column": 15
+        },
+        "end": {
+          "line": 299,
+          "column": 49
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'{')",
+  "range": {
+    "byteOffset": {
+      "start": 39207,
+      "end": 39224
+    },
+    "start": {
+      "line": 1058,
+      "column": 12
+    },
+    "end": {
+      "line": 1058,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/compat_matrix.rs",
+  "lines": "            self.expect(b'{')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "b'{'",
+        "range": {
+          "byteOffset": {
+            "start": 39219,
+            "end": 39223
+          },
+          "start": {
+            "line": 1058,
+            "column": 24
+          },
+          "end": {
+            "line": 1058,
+            "column": 28
+          }
+        }
+      },
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 39207,
+            "end": 39211
+          },
+          "start": {
+            "line": 1058,
+            "column": 12
+          },
+          "end": {
+            "line": 1058,
+            "column": 16
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'{')",
+      "range": {
+        "byteOffset": {
+          "start": 39207,
+          "end": 39224
+        },
+        "start": {
+          "line": 1058,
+          "column": 12
+        },
+        "end": {
+          "line": 1058,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b':')",
+  "range": {
+    "byteOffset": {
+      "start": 39575,
+      "end": 39592
+    },
+    "start": {
+      "line": 1069,
+      "column": 16
+    },
+    "end": {
+      "line": 1069,
+      "column": 33
+    }
+  },
+  "file": "tools/xtask/src/cmd/compat_matrix.rs",
+  "lines": "                self.expect(b':')?;",
+  "charCount": {
+    "leading": 16,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 39575,
+            "end": 39579
+          },
+          "start": {
+            "line": 1069,
+            "column": 16
+          },
+          "end": {
+            "line": 1069,
+            "column": 20
+          }
+        }
+      },
+      "MSG": {
+        "text": "b':'",
+        "range": {
+          "byteOffset": {
+            "start": 39587,
+            "end": 39591
+          },
+          "start": {
+            "line": 1069,
+            "column": 28
+          },
+          "end": {
+            "line": 1069,
+            "column": 32
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b':')",
+      "range": {
+        "byteOffset": {
+          "start": 39575,
+          "end": 39592
+        },
+        "start": {
+          "line": 1069,
+          "column": 16
+        },
+        "end": {
+          "line": 1069,
+          "column": 33
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'[')",
+  "range": {
+    "byteOffset": {
+      "start": 40287,
+      "end": 40304
+    },
+    "start": {
+      "line": 1088,
+      "column": 12
+    },
+    "end": {
+      "line": 1088,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/compat_matrix.rs",
+  "lines": "            self.expect(b'[')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 40287,
+            "end": 40291
+          },
+          "start": {
+            "line": 1088,
+            "column": 12
+          },
+          "end": {
+            "line": 1088,
+            "column": 16
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'['",
+        "range": {
+          "byteOffset": {
+            "start": 40299,
+            "end": 40303
+          },
+          "start": {
+            "line": 1088,
+            "column": 24
+          },
+          "end": {
+            "line": 1088,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'[')",
+      "range": {
+        "byteOffset": {
+          "start": 40287,
+          "end": 40304
+        },
+        "start": {
+          "line": 1088,
+          "column": 12
+        },
+        "end": {
+          "line": 1088,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'\"')",
+  "range": {
+    "byteOffset": {
+      "start": 41174,
+      "end": 41191
+    },
+    "start": {
+      "line": 1113,
+      "column": 12
+    },
+    "end": {
+      "line": 1113,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/compat_matrix.rs",
+  "lines": "            self.expect(b'\"')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 41174,
+            "end": 41178
+          },
+          "start": {
+            "line": 1113,
+            "column": 12
+          },
+          "end": {
+            "line": 1113,
+            "column": 16
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'\"'",
+        "range": {
+          "byteOffset": {
+            "start": 41186,
+            "end": 41190
+          },
+          "start": {
+            "line": 1113,
+            "column": 24
+          },
+          "end": {
+            "line": 1113,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'\"')",
+      "range": {
+        "byteOffset": {
+          "start": 41174,
+          "end": 41191
+        },
+        "start": {
+          "line": 1113,
+          "column": 12
+        },
+        "end": {
+          "line": 1113,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'{')",
+  "range": {
+    "byteOffset": {
+      "start": 29041,
+      "end": 29058
+    },
+    "start": {
+      "line": 785,
+      "column": 12
+    },
+    "end": {
+      "line": 785,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/config_validator.rs",
+  "lines": "            self.expect(b'{')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 29041,
+            "end": 29045
+          },
+          "start": {
+            "line": 785,
+            "column": 12
+          },
+          "end": {
+            "line": 785,
+            "column": 16
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'{'",
+        "range": {
+          "byteOffset": {
+            "start": 29053,
+            "end": 29057
+          },
+          "start": {
+            "line": 785,
+            "column": 24
+          },
+          "end": {
+            "line": 785,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'{')",
+      "range": {
+        "byteOffset": {
+          "start": 29041,
+          "end": 29058
+        },
+        "start": {
+          "line": 785,
+          "column": 12
+        },
+        "end": {
+          "line": 785,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b':')",
+  "range": {
+    "byteOffset": {
+      "start": 29407,
+      "end": 29424
+    },
+    "start": {
+      "line": 796,
+      "column": 16
+    },
+    "end": {
+      "line": 796,
+      "column": 33
+    }
+  },
+  "file": "tools/xtask/src/cmd/config_validator.rs",
+  "lines": "                self.expect(b':')?;",
+  "charCount": {
+    "leading": 16,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "b':'",
+        "range": {
+          "byteOffset": {
+            "start": 29419,
+            "end": 29423
+          },
+          "start": {
+            "line": 796,
+            "column": 28
+          },
+          "end": {
+            "line": 796,
+            "column": 32
+          }
+        }
+      },
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 29407,
+            "end": 29411
+          },
+          "start": {
+            "line": 796,
+            "column": 16
+          },
+          "end": {
+            "line": 796,
+            "column": 20
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b':')",
+      "range": {
+        "byteOffset": {
+          "start": 29407,
+          "end": 29424
+        },
+        "start": {
+          "line": 796,
+          "column": 16
+        },
+        "end": {
+          "line": 796,
+          "column": 33
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'[')",
+  "range": {
+    "byteOffset": {
+      "start": 30069,
+      "end": 30086
+    },
+    "start": {
+      "line": 815,
+      "column": 12
+    },
+    "end": {
+      "line": 815,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/config_validator.rs",
+  "lines": "            self.expect(b'[')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 30069,
+            "end": 30073
+          },
+          "start": {
+            "line": 815,
+            "column": 12
+          },
+          "end": {
+            "line": 815,
+            "column": 16
+          }
+        }
+      },
+      "MSG": {
+        "text": "b'['",
+        "range": {
+          "byteOffset": {
+            "start": 30081,
+            "end": 30085
+          },
+          "start": {
+            "line": 815,
+            "column": 24
+          },
+          "end": {
+            "line": 815,
+            "column": 28
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'[')",
+      "range": {
+        "byteOffset": {
+          "start": 30069,
+          "end": 30086
+        },
+        "start": {
+          "line": 815,
+          "column": 12
+        },
+        "end": {
+          "line": 815,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+},
+{
+  "text": "self.expect(b'\"')",
+  "range": {
+    "byteOffset": {
+      "start": 30894,
+      "end": 30911
+    },
+    "start": {
+      "line": 840,
+      "column": 12
+    },
+    "end": {
+      "line": 840,
+      "column": 29
+    }
+  },
+  "file": "tools/xtask/src/cmd/config_validator.rs",
+  "lines": "            self.expect(b'\"')?;",
+  "charCount": {
+    "leading": 12,
+    "trailing": 2
+  },
+  "language": "Rust",
+  "metaVariables": {
+    "single": {
+      "MSG": {
+        "text": "b'\"'",
+        "range": {
+          "byteOffset": {
+            "start": 30906,
+            "end": 30910
+          },
+          "start": {
+            "line": 840,
+            "column": 24
+          },
+          "end": {
+            "line": 840,
+            "column": 28
+          }
+        }
+      },
+      "RECV": {
+        "text": "self",
+        "range": {
+          "byteOffset": {
+            "start": 30894,
+            "end": 30898
+          },
+          "start": {
+            "line": 840,
+            "column": 12
+          },
+          "end": {
+            "line": 840,
+            "column": 16
+          }
+        }
+      }
+    },
+    "multi": {},
+    "transformed": {}
+  },
+  "ruleId": "unwrap-outside-tests",
+  "severity": "warning",
+  "note": null,
+  "message": "unwrap()/expect() in non-test code: any None/Err becomes a panic in the shipped path. Workspace lint denies this; hits are escapes from it.",
+  "labels": [
+    {
+      "text": "self.expect(b'\"')",
+      "range": {
+        "byteOffset": {
+          "start": 30894,
+          "end": 30911
+        },
+        "start": {
+          "line": 840,
+          "column": 12
+        },
+        "end": {
+          "line": 840,
+          "column": 29
+        }
+      },
+      "style": "primary"
+    }
+  ]
+}
+]
