@@ -1,0 +1,16 @@
+generated: 2026-11-24T17:56:48Z
+rustc: 
+cargo: 
+cargo-machete          NOT INSTALLED
+cargo-shear            NOT INSTALLED
+cargo-hack             NOT INSTALLED
+cargo-nextest          NOT INSTALLED
+cargo-llvm-cov         NOT INSTALLED
+cargo-mutants          NOT INSTALLED
+cargo-modules          NOT INSTALLED
+cargo-bloat            NOT INSTALLED
+cargo-llvm-lines       NOT INSTALLED
+cargo-crap             NOT INSTALLED
+cargo-deny             NOT INSTALLED
+typos-cli              NOT INSTALLED
+ast-grep               NOT INSTALLED
