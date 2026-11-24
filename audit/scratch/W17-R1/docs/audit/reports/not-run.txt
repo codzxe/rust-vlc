@@ -1,0 +1,5 @@
+2026-11-24T17:59:08Z	cargo-crap	not installed (run scripts/quality/00_install_tools.sh)
+2026-11-24T18:00:37Z	fuzz	fuzz/Cargo.toml missing
+2026-11-24T18:00:37Z	cargo-fuzz	not installed (run scripts/quality/00_install_tools.sh)
+2026-11-24T18:00:48Z	fuzz	fuzz/Cargo.toml missing
+2026-11-24T18:00:48Z	cargo-fuzz	not installed (run scripts/quality/00_install_tools.sh)
