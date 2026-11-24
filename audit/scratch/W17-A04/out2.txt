@@ -1,0 +1,55 @@
+# Quadratic-idiom gate
+
+Policy: engineering-directives D-1..D-5 ("no naive-complexity algorithms").
+This is a *source-level* approximation. It cannot prove complexity; it
+catches idioms that are O(n) by construction and become O(n^2) in a loop.
+
+`HARD` is ratcheted (`docs/audit/complexity-baseline.json`). `REVIEW` is
+counted and ranked for triage, never gated.
+
+| crate | HARD (gated) | REVIEW (triaged) |
+|---|---|---|
+| crates/demux | 2 | 20 |
+| crates/plugin-host-wasm | 2 | 5 |
+| apps/cli | 2 | 5 |
+| crates/codecs | 1 | 15 |
+| crates/subtitles | 1 | 15 |
+| tools/xtask | 1 | 12 |
+| crates/streaming | 1 | 7 |
+| crates/platform-windows | 1 | 0 |
+| crates/platform-macos | 1 | 0 |
+| crates/platform-linux | 1 | 0 |
+| crates/theme-tokens | 0 | 18 |
+| crates/playlists | 0 | 9 |
+| crates/localization | 0 | 8 |
+| crates/audio-engine | 0 | 6 |
+| crates/product-config | 0 | 4 |
+| tools/sweep | 0 | 2 |
+| apps/web | 0 | 2 |
+| tools/mem-audit | 0 | 1 |
+| crates/settings-schema | 0 | 1 |
+| tools/bench-vs-vlc | 0 | 1 |
+| crates/playback-engine | 0 | 1 |
+| crates/media-types | 0 | 1 |
+| crates/input | 0 | 1 |
+
+**HARD total: 13** | **REVIEW total: 134**
+
+## HARD sites (an O(n) shift inside a loop is O(n^2))
+
+- `crates/codecs/src/video/h264/hw/videotoolbox/session.rs:558` **drain0** - `for handle in self.emitted.drain(..) {`
+- `crates/demux/src/mkv/mod.rs:949` **drain0** - `.extend(packets.drain(..).map(DemuxEvent::Packet));`
+- `crates/demux/src/ts/test_support.rs:185` **insert0** - `af.insert(0, af.len() as u8);`
+- `crates/platform-linux/src/events.rs:115` **drain0** - `let drained: Vec<PlatformEvent> = queue.drain(..).collect();`
+- `crates/platform-macos/src/events.rs:115` **drain0** - `let drained: Vec<PlatformEvent> = queue.drain(..).collect();`
+- `crates/platform-windows/src/events.rs:115` **drain0** - `let drained: Vec<PlatformEvent> = queue.drain(..).collect();`
+- `crates/plugin-host-wasm/src/state.rs:94` **remove0** - `events.remove(0);`
+- `crates/plugin-host-wasm/src/state.rs:312` **remove0** - `self.import_trace.remove(0);`
+- `crates/streaming/src/hls/master.rs:544` **drain0** - `plan.drain(..start);`
+- `crates/subtitles/src/font/mod.rs:432` **insert0** - `self.providers.insert(0, provider);`
+- `apps/cli/src/host.rs:644` **drain0** - `for output in outputs.drain(..) {`
+- `apps/cli/src/containers/ps.rs:410` **drain0** - `self.buffer.drain(..at);`
+- `tools/xtask/src/cmd/visual.rs:37` **nth** - `.nth(2)`
+
+Baseline HARD=13 -> now 13.
+**GATE OK** - no crate added an O(n) shift. Floor tightened to 13.
