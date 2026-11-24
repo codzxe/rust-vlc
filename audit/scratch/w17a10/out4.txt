@@ -1,0 +1,29 @@
+# Panic budget ratchet
+
+Shipped panic primitives (test regions excluded). Every one is a
+process-abort reachable from input if the guarding invariant breaks.
+
+`unreachable!` | `panic!` | `.unwrap()` | `.expect(` | `todo!`
+
+| crate | unreachable | panic | unwrap | expect | todo | total |
+|---|---|---|---|---|---|---|
+| tools/xtask | 10 | 0 | 0 | 0 | 0 | **10** |
+| crates/playlists | 6 | 0 | 0 | 0 | 0 | **6** |
+| crates/input | 5 | 0 | 0 | 0 | 0 | **5** |
+| crates/control-protocol | 4 | 0 | 0 | 0 | 0 | **4** |
+| apps/desktop | 4 | 0 | 0 | 0 | 0 | **4** |
+| crates/testkit | 3 | 0 | 0 | 0 | 0 | **3** |
+| crates/demux | 2 | 0 | 0 | 0 | 0 | **2** |
+| crates/_template | 0 | 0 | 1 | 0 | 0 | **1** |
+| crates/audio-engine | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/codecs | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/media-probe | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/playback-engine | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/plugin-host-wasm | 1 | 0 | 0 | 0 | 0 | **1** |
+| crates/transcode | 1 | 0 | 0 | 0 | 0 | **1** |
+
+**grand total: 41 shipped panic sites**
+
+Baseline grand total: 41 -> now 41.
+
+**RATCHET OK** - no crate grew. Floor tightened to 41.
