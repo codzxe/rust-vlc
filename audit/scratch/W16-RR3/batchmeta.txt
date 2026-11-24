@@ -1,0 +1,90 @@
+== ui/e2e/visual/baselines/linux/settings-playback-1920x1080-2x-light.png
+   size=100907 sha256=bcbb9aa68380ee341b68e6cf3bb02b914eafef9b1ed1c49e2dde411b5bc1a264
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 04 38 08 02 00 00 00 67 b1 56 14 00 00 10 00 49 44 41 54 78 9c ec dd 07 7c 15 65 a2 ff ff 49 af 90 10 48 08 04 12 42 09 09 bd
+   PNG IHDR: 1920x1080 bitdepth=8 colortype=2; idat-decompressed=6221880; unique-scanlines=639/1080; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/keyboard-shortcuts-1920x1080-1x-light.png
+   size=69672 sha256=8f44a412779d858b19642d82b7bb7cd735c5a1dc3488991b5b562082081ce28d
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 04 38 08 02 00 00 00 67 b1 56 14 00 00 10 00 49 44 41 54 78 9c ec dd 07 78 54 d7 81 f6 f1 a3 de 25 90 90 84 84 1a 4d 74 10 bd
+   PNG IHDR: 1920x1080 bitdepth=8 colortype=2; idat-decompressed=6221880; unique-scanlines=463/1080; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/settings-network-1280x720-1x-dark.png
+   size=65300 sha256=b9f0ece3c2a733023ecd1321f5bd0d7855b4b376a76d0bd504645814f927ff59
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 d0 08 02 00 00 00 40 1f 4a 01 00 00 10 00 49 44 41 54 78 9c ec dd 07 78 54 e7 9d fe fd 67 24 21 a1 86 84 04 02 21 8a 40 80
+   PNG IHDR: 1280x720 bitdepth=8 colortype=2; idat-decompressed=2765520; unique-scanlines=499/720; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/settings-network-1920x1080-1x-light.png
+   size=80673 sha256=fd853d158dcf3bbce17fbb9cd6292a5be0285251fbfaa11c2ff5bede01bb5a94
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 04 38 08 02 00 00 00 67 b1 56 14 00 00 10 00 49 44 41 54 78 9c ec dd 09 7c 54 e5 a1 ff ff 27 fb be 27 24 21 6c 09 61 07 d9 c1
+   PNG IHDR: 1920x1080 bitdepth=8 colortype=2; idat-decompressed=6221880; unique-scanlines=603/1080; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/settings-recording-1280x720-1x-light.png
+   size=75963 sha256=851bca4f728c0120b48896c3093d4120ebde05b1111aa9f1b246b7a6d4bff512
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 d0 08 02 00 00 00 40 1f 4a 01 00 00 10 00 49 44 41 54 78 9c ec dd 07 7c 14 75 fe ff f1 6f 42 20 84 16 5a 42 ef bd f7 26 bd
+   PNG IHDR: 1280x720 bitdepth=8 colortype=2; idat-decompressed=2765520; unique-scanlines=524/720; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/settings-network-1280x720-2x-light.png
+   size=65938 sha256=b27652f6205a6911fce58478bd695006ab02f03bb459ccbbfe6a53e146493a40
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 d0 08 02 00 00 00 40 1f 4a 01 00 00 10 00 49 44 41 54 78 9c ec dd 07 9c 54 e5 bd ff f1 67 7b 63 0b 2c 2c 6d e9 6d e9 bd 29
+   PNG IHDR: 1280x720 bitdepth=8 colortype=2; idat-decompressed=2765520; unique-scanlines=501/720; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/convert-1280x720-2x-light.png
+   size=60195 sha256=840d17646786d4ad86e854f67c462a77247e50d73ae8ac0840fcd62c07b6b197
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 d0 08 02 00 00 00 40 1f 4a 01 00 00 10 00 49 44 41 54 78 9c ec dd 07 78 14 e5 fe c6 fd 87 9a 10 08 bd f7 de a5 77 01 41 51
+   PNG IHDR: 1280x720 bitdepth=8 colortype=2; idat-decompressed=2765520; unique-scanlines=359/720; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/open-network-stream-1280x720-1x-dark.png
+   size=41224 sha256=dbfc427c5b4cb6b410e843f76b3e060f12889cac7727df753095378a559fee57
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 d0 08 02 00 00 00 40 1f 4a 01 00 00 10 00 49 44 41 54 78 9c ec dd 07 7c 15 e7 9d ef ff 47 bd 02 42 05 04 a2 23 7a ef bd 37
+   PNG IHDR: 1280x720 bitdepth=8 colortype=2; idat-decompressed=2765520; unique-scanlines=377/720; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-2x-dark.png
+   size=50365 sha256=934cd75e2f7895d8f2cb2a9e15538034afffcd432480dd520a32d52b2dc11a37
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 04 38 08 02 00 00 00 67 b1 56 14 00 00 10 00 49 44 41 54 78 9c ec fd 07 78 1d d7 7d 27 fc 0f 0a 41 82 60 07 c1 de 7b a7 d8 8b
+   PNG IHDR: 1920x1080 bitdepth=8 colortype=2; idat-decompressed=6221880; unique-scanlines=385/1080; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-blue.png
+   size=25374 sha256=bd2ccb8a314aff025b05bde4d1743d8af0f3b7333df13acf093018fda9815914
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 05 00 00 00 02 c0 08 02 00 00 00 43 c9 48 9a 00 00 10 00 49 44 41 54 78 9c ec dd 07 9c 5c 65 bd 37 f0 b3 2d c9 a6 11 42 12 92 10 7a 28 a1
+   PNG IHDR: 1280x704 bitdepth=8 colortype=2; idat-decompressed=2704064; unique-scanlines=249/704; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== ui/e2e/visual/baselines/linux/dev-tokens-1920x1080-1x-dark.png
+   size=19774 sha256=5329bfdaac921dfeea4a27214f0f59b1c3dd4d3c783c34b89412e37fb9b2022c
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 00 f4 08 02 00 00 00 f5 d4 ac c8 00 00 10 00 49 44 41 54 78 9c ec dd 77 7c 54 55 de c7 f1 33 2d bd 01 21 24 f4 4e 02 09 bd 06
+   PNG IHDR: 1920x244 bitdepth=8 colortype=2; idat-decompressed=1405684; unique-scanlines=148/244; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IEND
+== ui/e2e/visual/baselines/linux/onboarding-1920x1080-2x-dark.png
+   size=30440 sha256=02258e345ab1d5614a4832b582e1b4bf7fd43b92532f6ee196154350ce20f293
+   head=89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 07 80 00 00 04 28 08 02 00 00 00 64 67 54 8f 00 00 10 00 49 44 41 54 78 9c ec dd 07 98 15 e5 bd 3f f0 d9 46 95 5e a4 77 45 ec 54 15 05 c5
+   PNG IHDR: 1920x1064 bitdepth=8 colortype=2; idat-decompressed=6129704; unique-scanlines=249/1064; chunks=IHDR+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT+IDAT…
+== fuzz/corpus/fuzz_demux_flac/seed_flac_s24.flac
+   size=44112 sha256=d9968c8399532f30d2ab4c5af8a78267af847d9f6453c2e8df6cd50077b526d2
+   head=66 4c 61 43 00 00 00 22 12 00 12 00 00 07 7a 00 23 41 0b b8 03 70 00 00 4b 00 4c f9 77 a1 d3 41 09 22 c3 2a ab 97 85 4a b4 6a 04 00 00 2c 0c 00 00 00 4c 61 76 66 36 31 2e 37 2e 31 30 33 01 00
+== fuzz/corpus/fuzz_codec_mjpeg/seed_avi_mjpeg_422.avi
+   size=18108 sha256=19bf36b2d37bb16873a362fcbe5c7d4f8a95b3dea558a1ed154790db6a49ee9b
+   head=52 49 46 46 b4 46 00 00 41 56 49 20 4c 49 53 54 38 12 00 00 68 64 72 6c 61 76 69 68 38 00 00 00 a0 86 01 00 a8 61 00 00 00 00 00 00 10 09 00 00 05 00 00 00 00 00 00 00 01 00 00 00 00 00 10 00
+== tests/fixtures/hls/adts_vod/seg002.aac
+   size=20705 sha256=49f01ec9a80ae9672d0c0d84a3eac981513db448470704d3f859c047c07b5a96
+   head=ff f1 50 40 19 ff fc 00 d2 36 2c ec a4 59 33 42 21 d0 88 5f fe 1e 73 ff a7 bf fe bf 83 5b bf ad 77 e7 df 3d b7 df 14 c4 2a 4a a1 57 09 a5 0c ea 1c 18 c6 98 cd 93 29 bb 22 54 15 b3 a8 12 f3 88
+== tests/fixtures/generated/malformed/mp4_h264_aac__flip4.mp4
+   size=13703 sha256=3a1c79bb114f1de5f522612752220e3ed4cdeb961aedff84db110b7655257ada
+   head=00 00 00 20 66 74 79 70 61 77 6d 6c 00 00 02 00 69 73 6f 6d 69 73 6f 32 61 76 63 31 6d 70 34 31 00 00 07 00 6d 6f 6f 76 00 00 00 6c 6d 76 68 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 e8
+== tests/fixtures/generated/malformed/mp4_frag__flip1.mp4
+   size=14045 sha256=33ee37cdfade5cd4509167dc6680ef478d0b987d44b99f9646fff10bc9b7997f
+   head=00 00 00 1c 66 74 79 70 61 73 6f 35 00 00 02 00 69 73 6f 35 69 73 6f 36 6d 70 34 31 00 00 04 c6 6d 6f 6f 76 00 00 00 6c 6d 76 68 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 e8 00 00 00 00
+== tests/fixtures/generated/valid/mp4_3gp_h263.3gp
+   size=9520 sha256=040efd854cd616218512505a625d4ea5c446b50ea895d07da9fe11b62f867737
+   head=00 00 00 1c 66 74 79 70 33 67 70 34 00 00 02 00 33 67 70 34 69 73 6f 6d 69 73 6f 32 00 00 00 08 66 72 65 65 00 00 22 50 6d 64 61 74 00 00 80 02 04 04 26 20 20 20 21 ff fe ed 45 a4 18 0e e0 60
+== tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4.oracle.sha256
+   size=2390 sha256=2bb71b7b8d8b176602fa6d9be75b68226b491a10925a265bc639c48968a9a5fa
+   head=23 20 4c 75 6d 65 6e 20 65 78 74 65 72 6e 61 6c 2d 6f 72 61 63 6c 65 20 68 61 73 68 20 70 69 6e 20 e2 80 94 20 63 61 72 64 20 57 31 2d 31 34 20 28 61 75 64 69 74 20 4d 31 35 20 63 75 72 65 3b
+== fuzz/corpus/fuzz_codec_mp2/seed_crossformat_mp3.mp3
+   size=6476 sha256=f9e387c2b3fdddb69e23725bfe1c938a28c6e300798c3c7232d2737058ab92d7
+   head=49 44 33 04 00 00 00 00 00 22 54 53 53 45 00 00 00 0e 00 00 03 4c 61 76 66 36 31 2e 37 2e 31 30 33 00 00 00 00 00 00 00 00 00 00 00 ff f3 84 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+== tests/fixtures/hls/adts_vod/pl.m3u8
+   size=227 sha256=8792f750905b25b57ebe58b680ad12f27b464c709cd98b0d9aa3d3c1d009cf8a
+   head=23 45 58 54 4d 33 55 0a 23 45 58 54 2d 58 2d 56 45 52 53 49 4f 4e 3a 33 0a 23 45 58 54 2d 58 2d 4d 45 44 49 41 2d 53 45 51 55 45 4e 43 45 3a 30 0a 23 45 58 54 2d 58 2d 41 4c 4c 4f 57 2d 43 41
+== tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc3
+   size=2803 sha256=2c255e26a77ac1062c8b6c04ca9b65d5a0cf4910a227d84266e96289b1a0258e
+   head=4f 67 67 53 00 02 00 00 00 00 00 00 00 00 2e 5e fa 3f 00 00 00 00 fb cb b0 9f 01 1e 01 76 6f 72 62 69 73 00 00 00 00 02 40 1f 00 00 00 00 00 00 40 6a 00 00 00 00 00 00 99 01 4f 67 67 53 00 00
+== fuzz/corpus/fuzz_http_headers/ranged_206.txt
+   size=88 sha256=a677471110c0bfa08f29e249e14d901396e95a67922bb316c8339f85df9c0814
+   head=48 54 54 50 2f 31 2e 31 20 32 30 36 20 50 61 72 74 69 61 6c 20 43 6f 6e 74 65 6e 74 0d 0a 43 6f 6e 74 65 6e 74 2d 52 61 6e 67 65 3a 20 62 79 74 65 73 20 32 35 30 2d 39 39 39 2f 31 30 30 30 0d
+== fuzz/corpus/fuzz_codec_alac/seed_cookie_badch.bin
+   size=26 sha256=f5d7670cdbe0fe79ddef530f5a6074d3ce7d5f180af9df28ac90fbbf703ee6a7
+   head=00 00 10 00 00 10 28 0a 0e 09 00 00 00 00 00 00 20 00 00 00 00 00 00 00 ac 44
+== tests/fixtures/generated/malformed/webm_vp9_opus__trunc2.webm
+   size=441 sha256=9529f6c3cb1e0b4fb7ad30b903a7a70a634fdd9c9cb539a63f609c4608c500f1
+   head=1a 45 df a3 9f 42 86 81 01 42 f7 81 01 42 f2 81 04 42 f3 81 08 42 82 84 77 65 62 6d 42 87 81 04 42 85 81 02 18 53 80 67 01 00 00 00 00 00 6a 4b 11 4d 9b 74 ba 4d bb 8b 53 ab 84 15 49 a9 66 53
+== tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc0
+   size=12 sha256=80e46d0d62e25a5a0c35cbc5e71002aa7965e4817a3e46889a55e2f632a9be6b
+   head=4f 67 67 53 00 02 00 00 00 00 00 00
