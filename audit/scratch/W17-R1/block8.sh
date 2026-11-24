@@ -1,0 +1,1 @@
+cargo build --release --locked --manifest-path apps/desktop-tauri/Cargo.toml
