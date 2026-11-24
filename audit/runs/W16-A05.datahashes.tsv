@@ -1,0 +1,247 @@
+tests/fixtures/generated/malformed/mp4_mjpeg_pcm__flip1.mp4	424452	be1715889efedce8	ISO Media, MP4 Base Media v1 [ISO 14496-12:2003]
+tests/fixtures/generated/malformed/avi_mjpeg_pcm__absidx1.avi	425516	7910eed2d7a9649e	RIFF (little-endian) data, AVI, 320 x 240, 30.00 fps, video: Motion JPEG, audio: uncompressed PCM (stereo, 44100 Hz)
+tests/fixtures/generated/malformed/mkv_h264_aac__flip16.mkv	26105	e16ef19d1be49119	EBML file, creator matro\36
+tests/fixtures/generated/malformed/webm_vp9_opus__flip1.webm	27259	8593fc66a5e5eb9a	WebM
+tests/fixtures/generated/malformed/mp4_h264_aac__flip4.mp4	13703	3a1c79bb114f1de5	ISO Media
+tests/fixtures/generated/malformed/mkv_h264_aac__trunc3.mkv	13412	899be655369cdecd	Matroska data
+tests/fixtures/generated/malformed/webm_vp9_opus__trunc2.webm	441	9529f6c3cb1e0b4f	WebM
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__flip1	3245	1c6062cfed7e3971	Ogg data, Vorbis audio, stereo, 8000 Hz, ~27200 bps
+tests/fixtures/generated/malformed/ogg_vorbis_8k_st__trunc3	2803	2c255e26a77ac106	Ogg data, Vorbis audio, stereo, 8000 Hz, ~27200 bps
+tests/fixtures/generated/malformed/mp4_h264_aac__trunc2.mp4	6000	cf5ab91be3e02984	ISO Media, MP4 Base Media v1 [ISO 14496-12:2003]
+tests/fixtures/generated/malformed/mp4_h264_aac__trunc0.mp4	400	54a7326b82ee7f4a	ISO Media, MP4 Base Media v1 [ISO 14496-12:2003]
+tests/fixtures/generated/valid/aifc_sowt_s16le_44k1_st.aifc	35352	8e9b4f5569adbb5f	IFF data, AIFF-C compressed audio
+tests/fixtures/generated/valid/mp4_3gp_h263.3gp	9520	040efd854cd61621	ISO Media, MPEG v4 system, 3GPP
+tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4.oracle.sha256	2390	2bb71b7b8d8b1766	Unicode text, UTF-8 text
+tests/fixtures/hls/adts_vod/seg002.aac	20705	49f01ec9a80ae967	MPEG ADTS, AAC, v4 LC, 44.1 kHz, monaural
+tests/fixtures/hls/adts_vod/seg003.aac	4448	f430762fe9694d11	MPEG ADTS, AAC, v4 LC, 44.1 kHz, monaural
+tests/fixtures/expectations/malformed/mp4_mjpeg_pcm__stszlie0.mp4.toml	1017	79e018b3eb829bc8	Unicode text, UTF-8 text
+tests/fixtures/expectations/malformed/mp4_mjpeg_pcm__trunc3.mp4.toml	939	0408022a89ab37d3	Unicode text, UTF-8 text
+tests/soak/scenarios-sandbox.toml	2867	762d68937b56ba03	Unicode text, UTF-8 text
+tests/integration/first-vertical/.gitattributes	361	47ff10e57eb7169d	ASCII text
+tests/integration/first-vertical/evidence/ledger.json	11396	358e8aa8c9e41a95	JSON text data
+tests/integration/first-vertical/evidence/transcripts/corrupt-truncated-midplay.json	3516	b437a630afa6255b	JSON text data
+tests/rebrand/assets/icon-512.png	1818	74657efc14623404	PNG image data, 512 x 512, 8-bit/color RGBA, non-interlaced
+fuzz/corpus/fuzz_codec_mjpeg/seed_avi_mjpeg_422.avi	18108	19bf36b2d37bb168	RIFF (little-endian) data, AVI, 84 x 46, 10.00 fps, video: Motion JPEG
+fuzz/corpus/fuzz_demux_mpd/hand_static_cenc.mpd	1985	7d842381641a1569	XML 1.0 document, ASCII text
+fuzz/corpus/fuzz_codec_mp3/seed_mp3_vbr.mp3	9276	0816a2ddca85d6b6	Audio file with ID3 version 2.4.0, contains: MPEG ADTS, layer III, v1, 64 kbps, 44.1 kHz, Stereo
+fuzz/corpus/fuzz_hls_playlist/pl.m3u8	238	3b6dc594bb0767dd	M3U playlist, ASCII text
+fuzz/corpus/fuzz_http_headers/chunked_200.txt	63	6cb05389beace47c	ASCII text, with CRLF line terminators
+fuzz/corpus/fuzz_sub_vtt/seed_vtt_hostile.vtt	65	dcdfadbddd28093e	data
+fuzz/corpus/fuzz_demux_ogg/seed_ogg_trunc0.bin	12	80e46d0d62e25a5a	Ogg data
+ui/e2e/visual/baselines/linux/convert-1280x720-1x-dark.png	58517	bef813ba63f561a2	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1280x720-1x-light.png	60259	24c09a8db6d8f26c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1280x720-2x-dark.png	58491	ae0b01b1dbc61500	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1280x720-2x-light.png	60195	840d17646786d4ad	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1920x1080-1x-dark.png	65393	1a5ef66daad4f5f1	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1920x1080-1x-light.png	67327	e2b7f0be579868f3	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1920x1080-2x-dark.png	65373	a850fcbf3e36c243	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/convert-1920x1080-2x-light.png	67285	3cc3eb5dafb0f340	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1280x720-1x-dark.png	18681	62a81d78d01d30f4	PNG image data, 1280 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1280x720-1x-light.png	18887	46e73cab13fc64cd	PNG image data, 1280 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1280x720-2x-dark.png	18681	62a81d78d01d30f4	PNG image data, 1280 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1280x720-2x-light.png	18887	46e73cab13fc64cd	PNG image data, 1280 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1920x1080-1x-dark.png	19774	5329bfdaac921dfe	PNG image data, 1920 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1920x1080-1x-light.png	19978	1c2faf6a0d778924	PNG image data, 1920 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1920x1080-2x-dark.png	19774	5329bfdaac921dfe	PNG image data, 1920 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/dev-tokens-1920x1080-2x-light.png	19978	1c2faf6a0d778924	PNG image data, 1920 x 244, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1280x720-1x-dark.png	46477	647a783696e8d396	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1280x720-1x-light.png	47123	189eb35f4d753340	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1280x720-2x-dark.png	46450	a1b89848c7c30fa9	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1280x720-2x-light.png	47057	f1863b2c06f19161	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1920x1080-1x-dark.png	53015	f22d86e6c2ded114	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1920x1080-1x-light.png	53798	86d3ccbe6286720c	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1920x1080-2x-dark.png	52998	2d2a5a031acf5be6	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/discovery-1920x1080-2x-light.png	53745	3503bb84cef14ea2	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-1x-dark.png	50857	b9e5aece563f3999	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-1x-light.png	51354	31ed5b378b33e4c9	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-2x-dark.png	49945	2c91784cbf408456	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1280x720-2x-light.png	50411	d1705ff06c615668	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1920x1080-1x-dark.png	69721	b6479a300665c28d	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1920x1080-1x-light.png	69672	8f44a412779d858b	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1920x1080-2x-dark.png	68313	015d9d4c4da3ce68	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/keyboard-shortcuts-1920x1080-2x-light.png	68389	040ef9736fec2cdc	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1280x720-1x-dark.png	27250	0d80f21e477ec7c6	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1280x720-1x-light.png	27290	d7ce1fc1ce71b3dc	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1280x720-2x-dark.png	27269	d89a61ad214181a6	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1280x720-2x-light.png	27274	97b02dacb81a47b5	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1920x1080-1x-dark.png	32226	88dd2c8349b4247f	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1920x1080-1x-light.png	32286	e3ff25be187a9449	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1920x1080-2x-dark.png	32255	f02f20bdd1037f4c	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/media-info-1920x1080-2x-light.png	32280	caf3568a5470e0d0	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1280x720-1x-dark.png	14743	55e17fae823d2de6	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1280x720-1x-light.png	15122	31e15cd4fe9a6245	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1280x720-2x-dark.png	14939	a8c5019d470fc7b2	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1280x720-2x-light.png	15280	4a2daf919ca0a89e	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1920x1080-1x-dark.png	19238	f6af4434a622cf00	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1920x1080-1x-light.png	19613	e45d62e12a43b7c2	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1920x1080-2x-dark.png	19476	386529b0fa07b077	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/miniplayer-1920x1080-2x-light.png	19811	a15a3e13049c400d	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1280x720-1x-dark.png	27648	fb9aa27e41b50631	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1280x720-1x-light.png	27266	1d30d3ad3f352c7d	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1280x720-2x-dark.png	27625	ec715a3854a191dc	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1280x720-2x-light.png	27204	670e34cb2317d365	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1920x1080-1x-dark.png	32609	1799969235f86763	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1920x1080-1x-light.png	32251	e9fcbfedd9ba951b	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1920x1080-2x-dark.png	32587	4129766de5a708da	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/not-found-1920x1080-2x-light.png	32199	6b12a10fafe66852	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-blue.png	25374	bd2ccb8a314aff02	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-cyan.png	25362	9405062e3925760b	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-gray.png	25123	37b990242ab34d1f	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-green.png	25285	f8e1311e1d0e0ca6	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-pink.png	25490	ab7976ae9dcd9cbe	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-red.png	25389	518d39e4d59d90fd	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-violet.png	25357	94dbf2d940d8dfd1	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark-yellow.png	25454	3a7b112a6bd15f6d	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark.png	25391	cda51b69146385e5	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-light.png	26078	3c67c25021136fb3	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-2x-dark.png	25391	cda51b69146385e5	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1280x720-2x-light.png	26078	3c67c25021136fb3	PNG image data, 1280 x 704, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1920x1080-1x-dark.png	30440	02258e345ab1d561	PNG image data, 1920 x 1064, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1920x1080-1x-light.png	31224	0c336fec5d1ce4ef	PNG image data, 1920 x 1064, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1920x1080-2x-dark.png	30440	02258e345ab1d561	PNG image data, 1920 x 1064, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/onboarding-1920x1080-2x-light.png	31224	0c336fec5d1ce4ef	PNG image data, 1920 x 1064, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-1x-dark.png	41224	dbfc427c5b4cb6b4	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-1x-light.png	42670	f169634825f1d474	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-2x-dark.png	41242	3bcd6539e364ce9a	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1280x720-2x-light.png	42673	c73c3ee4e72c9bba	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-1x-dark.png	50387	bb5b63244b61279b	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-1x-light.png	51627	18b71564afbea8ee	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-2x-dark.png	50365	934cd75e2f7895d8	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-2x-light.png	51615	195afe8a73926e2e	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1280x720-1x-dark.png	33423	1f17549a0705c068	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1280x720-1x-light.png	33373	56ca514582110672	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1280x720-2x-dark.png	33404	687f5e40105ea4b4	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1280x720-2x-light.png	33362	85cf6d637b1a7591	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1920x1080-1x-dark.png	38988	64ca95af63f19b48	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1920x1080-1x-light.png	38981	bd4823035cc74f23	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1920x1080-2x-dark.png	38967	f449697fbc337995	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-1920x1080-2x-light.png	38978	be1c4e7badb660a7	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1280x720-1x-dark.png	95873	ee3bb319eb263e3a	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1280x720-1x-light.png	113072	f3fc98781fbc59a8	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1280x720-2x-dark.png	95865	d045513ee8d73a4d	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1280x720-2x-light.png	113062	3305586c78803f2d	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1920x1080-1x-dark.png	226233	ffbe4f8336494dd4	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1920x1080-1x-light.png	307668	6323f60744a92917	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1920x1080-2x-dark.png	226241	e457cd5acbd14daf	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/player-music-1920x1080-2x-light.png	307667	c77cdfb4ad45efa8	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1280x720-1x-dark.png	27899	ee7a269a1c633ef6	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1280x720-1x-light.png	27682	a35c4c8c7526ca24	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1280x720-2x-dark.png	27877	e7b3fb5a980c6544	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1280x720-2x-light.png	27628	8f9f2dddef33dccc	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1920x1080-1x-dark.png	33075	102ef57854159730	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1920x1080-1x-light.png	32869	8595c3b7ee62ee17	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1920x1080-2x-dark.png	33061	1b7a8228d5a5ef40	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/playlist-1920x1080-2x-light.png	32821	5bed730be93bd3d5	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1280x720-1x-dark.png	72320	9eeb1bd74135521c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1280x720-1x-light.png	72754	c1a3fbd1fcb2f711	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1280x720-2x-dark.png	72382	44279395f23e0511	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1280x720-2x-light.png	72780	1af0f398203afa09	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1920x1080-1x-dark.png	95237	4bb87ba464c70ab1	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1920x1080-1x-light.png	95937	ee5200d86393dce6	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1920x1080-2x-dark.png	95230	32e990003389686f	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-audio-1920x1080-2x-light.png	95979	b68e58037ada3af4	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1280x720-1x-dark.png	72059	9a074a5a363a11cc	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1280x720-1x-light.png	73126	3024ffb764c2229b	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1280x720-2x-dark.png	72214	a68838f8add147fa	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1280x720-2x-light.png	73411	bdd256d59e9be500	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1920x1080-1x-dark.png	93176	fa8e7e690e44bc0a	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1920x1080-1x-light.png	94303	0e474007f366c434	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1920x1080-2x-dark.png	93167	bcaf06b437d5fdd3	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-controls-1920x1080-2x-light.png	94257	e426102e89faa4a4	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1280x720-1x-dark.png	45806	8048337847f8bab0	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1280x720-1x-light.png	46434	63af84a66cb2061c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1280x720-2x-dark.png	45882	0245e859f0bb5d16	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1280x720-2x-light.png	46424	14fa1bfd3501411c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1920x1080-1x-dark.png	55164	8c78f6aaebe763d7	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1920x1080-1x-light.png	56373	b5389d466aba57bc	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1920x1080-2x-dark.png	55139	383f596b07d1035a	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-extensions-1920x1080-2x-light.png	56342	aa4023bfd0010d8c	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-blue.png	71171	6b47b9f883187f2d	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-cyan.png	71203	5aa4c95e0546f027	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-gray.png	70665	c3d7c9b6b1be9f4b	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-green.png	71160	ce67ede481cde3bb	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-pink.png	71328	d36686869fe062d3	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-red.png	71237	6d674daf8d5e61dc	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-violet.png	71259	e8dfbbf5ae7376e3	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark-yellow.png	71239	13bf99bf6525e515	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-dark.png	71240	58e4db56e8d8c261	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-1x-light.png	72018	455c8bb6e7aeb4b9	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-2x-dark.png	71305	1a4cfa88ebe40604	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1280x720-2x-light.png	72088	cac5f41618ec6e5e	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1920x1080-1x-dark.png	84008	1f7a64c7da1ffe08	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1920x1080-1x-light.png	85250	a1261f8d54dc3b69	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1920x1080-2x-dark.png	83986	8ef2e718bdab26ba	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-global-1920x1080-2x-light.png	85230	1c95942d089c6343	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1280x720-1x-dark.png	81010	3bdb01661f43bd08	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1280x720-1x-light.png	81861	407bfa23ce9ff883	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1280x720-2x-dark.png	81116	bf52e449be9b2cfb	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1280x720-2x-light.png	81893	643efb80a612586a	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1920x1080-1x-dark.png	104042	e70abbc77fc83efd	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1920x1080-1x-light.png	105056	731d15d97d9cbde2	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1920x1080-2x-dark.png	104023	d7a52ea41a344045	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-interface-1920x1080-2x-light.png	105026	9b67e9d4fbdd18e2	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1280x720-1x-dark.png	70045	5520693ab54857b9	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1280x720-1x-light.png	70781	32c2593051149189	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1280x720-2x-dark.png	70122	31331f7aed36a6a8	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1280x720-2x-light.png	70888	3bff6f1c2d9a387c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1920x1080-1x-dark.png	82912	fa93360b58053ef0	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1920x1080-1x-light.png	83869	982f2262693d44bc	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1920x1080-2x-dark.png	82897	1bff34326ab94560	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-library-1920x1080-2x-light.png	83857	d3e5058ca0bfeecd	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1280x720-1x-dark.png	65300	b9f0ece3c2a73302	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1280x720-1x-light.png	65699	97fcaab83203a1b0	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1280x720-2x-dark.png	65459	63c0eda196da49d5	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1280x720-2x-light.png	65938	b27652f6205a6911	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1920x1080-1x-dark.png	79399	159c2409f35a7eaf	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1920x1080-1x-light.png	80673	fd853d158dcf3bbc	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1920x1080-2x-dark.png	79378	18e4c013d44669d3	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-network-1920x1080-2x-light.png	80640	cc938784c5a73190	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1280x720-1x-dark.png	68612	0b6a816c22cdc1bb	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1280x720-1x-light.png	69103	ea757a78495ea4b4	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1280x720-2x-dark.png	68672	b518023afc7887d1	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1280x720-2x-light.png	69112	74c11c159f549712	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-1x-dark.png	81319	b6b8b3a4737689b5	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-1x-light.png	82433	30b841ec17e1cd87	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-2x-dark.png	81295	7a68c3756c226384	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-performance-1920x1080-2x-light.png	82398	0143426c9e7556b9	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1280x720-1x-dark.png	75730	1a3cd0d02dee2a4c	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1280x720-1x-light.png	76312	a10e02b4856f28f3	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1280x720-2x-dark.png	75766	849701845f5423cf	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1280x720-2x-light.png	76409	b42f970c00ac146f	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1920x1080-1x-dark.png	99867	5dd2b194c0912627	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1920x1080-1x-light.png	100895	2dea16506f2cc829	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1920x1080-2x-dark.png	99853	85131776f19e4913	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-playback-1920x1080-2x-light.png	100907	bcbb9aa68380ee34	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1280x720-1x-dark.png	69694	bb19c21d55b94f48	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1280x720-1x-light.png	70246	ff0fb3d4b722cd56	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1280x720-2x-dark.png	69747	7c712ada54cce650	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1280x720-2x-light.png	70290	c53ef6206073cdbf	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1920x1080-1x-dark.png	82443	b71cd5b6e030f0f7	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1920x1080-1x-light.png	83425	f145f4f8941e0421	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1920x1080-2x-dark.png	82422	fc6a2967ce05badc	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-privacy-1920x1080-2x-light.png	83396	fb8e715e23d66b86	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1280x720-1x-dark.png	75400	e6c994b17a49766b	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1280x720-1x-light.png	75963	851bca4f728c0120	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1280x720-2x-dark.png	75554	9082c658cd6d84fe	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1280x720-2x-light.png	76013	63e7c8a6eb5865bb	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1920x1080-1x-dark.png	90072	e6edb67f892d4b7f	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1920x1080-1x-light.png	91084	e93118d50cf5e5a8	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1920x1080-2x-dark.png	90056	f6989555ff0cb0fb	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-recording-1920x1080-2x-light.png	91066	666790014aa5274d	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1280x720-1x-dark.png	76090	a8cd223957f8bd1e	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1280x720-1x-light.png	76975	ccdca41c5e701bc7	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1280x720-2x-dark.png	76206	de935a85671b0060	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1280x720-2x-light.png	77180	fc3b7aa2bbef6e56	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1920x1080-1x-dark.png	100022	a4b0bdd9bcc752c4	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1920x1080-1x-light.png	101127	e60e1f3df5654619	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1920x1080-2x-dark.png	100003	c4bef71120bc8881	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-subtitles-1920x1080-2x-light.png	101096	09c1ed462c6b89bf	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1280x720-1x-dark.png	68104	b7532c517cec2932	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1280x720-1x-light.png	68704	bb27dc9fd4197935	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1280x720-2x-dark.png	68155	e8e7201916276bc4	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1280x720-2x-light.png	68804	78edd3d52db49e03	PNG image data, 1280 x 720, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1920x1080-1x-dark.png	89632	5b5f01abd301a0bd	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1920x1080-1x-light.png	90262	ea8ec6ec00806837	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1920x1080-2x-dark.png	89652	ac2f08d625012fdb	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+ui/e2e/visual/baselines/linux/settings-video-1920x1080-2x-light.png	90304	5394060ed339b355	PNG image data, 1920 x 1080, 8-bit/color RGB, non-interlaced
+tests/compat/Cargo.lock	27785	5c59c4529ca9e287	ASCII text
