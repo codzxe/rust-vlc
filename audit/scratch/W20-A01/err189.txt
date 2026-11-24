@@ -1,0 +1,2 @@
+error: [probe.unsupported]: unsupported (sniffed 47 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00) (probe.no-demuxer): probe hints: extension=bin, size=189
+  code: probe.no-demuxer

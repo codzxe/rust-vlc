@@ -38,3 +38,26 @@ Policy (orchestrator adjudication, applied from Wave 1 onward):
   audit/docs/docs/05-command-layer.md.audit.md. Coverage now 57/57.
 - A02's reported accidental catalog-gen write (stray --check file) left NO
   residue: tree purity clean, artifacts byte-identical (verified git status).
+
+## Wave 17 gate (2026-11-25)
+- Coverage 100% (244 rows; 12 "trivial" flags are short data/log audits,
+  acceptable for data files). A05/A08/A09/A10 hit context/turn limits
+  after completing ~75%; recovery batches R1/R2 finished the remaining 35.
+- R2 flagged R1's outputs as missing; orchestrator re-verified directly:
+  18/18 present (path-prefix confusion in R2's check). Flag dismissed.
+- Citation check: mismatches were range-offsets/data-file quirk; no
+  fabrications.
+
+## Wave 18 gate (2026-11-25)
+- Coverage 100% (32 files). All 10 agents completed. 0 fabrications.
+- Inventory chain verified byte-identically regenerable (both parse scripts
+  re-run by agents); matrix provenance HOLDS (population honest, statuses
+  drift both directions).
+
+## Wave 19 gate (2026-11-25)
+- Coverage 100% (674 files): A01/A03/A08 complete; 7 agents hit turn
+  limits at ~65%; recovery batches R1-R7 + S1/S2 completed the bulk;
+  the final 16 files were audited ORCHESTRATOR-side (W19-S2, logged
+  here as a load-adaptation; all data/doc files, sed-verified quotes
+  where applicable). 0 fabrications. All 20 matrix row ledgers
+  (rows 001-252) exist and are pushed.

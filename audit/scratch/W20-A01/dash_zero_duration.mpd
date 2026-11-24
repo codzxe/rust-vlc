@@ -1,0 +1,9 @@
+<MPD mediaPresentationDuration="PT4S">
+ <Period duration="PT4S">
+  <AdaptationSet>
+   <Representation id="v" bandwidth="1000" mimeType="video/mp4">
+    <SegmentTemplate timescale="1000" duration="0" media="seg-$Number$.m4s" initialization="init.mp4"/>
+   </Representation>
+  </AdaptationSet>
+ </Period>
+</MPD>

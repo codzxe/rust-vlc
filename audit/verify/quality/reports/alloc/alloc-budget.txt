@@ -1,0 +1,25 @@
+# Allocation amplification budget
+
+Instrument: `tools/mem-audit` (already in-tree), run over real fixtures.
+
+Naive `peak/size` is **not** the DoS metric - it is dominated by the fixed
+per-open cost. Measured **K (fixed open cost) = 148960 B**, estimated as the
+median peak of inputs <= 8 KB. The gate uses the scaling part:
+`excess = max(0, peak - K) / size`, threshold **0.01x**.
+A crafted header that makes allocation scale with input bytes is the
+memory-exhaustion attack a panic-watching fuzzer never sees.
+
+| excess | raw peak/size | size | peak B | verdict | container | file |
+|---|---|---|---|---|---|---|
+| 0.65x **OVER** | 5x | 35334 | 171843 | refused | mp4 | `tests/fixtures/generated/valid/aiff_pcm_s16be_44k1_st.aiff` |
+| 0.54x **OVER** | 7x | 24839 | 162386 | decoded | mp4 | `tests/fixtures/generated/valid/mp4_chapters.mp4` |
+| 0.53x **OVER** | 6x | 26105 | 162761 | decoded | mkv | `tests/fixtures/generated/valid/mkv_h264_aac.mkv` |
+| 0.47x **OVER** | 2x | 115302 | 203109 | decoded | wav | `tests/fixtures/generated/valid/wav_extensible_6ch_48k.wav` |
+| 0.45x **OVER** | 6x | 25944 | 160614 | refused | mp4 | `tests/fixtures/hls/ts_vod/seg000.ts` |
+| 0.36x **OVER** | 7x | 21074 | 156453 | refused | mp4 | `tests/fixtures/hls/adts_vod/seg000.aac` |
+| 0.28x **OVER** | 9x | 17718 | 153871 | decoded | avi | `tests/fixtures/mjpeg_h3/mjpeg_420_odd.avi` |
+| 0.00x | 21x | 7041 | 148960 | decoded | ogg | `tests/fixtures/generated/valid/ogg_chain_two_links.ogg` |
+
+**largest absolute peak:** tests/fixtures/generated/valid/wav_extensible_6ch_48k.wav (203109 B from 115302 B input)
+
+**worst excess: 0.65x** over 8 files; **7 over threshold**.

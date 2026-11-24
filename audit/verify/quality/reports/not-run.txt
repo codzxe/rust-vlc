@@ -1,0 +1,1 @@
+2026-11-24T20:15:12Z	cargo	not installed (run scripts/quality/00_install_tools.sh)

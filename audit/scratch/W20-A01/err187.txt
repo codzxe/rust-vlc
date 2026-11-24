@@ -1,0 +1,2 @@
+error: [demux.corrupt]: corrupt structure (demux.ts.no-pat)
+  code: demux.ts.no-pat

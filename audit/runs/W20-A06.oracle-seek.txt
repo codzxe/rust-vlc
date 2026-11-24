@@ -1,0 +1,22 @@
+# W20-A06 engine oracle 2: MP4 seek 50% (target/release/lumen, 2026-11-24)
+# cmd: printf 'time\nseek 50%\ntime\n' | timeout 30 ./target/release/lumen open tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4
+ok: accepted session=1 gen=0
+event: state-changed Idle → Opening
+event: tracks 2 ready
+event: buffering 0.00
+event: state-changed Opening → Buffering
+event: TimingDurationKnown { duration: Timestamp(2000000) }
+event: MediaInfoReady { info: MediaInfo { source: File { path: "/…/mp4_mjpeg_pcm.mp4" }, container: None, title: None, duration: Known { time: Timestamp(2000000) }, seekable: true, is_live: false, metadata: {}, tracks: [TrackInfo { id: TrackId(0), kind: Video, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("mjpeg"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }, TrackInfo { id: TrackId(1), kind: Audio, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("pcm_s16le"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }], chapters: [] } }
+event: buffering 1.00
+event: state-changed Buffering → Playing
+ok: time 0.000000s (0.0%), 1 buffered range(s)
+event: TimingSeekFailed { error: CommandError { stage: Demux, code: Unsupported, message: "[demux] unsupported (plugin.demux.reanchor.unsupported)", details: {"position_us": "0", "reason": "demux"} } }
+event: buffering 0.00
+event: state-changed Playing → Buffering
+event: buffering 1.00
+event: state-changed Buffering → Playing
+ok: accepted session=1 gen=1
+ok: time 0.000000s (0.0%), 1 buffered range(s)
+event: state-changed Playing → Stopped
+event: state-changed Stopped → Idle
+exit_code=0

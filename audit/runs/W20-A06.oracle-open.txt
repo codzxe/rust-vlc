@@ -1,0 +1,14 @@
+# W20-A06 engine oracle 1: MP4 open+decode (target/release/lumen, 2026-11-24)
+# cmd: timeout 30 ./target/release/lumen open tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4 </dev/null
+ok: accepted session=1 gen=0
+event: state-changed Idle → Opening
+event: tracks 2 ready
+event: buffering 0.00
+event: state-changed Opening → Buffering
+event: TimingDurationKnown { duration: Timestamp(2000000) }
+event: MediaInfoReady { info: MediaInfo { source: File { path: "/…/mp4_mjpeg_pcm.mp4" }, container: None, title: None, duration: Known { time: Timestamp(2000000) }, seekable: true, is_live: false, metadata: {}, tracks: [TrackInfo { id: TrackId(0), kind: Video, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("mjpeg"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }, TrackInfo { id: TrackId(1), kind: Audio, name: None, language: Some("voe"), codec: CodecDescriptor { fourcc: None, description: Some("pcm_s16le"), profile: None, level: None }, is_default: false, is_selected: true, origin: Stream, video: None, audio: None }], chapters: [] } }
+event: buffering 1.00
+event: state-changed Buffering → Playing
+event: state-changed Playing → Stopped
+event: state-changed Stopped → Idle
+exit_code=0
