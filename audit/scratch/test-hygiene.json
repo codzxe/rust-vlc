@@ -1,0 +1,1157 @@
+{
+ "counts": {
+  "tests": 4637,
+  "ignore": 50,
+  "assertion_free": 170,
+  "empty_body": 1,
+  "sleeps": 20
+ },
+ "findings": [
+  {
+   "file": "tests/rebrand/rebrand_skeleton.rs",
+   "line": 618,
+   "test": "window_title_renders_nova",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/rebrand/rebrand_skeleton.rs",
+   "line": 627,
+   "test": "cli_identity_is_nova",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/rebrand/rebrand_skeleton.rs",
+   "line": 636,
+   "test": "about_model_renders_nova_logo",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/class_b.rs",
+   "line": 18,
+   "test": "class_b_missing_file",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/class_b.rs",
+   "line": 25,
+   "test": "class_b_truncated_open",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/class_b.rs",
+   "line": 33,
+   "test": "class_b_truncated_midplay",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/class_b.rs",
+   "line": 40,
+   "test": "class_b_garbage_appended",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/class_b.rs",
+   "line": 48,
+   "test": "class_b_noidx",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 502,
+   "test": "matrix_avi_trunc0_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 515,
+   "test": "matrix_avi_trunc1_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 528,
+   "test": "matrix_avi_trunc2_opens_then_lands_in_error_typed",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 539,
+   "test": "matrix_avi_trunc3_plays_to_clean_ended_with_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 556,
+   "test": "matrix_avi_trunc4_plays_to_clean_ended_full_payout",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 574,
+   "test": "matrix_avi_garbage0_clean_ended_zero_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 588,
+   "test": "matrix_avi_flip1_clean_ended_zero_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 605,
+   "test": "matrix_avi_flip4_clean_ended_with_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 619,
+   "test": "matrix_avi_flip16_refuses_typed_at_probe",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 635,
+   "test": "matrix_avi_noidx0_clean_ended_full_payout",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 649,
+   "test": "matrix_avi_negheight0_clean_ended_full_payout",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 667,
+   "test": "matrix_avi_absidx1_clean_ended_full_payout",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 695,
+   "test": "matrix_mp4_trunc0_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 711,
+   "test": "matrix_mp4_trunc1_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 724,
+   "test": "matrix_mp4_trunc2_opens_then_lands_in_error_typed",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 735,
+   "test": "matrix_mp4_trunc3_opens_then_lands_in_error_typed",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 746,
+   "test": "matrix_mp4_trunc4_opens_then_lands_in_error_typed",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 761,
+   "test": "matrix_mp4_garbage0_clean_ended_zero_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 775,
+   "test": "matrix_mp4_flip1_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 790,
+   "test": "matrix_mp4_flip4_refuses_typed_at_demux",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 803,
+   "test": "matrix_mp4_flip16_refuses_typed_at_probe",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/recovery_matrix.rs",
+   "line": 819,
+   "test": "matrix_mp4_stszlie0_clean_ended_with_damage",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/wire_mode.rs",
+   "line": 15,
+   "test": "wire_session_through_the_binary",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/baselines_consistency.rs",
+   "line": 707,
+   "test": "json_reader_parses_shapes_and_rejects_malformed",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 14,
+   "test": "journey_open",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 22,
+   "test": "journey_play",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 29,
+   "test": "journey_pause",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 36,
+   "test": "journey_seek",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 44,
+   "test": "journey_stop",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tests/integration/first-vertical/tests/journey.rs",
+   "line": 52,
+   "test": "journey_run_to_end",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 226,
+   "test": "unknown_key_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 238,
+   "test": "type_mismatch_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 250,
+   "test": "missing_required_key_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 262,
+   "test": "reserved_name_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 274,
+   "test": "out_of_range_integer_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 286,
+   "test": "enum_violation_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 301,
+   "test": "non_boolean_feature_flag_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 313,
+   "test": "dangling_brand_asset_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 324,
+   "test": "unknown_locale_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 391,
+   "test": "unknown_title_variable_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 406,
+   "test": "wrong_schema_version_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "tools/xtask/tests/config_validator.rs",
+   "line": 418,
+   "test": "wrong_app_id_fails",
+   "category": "assertion_free"
+  },
+  {
+   "file": "audit/runs/probes/attr_probe.rs",
+   "line": 1,
+   "test": "a",
+   "category": "assertion_free"
+  },
+  {
+   "file": "audit/runs/probes/attr_probe.rs",
+   "line": 1,
+   "test": "a",
+   "category": "empty_test_body"
+  },
+  {
+   "file": "crates/device-discovery/tests/volume_monitor.rs",
+   "line": 170,
+   "test": "concurrent_drain_while_the_watcher_pushes_is_safe",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/device-discovery/src/monitor.rs",
+   "line": 367,
+   "test": "spawn_first_pass_reports_mounted_volumes_as_added",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/device-discovery/src/monitor.rs",
+   "line": 402,
+   "test": "failed_passes_count_errors_and_never_emit_removals",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/platform-linux/tests/linux_integrations.rs",
+   "line": 369,
+   "test": "xdg_discovery_uses_the_real_environment",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/plugin-host-wasm/src/limits.rs",
+   "line": 228,
+   "test": "bucket_refills_over_time",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/media-clock/src/clock.rs",
+   "line": 1171,
+   "test": "send_sync_object_safe",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/control-protocol/src/server.rs",
+   "line": 935,
+   "test": "failure_book_engages_the_documented_lockout",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/subtitles/tests/fuzz_survival.rs",
+   "line": 149,
+   "test": "random_buffers_never_panic",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/tests/pgs_fuzz_survival.rs",
+   "line": 187,
+   "test": "seeded_mutation_survival_stays_typed_and_bounded",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/tests/cc_acceptance.rs",
+   "line": 468,
+   "test": "systematic_truncation_sweep_survives",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/tests/dvb_vobsub_fuzz_survival.rs",
+   "line": 314,
+   "test": "dvb_fuzz_survival_mutations_and_truncations",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/vtt/fuzz.rs",
+   "line": 37,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/vtt/fuzz.rs",
+   "line": 44,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/ass/fuzz.rs",
+   "line": 40,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/ass/fuzz.rs",
+   "line": 47,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/dvb/rle.rs",
+   "line": 340,
+   "test": "two_bit_single_pixel_codes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/subtitles/src/dvb/rle.rs",
+   "line": 346,
+   "test": "two_bit_switch_runs_and_eol",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codec-api/tests/contract_suite.rs",
+   "line": 696,
+   "test": "trait_objects_and_configs_are_send",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/playlists/tests/m3u_suite.rs",
+   "line": 361,
+   "test": "roundtrip_all_fixtures_and_dirty_corpus",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/playlists/src/mpd.rs",
+   "line": 2802,
+   "test": "fuzz_lite_mutations_never_panic",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/playlists/src/fuzz.rs",
+   "line": 58,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/playlists/src/fuzz.rs",
+   "line": 74,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 47,
+   "test": "doc_05_request_example",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 63,
+   "test": "doc_05_response_example",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 82,
+   "test": "doc_05_event_example",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 102,
+   "test": "failure_response_is_the_error_envelope",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 123,
+   "test": "completed_response_carries_the_result_variant",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 142,
+   "test": "sessionless_event_omits_optional_fields",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/wire_forms.rs",
+   "line": 161,
+   "test": "inline_args_are_camel_case_and_units_are_bare",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/commands/tests/catalog_drift.rs",
+   "line": 59,
+   "test": "committed_artifacts_match_regeneration",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/media-types/src/time.rs",
+   "line": 1713,
+   "test": "m18_bench_10m_conversions",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/media-probe/src/signature/mod.rs",
+   "line": 470,
+   "test": "builtin_signatures_never_panic_on_arbitrary_windows",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/transcode/src/queue.rs",
+   "line": 360,
+   "test": "full_queue_parks_the_producer_backpressure_not_growth",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/playback-engine/tests/scenarios_b/scenario_16_exit_during_playback.rs",
+   "line": 78,
+   "test": "abrupt_drop_mid_playback_releases_everything_within_deadline",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/codecs/tests/mp2_bench.rs",
+   "line": 55,
+   "test": "mp2_decode_throughput",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/opus_corpus_differential.rs",
+   "line": 129,
+   "test": "corpus_0047_mono",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/opus_corpus_differential.rs",
+   "line": 147,
+   "test": "corpus_0077_surround_51",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/mp3_bench.rs",
+   "line": 50,
+   "test": "mp3_decode_throughput",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_hw_path.rs",
+   "line": 822,
+   "test": "fuzz_lite_configure_with_random_extradata_never_panics",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/fuzz_survival.rs",
+   "line": 124,
+   "test": "adversarial_geometries_survive_the_harness",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/hevc_hw_path.rs",
+   "line": 927,
+   "test": "fuzz_lite_configure_with_random_extradata_never_panics",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 358,
+   "test": "lane_a_baseline_annexb",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 363,
+   "test": "lane_a_baseline_mp4",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 368,
+   "test": "lane_b_main_cabac_annexb",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 373,
+   "test": "lane_b_main_cabac_mp4",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 418,
+   "test": "lane_d_high_ipb_annexb",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 423,
+   "test": "lane_d_high_ipb_mp4",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 428,
+   "test": "lane_e_odd_crop_annexb",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 433,
+   "test": "lane_e_odd_crop_mp4",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 438,
+   "test": "lane_f_still_annexb",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/h264_sw_differential.rs",
+   "line": 444,
+   "test": "lane_f_still_mp4",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/dnx_differential.rs",
+   "line": 164,
+   "test": "lane_l1_1080p_175m",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/dnx_differential.rs",
+   "line": 180,
+   "test": "lane_l2_1080p_36m",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/dnx_differential.rs",
+   "line": 196,
+   "test": "lane_l3_1080p_145m",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/dnx_differential.rs",
+   "line": 211,
+   "test": "lane_l4_720p_90m",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/fuzz_loop_stable.rs",
+   "line": 423,
+   "test": "pcm_seed_loop_survives",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/fuzz_loop_stable.rs",
+   "line": 428,
+   "test": "pcm_seed_loop_long",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/fuzz_loop_stable.rs",
+   "line": 434,
+   "test": "mjpeg_seed_loop_survives",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/fuzz_loop_stable.rs",
+   "line": 439,
+   "test": "mjpeg_seed_loop_long",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/vorbis_bitexact.rs",
+   "line": 166,
+   "test": "fixtures_are_pinned_against_the_ffmpeg_reference",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/aac_bench.rs",
+   "line": 46,
+   "test": "aac_decode_throughput",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/aac_fuzz_survival.rs",
+   "line": 108,
+   "test": "sync_storms_and_garbage_interleaves_never_panic",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/adpcm_corpus_differential.rs",
+   "line": 276,
+   "test": "committed_fixtures_decode_bit_exact",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/tests/adpcm_corpus_differential.rs",
+   "line": 284,
+   "test": "real_corpus_decodes_bit_exact",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/alac/fuzz.rs",
+   "line": 108,
+   "test": "empty_and_short_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/alac/fuzz.rs",
+   "line": 118,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/vorbis/fuzz.rs",
+   "line": 137,
+   "test": "empty_input_survives_all_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/vorbis/fuzz.rs",
+   "line": 142,
+   "test": "marker_only_and_short_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/vorbis/fuzz.rs",
+   "line": 153,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/pcm/fuzz.rs",
+   "line": 145,
+   "test": "empty_input_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/pcm/fuzz.rs",
+   "line": 150,
+   "test": "sub_frame_lengths_survive_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/pcm/fuzz.rs",
+   "line": 157,
+   "test": "fixture_shaped_buffer_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/pcm/fuzz.rs",
+   "line": 169,
+   "test": "hostile_wide_input_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/flac/fuzz.rs",
+   "line": 191,
+   "test": "demux_pass_survives_hostile_input",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/flac/fuzz.rs",
+   "line": 199,
+   "test": "empty_input_survives_all_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/flac/fuzz.rs",
+   "line": 204,
+   "test": "marker_only_and_short_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/flac/fuzz.rs",
+   "line": 213,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/adpcm/fuzz.rs",
+   "line": 133,
+   "test": "empty_and_short_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/audio/adpcm/fuzz.rs",
+   "line": 143,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/hevc/fuzz.rs",
+   "line": 73,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/hevc/fuzz.rs",
+   "line": 81,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/hevc/parser/nal.rs",
+   "line": 1350,
+   "test": "fuzz_lite_no_panics_on_random_and_mutated_bytes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/mjpeg/fuzz.rs",
+   "line": 96,
+   "test": "empty_input_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/mjpeg/fuzz.rs",
+   "line": 101,
+   "test": "soi_only_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/mjpeg/fuzz.rs",
+   "line": 106,
+   "test": "hostile_marker_soup_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/mjpeg/fuzz.rs",
+   "line": 117,
+   "test": "truncated_valid_stream_survives_both_passes",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/h264/fuzz.rs",
+   "line": 81,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/h264/fuzz.rs",
+   "line": 88,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/av1/fuzz.rs",
+   "line": 98,
+   "test": "empty_and_short_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/codecs/src/video/av1/fuzz.rs",
+   "line": 108,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/streaming/src/fetch.rs",
+   "line": 545,
+   "test": "port_is_object_safe_send_sync",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/streaming/src/dash/fuzz.rs",
+   "line": 115,
+   "test": "empty_and_hostile_minima_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/packet-queue/tests/generation.rs",
+   "line": 179,
+   "test": "parked_producer_wakes_on_flush_with_stale_abort",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/generation.rs",
+   "line": 218,
+   "test": "parked_consumer_wakes_on_flush_with_discontinuity",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/property.rs",
+   "line": 874,
+   "test": "threaded_storm_terminates_under_generation_movement",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/backpressure.rs",
+   "line": 229,
+   "test": "push_wait_parks_until_consumer_drains",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/backpressure.rs",
+   "line": 300,
+   "test": "close_wakes_parked_producer",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/backpressure.rs",
+   "line": 328,
+   "test": "parked_consumer_wakes_on_push",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/backpressure.rs",
+   "line": 443,
+   "test": "parked_producer_does_not_hold_the_lock",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 178,
+   "test": "flush_storm_conserves_every_item_and_holds_q2",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 322,
+   "test": "usage_sampler_never_observes_caps_exceeded",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 413,
+   "test": "parked_mpmc_producers_complete_under_paced_consumption",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 503,
+   "test": "close_wakes_every_parked_producer",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 627,
+   "test": "burst_storm_parks_drains_and_delivers_exactly_once",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/packet-queue/tests/concurrency.rs",
+   "line": 750,
+   "test": "deadlock_triad_terminates_under_seeded_interleavings",
+   "category": "sleep_in_test"
+  },
+  {
+   "file": "crates/demux/tests/adversarial_gaps.rs",
+   "line": 484,
+   "test": "fully_reversed_idx1_walks_and_seeks_like_the_canonical_file",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/tests/fuzz_loop_stable.rs",
+   "line": 300,
+   "test": "avi_seed_loop_survives",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/tests/fuzz_loop_stable.rs",
+   "line": 305,
+   "test": "avi_seed_loop_long",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/es/fuzz.rs",
+   "line": 108,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/es/fuzz.rs",
+   "line": 116,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/mkv/fuzz.rs",
+   "line": 67,
+   "test": "empty_and_marker_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/mkv/fuzz.rs",
+   "line": 73,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/wav/fuzz.rs",
+   "line": 146,
+   "test": "empty_and_tiny_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/wav/fuzz.rs",
+   "line": 154,
+   "test": "scrambled_structured_files_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/wav/fuzz.rs",
+   "line": 170,
+   "test": "scrambled_extensible_headers_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/wav/fuzz.rs",
+   "line": 217,
+   "test": "adversarial_size_fields_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/wav/fuzz.rs",
+   "line": 242,
+   "test": "truncations_at_every_header_site_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/ts/fuzz.rs",
+   "line": 66,
+   "test": "empty_and_sync_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/ts/fuzz.rs",
+   "line": 73,
+   "test": "hostile_wide_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/avi/fuzz.rs",
+   "line": 143,
+   "test": "empty_and_tiny_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/avi/fuzz.rs",
+   "line": 151,
+   "test": "scrambled_structured_prefixes_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/avi/fuzz.rs",
+   "line": 193,
+   "test": "adversarial_size_fields_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/avi/fuzz.rs",
+   "line": 234,
+   "test": "scrambled_extensible_audio_headers_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/ivf/tests.rs",
+   "line": 522,
+   "test": "fuzz_lite_truncations_never_panic_or_hang",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/aiff/fuzz.rs",
+   "line": 135,
+   "test": "empty_and_tiny_inputs_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/aiff/fuzz.rs",
+   "line": 143,
+   "test": "scrambled_structured_files_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/aiff/fuzz.rs",
+   "line": 159,
+   "test": "adversarial_size_fields_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/aiff/fuzz.rs",
+   "line": 180,
+   "test": "truncations_at_every_header_site_survive",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/asf/fuzz.rs",
+   "line": 103,
+   "test": "hostile_sweeps_survive_without_panics",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/mp4/tests.rs",
+   "line": 1077,
+   "test": "fuzz_lite_mutations_never_panic",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/demux/src/mp4/tests.rs",
+   "line": 1098,
+   "test": "fuzz_lite_fragment_mutations_never_panic",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 395,
+   "test": "layer_rules_are_enforced",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 423,
+   "test": "reference_errors_are_actionable",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 447,
+   "test": "per_mode_coverage_is_enforced",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 460,
+   "test": "value_parsing_rejects_bad_values",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 466,
+   "test": "meta_errors_are_actionable",
+   "category": "assertion_free"
+  },
+  {
+   "file": "crates/theme-tokens/tests/pipeline.rs",
+   "line": 486,
+   "test": "unsupported_types_and_categories_are_rejected",
+   "category": "assertion_free"
+  },
+  {
+   "file": "apps/cli/tests/container_conformance.rs",
+   "line": 677,
+   "test": "ivf_av1_family_lane",
+   "category": "assertion_free"
+  },
+  {
+   "file": "apps/cli/tests/container_conformance.rs",
+   "line": 685,
+   "test": "ivf_vp9_family_lane",
+   "category": "assertion_free"
+  }
+ ]
+}
