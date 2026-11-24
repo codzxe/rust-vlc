@@ -1,0 +1,271 @@
+=== W16-A10 BATCH METADATA (single script) ===
+
+## tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4
+  size=424452 sha256=d0459524e3be5e90174c2a861724c3bb06fc12fbcbb52c7feea5f117aaa26da6
+  magic=0000001c6674797069736f6d00000000
+  mp4_boxes=[('ftyp', 28), ('moov', 2172), ('  mvhd', 108), ('  trak', 1183), ('    tkhd', 92), ('    mdia', 1083), ('      mdhd', 32), ('      hdlr', 45), ('      minf', 998), ('        vmhd', 20), ('        dinf', 36), ('          dref', 28), ('        stbl', 934), ('          stsd', 102), ('          stts', 24), ('          stss', 256), ('          stsc', 28), ('          stsz', 260), ('          stco', 256), ('mdat', 422252)]
+
+## tests/fixtures/generated/malformed/avi_mjpeg_pcm__noidx0.avi
+  size=423588 sha256=5752528d3d03d478d097e81c8201731c56c7ced191b1a9324fcb45523cb4f295
+  magic=524946469c760600415649204c495354
+  riff form=b'AVI ' decl_size=423588 chunks=[('LIST', 292), ('LIST', 423268)]
+
+## fuzz/corpus/fuzz_demux_wav/seed_wav_s16le.wav
+  size=35358 sha256=e24b939a33fa51050adab81411cccedd80a91e8d81a5e36c6dbecbb7ccecbbd8
+  magic=52494646168a000057415645666d7420
+  wav={'chunks': [('fmt ', 16), ('LIST', 26), ('data', 35280)], 'fmt': {'tag': 1, 'channels': 2, 'rate': 44100, 'bits': 16, 'align': 4, 'byterate': 176400}}
+  riff_decl=35358
+
+## tests/fixtures/generated/malformed/wav_pcm_s16le_44k1_st__flip4
+  size=35358 sha256=d1695cbd25f4b88c0c69617b74a5c3fce5bb2ac134629eb06d90020e0abf6b75
+  magic=52494646168a000057415645666d7420
+  wav={'chunks': [('fmt ', 16), ('LIST', 26), ('data', 35280)], 'fmt': {'tag': 65, 'channels': 2, 'rate': 44100, 'bits': 16, 'align': 4, 'byterate': 176400}}
+  riff_decl=35358
+
+## tests/fixtures/generated/malformed/aiff_pcm_s16be_44k1_st__trunc3
+  size=17667 sha256=bd6e87ed2f9d5d69c0a58723c1b2401726140d52fb19e5e312ed2a9b33dba780
+  magic=464f524d000089fe41494646434f4d4d
+  aiff={'form_size': 35326, 'form': 'AIFF', 'match': False, 'chunks': [('COMM', 18), ('SSND', 35288)]}
+
+## tests/fixtures/hls/ts_live/s00.ts
+  size=25944 sha256=3a08929c9cd450edf11c22314ed8a57b96d255eed8d0c768b02cf473042b9fce
+  magic=474011100042f0250001c10000ff01ff
+  ts={'size': 25944, 'packet_aligned': True, 'sync_at_stride': 138, 'pkts': 138}
+
+## tests/fixtures/hls/ts_vod/seg002.ts
+  size=25568 sha256=e83cc30bd6e2d0883f24f54bf622c6562d855a3d68a550052008674ab363ff65
+  magic=474011100042f0250001c10000ff01ff
+  ts={'size': 25568, 'packet_aligned': True, 'sync_at_stride': 136, 'pkts': 136}
+
+## tests/fixtures/hls/ts_live/s01.ts
+  size=25568 sha256=3b49c6098b3b93d6ade58de7f34f97ea6ae68a38d6a881fc63f8e3631b7909cf
+  magic=474011100042f0250001c10000ff01ff
+  ts={'size': 25568, 'packet_aligned': True, 'sync_at_stride': 136, 'pkts': 136}
+
+## fuzz/corpus/fuzz_codec_hevc/seed_crossformat_mp4.mp4
+  size=13703 sha256=3acc7ebae6f41c3194bab8f23f935e57e27adb81d61d8f2b99b8cd98124c7d8e
+  magic=000000206674797069736f6d00000200
+  mp4_boxes=[('ftyp', 32), ('moov', 1792), ('  mvhd', 108), ('  trak', 662), ('    tkhd', 92), ('    edts', 36), ('      elst', 28), ('    mdia', 526), ('      mdhd', 32), ('      hdlr', 45), ('      minf', 441), ('        vmhd', 20), ('        dinf', 36), ('          dref', 28), ('        stbl', 377), ('          stsd', 185), ('          stts', 24), ('          stss', 24), ('          stsc', 28), ('          stsz', 56), ('          stco', 52), ('free', 8), ('mdat', 11871)]
+
+## tests/fixtures/generated/valid/mp4_qt.mov
+  size=13754 sha256=0ad6a4ece7e24770714887ecf0cd7d21421d2a0e9cb0c88647e329db00b98ca3
+  magic=00000014667479707174202000000200
+  mp4_boxes=[('ftyp', 20), ('wide', 8), ('mdat', 11871), ('moov', 1855), ('  mvhd', 108), ('  trak', 686), ('    tkhd', 92), ('    edts', 36), ('      elst', 28), ('    mdia', 550), ('      mdhd', 32), ('      hdlr', 45), ('      minf', 465), ('        vmhd', 20), ('        hdlr', 44), ('        dinf', 36), ('          dref', 28), ('        stbl', 357), ('          stsd', 165), ('          stts', 24), ('          stss', 24), ('          stsc', 28), ('          stsz', 56), ('          stco', 52)]
+
+## tests/fixtures/generated/valid/mkv_h264_flac.mkv
+  size=33443 sha256=c2f798f0b40d800d231ebfc01d3fb1c03365c80294287cdfeefe7373bb866dd3
+  magic=1a45dfa3a34286810142f7810142f281
+  mkv={'magic': '1a45dfa3', 'magic_is_ebml': True}
+
+## fuzz/corpus/fuzz_demux_mpd/ffmpeg_av_template.mpd
+  size=2288 sha256=b12ec1b1a607df828ecf6a077e0fb7351cfd494c88b47f21b0f1e1afece05d8c
+  magic=3c3f786d6c2076657273696f6e3d2231
+  text lines=45
+  head='<?xml version="1.0" encoding="utf-8"?>\n<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n\txmlns="urn:mpeg:dash:schema:mpd:2011"\n\txmlns:xlink="http://www.w3.org/1999/xlink"\n\txsi:schemaLocation="urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"\n\tprofiles="urn:mpeg:dash:profile:isoff-live:2011"\n\ttype="static"\n\tmediaPresentationDuration="PT6.0S"\n\tmaxSegmentDuration="PT5.0S"\n\tminBufferTime="PT12.0S">\n\t<ProgramInformati'
+
+## fuzz/corpus/fuzz_hls_playlist/fmp4_pl.m3u8
+  size=269 sha256=c30364ee6fcb606572942eb6b2f62251575e8d16df3d329dbde60f5cf5f6f46a
+  magic=234558544d33550a234558542d582d56
+  text lines=18
+  head='#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-MAP:URI="init.mp4"\n#EXTINF:2.043356,\npl0.m4s\n#EXTINF:1.996916,\npl1.m4s\n#EXTINF:1.996916,\npl2.m4s\n#EXTINF:1.996916,\npl3.m4s\n#EXTINF:1.012336,\npl4.m4s\n#EXT-X-ENDLIST\n'
+
+## fuzz/corpus/fuzz_playlist_pls/seed_dirty.pls
+  size=301 sha256=ef5c90d3dcf91b45d0eb8bed0a84d6adb4c30a67782402058df19200d7c92d9d
+  magic=5b706c61796c6973745d0a46696c6530
+  text lines=18
+  head='[playlist]\nFile0=zero-index.mp3\nFilex=bad-suffix.mp3\nLength1=not-a-number\nTitle1=Orphan Title Only\nFile2=two.wav\nTitle2=Two\nLength2=abc\nFile2=two-duplicate.wav\nFile3=\ngarbage line without equals\nFile4=four.wav\n[other-section]\nFile9=nine-under-other-section.wav\n[playlist]\nNumberOfEntries=99\nVersion=1\n'
+
+## tests/fixtures/generated/malformed/ogg_vorbis_8k_st__garbage0
+  size=7341 sha256=3abf94d9c86c154701a7bd416cc92b66a350783af47bce2a98f83763fdbc30db
+  magic=4f676753000200000000000000002e5e
+  ogg={'pages': 3, 'first_page_hdr': '4f676753000200000000000000002e5efa3f00000000fbcbb09f011e'}
+
+## fuzz/corpus/fuzz_playlist_m3u/seed_basic_extended.m3u
+  size=266 sha256=2e38838dce38af2960d6d922e98831b1f1d405ad74aa50f0a26a2b9f71c615eb
+  magic=234558544d33550a23455854494e463a
+  text lines=11
+  head='#EXTM3U\n#EXTINF:123,Sample Artist - Sample Title\nsample.mp3\n#EXTINF:321.5,Example Artist - Example Title\nC:\\Music\\Example.flac\n#EXTINF:10,Groove\nhttp://stream.example.com:8000/live.aac\n../relative/track01.ogg\n#EXTINF:-1,Live Stream\nhttps://relay.example.net/channel\n'
+
+## fuzz/corpus/fuzz_demux_ivf/seed_ivf_vp9.ivf
+  size=2546 sha256=c5d58b77bac47c26d4b5b93d8224f4338df6072bf5b4766c13570fe783eda2cc
+  magic=444b4946000020005650393040003000
+  ivf={'ver': 0, 'hdrlen': 32, 'fourcc': 'VP90', 'width': 64, 'height': 48, 'rate': 25, 'scale': 1, 'frames': 25, 'size': 2546}
+
+## fuzz/corpus/fuzz_http_headers/odd_headers.txt
+  size=40 sha256=c11c91ca91996b4c6ed2fda2159d76bc539cc4a1cb79dd3b2bf70f2a36ad28b4
+  magic=485454502f312e31203230300d0a582d
+  text lines=6
+  head='HTTP/1.1 200\r\nX-Empty:\r\nX-Two: a\r\n b\r\n\r\n'
+
+## fuzz/corpus/fuzz_codec_alac/seed_cookie_badver.bin
+  size=26 sha256=7783aa1d898eff8aed2d850af17d4f58d846c03da917c0f98f119b5dca4599ac
+  magic=000010000110280a0e02000000000000
+  text lines=2
+  head='\x00\x00\x10\x00\x01\x10(\n\x0e\x02\x00\x00\x00\x00\x00\x00 \x00\x00\x00\x00\x00\x00\x00�D'
+
+## fuzz/corpus/fuzz_codec_alac/seed_alac_stereo16.m4a
+  size=42907 sha256=f0662338bd3e159818b6decc741ede8292fb51270af288387f422d6fa2a7dacd
+  magic=0000001c667479704d34412000000200
+  mp4_boxes=[('ftyp', 28), ('free', 8), ('mdat', 42149), ('moov', 722), ('  mvhd', 108), ('  trak', 509), ('    tkhd', 92), ('    edts', 36), ('      elst', 28), ('    mdia', 373), ('      mdhd', 32), ('      hdlr', 45), ('      minf', 288), ('        smhd', 16), ('        dinf', 36), ('          dref', 28), ('        stbl', 228), ('          stsd', 88), ('          stts', 32), ('          stsc', 28), ('          stsz', 52), ('          stco', 20)]
+
+## fuzz/corpus/fuzz_demux_avi/seed_avi_trunc0.avi
+  size=12 sha256=ecd3e745fbf4c017dabed8fdc166dc8722f2b6ead6b151a34ba1e7eb54a8c628
+  magic=52494646247e060041564920
+  riff form=b'AVI ' decl_size=425516 chunks=[]
+
+## tests/fixtures/generated/malformed/avi_mjpeg_pcm__trunc0.avi
+  size=12 sha256=ecd3e745fbf4c017dabed8fdc166dc8722f2b6ead6b151a34ba1e7eb54a8c628
+  magic=52494646247e060041564920
+  riff form=b'AVI ' decl_size=425516 chunks=[]
+
+## tests/fixtures/generated/malformed/wav_pcm_s16le_44k1_st__trunc0
+  size=12 sha256=738e75e497c951ad53a83592656afa463a5c9d82efafa81a1bdb20f36ec90cb5
+  magic=52494646168a000057415645
+  wav={}
+  riff_decl=35358
+
+## tests/fixtures/generated/valid/wav_pcm_u8_44k1_mono.wav
+  size=8898 sha256=e1a813dfc37f8ef95d6e50d2877332d468f5b01ee1ca077cd588c568f0a4e7ed
+  magic=52494646ba22000057415645666d7420
+  wav={'chunks': [('fmt ', 16), ('LIST', 26), ('data', 8820)], 'fmt': {'tag': 1, 'channels': 1, 'rate': 44100, 'bits': 8, 'align': 1, 'byterate': 44100}}
+  riff_decl=8898
+
+## tests/fixtures/generated/valid/avi_mjpeg_pcm.avi.oracle.sha256
+  size=2326 sha256=efd79c2afd9c0f00506cf645c85107a6dfc62732507768a66c002d98b6332807
+  magic=23204c756d656e2065787465726e616c
+  text lines=39
+  head='# Lumen external-oracle hash pin — card W1-14 (audit M15 cure; directives\n# D-5 "escape the echo chamber" / D-11 "ffmpeg as the external oracle").\n# DO NOT hand-edit: these are hashes of FFMPEG\'S OWN DECODE of the fixture,\n# not of Lumen output. To re-pin, follow the procedure in the header of\n# scripts/oracle_check.sh and record why in the commit message.\n#\n# fixture   : tests/fixtures/generated/valid/avi_mjpeg_pcm.avi\n# content   : AVI 1.0 (RIFF) — MJPEG video 320x240 4:2:0 full-range,\n#      '
+
+## tests/rebrand/assets/logo.svg
+  size=186 sha256=f617fc9d98d178cb1483530755858c33edf91eeee0086b91ad3fb44d1a8ba99e
+  magic=3c73766720786d6c6e733d2268747470
+  text lines=5
+  head='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">\n  <rect width="16" height="16" fill="#ff5500"/>\n  <circle cx="8" cy="8" r="4" fill="#ffffff"/>\n</svg>\n'
+
+## ui/e2e/visual/baselines/linux/player-music-1920x1080-1x-dark.png
+  size=226233 sha256=ffbe4f8336494dd4bd277e886f2a0d2b9e2c24396fc1e8d80086600933cf29b0
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 829}
+
+## ui/e2e/visual/baselines/linux/settings-playback-1920x1080-1x-light.png
+  size=100895 sha256=2dea16506f2cc82962efdcabf80fd8f07469334a8b0c6fccf8f0368da5e076e9
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 644}
+
+## ui/e2e/visual/baselines/linux/settings-privacy-1280x720-2x-dark.png
+  size=69747 sha256=7c712ada54cce650021d9ca4cc5d05fb5169364b5b0df127fc5e56b487a50e23
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 459}
+
+## ui/e2e/visual/baselines/linux/settings-privacy-1280x720-1x-dark.png
+  size=69694 sha256=bb19c21d55b94f48a7db47095974843facc6fdf4e20a8b251267f10c8a7164ae
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 459}
+
+## ui/e2e/visual/baselines/linux/settings-playback-1280x720-1x-light.png
+  size=76312 sha256=a10e02b4856f28f33f5b8d689d664d51d324c0f7db50e585cdd1f0a8800a8993
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 517}
+
+## ui/e2e/visual/baselines/linux/settings-library-1920x1080-2x-light.png
+  size=83857 sha256=d3e5058ca0bfeecd586e3e259ca35a7db49f32d32fcdd9885b3492cc2dab797e
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 578}
+
+## ui/e2e/visual/baselines/linux/settings-audio-1280x720-1x-light.png
+  size=72754 sha256=c1a3fbd1fcb2f711c275cbd926b6ef41e1b599240de109d45862da435ba21de9
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 539}
+
+## ui/e2e/visual/baselines/linux/settings-video-1920x1080-2x-light.png
+  size=90304 sha256=5394060ed339b355dbdd640b24ce986d38b77fbee2490188a58cc5d175b5d613
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 645}
+
+## ui/e2e/visual/baselines/linux/settings-network-1280x720-2x-dark.png
+  size=65459 sha256=63c0eda196da49d520106e1939df35f6323baecb0088bb67303f7dcab0e8e23d
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 500}
+
+## ui/e2e/visual/baselines/linux/settings-performance-1280x720-2x-light.png
+  size=69112 sha256=74c11c159f549712ab50a853ecbaf5a60731d99ecdbbb8d71d3afd5a536bc2f1
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 495}
+
+## ui/e2e/visual/baselines/linux/discovery-1280x720-1x-light.png
+  size=47123 sha256=189eb35f4d7533403294aeb6ba791b148db2ef4d0378434db1c893f7e6ab9c65
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 320}
+
+## ui/e2e/visual/baselines/linux/settings-extensions-1280x720-2x-dark.png
+  size=45882 sha256=0245e859f0bb5d1628ee95612320e5b698662913c123653dcd5de2f0650e915e
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 407}
+
+## ui/e2e/visual/baselines/linux/settings-extensions-1280x720-1x-dark.png
+  size=45806 sha256=8048337847f8bab001016cc38fdec30ed7c0532dc71fd888bbd084765c421e69
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 407}
+
+## ui/e2e/visual/baselines/linux/open-network-stream-1920x1080-1x-light.png
+  size=51627 sha256=18b71564afbea8ee3365e1e1036931aeb686526bcf8a80b7abbc1e367c9bb2c6
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 385}
+
+## ui/e2e/visual/baselines/linux/onboarding-1280x720-1x-dark.png
+  size=25391 sha256=cda51b69146385e57891ff3dc4fd9321156e74f1b32ce51fd38d98c13206ea38
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 704, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2704064, 'rows_decoded': 704, 'unique_rows(first2000)': 249}
+
+## ui/e2e/visual/baselines/linux/playlist-1920x1080-1x-dark.png
+  size=33075 sha256=102ef578541597300fa0d6d6c7845b28bf42126934719c4f97a647a9993999e9
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 230}
+
+## ui/e2e/visual/baselines/linux/not-found-1280x720-2x-light.png
+  size=27204 sha256=670e34cb2317d3657707acba8c2c2c7f97dea822c827e706859c0d635e2865ff
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1280, 'height': 720, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 2765520, 'rows_decoded': 720, 'unique_rows(first2000)': 293}
+
+## ui/e2e/visual/baselines/linux/miniplayer-1920x1080-2x-light.png
+  size=19811 sha256=a15a3e13049c400ddf61bccc641f56807d2e39837ff7f712778e54e979d0a936
+  magic=89504e470d0a1a0a0000000d49484452
+  png={'width': 1920, 'height': 1080, 'bitdepth': 8, 'colortype': 2, 'interlace': 0, 'raw_bytes': 6221880, 'rows_decoded': 1080, 'unique_rows(first2000)': 266}
+
+=== PAIRS: malformed vs valid parent ===
+  tests/fixtures/generated/malformed/wav_pcm_s16le_44k1_st__flip4 vs tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav:
+    sizes 35358 vs 35358 (delta 0); common-prefix diff bytes=3; offsets[:10]=[20, 146, 236]
+  tests/fixtures/generated/malformed/wav_pcm_s16le_44k1_st__trunc0 vs tests/fixtures/generated/valid/wav_pcm_s16le_44k1_st.wav:
+    sizes 12 vs 35358 (delta -35346); common-prefix diff bytes=0; offsets[:10]=[]
+  tests/fixtures/generated/malformed/aiff_pcm_s16be_44k1_st__trunc3 vs tests/fixtures/generated/valid/aiff_pcm_s16be_44k1_st.aiff:
+    sizes 17667 vs 35334 (delta -17667); common-prefix diff bytes=0; offsets[:10]=[]
+  tests/fixtures/generated/malformed/ogg_vorbis_8k_st__garbage0 vs tests/fixtures/generated/valid/ogg_vorbis_8k_st.ogg:
+    sizes 7341 vs 3245 (delta 4096); common-prefix diff bytes=0; offsets[:10]=[]
+  tests/fixtures/generated/malformed/avi_mjpeg_pcm__trunc0.avi vs tests/fixtures/generated/valid/avi_mjpeg_pcm.avi:
+    sizes 12 vs 425516 (delta -425504); common-prefix diff bytes=0; offsets[:10]=[]
+  tests/fixtures/generated/malformed/avi_mjpeg_pcm__noidx0.avi vs tests/fixtures/generated/valid/avi_mjpeg_pcm.avi:
+    sizes 423588 vs 425516 (delta -1928); common-prefix diff bytes=2; offsets[:10]=[4, 5]
+
+=== ORACLE checks ===
+  tests/fixtures/generated/valid/avi_mjpeg_pcm.avi.oracle.sha256: 38 entries; target=tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+    actual_sha256=1f56202d7b113d38f9e1564fd09091803a264ea2ac88ec9780232ca10a3d271a
+    file-hash-in-oracle=False
+      | # Lumen external-oracle hash pin — card W1-14 (audit M15 cure; directives
+      | # D-5 "escape the echo chamber" / D-11 "ffmpeg as the external oracle").
+      | # DO NOT hand-edit: these are hashes of FFMPEG'S OWN DECODE of the fixture,
+      | # not of Lumen output. To re-pin, follow the procedure in the header of
+      | # scripts/oracle_check.sh and record why in the commit message.
+      | #
+      | # fixture   : tests/fixtures/generated/valid/avi_mjpeg_pcm.avi
+      | # content   : AVI 1.0 (RIFF) — MJPEG video 320x240 4:2:0 full-range,
+  tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4.oracle.sha256: 39 entries; target=tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4
+    actual_sha256=d0459524e3be5e90174c2a861724c3bb06fc12fbcbb52c7feea5f117aaa26da6
+    file-hash-in-oracle=False
+      | # Lumen external-oracle hash pin — card W1-14 (audit M15 cure; directives
+      | # D-5 "escape the echo chamber" / D-11 "ffmpeg as the external oracle").
+      | # DO NOT hand-edit: these are hashes of FFMPEG'S OWN DECODE of the fixture,
+      | # not of Lumen output. To re-pin, follow the procedure in the header of
+      | # scripts/oracle_check.sh and record why in the commit message.
+      | #
+      | # fixture   : tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4
+      | # content   : ISO-BMFF/MP4 (ftyp isom) — MJPEG video 320x240 4:2:0
