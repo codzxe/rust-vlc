@@ -1331,7 +1331,14 @@ impl Mp4Demuxer {
                     for i in 0..entries {
                         let run = u32be(body, 8 + i * 8).unwrap_or(0) as u64;
                         let off = if version == 1 {
-                            i64be(body, 12 + i * 8).unwrap_or(0)
+                            // v1 composition offsets are signed i32
+                            // (§8.6.1.3: the only change v1 makes —
+                            // entries stay 8 bytes, the offset field
+                            // stays 4). The old 8-byte i64be read
+                            // spanned into the next entry's
+                            // sample_count (F-007); the fixed read is
+                            // the v0 lane's own.
+                            i64::from(u32be(body, 12 + i * 8).unwrap_or(0) as i32)
                         } else {
                             // v0 composition offsets are signed i32.
                             i64::from(u32be(body, 12 + i * 8).unwrap_or(0) as i32)

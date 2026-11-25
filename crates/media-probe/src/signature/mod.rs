@@ -467,6 +467,21 @@ mod tests {
         assert_eq!(r.len(), 14);
     }
 
+    /// The MPEG-TS packet stride (188), mirroring phase5's own
+    /// `TS_PACKET_BYTES` (no module edge from the tests module): the
+    /// boundary the no-panic sweep must actually reach.
+    const TS_STRIDE: usize = 188;
+
+    /// Place `magic` at `at`, bounds-checked before the slice — the
+    /// FX1-A02 guard discipline (phase5's twin): the sweep's own
+    /// construction stays panic-free for any template length, and a
+    /// short template simply carries less magic.
+    fn place(template: &mut [u8], at: usize, magic: &[u8]) {
+        if at + magic.len() <= template.len() {
+            template[at..at + magic.len()].copy_from_slice(magic);
+        }
+    }
+
     #[test]
     fn builtin_signatures_never_panic_on_arbitrary_windows() {
         // Doc 03 §4.2(f): random prefixes must never panic any probe
@@ -475,19 +490,33 @@ mod tests {
         let r = ProbeRegistry::with_builtins();
         let meta = SourceMeta::new(None, None);
         let cfg = config(60);
-        let mut template = vec![0u8; 64];
-        template[..4].copy_from_slice(b"RIFF");
-        template[8..12].copy_from_slice(b"AVI ");
-        template[16..20].copy_from_slice(b"moov");
-        for pos in 0..template.len() {
-            for value in 0..=255u8 {
-                let mut window = template.clone();
-                window[pos] = value;
-                let _ = r.probe(&window, &meta, &cfg);
+        // Template one: the 64-byte RIFF/AVI/moov container shape.
+        let mut container = vec![0u8; 64];
+        place(&mut container, 0, b"RIFF");
+        place(&mut container, 8, b"AVI ");
+        place(&mut container, 16, b"moov");
+        // Template two: the MPEG-TS stride shape — the 0x47 sync at
+        // [0] and the second sync at the 188-byte stride, the exact
+        // boundary window that panicked the probe before FX1-A02's
+        // guard (the audit's false-promise note: the sweep used to
+        // reach a 64-byte RIFF template only). Every truncation
+        // crosses 187/188/189, and every single-byte mutation bends
+        // the stride check itself — "arbitrary windows" now covers
+        // the shape the name promises.
+        let mut ts = vec![0u8; TS_STRIDE + 1];
+        place(&mut ts, 0, &[0x47]);
+        place(&mut ts, TS_STRIDE, &[0x47]);
+        for template in [container, ts] {
+            for pos in 0..template.len() {
+                for value in 0..=255u8 {
+                    let mut window = template.clone();
+                    window[pos] = value;
+                    let _ = r.probe(&window, &meta, &cfg);
+                }
             }
-        }
-        for cut in 0..=template.len() {
-            let _ = r.probe(&template[..cut], &meta, &cfg);
+            for cut in 0..=template.len() {
+                let _ = r.probe(&template[..cut], &meta, &cfg);
+            }
         }
     }
 

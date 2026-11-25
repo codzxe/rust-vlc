@@ -999,7 +999,18 @@ impl AsfHeader {
         let mut noted = 0u64;
         while off + 24 <= end && count < MAX_EXTENSION_CHILDREN {
             let size = guid::u64le(payload, off + 16);
-            if size < 24 || off as u64 + size > end as u64 {
+            // Checked child-size end (W04-A10 F-002 — the same class
+            // the header children walk's own size check fixed): a
+            // crafted near-u64::MAX child size overflowed the plain
+            // `off + size` comparison add (debug: panic at the
+            // arithmetic; release: the wrapped sum slipped past the
+            // bound guard and the `off += size` cursor walked
+            // backwards). One checked sum feeds both the bound check
+            // and the cursor advance — overflow is the typed refusal.
+            let Some(child_end) = (off as u64).checked_add(size) else {
+                return Err(error::bad_object_size(0));
+            };
+            if size < 24 || child_end > end as u64 {
                 noted += (end - off) as u64;
                 break;
             }
@@ -1010,7 +1021,7 @@ impl AsfHeader {
                 noted += 1;
             }
             count += 1;
-            off += size as usize;
+            off = child_end as usize;
         }
         Ok((count, noted))
     }
