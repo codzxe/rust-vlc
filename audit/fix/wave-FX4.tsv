@@ -1,0 +1,9 @@
+agent	plan_item	defect	files	evidence
+FX4-A01	F1.1	Route the pipeline to a real backend: replace NullBackend::open_stream with backend factory (cpal feature-aware, null fallback headless) + wire Gain/Eq3Band/mixer + rate-mismatch resampler into the chain + expose audio_controls()	apps/cli/src/pipeline_host.rs	FIX-PLAN §3 F1.1; FX3 reports (controls/resampler/seams)
+FX4-A02	F1.1c	host verbs: audio.set-volume/set-mute/set-balance/eq no longer refused — route to pipeline audio_controls()	apps/cli/src/host.rs	audit/waves/wave-07 (W07-A02/A06/A07/A08)
+FX4-A03	F1.1	desktop host audio chain verification/fix (chains through CliHost)	apps/desktop/src/** (audio path files)	audit/waves/wave-08; FX3-A06 recipes
+FX4-A04	F1.2	tauri app audio pump + frame/audio channel wiring (spawn_event_pump lane post-FX1)	apps/desktop-tauri/src/app.rs; apps/desktop-tauri/src/frame_channel.rs	FIX-PLAN §3 F1.2; audit/waves/wave-14
+FX4-A05	F1.1	integration tests fx4_*: end-to-end audio to counting null stats; volume/mute/EQ observable in samples	apps/cli/tests/fx4_audio_path.rs (new)	FX3-A05 stats seam; FX3-A03 controls
+FX4-A06	F1.1	CLI flags --audio-backend/--no-audio + honest help text for backend selection	apps/cli/src/parse.rs; apps/cli/src/help.rs (verify ownership: parse/help)	FIX-PLAN §3; W11 help findings
+FX4-A07	F1.1	docs truth: audio wired in shipped hosts (post-FX4), remaining [VERIFY] hardware items docs/KNOWN-LIMITS.md; audio docs	FX3-A08 wave report; audit docs
+FX4-A08	F1.1	UI controls real: volume slider/EQ panel call the real IPC verbs (currently dead widgets)	ui/src/components/slider/Volume.tsx; EQSlider.tsx + transport wiring files	audit/waves/wave-15 (W15 UI IPC truth)
