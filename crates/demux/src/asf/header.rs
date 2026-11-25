@@ -555,7 +555,13 @@ impl AsfHeader {
             if size < 24 {
                 return Err(error::bad_object_size(header_offset + off as u64));
             }
-            let end = off as u64 + size;
+            // A crafted near-u64::MAX child size overflows the plain
+            // add (W04-A10 F-001): checked — a malformed child size
+            // is the typed refusal, never a wrapped walk past the
+            // `end > header_size` guard.
+            let Some(end) = (off as u64).checked_add(size) else {
+                return Err(error::bad_object_size(header_offset + off as u64));
+            };
             if end > header_size {
                 return Err(error::bad_object_size(header_offset + off as u64));
             }

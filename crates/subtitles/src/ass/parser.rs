@@ -713,13 +713,16 @@ fn apply_position_override(
     stats: &mut AssStats,
 ) -> Positioning {
     // percent = milli / (extent × 1000) × 100, round-half-up.
+    // Every step checked: a crafted PlayResX/\pos pair that would
+    // overflow the rounding add (W09-A01 F-001) is unmappable,
+    // never a panic.
     let to_percent = |milli: i64, extent: i64| -> Option<i32> {
         let num = milli.checked_mul(100)?;
         let den = extent.checked_mul(1000)?;
         if den == 0 {
             return None;
         }
-        let q = (num + den / 2) / den;
+        let q = num.checked_add(den / 2)? / den;
         i32::try_from(q).ok().filter(|v| (0..=100).contains(v))
     };
     match (
