@@ -75,7 +75,11 @@
 //! [`MediaClock::with_backends`], reporting stream losses through
 //! [`MediaClock::on_master_lost`], steering per presented frame in
 //! video-master mode, calling [`MediaClock::mark_ended`] at EOF and
-//! [`MediaClock::seek_back`] for the play-from-ended restart. That
+//! [`MediaClock::seek_back`] for the play-from-ended restart. The
+//! audio truth source itself is runtime-pluggable via
+//! [`MediaClock::adopt_sample_source`] (FX3-A06, doc 03 §4.9): the
+//! engine hands the open device session's counter to the live clock
+//! at open and re-open, instead of rebuilding the clock. That
 //! rewiring is a playback-engine card; this crate's 3.B1 API stays
 //! byte-compatible.
 
@@ -345,6 +349,30 @@ pub enum SwitchError {
     NotWired { target: MasterTarget },
     /// The target's stream was already reported lost.
     Lost { target: MasterTarget },
+}
+
+/// A [`MediaClock::adopt_sample_source`] refusal — typed, the clock
+/// unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdoptSourceError {
+    /// The current master is not [`crate::ClockMaster::AudioOutput`]:
+    /// the seam swaps the **audio** truth source of the audio-master
+    /// clock (FX3-A06, doc 03 §4.9). Installing a sample counter onto
+    /// a non-audio clock would be a silent master promotion —
+    /// changing masters is [`MediaClock::switch_master`]'s explicit
+    /// business, against the wired backends.
+    NotAudioMaster { current: crate::ClockMaster },
+}
+
+impl std::fmt::Display for AdoptSourceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let AdoptSourceError::NotAudioMaster { current } = self;
+        write!(
+            f,
+            "adopt_sample_source refused: current master is {current}, not audio-output \
+             (a sample source installs onto the audio-master clock only)"
+        )
+    }
 }
 
 /// A [`MediaClock::seek_back`] refusal — typed, the clock unchanged.
@@ -786,6 +814,97 @@ impl MediaClock {
         }
         let (from, to) = switch_locked(&mut core, kind, MasterChangeReason::EngineSwitch);
         Ok(MasterSwitch::Switched { from, to })
+    }
+
+    /// Adopt `source` as the audio-master clock's truth source at
+    /// **runtime** (FX3-A06; doc 03 §4.9 — the open device session's
+    /// counter is "the clock's truth source"). Construction fixes the
+    /// source once ([`MediaClock::audio_master`] /
+    /// [`ClockBackends::audio`]); this seam is the re-open /
+    /// device-switch path — the engine hands the new open session's
+    /// counter (the `AudioBackend::clock_source` handle) to the live
+    /// clock instead of rebuilding it, so the session generation,
+    /// epoch history and every held `Arc` survive.
+    ///
+    /// The swap follows `switch_locked`'s discipline, like-kind
+    /// (audio → audio): under one lock, the clamped position is
+    /// carried from the old source, the truth source is swapped, the
+    /// anchor is re-taken against the new source's **current**
+    /// reading (its own counter domain — a fresh count and possibly a
+    /// different rate are anchored, never extrapolated against the
+    /// old anchor), the freeze (paused/ended) carries, and the anchor
+    /// epoch bumps exactly once. This is a re-anchor, not a master
+    /// change: no [`MasterChanged`] event (from == to == audio would
+    /// be noise) — the receipt is the returned snapshot, and the bump
+    /// is what per-epoch monotonicity reasoning restarts from.
+    ///
+    /// A new source that cannot be read yet (a zero sample rate — a
+    /// device that has not finished opening) parks the clock at the
+    /// carried position with the awaiting-first-usable-reading latch:
+    /// its first readable sample count becomes the fresh anchor
+    /// baseline — no jump, and no false discontinuity from comparing
+    /// a new counter domain against the old anchor. A dead old
+    /// source (the [`MasterLoss::NoFallback`] hold) is cured by the
+    /// same carry — the clock leaves the hold without inventing a
+    /// position. The wired audio slot of a
+    /// [`MediaClock::with_backends`] clock is refreshed to the new
+    /// source, so later switches and demotions target the new
+    /// session's counter, not the one it replaced; the old stream's
+    /// loss bookkeeping is untouched (a re-promotion policy after a
+    /// demotion is the engine's card — the refusal below is the
+    /// boundary of that scope).
+    ///
+    /// # Errors
+    /// [`AdoptSourceError::NotAudioMaster`] when the current master
+    /// is not [`crate::ClockMaster::AudioOutput`] — the clock is
+    /// unchanged.
+    pub fn adopt_sample_source(
+        &self,
+        source: Arc<dyn SampleCounterSource>,
+    ) -> Result<crate::ClockSnapshot, AdoptSourceError> {
+        let mut core = self.lock_core();
+        if core.source.master_kind() != MasterKind::Audio {
+            return Err(AdoptSourceError::NotAudioMaster {
+                current: core.source.master(),
+            });
+        }
+        // 1. The carried position under the OLD source (clamped —
+        //    holds across the old source's own discontinuity, e.g.
+        //    the NoFallback hold after a dead device).
+        let old_reading = read_source(&core.source);
+        let position = now_locked(&mut core, &old_reading);
+        // 2. Refresh the wired audio slot (multi-backend clocks) so
+        //    later switches/demotions target the new session's
+        //    counter, not the dead one it replaces. A 3.B1
+        //    single-master clock has no wired slot (no_fallback).
+        if core.backend.wired.audio.is_some() {
+            core.backend.wired.audio = Some(source.clone());
+        }
+        // 3. Swap the truth source inside the lock — atomic with the
+        //    re-anchor it performs (crate::clock::Source's rule: a
+        //    read of an old source can never be extrapolated against
+        //    a new master's anchor).
+        core.source = Source::Samples(source);
+        // 4. Re-anchor at the carried position against the NEW
+        //    source's current reading; an unreadable one parks at the
+        //    carried position with the awaiting-first-usable-reading
+        //    latch instead of comparing a fresh counter domain
+        //    against the old anchor.
+        core.anchor_media_ns = position;
+        let new_reading = read_source(&core.source);
+        if matches!(new_reading, crate::clock::Reading::Usable { .. }) {
+            adopt_anchor(&mut core, &new_reading);
+        } else {
+            core.awaiting_anchor = true;
+        }
+        // 5. The freeze (paused/ended) carries at the same position.
+        if core.paused || core.backend.ended {
+            core.frozen_ns = position;
+        }
+        // 6. Epoch boundary: a re-anchor (the position carries, so
+        //    no jump — per-epoch monotonicity reasoning restarts).
+        core.epoch += 1;
+        Ok(snapshot_locked(&mut core))
     }
 
     /// Steer the video-master clock with a presented frame's media

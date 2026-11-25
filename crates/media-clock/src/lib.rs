@@ -17,7 +17,10 @@
 //! audio-output adapter or [`InstantSource`] into the clock; tests wire
 //! virtual sources built on `testkit`'s `VirtualClock`, so every
 //! acceptance test advances time deterministically — no sleeps (doc 03
-//! §8). See [`source`].
+//! §8). The audio truth source is runtime-pluggable:
+//! [`MediaClock::adopt_sample_source`] swaps the open device session's
+//! counter into a live clock (re-open, device switch — doc 03 §4.9).
+//! See [`source`].
 //!
 //! # Time vocabulary
 //!
@@ -114,8 +117,9 @@ pub mod source;
 pub mod sync;
 
 pub use backends::{
-    ClockBackends, DEFAULT_VIDEO_SNAP_NS, InitialMaster, MasterChangeReason, MasterChanged,
-    MasterLoss, MasterStream, MasterSwitch, MasterTarget, SeekBackError, SwitchError, VideoSteer,
+    AdoptSourceError, ClockBackends, DEFAULT_VIDEO_SNAP_NS, InitialMaster, MasterChangeReason,
+    MasterChanged, MasterLoss, MasterStream, MasterSwitch, MasterTarget, SeekBackError,
+    SwitchError, VideoSteer,
 };
 pub use clock::{ClockAnchor, ClockMaster, ClockSnapshot, ClockState, MediaClock, PlaybackClock};
 pub use drift::{DriftCorrection, MAX_CORRECTION_PPM};
