@@ -39,12 +39,18 @@
 //! **Evidence status:** compile-verified via `cargo check --target
 //! aarch64-apple-darwin` and `x86_64-apple-darwin`; runtime NOT
 //! exercised in this sandbox (no macOS SDK) — `[VERIFY]` on
-//! real-device behavior (in particular the numeric value of
-//! `kAudioObjectPropertyElementMaster` and the claim that reading
+//! real-device behavior (in particular the claim that reading
 //! `kAudioHardwarePropertyDefaultOutputDevice` inside its own
 //! listener is deadlock-free — the HAL is documented to invoke
 //! property listeners without holding its global lock, but that
-//! claim needs hardware confirmation).
+//! claim needs hardware confirmation). The numeric ABI constants
+//! (object ids, four-char-code selectors, scopes, and the master
+//! element) are pinned to Apple's public headers by the unit tests
+//! at the bottom of this module — including
+//! `kAudioObjectPropertyElementMaster = 0` (FX2-A07, audit
+//! W08-A02 F-001: this file once built every property address with
+//! element 1, which addresses the queries to a nonexistent element
+//! and fails the first HAL probe).
 
 // SAFETY-SCOPED MODULE (doc 01 §2.7 / MP §9): the CoreAudio/
 // CoreFoundation C ABI is the audited OS-service exception this
@@ -132,9 +138,13 @@ const SCOPE_GLOBAL: u32 = 0x676c_6f62;
 const SCOPE_OUTPUT: u32 = 0x6f75_7470;
 /// `kAudioObjectPropertyElementMaster` (renamed
 /// `kAudioObjectPropertyElementMain`) — the whole-object element.
-/// `[VERIFY]` the numeric value on real hardware (the declaration is
-/// compile-only evidence in this sandbox).
-const ELEMENT_MAIN: u32 = 1;
+/// Pinned to Apple's public `AudioObjectBase.h`
+/// (`enum { kAudioObjectPropertyElementMaster = 0 }`): the master
+/// element is element 0, never 1 — audit W08-A02 F-001 caught this
+/// crate shipping 1, which addressed every property query below to
+/// a nonexistent element (FX2-A07 re-pinned the constant and the
+/// addresses built from it).
+const ELEMENT_MAIN: u32 = 0;
 /// `kAudioHardwarePropertyDevices` = `'dev#'`.
 const SELECTOR_DEVICES: u32 = 0x6465_7623;
 /// `kAudioHardwarePropertyDefaultOutputDevice` = `'dOut'`.
@@ -147,6 +157,62 @@ const SELECTOR_DEVICE_UID: u32 = 0x7569_6420;
 const SELECTOR_STREAM_CONFIGURATION: u32 = 0x7374_7223;
 /// `kAudioDevicePropertyNominalSampleRate` = `'nsr '`.
 const SELECTOR_NOMINAL_SAMPLE_RATE: u32 = 0x6e73_7220;
+
+// ---------------------------------------------------------------------------
+// The property addresses this client builds. Every query it makes
+// is a master-element query: selector + scope + `ELEMENT_MAIN`
+// (element 0 — the whole object / whole scope, never a numbered
+// stream element).
+// ---------------------------------------------------------------------------
+
+/// The system object's device list
+/// (`kAudioHardwarePropertyDevices`, global scope, master element).
+const ADDRESS_DEVICES: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
+    selector: SELECTOR_DEVICES,
+    scope: SCOPE_GLOBAL,
+    element: ELEMENT_MAIN,
+};
+/// The system object's default output device
+/// (`kAudioHardwarePropertyDefaultOutputDevice`, global scope,
+/// master element).
+const ADDRESS_DEFAULT_OUTPUT: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
+    selector: SELECTOR_DEFAULT_OUTPUT,
+    scope: SCOPE_GLOBAL,
+    element: ELEMENT_MAIN,
+};
+/// A device's stable UID (`kAudioDevicePropertyDeviceUID`, global
+/// scope, master element).
+const ADDRESS_DEVICE_UID: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
+    selector: SELECTOR_DEVICE_UID,
+    scope: SCOPE_GLOBAL,
+    element: ELEMENT_MAIN,
+};
+/// An object's human-readable name (`kAudioObjectPropertyName`,
+/// global scope, master element).
+const ADDRESS_NAME: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
+    selector: SELECTOR_NAME,
+    scope: SCOPE_GLOBAL,
+    element: ELEMENT_MAIN,
+};
+/// A device's nominal sample rate
+/// (`kAudioDevicePropertyNominalSampleRate`, global scope, master
+/// element).
+const ADDRESS_NOMINAL_SAMPLE_RATE: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
+    selector: SELECTOR_NOMINAL_SAMPLE_RATE,
+    scope: SCOPE_GLOBAL,
+    element: ELEMENT_MAIN,
+};
+/// The device's output-scope stream configuration
+/// (`kAudioDevicePropertyStreamConfiguration`, output scope) —
+/// addressed to the master element, i.e. the aggregate
+/// `AudioBufferList` for the whole output scope, not one numbered
+/// stream.
+const ADDRESS_STREAM_CONFIGURATION_OUTPUT: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        selector: SELECTOR_STREAM_CONFIGURATION,
+        scope: SCOPE_OUTPUT,
+        element: ELEMENT_MAIN,
+    };
 
 /// `noErr` (MacTypes.h).
 const NO_ERR: OsStatus = 0;
@@ -367,17 +433,12 @@ unsafe fn get_property_f64(
 
 /// The system object's device list (`kAudioHardwarePropertyDevices`).
 fn system_device_ids() -> Result<Vec<AudioObjectId>, PlatformError> {
-    let address = AudioObjectPropertyAddress {
-        selector: SELECTOR_DEVICES,
-        scope: SCOPE_GLOBAL,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: the system object is live by definition; the address
     // is complete.
     let bytes = unsafe {
         get_property_bytes(
             K_AUDIO_OBJECT_SYSTEM_OBJECT,
-            &address,
+            &ADDRESS_DEVICES,
             "kAudioHardwarePropertyDevices",
         )?
     };
@@ -396,16 +457,11 @@ fn system_device_ids() -> Result<Vec<AudioObjectId>, PlatformError> {
 
 /// The current default output device, when the system has one.
 fn default_output_device_id() -> Result<Option<AudioObjectId>, PlatformError> {
-    let address = AudioObjectPropertyAddress {
-        selector: SELECTOR_DEFAULT_OUTPUT,
-        scope: SCOPE_GLOBAL,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: the system object is live by definition.
     let bytes = unsafe {
         get_property_bytes(
             K_AUDIO_OBJECT_SYSTEM_OBJECT,
-            &address,
+            &ADDRESS_DEFAULT_OUTPUT,
             "kAudioHardwarePropertyDefaultOutputDevice",
         )?
     };
@@ -426,28 +482,18 @@ fn default_output_device_id() -> Result<Option<AudioObjectId>, PlatformError> {
 fn describe_device(
     device: AudioObjectId,
 ) -> Result<Option<(AudioObjectId, DeviceDesc)>, PlatformError> {
-    let uid_address = AudioObjectPropertyAddress {
-        selector: SELECTOR_DEVICE_UID,
-        scope: SCOPE_GLOBAL,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: device is live (from a fresh devices-array read).
-    let uid =
-        match unsafe { get_property_string(device, &uid_address, "kAudioDevicePropertyDeviceUID") }
-        {
-            Ok(uid) => uid,
-            Err(_) => return Ok(None), // no UID: not addressable for streaming
-        };
+    let uid = match unsafe {
+        get_property_string(device, &ADDRESS_DEVICE_UID, "kAudioDevicePropertyDeviceUID")
+    } {
+        Ok(uid) => uid,
+        Err(_) => return Ok(None), // no UID: not addressable for streaming
+    };
     if uid.is_empty() {
         return Ok(None);
     }
-    let name_address = AudioObjectPropertyAddress {
-        selector: SELECTOR_NAME,
-        scope: SCOPE_GLOBAL,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: device is live.
-    let name = unsafe { get_property_string(device, &name_address, "kAudioObjectPropertyName") }
+    let name = unsafe { get_property_string(device, &ADDRESS_NAME, "kAudioObjectPropertyName") }
         .ok()
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| format!("CoreAudio device {uid}"));
@@ -465,17 +511,12 @@ fn describe_device(
 /// HAL's native mix format), the output-scope channel count, planar
 /// (CoreAudio's non-interleaved buffer layout), the nominal rate.
 fn preferred_format(device: AudioObjectId) -> AudioFormat {
-    let rate_address = AudioObjectPropertyAddress {
-        selector: SELECTOR_NOMINAL_SAMPLE_RATE,
-        scope: SCOPE_GLOBAL,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: device is live; a failing/absent rate is a suggestion
     // gap, not an enumeration failure — fall back to 48 kHz.
     let rate = unsafe {
         get_property_f64(
             device,
-            &rate_address,
+            &ADDRESS_NOMINAL_SAMPLE_RATE,
             "kAudioDevicePropertyNominalSampleRate",
         )
     }
@@ -494,15 +535,14 @@ fn preferred_format(device: AudioObjectId) -> AudioFormat {
 /// The output-scope channel count (the sum of the output
 /// `AudioBufferList`'s buffers' channel counts; 0 when unreadable).
 fn output_channels(device: AudioObjectId) -> u32 {
-    let address = AudioObjectPropertyAddress {
-        selector: SELECTOR_STREAM_CONFIGURATION,
-        scope: SCOPE_OUTPUT,
-        element: ELEMENT_MAIN,
-    };
     // SAFETY: device is live; an unreadable configuration is a
     // suggestion gap — the caller clamps to at least one channel.
     let bytes = match unsafe {
-        get_property_bytes(device, &address, "kAudioDevicePropertyStreamConfiguration")
+        get_property_bytes(
+            device,
+            &ADDRESS_STREAM_CONFIGURATION_OUTPUT,
+            "kAudioDevicePropertyStreamConfiguration",
+        )
     } {
         Ok(bytes) => bytes,
         Err(_) => return 0,
@@ -632,21 +672,13 @@ impl Drop for Watch {
         unsafe {
             AudioObjectRemovePropertyListener(
                 K_AUDIO_OBJECT_SYSTEM_OBJECT,
-                &AudioObjectPropertyAddress {
-                    selector: SELECTOR_DEVICES,
-                    scope: SCOPE_GLOBAL,
-                    element: ELEMENT_MAIN,
-                },
+                &ADDRESS_DEVICES,
                 on_property_change,
                 client,
             );
             AudioObjectRemovePropertyListener(
                 K_AUDIO_OBJECT_SYSTEM_OBJECT,
-                &AudioObjectPropertyAddress {
-                    selector: SELECTOR_DEFAULT_OUTPUT,
-                    scope: SCOPE_GLOBAL,
-                    element: ELEMENT_MAIN,
-                },
+                &ADDRESS_DEFAULT_OUTPUT,
                 on_property_change,
                 client,
             );
@@ -703,11 +735,7 @@ impl AudioDevices for CoreAudioDevices {
         let status = unsafe {
             AudioObjectAddPropertyListener(
                 K_AUDIO_OBJECT_SYSTEM_OBJECT,
-                &AudioObjectPropertyAddress {
-                    selector: SELECTOR_DEVICES,
-                    scope: SCOPE_GLOBAL,
-                    element: ELEMENT_MAIN,
-                },
+                &ADDRESS_DEVICES,
                 on_property_change,
                 client,
             )
@@ -723,11 +751,7 @@ impl AudioDevices for CoreAudioDevices {
         let status = unsafe {
             AudioObjectAddPropertyListener(
                 K_AUDIO_OBJECT_SYSTEM_OBJECT,
-                &AudioObjectPropertyAddress {
-                    selector: SELECTOR_DEFAULT_OUTPUT,
-                    scope: SCOPE_GLOBAL,
-                    element: ELEMENT_MAIN,
-                },
+                &ADDRESS_DEFAULT_OUTPUT,
                 on_property_change,
                 client,
             )
@@ -739,11 +763,7 @@ impl AudioDevices for CoreAudioDevices {
             unsafe {
                 AudioObjectRemovePropertyListener(
                     K_AUDIO_OBJECT_SYSTEM_OBJECT,
-                    &AudioObjectPropertyAddress {
-                        selector: SELECTOR_DEVICES,
-                        scope: SCOPE_GLOBAL,
-                        element: ELEMENT_MAIN,
-                    },
+                    &ADDRESS_DEVICES,
                     on_property_change,
                     client,
                 );
@@ -762,5 +782,102 @@ impl AudioDevices for CoreAudioDevices {
         // Push-based: the HAL listener pushes into the queue; the
         // events already sit there (see the seam contract).
         Ok(0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Regression tests (FX2-A07 / audit W08-A02 F-001). They ride this
+// module's `target_os = "macos"` cfg: they compile and run on a macOS
+// host only — a non-macOS build never compiles this module at all
+// (the cfg discipline that keeps the crate compiling on this Linux
+// host; the wrong-OS lane is covered from the outside by
+// `tests/seam_behaviour.rs`).
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::{
+        ADDRESS_DEFAULT_OUTPUT, ADDRESS_DEVICE_UID, ADDRESS_DEVICES, ADDRESS_NAME,
+        ADDRESS_NOMINAL_SAMPLE_RATE, ADDRESS_STREAM_CONFIGURATION_OUTPUT,
+        AudioObjectPropertyAddress, ELEMENT_MAIN, K_AUDIO_OBJECT_SYSTEM_OBJECT, SCOPE_GLOBAL,
+        SCOPE_OUTPUT, SELECTOR_DEFAULT_OUTPUT, SELECTOR_DEVICE_UID, SELECTOR_DEVICES,
+        SELECTOR_NAME, SELECTOR_NOMINAL_SAMPLE_RATE, SELECTOR_STREAM_CONFIGURATION,
+    };
+
+    /// Audit W08-A02 F-001: Apple's public `AudioObjectBase.h` pins
+    /// `kAudioObjectPropertyElementMaster` (renamed
+    /// `kAudioObjectPropertyElementMain`) to `0` — the whole-object
+    /// element is element 0, never 1. This crate shipped `1`, which
+    /// would have addressed every property query to a nonexistent
+    /// element and failed the lane's first HAL probe.
+    #[test]
+    fn fx2_a07_master_element_is_element_zero() {
+        assert_eq!(
+            ELEMENT_MAIN, 0,
+            "kAudioObjectPropertyElementMaster/Main = 0 (AudioObjectBase.h)"
+        );
+    }
+
+    /// Every property address this client builds is a
+    /// master-element query: element 0. The full
+    /// (selector, scope, element) triple of each of the six addresses
+    /// is pinned, so no query can drift back onto element 1 (or onto
+    /// the wrong scope) without failing this test.
+    #[test]
+    fn fx2_a07_master_queries_address_element_zero() {
+        let addresses: [(&str, &AudioObjectPropertyAddress); 6] = [
+            ("devices", &ADDRESS_DEVICES),
+            ("default output", &ADDRESS_DEFAULT_OUTPUT),
+            ("device uid", &ADDRESS_DEVICE_UID),
+            ("name", &ADDRESS_NAME),
+            ("nominal sample rate", &ADDRESS_NOMINAL_SAMPLE_RATE),
+            (
+                "output stream configuration",
+                &ADDRESS_STREAM_CONFIGURATION_OUTPUT,
+            ),
+        ];
+        for (name, address) in addresses {
+            assert_eq!(
+                address.element, 0,
+                "{name}: master-element queries address element 0"
+            );
+            assert_eq!(address.element, ELEMENT_MAIN, "{name}: uses ELEMENT_MAIN");
+        }
+        // The selector + scope halves of the same six addresses.
+        assert_eq!(ADDRESS_DEVICES.selector, SELECTOR_DEVICES);
+        assert_eq!(ADDRESS_DEVICES.scope, SCOPE_GLOBAL);
+        assert_eq!(ADDRESS_DEFAULT_OUTPUT.selector, SELECTOR_DEFAULT_OUTPUT);
+        assert_eq!(ADDRESS_DEFAULT_OUTPUT.scope, SCOPE_GLOBAL);
+        assert_eq!(ADDRESS_DEVICE_UID.selector, SELECTOR_DEVICE_UID);
+        assert_eq!(ADDRESS_DEVICE_UID.scope, SCOPE_GLOBAL);
+        assert_eq!(ADDRESS_NAME.selector, SELECTOR_NAME);
+        assert_eq!(ADDRESS_NAME.scope, SCOPE_GLOBAL);
+        assert_eq!(
+            ADDRESS_NOMINAL_SAMPLE_RATE.selector,
+            SELECTOR_NOMINAL_SAMPLE_RATE
+        );
+        assert_eq!(ADDRESS_NOMINAL_SAMPLE_RATE.scope, SCOPE_GLOBAL);
+        assert_eq!(
+            ADDRESS_STREAM_CONFIGURATION_OUTPUT.selector,
+            SELECTOR_STREAM_CONFIGURATION
+        );
+        assert_eq!(ADDRESS_STREAM_CONFIGURATION_OUTPUT.scope, SCOPE_OUTPUT);
+    }
+
+    /// The raw ABI numbers behind those addresses, pinned against
+    /// Apple's public headers (the four-char codes the audit
+    /// verified by arithmetic, plus the system object id) — a
+    /// typo in any selector/scope constant now fails here instead of
+    /// at the first HAL call on hardware.
+    #[test]
+    fn fx2_a07_property_address_abi_pins_the_public_header() {
+        assert_eq!(K_AUDIO_OBJECT_SYSTEM_OBJECT, 1);
+        assert_eq!(SCOPE_GLOBAL, u32::from_be_bytes(*b"glob"));
+        assert_eq!(SCOPE_OUTPUT, u32::from_be_bytes(*b"outp"));
+        assert_eq!(SELECTOR_DEVICES, u32::from_be_bytes(*b"dev#"));
+        assert_eq!(SELECTOR_DEFAULT_OUTPUT, u32::from_be_bytes(*b"dOut"));
+        assert_eq!(SELECTOR_DEVICE_UID, u32::from_be_bytes(*b"uid "));
+        assert_eq!(SELECTOR_NAME, u32::from_be_bytes(*b"name"));
+        assert_eq!(SELECTOR_STREAM_CONFIGURATION, u32::from_be_bytes(*b"str#"));
+        assert_eq!(SELECTOR_NOMINAL_SAMPLE_RATE, u32::from_be_bytes(*b"nsr "));
     }
 }
