@@ -1252,7 +1252,14 @@ impl Mp4Demuxer {
                 }
                 b"stts" => {
                     let count = u32be(body, 4).unwrap_or(0) as usize;
-                    for i in 0..count {
+                    // The entries the body actually carries: 8 bytes
+                    // per entry after the 8-byte version/flags+count
+                    // header. The header count is untrusted, so the
+                    // walk is clamped like the sibling stsz/stco
+                    // tables — a truncated box must not drive the
+                    // loop past the buffer.
+                    let entries = count.min(body.len().saturating_sub(8) / 8);
+                    for i in 0..entries {
                         let run = u32be(body, 8 + i * 8).unwrap_or(0) as u64;
                         let delta = u64::from(u32be(body, 12 + i * 8).unwrap_or(0));
                         let take =
@@ -1263,6 +1270,9 @@ impl Mp4Demuxer {
                         if run > take {
                             self.note(run - take, "stts-count-over-ceiling");
                         }
+                    }
+                    if count > entries {
+                        self.note((count - entries) as u64, "stts-count-over-ceiling");
                     }
                 }
                 b"stco" => {
@@ -1314,7 +1324,11 @@ impl Mp4Demuxer {
                 b"ctts" => {
                     let version = body.first().copied().unwrap_or(0);
                     let count = u32be(body, 4).unwrap_or(0) as usize;
-                    for i in 0..count {
+                    // Same clamp as stts: entries are 8 bytes in both
+                    // ctts versions, and a lying count must not walk
+                    // past the body.
+                    let entries = count.min(body.len().saturating_sub(8) / 8);
+                    for i in 0..entries {
                         let run = u32be(body, 8 + i * 8).unwrap_or(0) as u64;
                         let off = if version == 1 {
                             i64be(body, 12 + i * 8).unwrap_or(0)
@@ -1329,6 +1343,9 @@ impl Mp4Demuxer {
                         if run > take {
                             self.note(run - take, "ctts-count-over-ceiling");
                         }
+                    }
+                    if count > entries {
+                        self.note((count - entries) as u64, "ctts-count-over-ceiling");
                     }
                 }
                 _ => {}
