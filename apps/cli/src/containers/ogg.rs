@@ -33,10 +33,12 @@
 //!   (`\x80`info ‖ `\x81`comment ‖ `\x82`setup) — same shape, same
 //!   typed refusal (no Theora decoder; the blocked-registry
 //!   honesty).
-//! * **FLAC-in-Ogg `extra_data` = the SECOND header packet** (the
-//!   native STREAMINFO block the Xiph FLAC mapping carries after
-//!   its one-page mapping header) — the FLAC decoder's 34-byte
-//!   STREAMINFO requirement; the mapping header is not part of it.
+//! * **FLAC-in-Ogg `extra_data` = the SECOND header packet's
+//!   STREAMINFO body** (the Xiph mapping's packet is
+//!   block-header(4) ‖ body(34) — the prefix is stripped and
+//!   validated, the FLAC decoder's 34-byte truth) — neither the
+//!   one-page mapping header nor the metadata-block prefix is part
+//!   of it.
 //! * **No `pcm` pair**: Ogg's vocabulary has no PCM codec — every
 //!   audio geometry is codec-domain (Vorbis ID header, OpusHead),
 //!   carried by the blob above and surfaced through
@@ -140,6 +142,32 @@ fn classify(first: &[u8]) -> Option<&'static str> {
     }
 }
 
+/// The FLAC-in-Ogg second header packet's STREAMINFO body: the Xiph
+/// mapping's packet is a 4-byte metadata-block header (bit 7 the
+/// last-block flag, bits 0..6 the type — STREAMINFO = 0 — then a
+/// 24-bit big-endian body length) ahead of the 34-byte body the FLAC
+/// decoder's `extra_data` contract requires. A malformed packet
+/// (missing, not a STREAMINFO block, declared length ≠ 34, or shorter
+/// than 38 bytes) yields the empty blob — `FlacDecoder::configure`
+/// then refuses typed, never a guess.
+fn flac_streaminfo_body(second: Option<&SharedBytes>) -> Vec<u8> {
+    let Some(packet) = second.map(SharedBytes::as_slice) else {
+        return Vec::new();
+    };
+    let Some(block) = packet.get(..4) else {
+        return Vec::new();
+    };
+    let block_type = block[0] & 0x7F; // STREAMINFO is type 0
+    let declared = u32::from_be_bytes([0, block[1], block[2], block[3]]);
+    if block_type != 0 || declared != 34 {
+        return Vec::new();
+    }
+    match packet.get(4..4 + 34) {
+        Some(body) => body.to_vec(),
+        None => Vec::new(),
+    }
+}
+
 /// Harvest the track facts from a started Ogg demuxer: one fact per
 /// minted track, the header chain per logical stream (mapped
 /// track→serial through the arrival-order correspondence — tracks
@@ -191,12 +219,12 @@ fn harvest_facts(demuxer: &OggDemuxer, tracks: &[Track]) -> MediaFacts {
         let extra_data = serial.map(|serial| {
             let headers = demuxer.header_packets(serial);
             if codec == "flac" {
-                // The native STREAMINFO block (the mapping header's
-                // successor) — the FLAC decoder's 34-byte truth.
-                match headers.get(1) {
-                    Some(h) => SharedBytes::from_vec(h.as_slice().to_vec()),
-                    None => SharedBytes::from_vec(Vec::new()),
-                }
+                // The native STREAMINFO body (the mapping header's
+                // successor) — the FLAC decoder's 34-byte truth. The
+                // second header packet is block-header(4) ‖ body(34):
+                // strip the validated prefix — seeding the verbatim
+                // 38-byte packet parses the block header AS body bytes.
+                SharedBytes::from_vec(flac_streaminfo_body(headers.get(1)))
             } else {
                 // The verbatim header-chain join (see module docs).
                 let mut blob = Vec::new();
@@ -688,6 +716,69 @@ mod tests {
             Err(err) => assert_eq!(err.context.code.as_str(), "cli.codec_unavailable", "{err}"),
             Ok(_) => unreachable!("no theora decoder exists in this build"),
         }
+    }
+
+    /// FX1-A08 (wave FX1, W13-A06 F-001): the FLAC-in-Ogg
+    /// `extra_data` blob is the second header packet's STREAMINFO
+    /// BODY — the 4-byte metadata-block prefix stripped and validated
+    /// — never the verbatim 38-byte packet the pre-fix host seeded
+    /// (parsed by the decoder as garbage: the executed
+    /// `flac.streaminfo.rate: sample rate 0` refusal on a
+    /// spec-shaped .oga).
+    #[test]
+    fn fx1_a08_flac_extra_data_is_the_stripped_34_byte_body() {
+        // The Xiph mapping's second header packet: last-flagged
+        // STREAMINFO block header (24-bit BE length 34) + the body
+        // (48 kHz, stereo, 16-bit — the audit's crafted shape).
+        let mut body = [0u8; 34];
+        body[0..2].copy_from_slice(&4096u16.to_be_bytes());
+        body[2..4].copy_from_slice(&4096u16.to_be_bytes());
+        let packed: u64 = (48_000u64 << 44) | (1 << 41) | (15 << 36) | 4096;
+        body[10..18].copy_from_slice(&packed.to_be_bytes());
+        let mut packet = vec![0x80, 0x00, 0x00, 34];
+        packet.extend_from_slice(&body);
+        let second = SharedBytes::from_vec(packet);
+
+        let blob = flac_streaminfo_body(Some(&second));
+        assert_eq!(blob.len(), 34, "the prefix is stripped, the body kept");
+        let facts = match codecs::audio::flac::parse_streaminfo(&blob) {
+            Ok(facts) => facts,
+            Err(err) => unreachable!("the seeded body must configure: {err}"),
+        };
+        assert_eq!(
+            (facts.sample_rate, facts.channels, facts.bits_per_sample),
+            (48_000, 2, 16)
+        );
+
+        // Malformed second headers seed the empty blob (configure
+        // then refuses typed, never a guess): a 33-byte body, a
+        // non-STREAMINFO block type, a lying declared length, and no
+        // second header at all.
+        let short = {
+            let mut p = vec![0x80, 0x00, 0x00, 34];
+            p.extend_from_slice(&body[..33]);
+            SharedBytes::from_vec(p)
+        };
+        assert!(flac_streaminfo_body(Some(&short)).is_empty(), "33-byte body");
+        let wrong_type = {
+            let mut p = vec![0x81, 0x00, 0x00, 34]; // type 1 (PADDING)
+            p.extend_from_slice(&body);
+            SharedBytes::from_vec(p)
+        };
+        assert!(
+            flac_streaminfo_body(Some(&wrong_type)).is_empty(),
+            "not STREAMINFO"
+        );
+        let lying_len = {
+            let mut p = vec![0x80, 0x00, 0x00, 33]; // declares 33
+            p.extend_from_slice(&body);
+            SharedBytes::from_vec(p)
+        };
+        assert!(
+            flac_streaminfo_body(Some(&lying_len)).is_empty(),
+            "declared length lies"
+        );
+        assert!(flac_streaminfo_body(None).is_empty(), "no second header");
     }
 
     /// The corpus media dir (the corpus_ogg.rs convention).

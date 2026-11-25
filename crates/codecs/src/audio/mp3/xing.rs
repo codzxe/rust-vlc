@@ -337,11 +337,17 @@ pub fn parse_vbri(frame: &[u8], frame_offset: u64) -> Result<Option<VbriInfo>, E
         return Ok(None);
     };
     let rest = frame.get(pos + 4..).unwrap_or(&[]);
-    if rest.len() < 14 {
+    // The fixed VBRI fields run 22 bytes past the magic: version,
+    // delay, quality, bytes, frames (rest[0..14]) plus the four
+    // TOC-geometry words (rest[14..22]). The old `< 14` guard
+    // admitted every tail length in 14..22 and then indexed
+    // `rest[14]`..`rest[21]` — a slice panic on a truncated tag
+    // (damage is never a panic, the module's own contract).
+    if rest.len() < 22 {
         return Err(corrupt(
             "mp3.vbri.truncated",
             CorruptDetail::Truncated {
-                expected: u64::try_from(pos + 18).unwrap_or(u64::MAX),
+                expected: u64::try_from(pos + 4 + 22).unwrap_or(u64::MAX),
                 found: frame.len() as u64,
             },
             "VBRI header shorter than its fixed fields",
