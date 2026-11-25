@@ -14,6 +14,19 @@
 //! the REPL; `help` prints the subcommand table. These are host
 //! conveniences over the same dispatch, documented as such — the
 //! card's command surface itself is the catalog subset.
+//!
+//! # Audio flags (invocation-level)
+//!
+//! `--audio-backend <null|auto>` and `--no-audio` are argv-level
+//! posture (W11's help findings: the advertised audio flag surface
+//! must be the parser's real one). The backend choice
+//! ([`AudioBackend`]) is recorded on the [`Invocation`] for pipeline
+//! construction — the knob the CLI threads at session construction
+//! (pipeline_host's backend factory; FX4-A01's seam). The global
+//! `--no-audio` rides the argv `open` through the command's own
+//! flag — the pipeline-construction option the CLI already threads:
+//! no audio track selected, no audio limb built, the session clock
+//! on wall time.
 
 use commands::catalog::types::{OpenOptions, SeekTarget, SourceSpec, Timestamp};
 use std::ffi::OsStr;
@@ -106,6 +119,39 @@ impl SeekArg {
     }
 }
 
+/// The audio output backend choice (`--audio-backend`): how the
+/// session's audio path is constructed at pipeline build time.
+/// Backend availability depends on build features — this build
+/// carries no real device backend, so both values construct the
+/// instrumented null backend today.
+///
+/// - [`Auto`](AudioBackend::Auto) (the default posture): prefer a
+///   real device backend when this build carries one (the
+///   audio-output `backend-cpal` feature), falling back to the
+///   instrumented null backend when it does not.
+/// - [`Null`](AudioBackend::Null): force the instrumented null
+///   backend regardless of the build's features — samples are
+///   counted (the sample counter is the session clock's truth
+///   source) and discarded: deterministic, no audio device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioBackend {
+    /// `--audio-backend null`: force the instrumented null backend.
+    Null,
+    /// `--audio-backend auto`: real backend first when the build
+    /// carries one, null fallback otherwise.
+    Auto,
+}
+
+/// One `--audio-backend` value: `null` or `auto`. Anything else is
+/// the caller's typed refusal (the grammar never guesses).
+fn parse_audio_backend(token: &str) -> Option<AudioBackend> {
+    match token {
+        "null" => Some(AudioBackend::Null),
+        "auto" => Some(AudioBackend::Auto),
+        _ => None,
+    }
+}
+
 /// The whole argv invocation: global flags + at most one command.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Invocation {
@@ -117,6 +163,18 @@ pub struct Invocation {
     pub help: Option<Option<String>>,
     /// `--version`.
     pub version: bool,
+    /// `--audio-backend <null|auto>`: the backend the session's audio
+    /// path is constructed with (see [`AudioBackend`]); `None` is the
+    /// default `auto` posture. Pipeline construction consumes the
+    /// choice; commands that open no session record it with nothing
+    /// to apply it to.
+    pub audio_backend: Option<AudioBackend>,
+    /// `--no-audio`: skip the audio path entirely. Rides the argv
+    /// `open` through the command's own `--no-audio` (no audio track
+    /// selected → no audio limb built → the session clock runs on
+    /// wall time); a command that opens no session records the choice
+    /// with nothing to apply it to.
+    pub no_audio: bool,
     /// The subcommand, when present (`None` = bare `lumen` → usage).
     pub command: Option<CliCommand>,
 }
@@ -173,11 +231,22 @@ pub fn argv_string(raw: &OsStr) -> Result<String, ParseError> {
 pub fn parse_argv(argv: &[String]) -> Result<Invocation, ParseError> {
     let mut invocation = Invocation::default();
     let mut command_words: Vec<String> = Vec::new();
-    for (index, arg) in argv.iter().enumerate() {
-        match arg.as_str() {
-            "--json" => invocation.json = true,
-            "--control-stdio" => invocation.control_stdio = true,
-            "--version" | "-v" => invocation.version = true,
+    let mut index = 0;
+    while index < argv.len() {
+        let arg = argv[index].as_str();
+        match arg {
+            "--json" => {
+                invocation.json = true;
+                index += 1;
+            }
+            "--control-stdio" => {
+                invocation.control_stdio = true;
+                index += 1;
+            }
+            "--version" | "-v" => {
+                invocation.version = true;
+                index += 1;
+            }
             "-h" | "--help" => {
                 invocation.help = Some(None);
                 // `lumen --help <area>`: the settings area is the FINAL
@@ -186,12 +255,48 @@ pub fn parse_argv(argv: &[String]) -> Result<Invocation, ParseError> {
                 if index + 2 == argv.len() && !argv[index + 1].starts_with('-') {
                     invocation.help = Some(Some(argv[index + 1].clone()));
                 }
+                index += 1;
             }
-            _ => command_words.push(arg.clone()),
+            "--audio-backend" => {
+                // The backend name is the NEXT argv word; a missing or
+                // unknown name is a typed refusal naming the two honest
+                // values — never a guess, never a dropped token.
+                let value = argv.get(index + 1).ok_or_else(|| {
+                    ParseError::new(
+                        "--audio-backend needs a backend argument",
+                        "e.g. --audio-backend null | auto",
+                    )
+                })?;
+                invocation.audio_backend = Some(parse_audio_backend(value).ok_or_else(|| {
+                    ParseError::new(
+                        format!("bad --audio-backend `{value}`"),
+                        "e.g. --audio-backend null | auto",
+                    )
+                })?);
+                index += 2;
+            }
+            "--no-audio" => {
+                invocation.no_audio = true;
+                index += 1;
+            }
+            _ => {
+                command_words.push(argv[index].clone());
+                index += 1;
+            }
         }
     }
     if invocation.help.is_none() && !invocation.version && !command_words.is_empty() {
         invocation.command = Some(parse_command(&command_words)?);
+        // The global `--no-audio` rides the argv `open` through the
+        // command's own flag — the pipeline-construction knob the CLI
+        // already threads (the argv and per-command forms are one
+        // choice; `open x --no-audio` never reaches parse_open's arm
+        // from argv because the global arm consumed it first).
+        if invocation.no_audio {
+            if let Some(CliCommand::Open { no_audio, .. }) = invocation.command.as_mut() {
+                *no_audio = true;
+            }
+        }
     }
     Ok(invocation)
 }
@@ -728,5 +833,75 @@ mod tests {
         assert!(matches!(invocation, Some(i) if i.help.is_some() && i.command.is_none()));
         let invocation = parse_argv(&words("--control-stdio")).ok();
         assert!(matches!(invocation, Some(i) if i.control_stdio && i.command.is_none()));
+    }
+
+    /// The audio flag surface (W11): both values parse, the choice is
+    /// recorded, and the global `--no-audio` rides the argv `open`
+    /// through the command's own flag — the knob the CLI already
+    /// threads to pipeline construction.
+    #[test]
+    fn audio_flags_parse() {
+        let invocation = match parse_argv(&words("--audio-backend null open clip.avi")) {
+            Ok(invocation) => invocation,
+            Err(failure) => unreachable!("null parses: {}", failure.message),
+        };
+        assert_eq!(invocation.audio_backend, Some(AudioBackend::Null));
+        match invocation.command {
+            Some(CliCommand::Open {
+                source, no_audio, ..
+            }) => {
+                assert_eq!(source, "clip.avi");
+                assert!(!no_audio);
+            }
+            other => unreachable!("open parse: {other:?}"),
+        }
+        let invocation = match parse_argv(&words("--audio-backend auto open clip.avi")) {
+            Ok(invocation) => invocation,
+            Err(failure) => unreachable!("auto parses: {}", failure.message),
+        };
+        assert_eq!(invocation.audio_backend, Some(AudioBackend::Auto));
+        // Absent = the default posture (None), not a guessed null.
+        let invocation = match parse_argv(&words("open clip.avi")) {
+            Ok(invocation) => invocation,
+            Err(failure) => unreachable!("plain open parses: {}", failure.message),
+        };
+        assert_eq!(invocation.audio_backend, None);
+        assert!(!invocation.no_audio);
+        // The global --no-audio folds into the argv open (the argv and
+        // per-command forms are one choice).
+        for line in [
+            "--no-audio open clip.avi",
+            "open clip.avi --no-audio",
+            "--no-audio open clip.avi --no-audio",
+        ] {
+            let invocation = match parse_argv(&words(line)) {
+                Ok(invocation) => invocation,
+                Err(failure) => unreachable!("{line} parses: {}", failure.message),
+            };
+            assert!(invocation.no_audio, "{line}");
+            match invocation.command {
+                Some(CliCommand::Open { no_audio, .. }) => assert!(no_audio, "{line}"),
+                other => unreachable!("open parse: {other:?}"),
+            }
+        }
+        // Missing value / unknown value: typed refusals, the grammar's
+        // own shape (message + usage hint, never a guess).
+        for argv in [
+            words("--audio-backend"),
+            words("--audio-backend cpal open clip.avi"),
+            words("--audio-backend --json"),
+        ] {
+            match parse_argv(&argv) {
+                Err(failure) => {
+                    assert_eq!(
+                        failure.hint, "e.g. --audio-backend null | auto",
+                        "{:?}",
+                        failure
+                    );
+                    assert!(failure.message.contains("--audio-backend"), "{:?}", failure);
+                }
+                Ok(invocation) => unreachable!("refusal expected: {invocation:?}"),
+            }
+        }
     }
 }
