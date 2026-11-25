@@ -24,7 +24,7 @@
 // canvas keeps the last presented frame (a paused video shows its
 // frame — that is the honest behavior).
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useClient } from "../../client/ClientProvider";
 import {
   FrameChannelShim,
@@ -34,7 +34,74 @@ import {
   type DecodedLuf1Frame,
   type FrameChannelBackend,
 } from "../../client/frame-channel";
+import { keys as laneKeys } from "../../i18n/keys/fx6_a05";
+import { useMsg } from "../../i18n/messages";
+import type { MessageKey } from "../../i18n/messages";
 import type { SourceSpec } from "../../generated/commands";
+
+// ---------------------------------------------------------------------------
+// FX6-A05 (wave FX6, FIX-PLAN §3 F1.2) — the frame-counter readout's lane
+// i18n seam (the w26.a10 / w28.window pre-registration pattern): the
+// readout's keys live in ../../i18n/keys/fx6_a05.ts until the Lead
+// registers them into messages.ts; the resolver answers catalog-first so
+// the copy never drifts between the two states.
+// ---------------------------------------------------------------------------
+
+/** Pre-registration fallbacks (this lane's own keys only). */
+const FRAME_STAT_FALLBACKS: Readonly<Record<string, string>> = { ...laneKeys };
+
+/** Resolves a readout label: central catalog → lane pre-registration → key. */
+function useFrameMsg(): (key: keyof typeof laneKeys) => string {
+  const m = useMsg();
+  return useCallback(
+    (key) => m(key as MessageKey) ?? FRAME_STAT_FALLBACKS[key] ?? key,
+    [m],
+  );
+}
+
+/**
+ * The webview's OWN frame-lane accounting (FX6-A05 — honest client-side
+ * observables only): presented/skipped are counted HERE, at the draw call
+ * and the refusal path; lastFrameId is the engine-assigned id carried in
+ * the LUF1 record header — engine truth riding the existing transport.
+ *
+ * THE HONEST GAP (F1.2's "frame counter that matches the decode count"):
+ * the engine's produced/shipped/dropped-at-mailbox counters do NOT ride
+ * the transport to the webview in this wave (the FX6-A03 seam is pending;
+ * the Event union carries no frame-stat kind, the ticker ships records
+ * only). This surface therefore NEVER fabricates them — it shows the
+ * counts this webview can actually see, labeled as its own.
+ */
+interface FrameLaneCounters {
+  /** Records decoded AND drawn (putImageData returned) by this surface. */
+  presented: number;
+  /** Records refused client-side (decode/present failure — drift defense). */
+  skipped: number;
+  /** The last drawn record's engine-assigned id (null before the first). */
+  lastFrameId: number | null;
+}
+
+/**
+ * Repaint the readout's values — imperative, the same lane as the canvas
+ * draw itself (a per-frame React re-render would be pure cost; the
+ * counters ARE the frame lane's presentation state, and the JSX initial
+ * values re-read the live counters on every render, so a re-render can
+ * never desync the readout from the painter).
+ */
+function paintFrameStats(element: HTMLElement | null, counters: FrameLaneCounters): void {
+  if (element === null) {
+    return;
+  }
+  const setValue = (name: string, value: string): void => {
+    const target = element.querySelector(`[data-frame-stat-value="${name}"]`);
+    if (target !== null) {
+      target.textContent = value;
+    }
+  };
+  setValue("presented", String(counters.presented));
+  setValue("last-id", counters.lastFrameId === null ? "" : String(counters.lastFrameId));
+  setValue("skipped", String(counters.skipped));
+}
 
 /**
  * The canvas's real media surface (w26.i02, h03 #2) — the UI half of
@@ -113,6 +180,11 @@ function FrameCanvasSurfaceLive({ backend }: { backend: FrameChannelBackend }) {
   const client = useClient();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const nextRequestId = useRef(0);
+  // FX6-A05: the counter readout's element + this webview's own lane
+  // accounting (see FrameLaneCounters — client-side observables only).
+  const statsRef = useRef<HTMLDivElement | null>(null);
+  const lane = useRef<FrameLaneCounters>({ presented: 0, skipped: 0, lastFrameId: null });
+  const frameMsg = useFrameMsg();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -126,8 +198,15 @@ function FrameCanvasSurfaceLive({ backend }: { backend: FrameChannelBackend }) {
     const shim = new FrameChannelShim(backend, {
       onRecord: (record) => {
         try {
-          presentLuf1Frame(canvas, decodeLuf1Record(record));
+          // Decode first, then present: a refusal anywhere in the pair is
+          // ONE skipped record (the typed skip below), and presented counts
+          // only frames putImageData actually blitted.
+          const frame = decodeLuf1Record(record);
+          presentLuf1Frame(canvas, frame);
+          lane.current.presented += 1;
+          lane.current.lastFrameId = frame.header.frameId;
         } catch (error) {
+          lane.current.skipped += 1;
           // Typed skip + diagnostic: unknown magic/version/format codes,
           // truncation, geometry lies — the channel keeps flowing (the
           // shell's encoder guarantees the record form, so this branch
@@ -136,6 +215,7 @@ function FrameCanvasSurfaceLive({ backend }: { backend: FrameChannelBackend }) {
             `lumen frame channel: skipping a record: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
+        paintFrameStats(statsRef.current, lane.current);
       },
     });
     // Bind the shell's shipper to THIS channel: the id rides the ONE
@@ -171,15 +251,50 @@ function FrameCanvasSurfaceLive({ backend }: { backend: FrameChannelBackend }) {
   }, [backend, client]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="lumen-player__media"
-      data-media-surface="frames"
-      /* Presentation only — the video surface's own a11y note applies
-       * verbatim (the label lives on the canvas region; a second
-       * accessible name would double-announce). */
-      aria-hidden="true"
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className="lumen-player__media"
+        data-media-surface="frames"
+        /* Presentation only — the video surface's own a11y note applies
+         * verbatim (the label lives on the canvas region; a second
+         * accessible name would double-announce). */
+        aria-hidden="true"
+      />
+      {/* FX6-A05 (F1.2): the frame-counter readout — the honest surfacing
+          of what the webview's frame lane can see. presented/skipped are
+          THIS webview's counts at the draw call; the last frame id is the
+          engine-assigned id from the record header. It mounts only with
+          the live consumer (a browser has no frame lane, so it never
+          renders there), starts zeroed (0 drawn frames is the honest
+          pre-bind state; the last-id cell stays EMPTY until a frame
+          arrives — the engine assigns id 0 to the FIRST record, so a
+          "0" there would claim a frame was drawn), and repaints
+          imperatively per frame (paintFrameStats — the canvas lane's own
+          cadence, never React state churn). */}
+      <div className="lumen-player__frame-stats" data-frame-stats="webview" ref={statsRef}>
+        <span className="lumen-player__frame-stat">
+          <span className="lumen-player__frame-stat-label">
+            {frameMsg("player.frames.presented")}
+          </span>
+          <span data-frame-stat-value="presented">{lane.current.presented}</span>
+        </span>
+        <span className="lumen-player__frame-stat">
+          <span className="lumen-player__frame-stat-label">
+            {frameMsg("player.frames.last-id")}
+          </span>
+          <span data-frame-stat-value="last-id">
+            {lane.current.lastFrameId === null ? "" : lane.current.lastFrameId}
+          </span>
+        </span>
+        <span className="lumen-player__frame-stat">
+          <span className="lumen-player__frame-stat-label">
+            {frameMsg("player.frames.skipped")}
+          </span>
+          <span data-frame-stat-value="skipped">{lane.current.skipped}</span>
+        </span>
+      </div>
+    </>
   );
 }
 

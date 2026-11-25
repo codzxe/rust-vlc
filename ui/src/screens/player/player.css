@@ -455,6 +455,41 @@
   pointer-events: none;
 }
 
+/* ---- FX6-A05 (F1.2): the webview's frame-counter readout -----------------
+ * A quiet diagnostics chip on the canvas base (bottom-left), rendered by
+ * the frame-canvas surface (components/player/MediaSurface.tsx) beside the
+ * canvas it counts for. The counters are the frame lane's own observables
+ * — presented/skipped are THIS webview's counts at the draw call; the last
+ * frame id is engine-assigned, riding the LUF1 record header. Presentation
+ * only: pointer-events none, the same rule as the media elements (the
+ * canvas region owns interaction). The translucent deep chip follows the
+ * states overlays' own text-on-canvas recipe (surface-deep 72% + content
+ * tokens), which reads on the stays-dark canvas in BOTH themes. */
+.lumen-player__frame-stats {
+  position: absolute;
+  left: calc(var(--space-inset) * 0.75);
+  bottom: calc(var(--space-inset) * 0.75);
+  z-index: 0;
+  display: flex;
+  gap: calc(var(--space-inset) * 0.75);
+  padding: calc(var(--space-inset) * 0.25) calc(var(--space-inset) * 0.5);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums; /* live counters must not jiggle (the timecode rule) */
+  color: var(--color-content-primary);
+  background: color-mix(in srgb, var(--color-surface-deep) 72%, transparent);
+  border-radius: var(--radius-ring);
+  pointer-events: none;
+}
+
+.lumen-player__frame-stat {
+  display: flex;
+  gap: calc(var(--space-inset) * 0.25);
+}
+
+.lumen-player__frame-stat-label {
+  color: var(--color-content-secondary);
+}
+
 :root[data-theme="light"] .lumen-player__canvas {
   /* stylelint-disable-next-line color-no-hex -- frame: Player - Light.svg — the picture-frame rule (W25 spec §1): the video canvas stays dark (#2b2b2b–#333) in BOTH themes; every surface token flips in light mode, and no stays-dark semantic token exists yet (token-lane handoff, w26.a13 lane log). */
   background: #2b2b2b;
