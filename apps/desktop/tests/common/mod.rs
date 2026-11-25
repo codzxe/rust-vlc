@@ -15,18 +15,18 @@
 
 #![allow(dead_code)]
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use desktop::EmitClock;
-use media_clock::{MediaClock, MonotonicSource, NANO_BASE, PlaybackClock};
-use media_types::GenerationId;
+use media_clock::{MediaClock, MonotonicSource, PlaybackClock, NANO_BASE};
 use media_types::frame::{
     ColorDescription, ColorMatrix, ColorPrimaries, ColorRange, FrameStorage,
     TransferCharacteristics, VideoFrame,
 };
 use media_types::packet::SharedBytes;
 use media_types::time::{Rate, Stamp, Timestamp};
+use media_types::GenerationId;
 use renderer_wgpu::params::Extent2D;
 use renderer_wgpu::synthetic;
 use testkit::Must;
