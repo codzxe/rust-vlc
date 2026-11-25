@@ -759,7 +759,10 @@ mod tests {
             p.extend_from_slice(&body[..33]);
             SharedBytes::from_vec(p)
         };
-        assert!(flac_streaminfo_body(Some(&short)).is_empty(), "33-byte body");
+        assert!(
+            flac_streaminfo_body(Some(&short)).is_empty(),
+            "33-byte body"
+        );
         let wrong_type = {
             let mut p = vec![0x81, 0x00, 0x00, 34]; // type 1 (PADDING)
             p.extend_from_slice(&body);
