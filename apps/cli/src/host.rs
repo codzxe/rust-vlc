@@ -92,10 +92,12 @@ use playback_engine::{
     CommandReceipt, Engine, EngineOutput, ReceiptResult, SeekTarget, SessionCommandKind,
     SessionConfig, SessionError, SessionHandle, SessionState,
 };
+use plugin_api::SeekSupport;
 
 use crate::demux_host::{MediaFacts, OpenedMedia, open_source, wire_error};
 use crate::pipeline_host::{
-    AudioSession, CliFrameConsumer, HostDecoderProvider, PresentTap, RENDER_QUANTUM,
+    AudioSession, CliFrameConsumer, HostDecoderProvider, LANDED_DECODER_FAMILIES, PresentTap,
+    RENDER_QUANTUM,
 };
 
 /// The pump bound for "await one observable" (receipts, states) —
@@ -163,6 +165,14 @@ pub struct CliHost {
     device: Option<NullDevice>,
     clock: Option<Arc<MediaClock>>,
     facts: Option<Arc<MediaFacts>>,
+    /// The engine's declared seek capability for the open session
+    /// (F0.3, W13-A02 F-001): the demuxer's `SeekSupport` read at
+    /// open time — the exact fact the engine's seek flow consults
+    /// through `Pipeline::seekability` (doc 03 §6 step 1) and the
+    /// `media.info-ready` event carries; the class-S `info` snapshot
+    /// answers it (never the retired `true` constant). Cleared with
+    /// the other session-scoped halves at teardown.
+    seekable: Option<bool>,
     source: Option<commands::catalog::types::SourceSpec>,
     allocator: commands::RequestIdAllocator,
     staleness: commands::StalenessFilter,
@@ -235,6 +245,7 @@ impl CliHost {
             device: None,
             clock: None,
             facts: None,
+            seekable: None,
             source: None,
             allocator: commands::RequestIdAllocator::new(),
             staleness: commands::StalenessFilter::new(),
@@ -904,6 +915,13 @@ impl CliHost {
         let opened: OpenedMedia = open_source(&source, start_time_us, no_video, no_audio)?;
         let facts = Arc::new(opened.facts);
         let anchor_ns = opened.start_position_ns;
+        // F0.3 (W13-A02 F-001): read the engine's own seek-capability
+        // fact before the demuxer moves into the engine's
+        // `SessionConfig` — the demuxer's declared `SeekSupport`, the
+        // same truth `Pipeline::seekability` consults for the seek
+        // flow's step 1 and the `media.info-ready` event carries
+        // (`None` sources refuse seeks typed, never a fake success).
+        let seekable = opened.demuxer.seekability() != SeekSupport::None;
         // The audio half (and with it the session clock) exists only
         // when an audio track survived selection — through the
         // GENERIC geometry lookup (card 6.OPW-ogg's seam fix: any
@@ -987,6 +1005,7 @@ impl CliHost {
         self.device = device;
         self.clock = Some(clock);
         self.facts = Some(facts);
+        self.seekable = Some(seekable);
         self.source = Some(source);
         self.tracks.clear();
         // Pump the open to a settled state (Opening → Buffering → …).
@@ -1027,6 +1046,7 @@ impl CliHost {
         self.device = None;
         self.clock = None;
         self.facts = None;
+        self.seekable = None;
         self.source = None;
         self.tracks.clear();
         self.pending_receipts.clear();
@@ -1304,7 +1324,13 @@ impl CliHost {
                     },
                     None => Duration::Unknown,
                 },
-                seekable: true,
+                // F0.3 (W13-A02 F-001): the engine's declared
+                // `SeekSupport` read at open time — the retired hard
+                // `true` contradicted the engine's own event and the
+                // seek flow in the same run. `None` is the no-session
+                // shape (unreachable behind the `facts` gate above)
+                // and answers the honest `false`.
+                seekable: self.seekable.unwrap_or(false),
                 is_live: false,
                 metadata: BTreeMap::new(),
                 tracks: self.tracks.clone(),
@@ -1626,6 +1652,18 @@ fn setting_type_name(def: &settings_schema::SettingDef) -> &'static str {
     }
 }
 
+/// The wire track-kind of one dispatch family's lane kind (the
+/// registry stores the engine-side [`MediaKind`]; the engine-info
+/// wire row carries the catalog's [`TrackKind`]).
+fn wire_kind(kind: MediaKind) -> TrackKind {
+    match kind {
+        MediaKind::Video => TrackKind::Video,
+        MediaKind::Audio => TrackKind::Audio,
+        MediaKind::Subtitle => TrackKind::Subtitle,
+        MediaKind::Data => TrackKind::Data,
+    }
+}
+
 /// The engine-info snapshot (class S, data-driven).
 #[must_use]
 pub fn engine_info() -> EngineInfo {
@@ -1640,22 +1678,25 @@ pub fn engine_info() -> EngineInfo {
             "video.software-compositor".to_string(),
         ],
         plugins: Vec::new(),
-        decoders: vec![
-            DecoderInfo {
-                name: "mjpeg".to_string(),
-                kind: TrackKind::Video,
+        // F0.2 (W13-A02 F-002): the decoder list DERIVES from the
+        // dispatch registry — `pipeline_host`'s
+        // [`LANDED_DECODER_FAMILIES`], the `decoder_for` match exported
+        // as data and the same one source the `landed:` refusal string
+        // derives from — never a hand-maintained snapshot. Pre-fix,
+        // the hand-written `mjpeg`/`pcm_s16le` pair answered while the
+        // same binary dispatched 14 families (h264+aac Playing
+        // in-session). A session-less snapshot, so `active` is
+        // honestly false for every family.
+        decoders: LANDED_DECODER_FAMILIES
+            .iter()
+            .map(|family| DecoderInfo {
+                name: family.name.to_string(),
+                kind: wire_kind(family.kind),
                 hardware: false,
                 backend: None,
                 active: false,
-            },
-            DecoderInfo {
-                name: "pcm_s16le".to_string(),
-                kind: TrackKind::Audio,
-                hardware: false,
-                backend: None,
-                active: false,
-            },
-        ],
+            })
+            .collect(),
         sessions: Vec::new(),
     }
 }

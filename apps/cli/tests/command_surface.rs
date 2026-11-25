@@ -123,7 +123,11 @@ fn commands_lists_the_whole_catalog() {
 }
 
 /// The engine self-description names the first vertical's honest
-/// sink decisions (null audio device, software compositor).
+/// sink decisions (null audio device, software compositor) and —
+/// since FX2-A01 (F0.2) — the decoder list the REAL dispatch table
+/// routes (14 families in arm order; pinned in depth by
+/// `fx2_a01_registry_truth.rs`), not the retired hand-maintained
+/// first-vertical snapshot.
 #[test]
 fn engine_info_names_the_vertical() {
     let (out, err, code) = run(&["engine-info"], "");
@@ -133,7 +137,13 @@ fn engine_info_names_the_vertical() {
     assert!(out.contains("first-vertical:avi-mjpeg-pcm"), "{out}");
     assert!(out.contains("audio.null-device"), "{out}");
     assert!(out.contains("video.software-compositor"), "{out}");
-    assert!(out.contains("mjpeg, pcm_s16le"), "{out}");
+    assert!(
+        out.contains(
+            "decoders: mjpeg, flac, mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1, \
+             vp9, dnxhd, h264, pcm"
+        ),
+        "{out}"
+    );
 }
 
 /// The machine mode: the doc 05 §5.1 envelope, byte-shaped —
