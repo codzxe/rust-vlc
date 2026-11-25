@@ -2,15 +2,16 @@
 //! fallback: "real-device adapters stubbed with typed not-supported
 //! errors, honestly recorded").
 //!
-//! Doc 01 §2.7 places the real OS audio backends in `platform-*` (L5)
-//! crates behind ADR-005 (audio output's E2 exception slot — the
-//! cpal-vs-direct-API decision; the cpal P0 record lives at
-//! `docs/dependencies/records/cpal-0.18.2.md`). Until those cards
-//! land, this stub occupies the selection slot truthfully: it
+//! The ADR-005 amendment (wave FX3, Route A) admitted cpal behind
+//! audio-output's optional `backend-cpal` feature — the registry-row
+//! amendment the cpal P0 record anticipated — so the real-device
+//! adapter now lives in this crate (`src/cpal.rs`, feature-gated),
+//! not in `platform-*` (L5). This stub keeps the remaining slot it
+//! always had: the typed, honest refusal for builds without the
+//! feature (and any future substrate that is not yet admitted) — it
 //! enumerates **no devices** and every operation answers with a
 //! typed [`Unsupported`](media_types::ErrorKind::Unsupported) error
-//! naming the platform and the pending decision — never a fake
-//! success, never a panic.
+//! naming the platform — never a fake success, never a panic.
 
 use std::sync::Arc;
 
@@ -59,8 +60,10 @@ impl UnsupportedBackend {
     }
 
     fn pending(&self) -> EngineError {
-        // The stable, honest refusal: this backend's implementation
-        // is pending ADR-005 + the platform-* cards.
+        // The stable, honest refusal: this backend's implementation is
+        // not compiled into this build (the admitted cpal adapter is
+        // the `backend-cpal` feature; default builds ship the null
+        // backend) — and any future substrate needs its own admission.
         EngineError::new(
             media_types::PipelineStage::AudioOutput,
             ErrorKind::Unsupported {

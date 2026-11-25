@@ -21,13 +21,16 @@
 //!    `DropPolicy::Backpressure` refuses over-budget buffers with the
 //!    typed `audio.pump_backpressure` error, and the *same* push
 //!    succeeds after the device (the clock) consumed frames.
-//! 4. `the_cpal_seam_refuses_with_the_typed_marker` — the ADR-005
-//!    flip point answers with the typed marker, never a fake success.
+//! 4. `the_cpal_seam_is_admitted_and_constructs_a_backend` — the
+//!    ADR-005 seam post-admission (Route A): the flag is recorded
+//!    open and the constructor builds a working backend (the null
+//!    fallback in default builds) instead of refusing — never a
+//!    fake success, never a panic.
 
 use std::sync::Arc;
 
 use audio_engine::buffer::AudioBuffer;
-use audio_output::cpal::{self, AUDIO_ADR005_ADMITTED, BackendNotAdmitted};
+use audio_output::cpal::{AUDIO_ADR005_ADMITTED, cpal_backend};
 use audio_output::null::{NullBackend, NullConfig};
 use audio_output::pattern::SinePattern;
 use audio_output::pump::{DropPolicy, PcmPump};
@@ -234,14 +237,31 @@ fn backpressure_is_typed_and_clears_as_the_clock_advances() {
 }
 
 #[test]
-fn the_cpal_seam_refuses_with_the_typed_marker() {
+fn the_cpal_seam_is_admitted_and_constructs_a_backend() {
+    // Post-admission acceptance pin (the ADR-011 pattern in
+    // crates/streaming/src/schemes.rs): the seam CONSTRUCTS a working
+    // backend instead of refusing — the typed not-admitted marker
+    // vocabulary was deleted with the admission (the flip-point
+    // discipline's same-change rule). A drifted re-introduction of
+    // the refusal fails loud here, not silently.
     const {
         assert!(
-            !AUDIO_ADR005_ADMITTED,
-            "the ADR-005 gate is recorded closed"
+            AUDIO_ADR005_ADMITTED,
+            "the ADR-005 admission (Route A) is recorded"
         )
     };
-    let marker: BackendNotAdmitted = cpal::cpal_backend().err().must();
-    assert_eq!(marker, BackendNotAdmitted::CPAL);
-    assert!(marker.to_string().contains("ADR-005"));
+    #[cfg(not(feature = "backend-cpal"))]
+    {
+        // The default build's honest answer: the null backend.
+        let backend = cpal_backend().must();
+        let descs = backend.enumerate();
+        assert_eq!(descs.len(), 1, "the null fallback, exactly one device");
+        assert_eq!(descs[0].id, audio_output::null::NULL_DEVICE_ID);
+    }
+    #[cfg(feature = "backend-cpal")]
+    {
+        // The feature lane: construction succeeds (device coverage is
+        // the CI lane's device tests — tests/fx3_a01_admission.rs).
+        let _ = cpal_backend().must().enumerate();
+    }
 }

@@ -11,9 +11,10 @@
 //!   device enumeration, open/pause/resume, the underrun count and
 //!   the **sample counter** — the media-clock truth source (doc 03
 //!   §4.7: "the device sample counter is the only trusted progress
-//!   source"). Implemented by [`NullBackend`] (fully, CI-safe) and
-//!   [`UnsupportedBackend`] (typed not-supported stubs for real
-//!   devices).
+//!   source"). Implemented by [`NullBackend`] (fully, CI-safe),
+//!   [`UnsupportedBackend`] (typed not-supported stubs), and — behind
+//!   the `backend-cpal` feature, since the ADR-005 amendment —
+//!   `CpalBackend` (the admitted real-device adapter).
 //! - [`SpscRing`] + [`render_into`] — the output ring and the
 //!   real-time callback core under the **no-blocking contract**
 //!   (doc 03 §4.9 c), with a per-call operation ledger
@@ -23,32 +24,31 @@
 //!   while the device runs, frozen while paused, never rewinding
 //!   across device switches, doc 03 §4.9 e).
 //!
-//! # The backend decision (recorded honestly)
+//! # The backend decision (recorded honestly, then amended)
 //!
-//! The card's first decision was the cpal `[VERIFY-P0]`: **cpal
-//! 0.18.2 is conditional-E2 and NOT admitted** — its admission
-//! vehicle is ADR-005 (Lead, unwritten), doc 01 §2.6/§2.7 place OS
-//! backends in `platform-*` (L5) rather than this L4 crate, and this
-//! sandbox can neither build it (no ALSA dev package: the alsa-sys
-//! pkg-config probe fails) nor test it (no audio device). The full
-//! R1–R10 evidence lives in
-//! `docs/dependencies/records/cpal-0.18.2.md`. The card's named
-//! fallback is what ships: real-device adapters are stubbed with
-//! typed not-supported errors; when ADR-005 decides cpal-vs-direct,
-//! implementations land in `platform-*` against this trait layer.
+//! The card's first decision was the cpal `[VERIFY-P0]` — cpal 0.18.2
+//! conditional-E2 and **not admitted** (R1–R10 evidence in
+//! `docs/dependencies/records/cpal-0.18.2.md`, refreshed by the
+//! wave-14 admission spike,
+//! `docs/dependencies/records/audio-output-cpal.md`). The wave-FX3
+//! Lead decision (FIX-PLAN §3 F1.1 **Route A**) amends ADR-005 and
+//! admits it: cpal =0.18.2 is now an **optional** dependency behind
+//! the `backend-cpal` Cargo feature, with the real adapter in
+//! [`crate::cpal`] behind [`cpal_backend`]. The feature is **off by
+//! default**: default builds stay workspace-internal, std-only and
+//! byte-compatible with the pre-admission crate — the seam falls
+//! back to the null backend, and [`cpal_linked`] reports whether a
+//! given build links the substrate. The admission paperwork
+//! (ADR-005 amendment, allowlist rows, deny.toml) is FX3-A02's in
+//! this wave; the not-admitted marker vocabulary the seam used to
+//! carry is deleted with the admission (the flip-point discipline's
+//! same-change rule).
 //!
-//! The wave-14 admission spike (issue #1) refreshed that evidence
-//! (`docs/dependencies/records/audio-output-cpal.md`: real
-//! `cargo tree` graphs, the C-FFI unsafe counts, the alternatives
-//! survey — verdict unchanged, **not admitted**) and added this
-//! crate's flip point: [`cpal_backend`], the typed
-//! [`BackendNotAdmitted`] constructor marker behind the
-//! [`AUDIO_ADR005_ADMITTED`] gate (the streaming TLS seam's
-//! pattern). The same wave shipped the PCM pipeline proof behind the
-//! seam: [`SinePattern`] (the exact test-pattern generator) and
-//! [`PcmPump`] (decoded frames → bounded queue → sink, paced by the
-//! playback clock — the `MediaClock::audio_master` integration),
-//! proven in `tests/pcm_pipeline.rs`.
+//! The wave-14 seam also shipped the PCM pipeline proof behind it:
+//! [`SinePattern`] (the exact test-pattern generator) and [`PcmPump`]
+//! (decoded frames → bounded queue → sink, paced by the playback
+//! clock — the `MediaClock::audio_master` integration), proven in
+//! `tests/pcm_pipeline.rs`.
 //!
 //! # The no-blocking contract (doc 03 §4.9 c, binding)
 //!
@@ -83,7 +83,10 @@
 //!
 //! Decode/mix logic (audio-engine's job), OS types in public
 //! signatures (ARCH-6), blocking or locking inside the callback.
-//! Std-only; no `unsafe`.
+//! Default build: std-only, no `unsafe`. The `backend-cpal` feature
+//! links the ADR-005-admitted OS-service binding (all unsafe inside
+//! cpal's host layers, per the E2 safety review) — the adapter code
+//! in this crate stays std-only and unsafe-free either way.
 //!
 //! # Example
 //!
@@ -132,8 +135,10 @@ pub mod render;
 pub mod ring;
 pub mod stub;
 
-pub use counter::SampleCounter;
-pub use cpal::{AUDIO_ADR005_ADMITTED, BackendNotAdmitted, cpal_backend};
+pub use counter::{SampleCounter, SinkStats};
+#[cfg(feature = "backend-cpal")]
+pub use cpal::CpalBackend;
+pub use cpal::{AUDIO_ADR005_ADMITTED, cpal_backend, cpal_linked};
 pub use device::{AudioBackend, DeviceDesc, DeviceId, SinkEvent};
 pub use null::{NullBackend, NullConfig, NullStream};
 pub use pattern::SinePattern;
@@ -142,16 +147,21 @@ pub use render::{RenderCallback, RenderStats, RingRenderer, render_into};
 pub use ring::{RingRead, SpscRing};
 pub use stub::UnsupportedBackend;
 
-/// The backend set v0 ships: the null backend first (headless/CI),
-/// then the typed not-supported stub for the current OS (the real
-/// backends' placeholder until ADR-005 lands them in `platform-*`).
+/// The backend set v0 ships: with the feature off (the default), the
+/// null backend first (headless/CI), then the typed not-supported
+/// stub for the current OS — exactly the pre-admission list.
+/// Builds with `backend-cpal` put the admitted real adapter first
+/// (its own `enumerate`/`open` tell the truth about the devices this
+/// host actually has — empty is honest), falling back down the list.
 ///
 /// Selection policy (fallback order per device loss, doc 03 §4.9 d)
-/// is deliberately the caller's in v0 — ADR-005 owns it when the
-/// real backends exist `[PROPOSAL]`.
+/// is deliberately the caller's in v0 — the ADR-005 amendment owns
+/// the configured policy `[PROPOSAL]`.
 pub fn builtin_backends() -> Vec<Box<dyn AudioBackend>> {
-    vec![
-        Box::new(NullBackend::new()),
-        Box::new(UnsupportedBackend::for_current_os()),
-    ]
+    let mut backends: Vec<Box<dyn AudioBackend>> = Vec::new();
+    #[cfg(feature = "backend-cpal")]
+    backends.push(Box::new(crate::cpal::CpalBackend::new()));
+    backends.push(Box::new(NullBackend::new()));
+    backends.push(Box::new(UnsupportedBackend::for_current_os()));
+    backends
 }

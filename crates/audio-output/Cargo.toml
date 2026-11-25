@@ -8,16 +8,24 @@
 # open device session). Edges point downward: L4 → L3 (audio-engine)
 # → L0 (media-types); L4 → L2 (media-clock) → L0.
 #
-# Backend decision (card 2.C3, recorded in
-# docs/dependencies/records/cpal-0.18.2.md): cpal is conditional-E2,
-# NOT admitted — admission is ADR-005 (Lead) and this sandbox cannot
-# build it (no ALSA dev package: alsa-sys/pkg-config probe fails,
-# exit 101) nor test it (no audio device). The card's fallback is
-# executed: trait-based adapter layer + null backend (fully
-# implemented, CI-safe) + typed not-supported stubs for real devices.
-# Real backends land in platform-* (L5) per doc 01 §2.7. Std-only by
-# C5: zero external dependencies, no unsafe (the wait-free ring is
-# atomics-only).
+# Backend decision (card 2.C3's record, superseded by the wave-FX3
+# admission — Route A of FIX-PLAN §3 F1.1, Lead): cpal =0.18.2 is
+# ADMITTED as an OPTIONAL dependency behind the `backend-cpal`
+# feature — the registry-row amendment the P0 record anticipated
+# (records/cpal-0.18.2.md R10: "in an audio-output feature if the
+# Lead explicitly amends the registry row"). ADR-005 is amended with
+# the substrate choice + the doc 11 §1.2 E2 safety review, the
+# dependency-allowlist rows and deny.toml allowances land in the same
+# wave (FX3-A02), and the version is pinned =0.18.2 per the record.
+# DEFAULT builds resolve nothing new: the feature is OFF by default,
+# the dependency set stays workspace-internal, and behavior is
+# byte-compatible with the pre-admission crate (null backend only,
+# `src/cpal.rs` falls back to it). The dev sandbox still cannot build
+# the feature (no ALSA dev package: the alsa-sys pkg-config probe
+# fails, exit 101 — the record's R5); FX3-A07's windows CI lane is the
+# compile oracle. Std-only by C5 in the default build; no unsafe in
+# this crate's own code (the E2 unsafe lives inside cpal's host
+# layers, counted in records/audio-output-cpal.md R4).
 
 [package]
 name = "audio-output"
@@ -29,8 +37,26 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# ADR-005 admission (Route A, FIX-PLAN §3 F1.1; FX3 wave): the real
+# cpal-backed `AudioBackend` adapter in src/cpal.rs. OFF by default —
+# the default build's dependency set stays workspace-internal
+# (std-only, byte-compatible with the pre-admission crate) and the
+# seam constructor falls back to the null backend. The windows CI
+# lane (FX3-A07) compiles and tests with it; enabling it pulls the
+# pinned cpal =0.18.2 graph (records/cpal-0.18.2.md R2: on Linux the
+# alsa/alsa-sys chain — buildable only where the target's audio dev
+# packages exist).
+backend-cpal = ["dep:cpal"]
+
 [dependencies]
 audio-engine = { path = "../audio-engine" }
+# The admitted substrate (ADR-005 amended, Route A): pinned =0.18.2
+# per docs/dependencies/records/cpal-0.18.2.md (P0 verification,
+# 2026-10-21) + records/audio-output-cpal.md (the admission spike's
+# refresh of the graphs/licenses/unsafe counts). Optional: nothing is
+# resolved or compiled unless `backend-cpal` is enabled.
+cpal = { version = "=0.18.2", optional = true }
 media-clock = { path = "../media-clock" }
 media-types = { path = "../media-types" }
 

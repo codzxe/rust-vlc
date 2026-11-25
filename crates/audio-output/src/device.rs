@@ -10,10 +10,11 @@
 //! appear (ARCH-6): devices are [`DeviceId`]s + [`DeviceDesc`]s, our
 //! own vocabulary.
 //!
-//! v0 implementations: [`crate::NullBackend`] (complete) and
-//! [`crate::UnsupportedBackend`] (typed not-supported stubs — the
-//! real-device adapters' placeholders until ADR-005 lands them in
-//! `platform-*`, doc 01 §2.7).
+//! v0 implementations: [`crate::NullBackend`] (complete),
+//! [`crate::UnsupportedBackend`] (typed not-supported stubs), and —
+//! behind the `backend-cpal` feature, since the ADR-005 amendment —
+//! `crate::cpal::CpalBackend` (the admitted real-device adapter;
+//! feature-off builds keep the null backend as the honest answer).
 
 use std::sync::Arc;
 
