@@ -1,0 +1,7 @@
+agent	plan_item	defect	files	evidence
+FX6-A01	F1.2	Mailbox capacity 2 is the only backpressure; records.last() silently drops intermediate frames; no timestamps, no drop policy, no produced-vs-dropped counters	apps/desktop/src/mailbox.rs	FIX-PLAN §3 F1.2 (policy + instrument bullets); W14-A07 class
+FX6-A02	F1.2	10 ms ticker ships records.last() only (app.rs:223-229); no drop-policy awareness, no frame counters in the ticker lane	apps/desktop/src/app.rs	FIX-PLAN §3 F1.2; audit/files/apps/desktop/src/app.rs.audit.md
+FX6-A03	F1.2	Tauri frame channel: raw bytes ~3.7 MB/frame; a stalled webview must not OOM (bounded queue, drop policy)	apps/desktop-tauri/src/frame_channel.rs; apps/desktop-tauri/src/app.rs	FIX-PLAN §3 F1.2; W14-A07; FX4-A04's FX6 handoff note
+FX6-A04	F1.2	Frame-lane integration tests: frames produced vs dropped at the mailbox, drop policy honored, timestamp passthrough, stall bounded	apps/desktop/tests/fx6_*.rs (new)	FIX-PLAN §3 F1.2 acceptance (frame counter matches decode count)
+FX6-A05	F1.2	MediaSurface.tsx putImageData lane verification + frame counter surfacing (the real canvas exists at MediaSurface.tsx:227)	ui/src player surface files	W15; FIX-PLAN §3 F1.2
+FX6-A06	F1.2/F0.6	Docs truth: frame lane post-FX6 (counters/latency/backpressure real; KNOWN-LIMITS frame rows refreshed, dated, evidence-id'd)	docs frame-lane rows	FX4-A07 dated-truth conventions
