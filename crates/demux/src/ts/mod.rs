@@ -318,7 +318,9 @@ pub fn probe(header: &[u8]) -> bool {
     }
     // A lone sync byte proves nothing; a second at the stride does
     // (a whole 188-byte file is also accepted — the walk will tell).
-    header.len() < PACKET_BYTES || header[PACKET_BYTES] == 0x47
+    // `<=` keeps an exactly-one-packet header on the accepted side —
+    // indexing [188] there reads one past the end of a 188-byte slice.
+    header.len() <= PACKET_BYTES || header[PACKET_BYTES] == 0x47
 }
 
 // ---------------------------------------------------------------------------

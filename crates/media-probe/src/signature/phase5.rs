@@ -157,15 +157,19 @@ impl ProbePlugin for TsSignature {
         if prefix.is_empty() || prefix[0] != 0x47 {
             return None;
         }
-        if prefix.len() >= TS_PACKET_BYTES {
+        // Strictly longer than one packet: the stride check needs the
+        // byte AT [188] to exist — an exactly-188-byte window (a whole
+        // single-packet file) falls through to the walk-will-tell hit
+        // below instead of indexing one past the end.
+        if prefix.len() > TS_PACKET_BYTES {
             if prefix[TS_PACKET_BYTES] != 0x47 {
                 return None;
             }
             return Some(anchored(FormatId::mpegts(), TS_PACKET_BYTES + 1));
         }
-        // Shorter than one packet: a lone sync byte is all the window
-        // can see — the demuxer's own probe accepts it, so the claim
-        // stays anchored (score 70, one byte consumed).
+        // At most one packet in the window: a lone sync byte is all
+        // the window can see — the demuxer's own probe accepts it, so
+        // the claim stays anchored (score 70, one byte consumed).
         Some(anchored(FormatId::mpegts(), 1))
     }
 
