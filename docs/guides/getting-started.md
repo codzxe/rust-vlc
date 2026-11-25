@@ -85,15 +85,23 @@ and **audibility on real hardware is [VERIFY] pending the Windows CI
 run of the `audio-cpal-check` lane + a Windows release smoke**
 (`docs/KNOWN-LIMITS.md` §4). On a default build you will not
 hear or see anything; `info`, `time` and the event stream are the
-observable surface. **In-session seek is
-not implemented (reanchor pending)**: on MP4 every seek fails typed at
-`plugin.demux.reanchor.unsupported` (the `Mp4Demuxer` implements no
-`reanchor`; executed: W20-A05 F-001, audit/final/CONTRADICTIONS.md
-C-003), while WAV seek completes (the executed reference —
-`TimingSeekCompleted` at 1 s; W20-A05). MP4/other containers are
-pending the real reanchor (FIX-PLAN F1.3); `--start-time` at open
-works on MP4 (W20-A05: lands at 2.000000 s). The `seekable:` line
-in `info` reports the engine's seek support, not a constant. The
+observable surface. **In-session seek is implemented since Devil-Fix
+wave FX5 (2026-11-26, FIX-PLAN §3 F1.3):** `Mp4Demuxer::reanchor`
+landed on the existing `seek()`/index machinery (FX5-A01, engine-level
+demuxer tests in `crates/demux`), and the CLI-level acceptance is
+pinned by `apps/cli/tests/fx5_seek_mp4.rs` (FX5-A04: `seek 1s` on
+MP4 → `TimingSeekCompleted`, position ~1.0 s, playback continues to
+end) — the pre-FX5 executed refusal
+(`plugin.demux.reanchor.unsupported`, W20-A05 F-001,
+audit/final/CONTRADICTIONS.md C-003) is closed from the code side
+(F0.3/F0.6 closed the reporting side). WAV/AVI seek already complete
+(unchanged); `--start-time` at open works on MP4 (W20-A05: lands at
+2.000000 s). The `seekable:` line in `info` reports the engine's seek
+support, not a constant. The desktop/tauri GUI seek lanes are
+**pending verification**, and an in-session seek in a
+Windows release smoke is the owed run **[VERIFY]** (mirrors the
+audio audibility guard). Every other container's seek truth
+unchanged (each rides its own record — ts/es refuse typed). The
 deterministic open→play→pause→seek→stop session is pinned by
 `apps/cli/tests/session_script.rs` on the AVI fixture — the AVI
 demuxer implements `reanchor`.

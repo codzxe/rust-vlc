@@ -39,19 +39,28 @@ keys per doc 04 §6:
   types damage-note `cover-type-unsupported`.
 - Handle alignment: packets carry the EXPOSED ordinal via an
   explicit `exposed` map (hidden chapter traks leave gaps).
-- Seek: **not implemented (reanchor pending)**. `Mp4Demuxer`'s
-  `seekability()` still reports stss walk-back `Fast{indexed}` /
-  bounded moof-scan `SlowLinear` — the claim `MediaInfoReady` echoes
-  as `seekable: true` — but the impl block overrides no `reanchor`,
-  so every in-session seek dies at the trait default's typed refusal
-  `plugin.demux.reanchor.unsupported` (executed: `seek 1s` on every
-  MP4 sample → `TimingSeekFailed`, position stays 0; all seek forms
-  90s/1s/50%/+10s/-1m fail identically; W20-A05 F-001,
-  audit/final/CONTRADICTIONS.md C-003). WAV seek completes (the
-  executed reference — `TimingSeekCompleted`; W20-A05); MP4/other
-  containers pending the real reanchor (FIX-PLAN F1.3). The pure
-  `seek()` query only powers `--start-time` (W20-A05: `--start-time
-  2s` lands at 2.000000 s).
+- Seek: **in-session implemented — `Mp4Demuxer::reanchor` landed
+  2026-11-26 (Devil-Fix wave FX5, FIX-PLAN §3 F1.3; this record's
+  docs pass is FX5-A06)** on the existing `seek()`/index machinery:
+  stss walk-back `Fast{indexed}` progressive / bounded moof-scan
+  `SlowLinear` fragmented — exactly what `seekability()` reports and
+  `MediaInfoReady` echoes as `seekable: true`, now truthfully.
+  Engine-level demuxer tests in `crates/demux` (FX5-A01); CLI-level
+  acceptance pinned by `apps/cli/tests/fx5_seek_mp4.rs` (FX5-A04:
+  `seek 1s` on MP4 → `TimingSeekCompleted`, position ~1.0 s,
+  playback continues to end) — the pre-FX5 executed refusal
+  (`plugin.demux.reanchor.unsupported`; all seek forms
+  90s/1s/50%/+10s/-1m failing identically, position staying 0;
+  W20-A05 F-001, audit/final/CONTRADICTIONS.md C-003) is closed from
+  the code side (F0.3/F0.6 closed the reporting side in wave FX2).
+  WAV seek already completed (the executed reference — unchanged).
+  The pure `seek()` query also powers `--start-time` (W20-A05:
+  `--start-time 2s` lands at 2.000000 s). The desktop/tauri GUI seek
+  lanes are **pending verification**; an in-session seek in a
+  Windows release smoke is the owed run **[VERIFY]** (mirrors the
+  audio audibility guard). Other containers' seek truth unchanged (each
+  rides its own record — ts/es refuse typed); fragmented-MP4
+  sidx-based seek stays unclaimed (honest gaps below).
 - Codec surface: h264, hevc, mpeg4video, mjpeg, png, vp8, vp9, av1,
   h263, aac, alac, ac3, eac3, opus, flac, mp3, amr_nb/wb, PCM
   family, mov_text.

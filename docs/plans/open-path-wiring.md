@@ -220,6 +220,14 @@ trait default refuses typed; every in-session MP4 seek returns `plugin.demux.rea
 — executed: W20-A05 F-001; audit/final/CONTRADICTIONS.md C-003). In-session seek is
 not implemented (reanchor pending) on MP4; WAV seek completes (the executed reference); MP4/other
 containers lacking a `reanchor` pending FIX-PLAN F1.3.
+— **realized (2026-11-26, Devil-Fix wave FX5): F1.3 landed — `Mp4Demuxer::reanchor` is
+implemented on the existing `seek()`/index machinery (FX5-A01, engine-level demuxer tests in
+`crates/demux`), CLI-level acceptance pinned by `apps/cli/tests/fx5_seek_mp4.rs` (FX5-A04:
+`seek 1s` on MP4 → `TimingSeekCompleted`, position ~1.0 s, playback continues to end)** —
+C-003 closed from the code side (F0.3/F0.6 closed the reporting side; docs pass FX5-A06);
+the desktop/tauri GUI seek lanes stay pending verification and an in-session seek in a
+Windows release smoke is the owed run [VERIFY]. Containers still lacking a trait `reanchor` keep their
+honest typed refusal (ts/es per their own records).
 Therefore **no new trait is needed**. A "container host" is exactly one free function per
 container with a fixed signature:
 
