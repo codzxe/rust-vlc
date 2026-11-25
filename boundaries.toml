@@ -404,12 +404,15 @@ external_dev_allowlist = []
 # device sample counter IS the clock's truth source (doc 03 §4.7/
 # §4.9, SampleCounterSource implemented by the open session). Edges
 # point downward: L4 → L3 (audio-engine) → L0; L4 → L2 (media-clock)
-# → L0. Std-only by C5: zero external dependencies, no unsafe.
+# → L0. Std-only by C5 in the default graph: the ONE external seam
+# is the optional cpal behind `backend-cpal` (ADR-005 amended
+# 2026-11-25, FX3-A01 — cpal =0.18.2, docs/dependencies/allowlist.md
+# §3); default builds resolve nothing external. No unsafe.
 [crates.audio-output]
 layer = 4
 internal_deps = ["audio-engine", "media-clock", "media-types"]
 dev_deps = ["testkit"]
-external_allowlist = []
+external_allowlist = ["cpal"]
 external_dev_allowlist = []
 
 # L4 — GPU video presentation (doc 01 §2.6 registry row, card 2.D1;
