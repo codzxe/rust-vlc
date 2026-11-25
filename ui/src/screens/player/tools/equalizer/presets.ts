@@ -1,72 +1,82 @@
-// w26.c1 — the EQ preset table. Frame: `EQ presets.svg` state=open (8 rows,
-// row 8 clipped by the 348px list — the list scrolls, w26.a20 §A3) +
-// `Settings - audio-1.svg` ("Equalizer preset" row).
+// FX4-A08 (wave FX4, plan F1.1) — the EQ preset table, CUT TO THE ENGINE'S
+// 3-BAND TRUTH. The pre-wave table carried the classic Winamp/VLC 10-band
+// preset shapes for a UI that pretended ten bands; the engine's equalizer
+// is `Eq3Band` (crates/audio-engine/src/effects/eq.rs: low 250 Hz shelf ·
+// mid 1 kHz peak · high 4 kHz shelf, preamp a `Volume`) and the FIX-PLAN
+// rules the reconciliation: "cut the UI to 3 bands and say so" — never
+// invent the 7 missing bands.
 //
-// Gain values are the classic Winamp/VLC 10-band preset shapes (dB, band
-// order = EQ_BANDS low → high). The frames outline the labels but carry no
-// numeric preset data — the values below are the canonical shapes VLC ships
-// [VERIFY against the engine lane once an equalizer command card exists].
-// VLC additionally ships Headphones / Large Hall / Live / Party / Pop /
-// Reggae / Rock / Ska / Soft / Soft rock / Techno presets — out of the
-// frame's 8-row scope, logged for the Lead (the scrollable Dropdown list
-// takes them without layout changes if wanted).
+// Preset gains below are the MECHANICAL projection of the classic 10-band
+// shapes onto the engine's three bands — each engine band takes the mean
+// of the classic gains inside its own region (low: 60/170 Hz · mid:
+// 310 Hz–3 kHz · high: 6–16 kHz), snapped to the 0.1 dB lattice. The
+// frame (EQ presets.svg) outlines the 8 labels only; the projection is
+// this module's own derivation and every value lands in the engine
+// exactly as sent (AudioControls::set_eq — the host verb routes it).
+// VLC's out-of-frame presets (Headphones / Large Hall / …) stay out.
 
 import type { EqMessageKey } from "./useEqMsg";
 import type { EqualizerState } from "./EqualizerTool";
 
-/** One EQ preset: stable id, i18n label, 10 band gains in dB. */
+/** One EQ preset: stable id, i18n label, 3 band gains in dB. */
 export interface EqPresetSpec {
   /** Stable preset id (the Dropdown option value). */
   readonly id: string;
   /** Option label key (frame: EQ presets.svg rows 1–8). */
   readonly labelKey: EqMessageKey;
-  /** 10 band gains in dB, band order = EQ_BANDS. */
+  /** 3 band gains in dB, band order = EQ_BANDS (low, mid, high). */
   readonly gains: readonly number[];
 }
 
-/** Neutral gains — "None" and "Flat" both sit at 0 dB (frame rows 1–2). */
-export const NEUTRAL_GAINS: readonly number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+/** Neutral gains — "None" and "Flat" both sit at 0 dB (the engine identity). */
+export const NEUTRAL_GAINS: readonly number[] = [0, 0, 0];
 
-/** The frame's 8 presets, frame row order. */
+/** The frame's 8 presets, frame row order, projected to the 3 bands. */
 export const EQ_PRESETS: readonly EqPresetSpec[] = [
   { id: "none", labelKey: "screen.eq.preset.none", gains: NEUTRAL_GAINS },
   { id: "flat", labelKey: "screen.eq.preset.flat", gains: NEUTRAL_GAINS },
   {
     id: "classical",
     labelKey: "screen.eq.preset.classical",
-    gains: [0, 0, 0, 0, 0, 0, -7.2, -7.2, -7.2, -9.6],
+    gains: [0, -1.8, -7.8],
   },
   {
     id: "club",
     labelKey: "screen.eq.preset.club",
-    gains: [0, 0, 4.8, 3.6, 3.6, 3.6, 2.4, 0, 0, 0],
+    gains: [0, 3.9, 0.6],
   },
   {
     id: "dance",
     labelKey: "screen.eq.preset.dance",
-    gains: [5.6, 3.5, 1.6, 0, 0, -3.2, -4.8, -5.6, -5.6, -5.6],
+    gains: [4.6, -0.4, -5.4],
   },
   {
     id: "full-bass",
     labelKey: "screen.eq.preset.full-bass",
-    gains: [-8, 9.6, 9.6, 5.6, 1.6, -4, -8, -10.4, -11.2, -11.2],
+    gains: [0.8, 3.2, -10.2],
   },
   {
     id: "full-bass-treble",
     labelKey: "screen.eq.preset.full-bass-treble",
-    gains: [4.8, 3.6, 0, -7.2, -4.8, 1.2, 8, 11.2, 12, 12],
+    gains: [4.2, -2.7, 10.8],
   },
   {
     id: "full-treble",
     labelKey: "screen.eq.preset.full-treble",
-    gains: [-9.6, -9.6, -9.6, -4, 2.4, 11.2, 16, 16, 16, 16.4],
+    gains: [-9.6, 0, 16.1],
   },
 ];
 
-/** Default preamp in dB (frame: Audio - Equalizer.svg reads "12.0 dB"). */
-export const DEFAULT_PREAMP_DB = 12;
+/**
+ * Default preamp in dB. The engine's uncontrolled chain is the exact
+ * identity (`Volume::UNITY` — a flat EQ is bit-exact passthrough, eq.rs's
+ * pinned property), so the honest default is 0 dB, not the retired frame
+ * chip's "12.0" (a +12 dB trim on every quantum by default — loudness the
+ * engine was never asked for).
+ */
+export const DEFAULT_PREAMP_DB = 0;
 
-/** The frame's default state: preamp 12.0 dB, flat bands, no preset. */
+/** The default state: preamp 0 dB (unity), flat bands, no preset. */
 export const DEFAULT_EQUALIZER_STATE: EqualizerState = {
   preamp: DEFAULT_PREAMP_DB,
   gains: NEUTRAL_GAINS,
@@ -74,21 +84,19 @@ export const DEFAULT_EQUALIZER_STATE: EqualizerState = {
 };
 
 /**
- * Band/preamp slider range in dB. VLC's classic band-gain span is ±20 dB;
- * the frame's 0 dB band fills sit at ≈50.6% (symmetric range) and the
- * preamp's 12.0 dB fill at ≈82.6% — closest simple range is ±20 dB for both
- * (12 → 80%, Δ2.6% ≈ 8px) [VERIFY with the engine lane].
+ * Band/preamp slider range in dB — the UI design range. The ENGINE's
+ * runtime control bound is ±40 dB (eq.rs `EQ_GAIN_DB_MAX`, armed by
+ * FX3-A03); the UI stays inside it at the classic ±20 dB, and the engine
+ * answers out-of-range values with the typed refusal (never clamped).
  */
 export const EQ_GAIN_MIN_DB = -20;
 export const EQ_GAIN_MAX_DB = 20;
 
 /**
- * Slider step in dB — the keyboard/pointer LATTICE. w26.k10 (j10 P2-1): the
- * classic Winamp/VLC preset shapes are one-decimal (5.6, −7.2, 16.4 …) and
- * the chips render one decimal, so the lattice IS 0.1 dB; the old 1 dB step
- * made a keyboard press from a fractional preset gain snap asymmetrically
- * (Dance 60 Hz 5.6 → +1.4 up / −0.6 down — off the fader lattice). At 0.1
- * every arrow is ±0.1 (Shift/PageUp coarse ±1.0), symmetric from any preset
- * value, matching exactly where a drag can land.
+ * Slider step in dB — the keyboard/pointer LATTICE. The projected preset
+ * gains are one-decimal (w26.k10, j10 P2-1) and the chips render one
+ * decimal, so the lattice IS 0.1 dB: every arrow is ±0.1 (Shift/PageUp
+ * coarse ±1.0), symmetric from any preset value, matching exactly where a
+ * drag can land.
  */
 export const EQ_GAIN_STEP_DB = 0.1;

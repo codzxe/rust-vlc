@@ -1,26 +1,29 @@
-// EqualizerTool (w26.c1; w26.f05 A2 ruling) — the Audio-tab Equalizer tool:
-// the preset selector (`EQ presets.svg`) above the GraphicEQ vertical-fader
-// panel (`EQ.svg`) — the Lead's frame-true EQUALIZER surface. The w26.f05
-// ruling retires the A1 horizontal rows card (`Audio - Equalizer.svg`): the
-// tools-dialog tool and the settings Effects embed BOTH mount the A2
-// vertical-fader anatomy (the settings frame embeds it at x240 y192.5).
+// EqualizerTool (w26.c1; w26.f05 A2 ruling; FX4-A08 wired) — the Audio-tab
+// Equalizer tool: the preset selector (`EQ presets.svg`) above the
+// GraphicEQ vertical-fader panel. The w26.f05 ruling retires the A1
+// horizontal rows card; the tools-dialog tool and the settings Effects
+// embed both mount the A2 vertical-fader anatomy.
 //
-//   * collapsed — EQ.svg's 784×36 rx2 #090909 bar, centered "Open
-//     Equalizer" + chevron-∨ (the GraphicEQ's own morphing surface);
-//   * expanded — the preset selector (EQ presets.svg grammar: two-layer
-//     48px trigger, 44px option rows @ 46 pitch — w26.e10 F2, scoped in
-//     equalizer.css) above the 784×489 rx2 #191919 panel ("Close
-//     Equalizer" header, 11 vertical faders, labels + value chips below);
-//   * all state LOCAL to the tool (preamp, band gains, preset, open) with
-//     the unchanged `onChange` seam — the frozen w26.c1 contract.
+// FX4-A08 (wave FX4, plan F1.1) — the tool is WIRED: the panel is cut to
+// the ENGINE's 3-band truth (Eq3Band: low 250 Hz shelf · mid 1 kHz peak
+// · high 4 kHz shelf) and every fader commit / preset pick dispatches the
+// REAL `audio.set-eq` verb through the player context's single dispatch
+// lane (`PlayerActions.setEq` — the same `wire.send` path the transport
+// controls and volume/mute ride). The honest-staging markers and the
+// in-body note the pre-wave tool carried (data-staged-tool /
+// data-pending-command + "controls activate with the audio effects
+// command card") are RETIRED — they named an awaited command that now
+// exists and is called.
 //
-// HONEST STAGING (w26.k10, j10 P3-4): the tool carries its own
-// `data-staged-tool`/`data-pending-command` markers + in-body note (the
-// sibling dynamics/visualizer/video pattern) — it stands alone; no host
-// needs to re-stage it. The tools dialog's transitional wrapper
-// (ToolsDialog.tsx + dialogs.css `:has(.eq-tool--open)` note) is now
-// redundant — equalizer.css suppresses THIS note inside that wrapper until
-// its owner deletes it (see the w26.k10 lane log).
+//   * collapsed — EQ.svg's 784×36 rx2 #090909 bar, centered "Open 3-band
+//     equalizer" + chevron-∨ (the GraphicEQ's own morphing surface);
+//   * expanded — the preset selector above the 3-band vertical-fader
+//     panel ("Close 3-band equalizer" header);
+//   * local state stays the EDITING surface (preamp, 3 band gains,
+//     preset, open) with the unchanged `onChange` seam for hosts; the
+//     dispatch is additional, and mounts WITHOUT a PlayerControlsProvider
+//     above (the dev harness, bare test mounts) simply do not dispatch —
+//     usePlayerControlsOrNull is the presence probe.
 //
 // The value chip is the form lane's <ValueChip/> COMPOSED (mission item 3:
 // "compose, don't duplicate") — equalizer.css scopes the frame-measured
@@ -37,22 +40,19 @@ import {
   EQ_PRESETS,
   NEUTRAL_GAINS,
 } from "./presets";
+import { EQ_BAND_INDEX } from "./bands";
 import { GraphicEQ } from "./GraphicEQ";
 import { useEqMsg } from "./useEqMsg";
 import type { EqMessageKey } from "./useEqMsg";
+import { usePlayerControlsOrNull } from "../../context";
+import type { EqSetArgs } from "../../context";
 import "./equalizer.css";
-
-/**
- * Forward-declared command the tool's controls await (the honest-staging
- * marker, the sibling tools' pattern — no `audio.set-eq` command exists yet).
- */
-const PENDING_COMMAND = "audio.set-eq";
 
 /** The tool's full local state (also the `onChange` payload). */
 export interface EqualizerState {
-  /** Preamp in dB (frame default 12.0). */
+  /** Preamp in dB (engine truth: `Volume::UNITY` = 0). */
   readonly preamp: number;
-  /** 10 band gains in dB, band order = EQ_BANDS. */
+  /** 3 band gains in dB, band order = EQ_BANDS (low, mid, high). */
   readonly gains: readonly number[];
   /** Last applied preset id (manual band edits keep it — VLC behavior). */
   readonly preset: string;
@@ -68,7 +68,8 @@ export interface EqualizerToolProps {
   defaultState?: Partial<EqualizerState>;
   /**
    * Fires on every committed change (fader commit, preset pick) with the
-   * tool's full state — the wire seam for the effects settings area.
+   * tool's full state — the host wiring seam (the settings Effects embed
+   * drives its own local state through it).
    */
   onChange?: (state: EqualizerState) => void;
   /** Extra classes on the tool root. */
@@ -76,11 +77,21 @@ export interface EqualizerToolProps {
 }
 
 /**
+ * The wire payload for one editing state — the engine's three band gains
+ * read through EQ_BAND_INDEX (never a positional guess) plus the preamp.
+ */
+const eqArgsOf = (state: EqualizerState): EqSetArgs => ({
+  lowDb: state.gains[EQ_BAND_INDEX.low] ?? 0,
+  midDb: state.gains[EQ_BAND_INDEX.mid] ?? 0,
+  highDb: state.gains[EQ_BAND_INDEX.high] ?? 0,
+  preampDb: state.preamp,
+});
+
+/**
  * EqualizerTool — the tools-dialog Equalizer surface: preset selector +
- * the A2 vertical-fader GraphicEQ panel (the w26.f05 Lead ruling). The
- * tool root self-stages (`data-staged-tool`/`data-pending-command` + the
- * in-body note, w26.k10) exactly like its four sibling audio tools; the
- * GraphicEQ inside is the named "Equalizer" region.
+ * the A2 vertical-fader GraphicEQ panel (the w26.f05 Lead ruling), cut to
+ * the engine's 3 bands (FX4-A08) and dispatching the real `audio.set-eq`
+ * verb on every commit when mounted inside the player context.
  */
 export function EqualizerTool({
   defaultOpen = false,
@@ -89,11 +100,24 @@ export function EqualizerTool({
   className = "",
 }: EqualizerToolProps): ReactNode {
   const eq = useEqMsg();
+  // The presence probe (w26.f10 F4 pattern): inside the player screen the
+  // tools dialog sits under PlayerControlsProvider and dispatches for
+  // real; bare mounts (dev harness, tests) get null and stay local-only.
+  const controls = usePlayerControlsOrNull();
   const [open, setOpen] = useState(defaultOpen);
   const [state, setState] = useState<EqualizerState>({
     ...DEFAULT_EQUALIZER_STATE,
     ...defaultState,
   });
+
+  // Every committed edit reaches the engine — the same dispatch lane the
+  // transport controls use; typed engine refusals surface through the
+  // provider's lastError, never silently.
+  const commit = (next: EqualizerState): void => {
+    setState(next);
+    onChange?.(next);
+    controls?.actions.setEq(eqArgsOf(next));
+  };
 
   const applyPreset = (id: string): void => {
     const spec = EQ_PRESETS.find((candidate) => candidate.id === id);
@@ -102,13 +126,7 @@ export function EqualizerTool({
       gains: spec === undefined ? NEUTRAL_GAINS : spec.gains,
       preset: id,
     };
-    setState(next);
-    onChange?.(next);
-  };
-
-  const commitFader = (next: EqualizerState): void => {
-    setState(next);
-    onChange?.(next);
+    commit(next);
   };
 
   const presetOptions: DropdownOption<EqMessageKey>[] = EQ_PRESETS.map(
@@ -127,8 +145,6 @@ export function EqualizerTool({
         .filter(Boolean)
         .join(" ")}
       data-tool="equalizer"
-      data-staged-tool="equalizer"
-      data-pending-command={PENDING_COMMAND}
     >
       {/* The preset panel (EQ presets.svg) — visible with the expanded
        * surface; the frames place the preset control OUTSIDE the fader
@@ -147,18 +163,8 @@ export function EqualizerTool({
         open={open}
         onOpenChange={setOpen}
         state={state}
-        onChange={commitFader}
+        onChange={commit}
       />
-      {/* The honest-unbound note (the sibling tools' in-body pattern): it
-       * renders with the EXPANDED tool only — collapsed frames show no
-       * staging line. Inside the tools dialog's transitional wrapper the
-       * wrapper's own note wins (equalizer.css) — delete both with the
-       * wrapper (see module header). */}
-      {open ? (
-        <p className="eq-tool__staged" role="note">
-          {eq("player.tools.equalizer.staged")}
-        </p>
-      ) : null}
     </div>
   );
 }

@@ -1,12 +1,14 @@
-// Effects & Tools area tests (w26.c5 integration; w26.f05 A2 rewrite) —
-// the Settings → Audio Effects section composed to `Settings - audio-1.svg`:
-// the "Equalizer preset" settings row OUTSIDE the panel (F6), the embedded
-// A2 GraphicEQ vertical-fader panel (F5/F1), the ⓘ affordances (F7), and
-// the honest-surface rules:
-//   • the embedded EQ + every row control is STAGED (no audio-effects
-//     catalog command exists yet) — markers name the awaited command, ONE
-//     section-level note line gives the honest reason (g12-P3-8: the per-row
-//     badges doubled the frame's row pitch), nothing ever sends;
+// Effects & Tools area tests (w26.c5 integration; w26.f05 A2 rewrite;
+// FX4-A08 3-band cut) — the Settings → Audio Effects section composed to
+// `Settings - audio-1.svg`: the "Equalizer preset" settings row OUTSIDE
+// the panel (F6), the embedded A2 GraphicEQ vertical-fader panel (F5/F1,
+// cut to the engine's 3-band Eq3Band truth — FX4-A08), the ⓘ affordances
+// (F7), and the honest-surface rules:
+//   • this SETTINGS mount keeps its own local-state contract — the
+//     DISPATCHING mount of the same panel is the player tools dialog's
+//     EqualizerTool (fx4_a08_eq_dispatch.test.tsx); the area's rows are
+//     STAGED (markers name their commands, ONE section-level note line
+//     gives the honest reason — g12-P3-8), nothing ever sends here;
 //   • the retired v0 widgets (master volume, mute, balance, video adjust)
 //     are gone per the frame — live playback control stays in the player
 //     ControlBar (see the effects.tsx module header + the w26.c5 lane log).
@@ -36,22 +38,23 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     expect(screen.getByRole("heading", { name: "Effects" })).toBeInTheDocument();
   });
 
-  it("embeds the A2 GraphicEQ panel EXPANDED (frame EQ block, 'Close Equalizer')", () => {
+  it("embeds the A2 GraphicEQ panel EXPANDED (frame EQ block, 'Close 3-band equalizer')", () => {
     renderArea();
-    // The panel's expanded toggle + all 11 frame faders (Preamp + 10 bands,
-    // vertical per EQ.svg).
+    // FX4-A08: the panel is cut to the engine's 3-band truth — Preamp +
+    // Low/Mid/High (Eq3Band: 250 Hz shelf / 1 kHz peak / 4 kHz shelf),
+    // vertical per EQ.svg.
     expect(screen.getByRole("button", { name: CLOSE })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
     const faders = screen.getAllByRole("slider");
-    expect(faders).toHaveLength(11);
+    expect(faders).toHaveLength(4);
     for (const fader of faders) {
       expect(fader).toHaveAttribute("aria-orientation", "vertical");
     }
     expect(screen.getByRole("slider", { name: "Preamp" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "60 Hz" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "16 KHz" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Low (250 Hz)" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "High (4 kHz)" })).toBeInTheDocument();
     // The monochrome frame: no band accent dots anywhere (w26.e07 F8).
     expect(document.querySelector(".eq-tool__accent")).toBeNull();
   });
@@ -67,7 +70,7 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     expect(panel.contains(presetButton)).toBe(false);
     // The staged marker names the awaited command, like the panel wrapper.
     expect(row?.getAttribute("data-pending-command")).toBe("audio.set-eq");
-    expect(container.querySelectorAll(".eq-panel__fader--zero")).toHaveLength(10);
+    expect(container.querySelectorAll(".eq-panel__fader--zero")).toHaveLength(3);
   });
 
   it("the preset row opens the frame's 8 presets (EQ presets.svg)", () => {
@@ -91,9 +94,10 @@ describe("EffectsArea — the frame's Effects section (Settings - audio-1)", () 
     renderArea();
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
     fireEvent.click(screen.getByRole("option", { name: "Club" }));
-    // Club = [0, 0, 4.8, 3.6, 3.6, 3.6, 2.4, 0, 0, 0] — the panel chips follow.
-    expect(screen.getAllByText("4.8 dB")).toHaveLength(1);
-    expect(screen.getAllByText("3.6 dB")).toHaveLength(3);
+    // FX4-A08: Club projects to the 3 engine bands as [0, 3.9, 0.6] — the
+    // panel chips follow.
+    expect(screen.getAllByText("3.9 dB")).toHaveLength(1);
+    expect(screen.getAllByText("0.6 dB")).toHaveLength(1);
     // The trigger reads the applied preset.
     expect(
       screen.getByRole("button", { name: "Equalizer preset" }).textContent,
@@ -229,14 +233,16 @@ describe("EffectsArea — staged rows are inert WITH REASON (the old pattern sta
   it("staged controls never send anything (no live commands left in the area)", () => {
     const { transport } = renderArea();
     // Interact with what renders: pick a preset, scrub a fader by keyboard,
-    // collapse + reopen the panel.
+    // collapse + reopen the panel. (FX4-A08: the settings-area mount keeps
+    // its own local-state contract — the DISPATCHING mount is the player
+    // tools dialog's EqualizerTool; the area's rows stay staged.)
     fireEvent.click(screen.getByRole("button", { name: "Equalizer preset" }));
     fireEvent.click(screen.getByRole("option", { name: "Club" }));
-    fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Low (250 Hz)" }), {
       key: "ArrowUp",
     });
     fireEvent.click(screen.getByRole("button", { name: CLOSE }));
-    fireEvent.click(screen.getByRole("button", { name: "Open Equalizer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open 3-band equalizer" }));
     // Only the area's own hydration-free surface — no config.set-setting, no
     // invented writes for commands the engine does not own.
     expect(transport.sent).toEqual([]);

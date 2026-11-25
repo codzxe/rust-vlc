@@ -3,12 +3,15 @@ import { Slider } from "./Slider";
 import type { SliderOrientation, SliderProps } from "./Slider";
 
 /**
- * EQ band slider (w26.a04, additive export; w26.f05 re-measure) — the EQ
- * slider per the audio-tool frames as SVG-measured (w26.a20 §A1, EQ.svg /
- * Audio - Equalizer.svg; slider.css carries the anatomy): 16px rx6 track on
- * the surface well (#090909), FLAT accent-tinted fill (#371F06, 12px rx4
- * inset 2) and an 8×24 rx4 accent-strong handle — horizontal in the tool
- * rows, `orientation="vertical"` in the A2 fader panel (24×8 handle).
+ * EQ band slider (w26.a04, additive export; w26.f05 re-measure; FX4-A08
+ * 3-band truth) — the EQ slider per the audio-tool frames as SVG-measured
+ * (w26.a20 §A1, EQ.svg / Audio - Equalizer.svg; slider.css carries the
+ * anatomy): 16px rx6 track on the surface well (#090909), FLAT accent-
+ * tinted fill (#371F06, 12px rx4 inset 2) and an 8×24 rx4 accent-strong
+ * handle — horizontal in the tool rows, `orientation="vertical"` in the
+ * A2 fader panel (24×8 handle). The panel that composes it is CUT to the
+ * engine's three Eq3Band bands (FX4-A08, wave FX4) — each fader commits
+ * through the real `audio.set-eq` dispatch.
  *
  * The VALUE CHIP (audio value.svg / EQ.svg's 60×32 readouts) is rendered by
  * CONSUMERS, outside this slider — EQ rows compose label + chip + EQSlider.

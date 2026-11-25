@@ -50,8 +50,8 @@
  * land frame-exact (360px cards, 328px rails; "Audio - Compressor
  * Settings.svg" 360×48 toggle at x20, 328 track at x36). Go-to-Time and
  * Bookmarks keep the 440px compact-dialog pin above (no frame pins
- * them). :has() is already this sheet's idiom (the EQ staged-note rule
- * below). */
+ * them). :has() is this sheet's idiom (the FX4-A08 retirement note
+ * below marks where the EQ staged-note :has() rule lived). */
 .lumen-dialog.player-dialog__surface:has(> .player-dialog--tools) {
   width: min(400px, 92vw);
 }
@@ -355,29 +355,10 @@
   display: none;
 }
 
-/* The EqualizerTool's staged wrapper (w26.c1 ships no marker of its own):
- * the honest-unbound note renders with the EXPANDED card only, matching the
- * sibling cards' in-body notes (dynamics/visualizer/video hide theirs with
- * the collapsed body). */
-.tools-dialog__staged-tool {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--space-inset) * 0.75);
-}
-
-.tools-dialog__staged {
-  margin: 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-tertiary);
-}
-
-.tools-dialog__staged-tool .tools-dialog__staged {
-  display: none;
-}
-
-.tools-dialog__staged-tool:has(.eq-tool--open) .tools-dialog__staged {
-  display: block;
-}
+/* (FX4-A08: the EqualizerTool's TRANSITIONAL staged wrapper + note rules
+ * are retired with the wrapper — the equalizer is wired: every commit
+ * dispatches the real audio.set-eq verb; the sibling dynamics/
+ * visualizer/video tools keep their OWN in-body staged notes.) */
 
 /* ToolsCard — the tool frames' collapsible card skeleton (Audio - Equalizer /
  * Compressor / Spatializer / Widener and Video - Colors / Crop / Essential /

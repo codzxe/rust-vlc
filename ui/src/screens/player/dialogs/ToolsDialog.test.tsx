@@ -1,6 +1,7 @@
-// ToolsDialog tests (w26.c5 integration) — pins the player's tools dialog:
-// the ToolsDialogShell chrome with the Audio/Video tab pair hosting all
-// eight wave-c tools, the EqualizerTool's staged wrapper, and the
+// ToolsDialog tests (w26.c5 integration; FX4-A08 equalizer wired) — pins
+// the player's tools dialog: the ToolsDialogShell chrome with the
+// Audio/Video tab pair hosting all eight wave-c tools (the Equalizer
+// DISPATCHES the real audio.set-eq verb — no staged wrapper), and the
 // `lumen:open-tools` trigger seam (openToolsDialog + ToolsDialogHost, the
 // lumen:open-media pattern).
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -83,9 +84,9 @@ describe("ToolsDialog — the AUDIO tab hosts the five audio tools (frame order)
     }
     // Four collapsed card toggles + the EQ's own frame toggle (EQ.svg: the
     // equalizer is the A2 vertical-fader panel with its "Open/Close
-    // Equalizer" morphing header — w26.f05).
+    // 3-band equalizer" morphing header — w26.f05; FX4-A08 3-band cut).
     expect(screen.getAllByRole("button", { name: EXPAND })).toHaveLength(4);
-    const eqToggle = screen.getByRole("button", { name: "Open Equalizer" });
+    const eqToggle = screen.getByRole("button", { name: "Open 3-band equalizer" });
     expect(eqToggle).toHaveAttribute("aria-expanded", "false");
     // The video panel is hidden — none of its tools reach the a11y tree.
     for (const name of VIDEO_TOOL_NAMES) {
@@ -93,26 +94,30 @@ describe("ToolsDialog — the AUDIO tab hosts the five audio tools (frame order)
     }
   });
 
-  it("expanding the Equalizer reveals the frame rows + the staged note", () => {
+  it("expanding the Equalizer reveals the engine's 3 bands + the preset selector", () => {
     renderDialog();
     fireEvent.click(
       screen.getByRole("region", { name: "Equalizer" }).querySelector(
         '[aria-expanded="false"]',
       ) as HTMLElement,
     );
-    expect(screen.getAllByRole("slider")).toHaveLength(11);
+    // FX4-A08: Preamp + the engine's 3 bands (the retired 10-band
+    // pretense is cut) — and no staged note (the tool dispatches the
+    // real audio.set-eq verb through the player context).
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
     expect(screen.getByRole("slider", { name: "Preamp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Equalizer preset" })).toBeInTheDocument();
   });
 
-  it("the EqualizerTool wrapper carries the staged markers the tool lacks", () => {
+  it("FX4-A08: the wired Equalizer mounts with NO staged wrapper", () => {
     renderDialog();
-    const staged = screen
-      .getByRole("region", { name: "Equalizer" })
-      .closest("[data-staged-tool]");
-    expect(staged).not.toBeNull();
-    expect(staged).toHaveAttribute("data-staged-tool", "equalizer");
-    expect(staged).toHaveAttribute("data-pending-command", "audio.set-eq");
+    const region = screen.getByRole("region", { name: "Equalizer" });
+    // The pre-wave wrapper carried data-staged-tool/data-pending-command
+    // naming the awaited audio.set-eq command; the command exists and is
+    // called now, so the wrapper (and its markers) are retired.
+    expect(region.closest("[data-staged-tool]")).toBeNull();
+    expect(region.closest("[data-pending-command]")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("the sibling tools carry their own staged markers (spot check)", () => {

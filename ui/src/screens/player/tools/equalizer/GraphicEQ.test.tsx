@@ -1,9 +1,10 @@
-// GraphicEQ tests (w26.f05) — pins the A2 vertical-fader EQUALIZER panel
-// per EQ.svg / the Settings - audio-1.svg embed: the morphing bar↔panel
-// toggle ("Open/Close Equalizer"), the 11 fader columns (Preamp + 10 bands,
-// VERTICAL axis, monochrome — no accent dots, w26.e07 F8), the 0 dB tick
-// class on band faders only, chips, and the controlled state seam the
-// settings preset row drives.
+// GraphicEQ tests (w26.f05; FX4-A08 3-band cut) — pins the A2
+// vertical-fader EQUALIZER panel per EQ.svg / the Settings - audio-1.svg
+// embed: the morphing bar↔panel toggle ("Open/Close 3-band equalizer"),
+// the fader columns (Preamp + the ENGINE's 3 bands — low 250 Hz shelf /
+// mid 1 kHz peak / high 4 kHz shelf — vertical axis, monochrome, no accent
+// dots, w26.e07 F8), the 0 dB tick class on band faders only, chips, and
+// the controlled state seam the settings preset row drives.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { keys as laneKeys } from "../../../../i18n/keys/w26.f05";
@@ -14,7 +15,7 @@ const OPEN = laneKeys["screen.eq.open-panel"];
 const CLOSE = laneKeys["screen.eq.close-panel"];
 
 describe("GraphicEQ — the morphing bar↔panel toggle (frame: EQ.svg)", () => {
-  it("ships collapsed: the 36px 'Open Equalizer' bar, faders hidden but wired", () => {
+  it("ships collapsed: the 36px 'Open 3-band equalizer' bar, faders hidden but wired", () => {
     render(<GraphicEQ />);
     const toggle = screen.getByRole("button", { name: OPEN });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -37,13 +38,15 @@ describe("GraphicEQ — the morphing bar↔panel toggle (frame: EQ.svg)", () => 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: CLOSE })).toBe(toggle);
-    expect(screen.getAllByRole("slider")).toHaveLength(11);
+    // FX4-A08: Preamp + the engine's three bands — never the retired
+    // 10-band pretense (the cut the FIX-PLAN rules).
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("slider")).toBeNull();
   });
 
-  it("defaultOpen mounts the panel expanded ('Close Equalizer')", () => {
+  it("defaultOpen mounts the panel expanded ('Close 3-band equalizer')", () => {
     render(<GraphicEQ defaultOpen />);
     expect(screen.getByRole("button", { name: CLOSE })).toHaveAttribute(
       "aria-expanded",
@@ -71,37 +74,29 @@ describe("GraphicEQ — the morphing bar↔panel toggle (frame: EQ.svg)", () => 
   });
 });
 
-describe("GraphicEQ — fader columns (frame: 11 columns, pitch 68)", () => {
-  it("renders Preamp + the 10 frame bands as VERTICAL faders (EQ.svg)", () => {
+describe("GraphicEQ — fader columns (FX4-A08: the engine's 3 bands, pitch 68)", () => {
+  it("renders Preamp + the engine's 3 bands as VERTICAL faders, frequencies stated", () => {
     render(<GraphicEQ defaultOpen />);
     expect(screen.getByRole("slider", { name: "Preamp" })).toHaveAttribute(
       "aria-orientation",
       "vertical",
     );
-    for (const label of [
-      "60 Hz",
-      "170 Hz",
-      "310 Hz",
-      "600 Hz",
-      "1 KHz",
-      "3 KHz",
-      "6 KHz",
-      "12 KHz",
-      "14 KHz",
-      "16 KHz",
-    ]) {
+    // The ENGINE's band labels (Eq3Band: 250 Hz shelf / 1 kHz peak /
+    // 4 kHz shelf) — the visible copy says 3-band, no pretense.
+    for (const label of ["Low (250 Hz)", "Mid (1 kHz)", "High (4 kHz)"]) {
       expect(screen.getByRole("slider", { name: label })).toHaveAttribute(
         "aria-orientation",
         "vertical",
       );
     }
-    expect(screen.getAllByRole("slider")).toHaveLength(11);
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
   });
 
-  it("renders the frame chips: preamp 12.0 dB, bands 0.0 dB", () => {
+  it("renders the chips flat at the engine's unity default (0.0 dB x4)", () => {
     render(<GraphicEQ defaultOpen />);
-    expect(screen.getAllByText("12.0 dB")).toHaveLength(1);
-    expect(screen.getAllByText("0.0 dB")).toHaveLength(10);
+    // FX4-A08: the default preamp is the engine identity (Volume::UNITY,
+    // 0 dB) — not the retired frame chip's 12.0 dB trim.
+    expect(screen.getAllByText("0.0 dB")).toHaveLength(4);
   });
 
   it("carries the ±20 dB range and tabular aria-valuetext (doc 08 §4.5)", () => {
@@ -109,17 +104,17 @@ describe("GraphicEQ — fader columns (frame: 11 columns, pitch 68)", () => {
     const preamp = screen.getByRole("slider", { name: "Preamp" });
     expect(preamp).toHaveAttribute("aria-valuemin", "-20");
     expect(preamp).toHaveAttribute("aria-valuemax", "20");
-    expect(preamp).toHaveAttribute("aria-valuetext", "12.0 dB");
-    expect(screen.getByRole("slider", { name: "60 Hz" })).toHaveAttribute(
+    expect(preamp).toHaveAttribute("aria-valuetext", "0.0 dB");
+    expect(screen.getByRole("slider", { name: "Low (250 Hz)" })).toHaveAttribute(
       "aria-valuetext",
       "0.0 dB",
     );
   });
 
-  it("the 0 dB tick rides the 10 band faders, not Preamp (frame Vector 60)", () => {
+  it("the 0 dB tick rides the 3 band faders, not Preamp (frame Vector 60)", () => {
     const { container } = render(<GraphicEQ defaultOpen />);
     const zero = container.querySelectorAll(".eq-panel__fader--zero");
-    expect(zero).toHaveLength(10);
+    expect(zero).toHaveLength(3);
     // The preamp column fader carries no tick class.
     const preampCol = screen.getByRole("slider", { name: "Preamp" }).closest(
       ".eq-panel__col",
@@ -136,7 +131,7 @@ describe("GraphicEQ — fader columns (frame: 11 columns, pitch 68)", () => {
     // element would make four.
     expect(container.querySelector("[data-accent]")).toBeNull();
     const columns = container.querySelectorAll(".eq-panel__col");
-    expect(columns).toHaveLength(11);
+    expect(columns).toHaveLength(4);
     for (const column of [...columns]) {
       expect(column.children).toHaveLength(3);
     }
@@ -148,7 +143,7 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
     render(
       <GraphicEQ
         defaultOpen
-        state={{ preamp: 6, gains: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: "none" }}
+        state={{ preamp: 6, gains: [3, 0, 0], preset: "none" }}
       />,
     );
     expect(screen.getAllByText("6.0 dB")).toHaveLength(1);
@@ -159,7 +154,7 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
     render(
       <GraphicEQ
         defaultOpen
-        defaultState={{ preamp: 6, gains: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0] }}
+        defaultState={{ preamp: 6, gains: [3, 0, 0] }}
       />,
     );
     expect(screen.getAllByText("6.0 dB")).toHaveLength(1);
@@ -169,14 +164,14 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
   it("a fader commit fires onChange with the full state (ArrowUp = up)", () => {
     const onChange = vi.fn();
     render(<GraphicEQ defaultOpen onChange={onChange} />);
-    fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Low (250 Hz)" }), {
       key: "ArrowUp",
     });
     // w26.k10 (j10 P2-1): 0.1 dB lattice — +0.1, clean double.
     expect(screen.getAllByText("0.1 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_EQUALIZER_STATE,
-      gains: [0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      gains: [0.1, 0, 0],
     });
   });
 
@@ -186,10 +181,10 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
     fireEvent.keyDown(screen.getByRole("slider", { name: "Preamp" }), {
       key: "ArrowDown",
     });
-    expect(screen.getAllByText("11.9 dB")).toHaveLength(1);
+    expect(screen.getAllByText("-0.1 dB")).toHaveLength(1);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_EQUALIZER_STATE,
-      preamp: 11.9,
+      preamp: -0.1,
     });
   });
 
@@ -204,16 +199,16 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
       <GraphicEQ
         defaultOpen={false}
         open
-        state={{ preamp: 12, gains: [5.6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: "none" }}
+        state={{ preamp: 0, gains: [5.6, 0, 0], preset: "none" }}
         onChange={onChange}
       />,
     );
-    fireEvent.keyDown(screen.getByRole("slider", { name: "60 Hz" }), {
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Low (250 Hz)" }), {
       key: "ArrowUp",
     });
     expect(onChange).toHaveBeenLastCalledWith({
-      preamp: 12,
-      gains: [5.7, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      preamp: 0,
+      gains: [5.7, 0, 0],
       preset: "none",
     });
     // Host does NOT echo back — the panel must keep showing the host's
@@ -222,11 +217,11 @@ describe("GraphicEQ — the state seam (host-owned mounts)", () => {
       <GraphicEQ
         defaultOpen={false}
         open
-        state={{ preamp: 12, gains: [5.6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: "none" }}
+        state={{ preamp: 0, gains: [5.6, 0, 0], preset: "none" }}
         onChange={onChange}
       />,
     );
-    expect(screen.getByRole("slider", { name: "60 Hz" })).toHaveAttribute(
+    expect(screen.getByRole("slider", { name: "Low (250 Hz)" })).toHaveAttribute(
       "aria-valuenow",
       "5.6",
     );

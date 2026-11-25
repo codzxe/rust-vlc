@@ -94,6 +94,13 @@ export interface PlayerActions {
   setVolume(value: number): void;
   /** Dispatch `audio.set-mute`; state updates only on completion. */
   setMute(muted: boolean): void;
+  /**
+   * Dispatch `audio.set-eq` (FX4-A08) — the engine's 3-band Eq3Band +
+   * preamp, in dB. The panel's faders stay the editing surface; the
+   * engine's typed refusal (e.g. a band beyond ±40 dB) surfaces through
+   * `lastError`, never silently.
+   */
+  setEq(bands: EqSetArgs): void;
   /** Dispatch `tracks.set-{video,audio,subtitle}-track`. */
   selectTrack(kind: "video" | "audio" | "subtitle", selector: TrackSelector): void;
   /** Re-query `tracks.list` (also triggered by menu open / applied-selector). */
@@ -146,6 +153,44 @@ export function usePlayerControlsOrNull(): PlayerControls | null {
 
 /** Position-near-target tolerance for clearing a pending seek [PROPOSAL]. */
 const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
+
+/**
+ * FX4-A08 (wave FX4, plan F1.1) — the `audio.set-eq` wire seam.
+ *
+ * The verb id is the wave contract's (the UI's pre-wave staging markers
+ * named it, FX4-A02 routes it to the pipeline's `audio_controls()` in
+ * apps/cli/src/host.rs, and FX4-A07's docs pass cites it by name); the
+ * payload mirrors the engine setter it feeds — `AudioControls::set_eq(
+ * low_db, mid_db, high_db, preamp)` (crates/audio-engine/src/controls.rs)
+ * — in the wire's camelCase field convention (`delayMs`/`volume`/`muted`
+ * …). The catalog codegen (ui/src/generated/commands.ts — "never
+ * hand-edit") carries the command in the union once the wave's central
+ * `cargo xtask codegen` refresh lands; until the regenerated union
+ * reaches this tree THIS interface is the one typed construction site —
+ * the deliberate forward declaration (the k07 lane-key pattern applied
+ * to a command payload: one seam, the Lead's regeneration folds it
+ * away).
+ */
+export interface EqSetArgs {
+  /** Low-shelf gain in dB (engine corner: 250 Hz). */
+  readonly lowDb: number;
+  /** Mid-peak gain in dB (engine center: 1 kHz). */
+  readonly midDb: number;
+  /** High-shelf gain in dB (engine corner: 4 kHz). */
+  readonly highDb: number;
+  /** Preamp in dB (engine identity: 0). */
+  readonly preampDb: number;
+}
+
+/**
+ * The request the seam issues — shape-identical to the catalog's
+ * command-request members (`cmd` + `args` + the provider's requestId).
+ */
+export interface EqSetRequest {
+  readonly cmd: "audio.set-eq";
+  readonly args: EqSetArgs;
+  readonly requestId: number;
+}
 
 /**
  * w26.k06 (J06-2, P1): the commands whose dispatch marks the transport
@@ -231,14 +276,19 @@ export function PlayerControlsProvider({
 
   /** Apply a command-layer result (completed branch) to engine state. */
   const applyCompleted = useCallback(
-    (result: CommandResult): void => {
+    (cmd: CommandRequest["cmd"], result: CommandResult): void => {
       switch (result.kind) {
         case "audio-volume":
           patch({ volume: result.volume, engineReported: true });
           break;
         case "applied-bool":
-          // Only `audio.set-mute` is dispatched from this provider.
-          patch({ muted: result.value, engineReported: true });
+          // FX4-A08: only `audio.set-mute` maps an applied-bool onto state —
+          // `audio.set-eq` (if the host answers one) owns NO state field here,
+          // and a future verb answering applied-bool must not smear its
+          // value onto `muted` the way a naive kind-match would.
+          if (cmd === "audio.set-mute") {
+            patch({ muted: result.value, engineReported: true });
+          }
           break;
         case "track-list":
           patch({ tracks: result.tracks, engineReported: true });
@@ -323,7 +373,7 @@ export function PlayerControlsProvider({
           return;
         }
         if ("completed" in response.result) {
-          applyCompleted(response.result.completed);
+          applyCompleted(request.cmd, response.result.completed);
         }
         // A successfully opened session resets the stale error surface
         // (the previous media's failure no longer applies). session.open
@@ -391,6 +441,20 @@ export function PlayerControlsProvider({
       },
       setMute: (muted: boolean) => {
         void dispatch({ args: { muted }, cmd: "audio.set-mute", requestId: requestId() });
+      },
+      setEq: (bands: EqSetArgs) => {
+        // Same lane as setVolume/setMute — the single transport.send
+        // dispatch every working player control rides, with the same
+        // monotonic requestId discipline. The cast is the documented
+        // forward declaration at the EqSetRequest seam above: the request
+        // is shape-identical to the catalog's command requests, carried
+        // there until the wave's regenerated union lands.
+        const request: EqSetRequest = {
+          cmd: "audio.set-eq",
+          args: bands,
+          requestId: requestId(),
+        };
+        void dispatch(request as unknown as CommandRequest);
       },
       selectTrack: (kind, selector) => {
         const cmd =

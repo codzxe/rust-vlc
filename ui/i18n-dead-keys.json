@@ -626,5 +626,60 @@
     "key": "player.controls.queue-items",
     "reason": "superseded control-bar label, unreferenced since the w26 controls rewrite; lane copy pruned from w26.i03.ts by w26.k18 so a future catalog prune cannot resurrect it via re-merge",
     "owner": "w26.k18 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.60",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.170",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.310",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.600",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.1k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.3k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.6k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.12k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.14k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "screen.eq.band.16k",
+    "reason": "10-band pretense retired by the FX4-A08 cut to the engine's 3-band Eq3Band truth (wave FX4, plan F1.1); superseded by screen.eq.band.low/mid/high (lane keys in w26.c1.ts, Lead registers); lane copy pruned from w26.c1.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
+  },
+  {
+    "key": "player.tools.equalizer.staged",
+    "reason": "the equalizer is WIRED (FX4-A08, wave FX4, plan F1.1): every fader commit and preset pick dispatches the real audio.set-eq verb, so the staged-unbound note is retired from both the tool and the tools-dialog wrapper; lane copy pruned from w26.c5.ts so a future catalog prune cannot resurrect it via re-merge",
+    "owner": "FX4-A08 (verified dead; Lead prunes the catalog entry)"
   }
 ]

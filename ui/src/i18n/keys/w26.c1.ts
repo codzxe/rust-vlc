@@ -10,27 +10,23 @@
 // is owned by ui/src/i18n/keys/w26.a18.ts and resolved through the same seam.
 //
 // Copy provenance: `Audio - Equalizer.svg` / `EQ.svg` carry REAL outlined
-// text. Band labels are frame-verbatim, including the frames' "KHz"
-// capitalization ("1 KHz" — the VLC-style unit, not SI "kHz"); the frames
-// win over the general sentence-case rule (contract §3). Preset names use
-// correct English per the w26.a20 analysis §D4 ("Full bass", not the render
-// mis-read "Full base"; "Full bass & treble" per EQ presets.svg row 7).
+// text. The band labels were the frame's 10-band set; FX4-A08 (wave FX4,
+// plan F1.1) CUT the panel to the engine's 3-band truth (Eq3Band: low
+// 250 Hz shelf · mid 1 kHz peak · high 4 kHz shelf) per the FIX-PLAN's
+// "cut the UI to 3 bands and say so" ruling — the labels now state the
+// engine's own frequencies, no invented bands. Preset names keep the
+// correct English per the w26.a20 analysis §D4 ("Full bass", not the
+// render mis-read "Full base"; "Full bass & treble" per EQ presets.svg
+// row 7).
 export const keys = {
   // The card's accessible name (settings.audio-1 row context: "Equalizer").
   "screen.eq.title": "Equalizer",
-  // Row labels — frame: Audio - Equalizer.svg rows 1–11 (label column).
+  // Row labels — the ENGINE's three bands, frequencies stated (FX4-A08).
   "screen.eq.preamp": "Preamp",
-  "screen.eq.band.60": "60 Hz",
-  "screen.eq.band.170": "170 Hz",
-  "screen.eq.band.310": "310 Hz",
-  "screen.eq.band.600": "600 Hz",
-  "screen.eq.band.1k": "1 KHz",
-  "screen.eq.band.3k": "3 KHz",
-  "screen.eq.band.6k": "6 KHz",
-  "screen.eq.band.12k": "12 KHz",
-  "screen.eq.band.14k": "14 KHz",
-  "screen.eq.band.16k": "16 KHz",
-  // Value unit (chips read "12.0 dB" — frame: Audio - Equalizer.svg).
+  "screen.eq.band.low": "Low (250 Hz)",
+  "screen.eq.band.mid": "Mid (1 kHz)",
+  "screen.eq.band.high": "High (4 kHz)",
+  // Value unit (chips read "0.0 dB" flat — the engine's unity default).
   "screen.eq.unit-db": "dB",
   // Preset selector (frame: EQ presets.svg trigger; settings audio-1 row
   // label "Equalizer preset" for the accessible name).

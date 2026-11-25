@@ -1,19 +1,23 @@
-/* equalizer.css (w26.c1; w26.f05 A2 rewrite) — the EQ surfaces, measured
- * from design/figma/"EQ.svg" (the A2 vertical-fader panel — the w26.f05
- * Lead ruling's frame-true EQUALIZER surface) with the preset selector from
- * "EQ presets.svg":
+/* equalizer.css (w26.c1; w26.f05 A2 rewrite; FX4-A08 3-band cut) — the
+ * EQ surfaces, measured from design/figma/"EQ.svg" (the A2 vertical-fader
+ * panel — the w26.f05 Lead ruling's frame-true EQUALIZER surface) with
+ * the preset selector from "EQ presets.svg":
  *
  *   * eq-panel — one MORPHING surface: collapsed 784×36 rx2 #090909 bar
- *     ("Open Equalizer" + chevron-∨) → expanded 784×489 rx2 #191919 panel
- *     (36px "Close Equalizer" header, 18px gap, 11 fader columns at 68px
- *     pitch: 16×320 rx6 track / 12px rx4 flat #371F06 fill growing up /
- *     24×8 rx4 #AB6314 thumb, 14px #6B6B6B label, 60×32 rx6 #090909 chip
- *     with ≈12px #8F8F8F value; the 10 band columns carry the 0 dB tick);
+ *     ("Open 3-band equalizer" + chevron-∨) → expanded 784×489 rx2
+ *     #191919 panel (36px "Close 3-band equalizer" header, 18px gap, the
+ *     fader columns (Preamp + the ENGINE's 3 bands — FX4-A08 cut the
+ *     retired 10-band pretense) at the 68px frame column pitch: 16×320
+ *     rx6 track / 12px rx4 flat #371F06 fill growing up / 24×8 rx4
+ *     #AB6314 thumb, 14px #6B6B6B label, 60×32 rx6 #090909 chip with
+ *     ≈12px #8F8F8F value; the 3 band columns carry the 0 dB tick);
  *   * eq-tool — the tools-dialog wrapper: the preset selector above the
  *     panel ("EQ presets.svg": two-layer 48px trigger, 44px rows @ 46
  *     pitch — w26.e10 F2; w26.i06: trigger ink/alignment pinned, all-row
  *     quiet ink, per-preset leading curve glyphs, frame 348px scrollable
- *     list on i16's stable scrollport — h13).
+ *     list on i16's stable scrollport — h13). The tool is WIRED
+ *     (FX4-A08): every commit dispatches the real audio.set-eq verb —
+ *     the staged-note rules are retired with the staging they marked.
  *     The A1 horizontal rows card (Audio - Equalizer.svg) is retired by
  *     the ruling; its row/chip/dot grammar is gone with it (w26.e07 F8 —
  *     the frame renders monochrome columns).
@@ -30,32 +34,13 @@
 /* -------------------------------------------------- the tools-dialog tool */
 
 /* The wrapper is transparent: the GraphicEQ panel owns the surface. It
- * carries the eq-tool--open state class the tools dialog's TRANSITIONAL
- * staged-note rule still keys on (dialogs.css :has(.eq-tool--open)) and,
- * since w26.k10 (j10 P3-4), the tool's own staged markers — the note below
- * renders with the expanded body like its siblings'. */
+ * carries the eq-tool--open state class (the pre-FX4 staged-note rules
+ * keyed on it are retired — the tool dispatches the real verb now). */
 .eq-tool {
   display: flex;
   flex-direction: column;
   width: 100%;
   font-family: var(--font-family-sans);
-}
-
-/* Staged note — the honest-unbound marker (the dynamics/visualizer/video
- * in-body pattern): quiet caption line, never styled like an engine status. */
-.eq-tool__staged {
-  margin: calc(var(--space-inset) * 2) 0 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-content-secondary);
-}
-
-/* TRANSITIONAL (w26.k10, j10 P3-4): hosts that still render their own EQ
- * staged note suppress the tool's — the tools dialog's wrapper
- * (ToolsDialog.tsx) shows its own line via dialogs.css :has(.eq-tool--open).
- * Delete this rule together with the wrapper + its :has() rule; standalone
- * mounts (and every host after that deletion) render the tool's own note. */
-.tools-dialog__staged-tool .eq-tool__staged {
-  display: none;
 }
 
 /* The preset selector (EQ presets.svg) — the shared Dropdown with the
@@ -360,17 +345,19 @@
   display: none;
 }
 
-/* The fader rail — frame-exact 748px (11 columns × 68 pitch). Mounts
- * narrower than the 784px frame (the tools dialog's 398px column) pan the
- * rail horizontally; every column keeps the frame geometry. */
+/* The fader rail — the frame's column grammar (68px pitch columns: Preamp
+ * + the engine's 3 bands, FX4-A08 — the retired 11-column 748px bound
+ * stays as the harmless frame ceiling). Mounts narrower than the frame
+ * (the tools dialog's 398px column) never overflow: the rail is bounded by
+ * its mount and every column keeps the frame geometry. */
 .eq-panel__rail {
   display: flex;
 
   /* w26.g15 P1-1 Lead fix: the rail must SHRINK to its mount (max-width, not
-   * fixed width) so the 748px frame geometry pans INSIDE narrow hosts (the
+   * fixed width) so the frame geometry pans INSIDE narrow hosts (the
    * 398px tools dialog) instead of overflowing under the scrim. */
   width: 100%;
-  max-width: 748px; /* frame: 11 × 68 pitch (EQ.svg columns) */
+  max-width: 748px; /* frame ceiling: 11 × 68 pitch (EQ.svg columns) */
   overflow-x: auto; /* narrow mounts pan; frame geometry never compresses */
   scrollbar-width: thin;
 }
@@ -404,7 +391,8 @@
  * at the track midpoint y290) — painted on the FILL so the frame z-order
  * holds: track < fill < tick < thumb (at 0 dB the thumb covers the tick,
  * per the frame's default state). Constant offset from the fill's bottom
- * edge (0 dB sits at half the ±20 range): 158px up. */
+ * edge (0 dB sits at half the ±20 range): 158px up. Carried by the 3 BAND
+ * faders (FX4-A08), never Preamp. */
 .eq-panel__fader--zero .lumen-slider__fill::after {
   content: "";
   position: absolute;
@@ -419,9 +407,9 @@
   border-radius: 1px;
 }
 
-/* Band label ≈14px, centered under the track (frame: "60 Hz" x121–159 on
- * col center x140; 34px below the track bottom — 30px from the fader
- * element's foot incl. its 4px inset). INK: the frame pins #6B6B6B but the
+/* Band label ≈14px, centered under the track (the ENGINE band's frequency
+ * — "Low (250 Hz)" etc., FX4-A08; the retired 10-band labels were
+ * frame-verbatim "60 Hz"…"16 KHz"). INK: the frame pins #6B6B6B but the
  * LEAD RULING (standing, w26.i06 re-confirmed) KEEPS --color-content-
  * tertiary #828282 — 4.6:1 WCAG beats the frame value's 3.9:1; documented,
  * not changed (g15-P2-1 stays a token-lane question by choice). */

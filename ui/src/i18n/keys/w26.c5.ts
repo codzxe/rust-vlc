@@ -33,11 +33,12 @@ export const keys = {
   // — one honest frame-verbatim option, no invented engine modes).
   "settings.effects.spatial-mode.headphone-virtualization": "Headphone virtualization",
   "settings.effects.stereo-widening": "Stereo widening",
-  // The EQ embed's staged note (w26.c1's tool ships no staged marker of its
-  // own; this lane's wrapper carries the honest-unbound line, same copy
-  // family as w26.c2's player.tools.dynamics.staged).
-  "player.tools.equalizer.staged":
-    "Staged — controls activate with the audio effects command card",
+  // FX4-A08 (wave FX4): player.tools.equalizer.staged pruned from this lane
+  // file — the equalizer is WIRED (every fader commit and preset pick
+  // dispatches the real audio.set-eq verb through the player context), so
+  // the staged-unbound note is retired from the tool + the tools-dialog
+  // wrapper; grandfathered in ui/i18n-dead-keys.json so a future Lead prune
+  // of the catalog cannot resurrect it via re-merge.
   // Player Tools dialog (ToolsDialogShell + Audio/Video tabs; no combined
   // frame exists — the tab labels name the tool-frame families
   // "Audio - *.svg" / "Video - *.svg").

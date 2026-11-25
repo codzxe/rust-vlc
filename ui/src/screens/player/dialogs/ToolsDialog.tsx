@@ -13,9 +13,10 @@
 // Every card ships COLLAPSED per the frames (the "Expand Settings" toggle
 // grammar); all state is local to the tools; the dynamics/visualizer/video
 // cards carry their own honest staged markers. The EqualizerTool (w26.c1)
-// has no staged marker of its own — the wrapper below carries the same
-// honest-unbound line the sibling cards render (role="note" +
-// data-pending-command naming the awaited `audio.set-eq` command).
+// is WIRED (FX4-A08, wave FX4, plan F1.1): cut to the engine's 3-band
+// truth and dispatching the real `audio.set-eq` verb through the player
+// context on every fader commit / preset pick — its pre-wave transitional
+// staged wrapper + note here are retired with the staging they marked.
 //
 // THE TRIGGER SEAM (decoupled contract, never rename — the
 // `lumen:open-media` pattern): any surface asks for the tools dialog by
@@ -112,18 +113,11 @@ export function ToolsDialog({
             </Tab>
           ))}
         </TabsList>
-        {/* AUDIO — the five audio tool cards, frame order. */}
+        {/* AUDIO — the five audio tool cards, frame order. The Equalizer
+         * is wired (FX4-A08): the real audio.set-eq verb, 3-band engine
+         * truth — no staged wrapper. */}
         <TabsPanel value="audio" className="tools-dialog__panel">
-          <div
-            className="tools-dialog__staged-tool"
-            data-staged-tool="equalizer"
-            data-pending-command="audio.set-eq"
-          >
-            <EqualizerTool />
-            <p className="tools-dialog__staged" role="note">
-              {m("player.tools.equalizer.staged")}
-            </p>
-          </div>
+          <EqualizerTool />
           <CompressorTool />
           <SpatializerTool />
           <StereoWidenerTool />

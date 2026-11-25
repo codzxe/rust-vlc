@@ -1,14 +1,17 @@
-// w26.c1 — the 10-band equalizer's band table (VLC's classic 10-band set,
-// frame-verbatim labels). Frame: `Audio - Equalizer.svg` rows 2–11 (row 1 is
-// Preamp, which is not a band) and `EQ.svg`'s 11 fader columns.
+// FX4-A08 (wave FX4, plan F1.1) — the equalizer's band table, CUT TO THE
+// ENGINE'S TRUTH. The pre-wave table was VLC's classic 10-band set
+// (frame-verbatim labels for a 10-band pretense); the engine's real
+// equalizer is `Eq3Band` — three fixed bands (crates/audio-engine/src/
+// effects/eq.rs: low 250 Hz shelf · mid 1 kHz peak · high 4 kHz shelf) —
+// and the FIX-PLAN's ruling for the UI is explicit: cut to 3 bands and
+// say so, never invent the 7 missing bands. Labels therefore carry the
+// engine's own corner/center frequencies — the visible copy states the
+// 3-band truth (open/close header, GraphicEQ's module header).
 //
 // Monochrome columns (w26.e07 F8, standing): the frames render the band
-// columns monochrome (#6B6B6B labels, #AB6314 thumbs) — NO per-band accent
-// dots exist in any shipped anatomy. The `--color-eq-1..7` tokens stay in
-// the token layer for the visualizer's live spectrum bars (VisualizerDisplay
-// derives its own `(index % 7) + 1`), so the band table carries no accent
-// data. w26.k10 (j10 P2-2): the dead `accent` field — never read by any
-// consumer — and this header's retired accent-dot paragraph are gone.
+// columns monochrome — no per-band accent dots exist in any shipped
+// anatomy, so the band table carries no accent data (w26.k10, j10 P2-2:
+// the dead `accent` field is gone and stays gone).
 
 import type { EqMessageKey } from "./useEqMsg";
 
@@ -16,20 +19,28 @@ import type { EqMessageKey } from "./useEqMsg";
 export interface EqBandSpec {
   /** Stable band id (also the React key). */
   readonly id: string;
-  /** Row label key (frame-verbatim "60 Hz" … "16 KHz"). */
+  /** Column label key — engine band truth, frequencies included. */
   readonly labelKey: EqMessageKey;
 }
 
-/** VLC's classic 10-band set, low → high (frame row order). */
+/**
+ * The engine's three bands, low → high (Eq3Band's fixed corners — the
+ * UI labels them with the engine's own frequencies; there is no fourth).
+ */
 export const EQ_BANDS: readonly EqBandSpec[] = [
-  { id: "hz60", labelKey: "screen.eq.band.60" },
-  { id: "hz170", labelKey: "screen.eq.band.170" },
-  { id: "hz310", labelKey: "screen.eq.band.310" },
-  { id: "hz600", labelKey: "screen.eq.band.600" },
-  { id: "khz1", labelKey: "screen.eq.band.1k" },
-  { id: "khz3", labelKey: "screen.eq.band.3k" },
-  { id: "khz6", labelKey: "screen.eq.band.6k" },
-  { id: "khz12", labelKey: "screen.eq.band.12k" },
-  { id: "khz14", labelKey: "screen.eq.band.14k" },
-  { id: "khz16", labelKey: "screen.eq.band.16k" },
+  { id: "low", labelKey: "screen.eq.band.low" },
+  { id: "mid", labelKey: "screen.eq.band.mid" },
+  { id: "high", labelKey: "screen.eq.band.high" },
 ];
+
+/**
+ * Where each engine band's gain lives in an `EqualizerState.gains` array —
+ * exactly `EQ_BANDS` order (low, mid, high). The dispatch seam
+ * (PlayerActions.setEq) reads gains through these indices so a state array
+ * and the wire payload can never disagree about which band is which.
+ */
+export const EQ_BAND_INDEX = {
+  low: 0,
+  mid: 1,
+  high: 2,
+} as const;
