@@ -428,6 +428,25 @@ impl HlsLiveStream {
         let mut out = Vec::new();
         while out.len() < len {
             if self.pos < self.fetched_upto {
+                // A cursor inside the fetched range but before the
+                // retained window: the bytes at `pos` were evicted —
+                // one segment body over `max_retained_bytes` (a
+                // config-accepted shape) restarts the window at the
+                // body's end. Refuse typed instead of wrapping the
+                // window offset (`pos - retained_from` underflowed,
+                // then the retained slice panicked) — the twin of the
+                // master/VOD sessions' oversized-segment repro (this
+                // file's own audit pass left the read-side underflow
+                // unnamed; the wave-10 summary and the master fix's
+                // risk note carry it).
+                if self.pos < self.retained_from {
+                    return Err(mint(
+                        ErrorKind::Inaccessible {
+                            reason: AccessDenied::NotFound,
+                        },
+                        "streaming.hls.read-unretained",
+                    ));
+                }
                 let at = (self.pos - self.retained_from) as usize;
                 let have = self.retained.len() - at;
                 let take = have.min(len - out.len());
@@ -1269,7 +1288,8 @@ mod tests {
         // A discontinuity does NOT refuse.
         let disc = "#EXTM3U\n#EXTINF:1.0,\ns.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:1.0,\ns.ts\n";
         let fetch = LiveRouter::new(&[disc], &[("/s.ts", b"x")]);
-        assert!(open_live(fetch, "http://unit.test/pl.m3u8", fast_config()).is_ok()); // lumen-allow-literal: URL parse/redaction test vector — data under test
+        assert!(open_live(fetch, "http://unit.test/pl.m3u8", fast_config()).is_ok());
+        // lumen-allow-literal: URL parse/redaction test vector — data under test
     }
 
     /// An encrypted shape arriving on a RELOAD refuses too (a live
