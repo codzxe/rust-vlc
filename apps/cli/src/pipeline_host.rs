@@ -16,10 +16,15 @@
 //! [`CliFrameConsumer`] implements the engine's [`FrameConsumer`]
 //! seam on the poll thread:
 //!
-//! - **audio**: `AudioPipeline` (2.C3: s16→f32 conversion, unity
-//!   volume, identity map, straight mix) → the null sink's ring
-//!   (2.C3's null backend — no audio device in this sandbox). The
-//!   ring's shared counter is the session clock's truth source.
+//! - **audio**: `AudioPipeline` (2.C3: s16→f32 conversion; the
+//!   FX3-A03 master chain — volume/mute/balance/EQ, unity until
+//!   controlled; identity map, straight mix) → the output ring of
+//!   the backend the factory posture routed (the instrumented null
+//!   backend — the headless default; see
+//!   [`open_audio_session_for`]). The ring's shared counter is the
+//!   session clock's truth source; a sink clocked at another rate
+//!   than the track rides the FX3-A04 rate-mismatch resampler at
+//!   the same seam.
 //! - **video**: an I420→RGBA host conversion (BT.601 full-range, the
 //!   JFIF equations — the renderer's v0 upload path is RGBA-only and
 //!   the color-conversion card has not landed; 2.D1's worklog named
@@ -48,9 +53,10 @@
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
-use audio_engine::{AudioPipeline, PipelineSpec};
+use audio_engine::resample::RateResampler;
+use audio_engine::{AudioBuffer, AudioControls, AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
-use audio_output::{NullBackend, NullConfig, NullStream};
+use audio_output::{NullBackend, NullConfig, NullStream, cpal_linked};
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use codecs::audio::aac::AacDecoder;
 use codecs::audio::adpcm::AdpcmDecoder;
@@ -735,6 +741,33 @@ pub struct AudioLimb {
     /// window's injected time stamp — captured once, never re-derived
     /// per quantum).
     rate_hz: u32,
+    /// The session's live master chain (FX3-A03's [`AudioControls`]):
+    /// volume, mute, balance and the 3-band EQ, run over the mixed
+    /// quantum at the seam below — the same stage order and the same
+    /// position FX3-A03 placed it (between the mixer and the device
+    /// adaptation). Identity until a control arrives, so the
+    /// uncontrolled lane keeps [`AudioLimb::stage`]'s write path
+    /// byte-identical. This is the `&mut` hand-off the pipeline's own
+    /// surface declines — see [`AudioLimb::audio_controls`] for the
+    /// one gate that moves to process time with it.
+    controls: AudioControls,
+    /// The post-mix seam's machinery: the rate conversion (when the
+    /// output clock runs at another rate than the track — see
+    /// [`open_audio_session_for`]) plus the reused planes/bytes both
+    /// seams share (D-1 — after the first quantum nothing allocates).
+    seam: PostMixSeam,
+}
+
+/// The post-mix seam's scratch (see the limb's `seam` field).
+struct PostMixSeam {
+    /// The track-rate → sink-rate converter (`None` at equal rates —
+    /// the null fallback's headless default).
+    resampler: Option<RateResampler>,
+    /// The deinterleaved working planes (reused per quantum — the
+    /// master chain's and the resampler's shared shape).
+    planes: Vec<Vec<f32>>,
+    /// The interleaved output bytes (reused per quantum).
+    bytes: Vec<u8>,
 }
 
 impl AudioLimb {
@@ -837,18 +870,119 @@ impl AudioLimb {
     /// [`FrameConsumer`] path's per-frame step — also the composition
     /// root's staging seam for paced producers, e.g. the 3.B1 sync
     /// harness). The micro-resampler's correction applies inside the
-    /// mix; the ring's boundedness is the sink's own.
+    /// mix. The uncontrolled equal-rate lane writes the mixed bytes
+    /// verbatim; a controlled chain (FX3-A03's master chain) or a sink
+    /// clocked at another rate than the track (FX3-A04's
+    /// [`RateResampler`]) rides the post-mix seam instead — the
+    /// controls first, then the rate conversion, exactly the order
+    /// the engine places them between the mixer and the device.
     ///
     /// # Errors
-    /// The pipeline's typed errors (format mismatch, mix shape) and
-    /// the sink's (ring full) — both already stage-tagged.
+    /// The pipeline's typed errors (format mismatch, mix shape), the
+    /// seam's (the master chain's process-time gate, the whole-frame
+    /// guard) and the sink's (ring full) — all already stage-tagged.
     pub fn stage(&mut self, frame: &AudioFrame) -> Result<(), EngineError> {
         self.pipeline.process(0, frame)?;
         self.pipeline.mix()?;
         if let Some(buffer) = self.pipeline.take_output() {
-            self.sink.write_bytes(buffer.data.as_slice())?;
+            if self.controls.is_identity() && self.seam.resampler.is_none() {
+                // The uncontrolled equal-rate lane: the mixed bytes
+                // ride to the sink verbatim (no deinterleave, no
+                // second buffer — bit-identical to the pre-FX4 stage).
+                self.sink.write_bytes(buffer.data.as_slice())?;
+            } else {
+                Self::write_through_seam(
+                    &mut self.sink,
+                    &mut self.controls,
+                    &mut self.seam,
+                    &buffer,
+                )?;
+            }
         }
         Ok(())
+    }
+
+    /// The live master chain — the FX3-A03 surface the host verbs
+    /// route (FX4-A02's `audio.set-volume`/`set-mute` through
+    /// [`ConsumerState::audio_mut`]): a `&mut` hand-off onto the
+    /// session's own chain, set between quanta and applied at the
+    /// next mixed quantum.
+    ///
+    /// **The one gate that moves with the raw hand-off:** the
+    /// pipeline's own surface pre-validates balance's stereo shape at
+    /// set time; this raw handle cannot (the chain does not know the
+    /// session's channel count), so a mono session's `set_balance`
+    /// takes the `Ok` and the gate fires at process time instead — a
+    /// typed `audio.effects_balance_channels` from the next `stage`,
+    /// never a silent mislabel (the hazard the engine's read-only
+    /// `controls()` doc records is answered by surfacing it loudly).
+    pub fn audio_controls(&mut self) -> &mut AudioControls {
+        &mut self.controls
+    }
+
+    /// [`AudioLimb::stage`]'s post-mix seam: deinterleave the mixed
+    /// quantum into the reused planes, run the live master chain,
+    /// cross the rate grids when the sink is clocked differently,
+    /// interleave into the reused byte scratch, write to the sink.
+    /// (A free-standing arm — the sink, the controls and the seam are
+    /// field-disjoint halves of the limb, so passing all three is the
+    /// borrow shape that keeps the single `stage` body.)
+    ///
+    /// # Errors
+    /// The master chain's own process-time gate (the balance stereo
+    /// shape — see [`AudioLimb::audio_controls`]),
+    /// `audio.partial_frame` (the mixed buffer is not whole frames —
+    /// the same gate [`NullSink::write_bytes`] applies on the
+    /// equal-rate path) and the sink's own write errors.
+    fn write_through_seam(
+        sink: &mut NullSink,
+        controls: &mut AudioControls,
+        seam: &mut PostMixSeam,
+        buffer: &AudioBuffer,
+    ) -> Result<(), EngineError> {
+        let data = buffer.data.as_slice();
+        let frame_bytes = buffer.format.frame_bytes() as usize;
+        if !data.len().is_multiple_of(frame_bytes) {
+            return Err(host_error(
+                PipelineStage::AudioOutput,
+                "audio.partial_frame",
+                format!(
+                    "the post-mix seam writes whole frames: {len} bytes against a \
+                     {frame_bytes}-byte frame",
+                    len = data.len()
+                ),
+            ));
+        }
+        let channels = buffer.format.channels as usize;
+        let frames = data.len() / frame_bytes;
+        seam.planes.resize(channels, Vec::new());
+        for plane in &mut seam.planes {
+            plane.resize(frames, 0.0);
+        }
+        for (i, bytes) in data.as_chunks::<4>().0.iter().enumerate() {
+            seam.planes[i % channels][i / channels] = f32::from_le_bytes(*bytes);
+        }
+        // The live master chain (FX3-A03's position: the mixed quantum
+        // between the mixer and the device adaptation).
+        controls.process(&mut seam.planes)?;
+        // The rate conversion onto the sink's grid, when it differs
+        // (FX3-A04 — after the controls, the same order the engine
+        // places stage D).
+        let (planes, out_frames) = match seam.resampler.as_mut() {
+            Some(resampler) => {
+                let out_frames = resampler.process(&seam.planes, frames);
+                (resampler.planes(), out_frames)
+            }
+            None => (seam.planes.as_slice(), frames),
+        };
+        seam.bytes.clear();
+        seam.bytes.reserve(out_frames * frame_bytes);
+        for frame in 0..out_frames {
+            for plane in planes {
+                seam.bytes.extend_from_slice(&plane[frame].to_le_bytes());
+            }
+        }
+        sink.write_bytes(&seam.bytes)
     }
 
     /// The governor's polled observability (counters only — the
@@ -1176,6 +1310,15 @@ impl ConsumerState {
     #[must_use]
     pub fn video(&self) -> Option<&VideoLimb> {
         self.video.as_ref()
+    }
+
+    /// The audio half, mutable — the live-control seam: the host's
+    /// audio verbs reach the limb's master chain through the
+    /// consumer's locked state ([`AudioLimb::audio_controls`] is the
+    /// handle they take from here — FX4-A02's `audio_limb_controls`
+    /// is the one call site).
+    pub fn audio_mut(&mut self) -> Option<&mut AudioLimb> {
+        self.audio.as_mut()
     }
 
     /// The audio half (for the pump's accounting).
@@ -1750,8 +1893,9 @@ fn clamp_u8(value: i32) -> u8 {
 // The audio session wiring (open-path construction)
 // ---------------------------------------------------------------------------
 
-/// The null audio session halves plus the processing pipeline: what
-/// the open path builds when the media has an audio track.
+/// The driven audio session halves plus the processing pipeline: what
+/// the open path builds when the media has an audio track, over the
+/// backend the factory posture routed ([`RoutedAudioBackend`]).
 pub struct AudioSession {
     /// The consumer's audio half (pipeline + sink).
     pub limb: AudioLimb,
@@ -1761,33 +1905,180 @@ pub struct AudioSession {
     pub clock: Arc<MediaClock>,
     /// The channel count (render buffer sizing).
     pub channels: u32,
+    /// The backend the factory posture routed for this session — the
+    /// routing decision's own record ([`RoutedAudioBackend`]).
+    pub routed: RoutedAudioBackend,
 }
 
-/// Open the null audio session + the audio-master clock for a media
+impl AudioSession {
+    /// The live master chain over the whole session — the same
+    /// `&mut` hand-off [`AudioLimb::audio_controls`] yields (the
+    /// session owns the limb; one chain, two reachable entries — the
+    /// host verbs route through whichever half they hold).
+    pub fn audio_controls(&mut self) -> &mut AudioControls {
+        self.limb.audio_controls()
+    }
+}
+
+/// The audio-output backend posture for session construction — the
+/// `--audio-backend` grammar's session-construction vocabulary
+/// (parse.rs's `AudioBackend` maps one-to-one onto it at the host
+/// seam), threaded into [`open_audio_session_for`].
+///
+/// - [`Auto`](AudioBackendPosture::Auto) (the default): prefer a real
+///   device backend when this build carries one (the audio-output
+///   `backend-cpal` feature — [`audio_output::builtin_backends`]
+///   puts the admitted adapter first), falling back to the
+///   instrumented null backend (the headless default).
+/// - [`Null`](AudioBackendPosture::Null): force the instrumented
+///   null backend — samples counted (the counter is the session
+///   clock's truth source) and discarded: deterministic, no audio
+///   device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioBackendPosture {
+    /// `--audio-backend auto`: real backend first when the build
+    /// carries one, null fallback otherwise.
+    Auto,
+    /// `--audio-backend null`: force the instrumented null backend.
+    Null,
+}
+
+/// The backend the session's audio path actually routed to — the
+/// factory consultation's own record (see
+/// [`open_audio_session_for`]'s routing gate): every session this
+/// host constructs today routes the instrumented null backend; a
+/// real-device variant joins this vocabulary when the host-pump
+/// rework can drive an OS-callback device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutedAudioBackend {
+    /// The instrumented null backend: the driven halves, the discard
+    /// device, the sample counter the session clock reads.
+    Null,
+}
+
+/// Open the driven audio session + the audio-master clock for a media
 /// whose PCM facts are known. `anchor_ns` is the position the session
-/// starts at (0, or the seek target).
+/// starts at (0, or the seek target). The default posture
+/// ([`AudioBackendPosture::Auto`]) and matching rates — see
+/// [`open_audio_session_for`] for the factory posture, the clock
+/// semantics and the rate pair.
 ///
 /// # Errors
-/// The null backend's typed errors (unsupported format shape) and the
+/// The backend's typed errors (unsupported format shape) and the
 /// clock's construction errors, both already stage-tagged.
 pub fn open_audio_session(
     channels: u32,
     rate: u32,
     anchor_ns: i64,
 ) -> Result<AudioSession, EngineError> {
-    let format = AudioFormat {
+    open_audio_session_for(channels, rate, rate, anchor_ns, AudioBackendPosture::Auto)
+}
+
+/// Open the driven audio session through the audio-output backend
+/// factory posture (FX3-A01's admission): the posture selects, the
+/// build's truth ([`cpal_linked`]) decides what
+/// [`audio_output::builtin_backends`] actually carries, and the
+/// session routes the backend the driven CLI host can drive.
+///
+/// **The routing gate (this wave's honest bound).** The CLI host's
+/// session is the DRIVEN null session: the host pump renders the
+/// concrete [`NullDevice`] half (host.rs's `advance_time` render
+/// loop, gated on the null ring's fill), and the limb's probe
+/// surface — the drain gate's ring fill
+/// ([`AudioLimb::buffered_frames`]), the decode-park gate
+/// ([`AudioLimb::ring_ready`]), the seek boundary's written prefix
+/// ([`AudioLimb::written_frames`]) and the drift observation's
+/// sample count — reads the null driver's own counters. The
+/// [`audio_output::AudioBackend`] trait carries
+/// open/pause/resume/clock_source/underruns only
+/// (crates/audio-output/src/device.rs): the cpal adapter's
+/// buffered/written/sample probes are concrete
+/// (crates/audio-output/src/cpal.rs), not trait-reachable — so an
+/// opened real device cannot yet be ROUTED as this session's sink.
+/// The `Auto` posture's real-device preference therefore resolves
+/// to the null fallback — the same backend the `Null` posture
+/// forces — exactly what the `--audio-backend` grammar's own doc
+/// records (parse.rs: "this build carries no real device backend,
+/// so both values construct the instrumented null backend today").
+/// The real-device activation is the host-pump rework (the desktop
+/// lane, FX4-A03/FX4-A04) plus the trait's probe surface.
+///
+/// **The clock semantics (preserved per selected sink).**
+/// [`MediaClock::audio_master`] anchors over the selected sink's
+/// `clock_source`: every backend that can be selected provides one
+/// after open — the null backend's shared counter
+/// (crates/audio-output/src/null.rs, advanced by the pump's device
+/// renders — the deterministic clock rides the null path) and, once
+/// routable, the cpal backend's own `SampleCounter`
+/// (crates/audio-output/src/cpal.rs — advanced by the OS callback
+/// through `render_into`; crates/audio-output/src/pump.rs's `PcmPump`
+/// is the reference pacing shape for that lane).
+///
+/// **The rate pair (the FX3-A04 seam).** `track_rate` is the
+/// pipeline's rate — the media's own sampling grid — and `sink_rate`
+/// is the output clock's: equal in the null fallback (the headless
+/// default — the resampler seam is absent and [`AudioLimb::stage`]'s
+/// write path is byte-identical), different when the device's clock
+/// runs at another rate (the real-device lane's shape; the null
+/// backend models it). A differing pair wires
+/// [`RateResampler`] at this session seam — the engine pipeline
+/// itself still refuses track-rate mismatch (`audio.rate_mismatch`,
+/// crates/audio-engine/src/pipeline.rs), so the conversion lives
+/// here, between the mixed quantum and the sink.
+///
+/// # Errors
+/// The backend's typed errors (unsupported format shape), the
+/// resampler's shape refusal and the clock's construction errors —
+/// all already stage-tagged.
+pub fn open_audio_session_for(
+    channels: u32,
+    track_rate: u32,
+    sink_rate: u32,
+    anchor_ns: i64,
+    posture: AudioBackendPosture,
+) -> Result<AudioSession, EngineError> {
+    // The factory consultation: the Auto posture prefers a real
+    // device backend when this build carries one —
+    // builtin_backends() puts the admitted adapter first under the
+    // `backend-cpal` feature, and cpal_linked() is the runtime
+    // truth — while the Null posture forces the null backend
+    // outright. The routing gate above keeps the driven session on
+    // the null backend either way this wave; the routed fact is the
+    // session's own record.
+    let routed = match posture {
+        AudioBackendPosture::Auto if cpal_linked() => {
+            // A build carrying a real device backend: the preference
+            // consulted the factory; the routing gate (the pump and
+            // probe contract above) keeps the driven null session
+            // until the host-pump rework routes OS-callback devices
+            // (the desktop lane's follow-up).
+            RoutedAudioBackend::Null
+        }
+        AudioBackendPosture::Auto | AudioBackendPosture::Null => RoutedAudioBackend::Null,
+    };
+    let sink_format = AudioFormat {
         sample: SampleFormat::F32,
         channels,
         layout: AudioLayout::Interleaved,
-        rate,
+        rate: sink_rate,
     };
     let NullStream { sink, device } =
-        NullBackend::open_stream(&format, RING_FRAMES, NullConfig { capture: false })?;
+        NullBackend::open_stream(&sink_format, RING_FRAMES, NullConfig { capture: false })?;
     let pipeline = AudioPipeline::new(PipelineSpec {
-        rate,
+        rate: track_rate,
         channels,
         tracks: 1,
     })?;
+    // FX3-A04's rate-mismatch resampler at the session seam: wired
+    // exactly when the output clock runs at a different rate than
+    // the track; equal rates (the null fallback) skip it. The live
+    // master chain (FX3-A03) arms at the track rate — the mixed
+    // quantum's own grid.
+    let resampler = match RateResampler::new(channels, track_rate, sink_rate) {
+        Ok(resampler) if !resampler.is_passthrough() => Some(resampler),
+        Ok(_) => None,
+        Err(error) => return Err(error),
+    };
     let clock = Arc::new(MediaClock::audio_master(
         sink.clock_source(),
         Timestamp::new(anchor_ns, media_clock::NANO_BASE),
@@ -1797,11 +2088,18 @@ pub fn open_audio_session(
         limb: AudioLimb {
             pipeline,
             sink,
-            rate_hz: rate,
+            rate_hz: sink_rate,
+            controls: AudioControls::new(track_rate),
+            seam: PostMixSeam {
+                resampler,
+                planes: Vec::new(),
+                bytes: Vec::new(),
+            },
         },
         device,
         clock,
         channels,
+        routed,
     })
 }
 
