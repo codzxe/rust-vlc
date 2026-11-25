@@ -270,10 +270,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Miri on the pure foundation crates
+        # Fail-closed (fix F0.5e): the `|| true` swallow removed — a
+        # non-zero exit from 18_ub_checks.sh now fails this step (keep-going
+        # hid UB detections between crates).
         run: |
           for c in media-types codec-api packet-queue; do
             echo "== miri: $c =="
-            bash scripts/quality/18_ub_checks.sh miri "$c" || true
+            bash scripts/quality/18_ub_checks.sh miri "$c"
           done
 
       - name: Kani catalogue (harnesses to write; no proofs yet)
@@ -414,9 +417,13 @@ jobs:
           components: rust-src
       - uses: Swatinem/rust-cache@v2
       - name: AddressSanitizer on crates/codecs (rav1d C ABI)
-        run: bash scripts/quality/18_ub_checks.sh asan codecs || true
+        # Fail-closed (fix F0.5e): the `|| true` swallow removed — an ASan
+        # report must be able to fail this lane.
+        run: bash scripts/quality/18_ub_checks.sh asan codecs
       - name: UndefinedBehaviourSanitizer on crates/codecs
-        run: bash scripts/quality/18_ub_checks.sh ubsan codecs || true
+        # Fail-closed (fix F0.5e): the `|| true` swallow removed — a UBSan
+        # report must be able to fail this lane.
+        run: bash scripts/quality/18_ub_checks.sh ubsan codecs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

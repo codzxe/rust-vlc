@@ -42,11 +42,15 @@ jobs:
         run: cargo install clippy-sarif sarif-fmt
 
       - name: Run rust-clippy
-        run:
-          cargo clippy
-          --all-features
-          --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
-        continue-on-error: true
+        # Fail-closed (Devil audit §5 / fix F0.5b): `continue-on-error: true`
+        # removed and `-D warnings` added so any warning fails this lane.
+        # `set -o pipefail` is required — without it the trailing sarif-fmt
+        # would mask clippy's exit code (the same class of swallow the audit
+        # killed in the alloc-budget gate).
+        run: |
+          set -o pipefail
+          cargo clippy --all-features --message-format=json -- -D warnings \
+            | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
 
       - name: Upload analysis results to GitHub
         uses: github/codeql-action/upload-sarif@v3

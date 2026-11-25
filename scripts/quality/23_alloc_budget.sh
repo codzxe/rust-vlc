@@ -64,6 +64,12 @@ say "sampling ${#FILES[@]} fixtures"
 cargo run -q -p lumen-mem-audit -- "${FILES[@]}" > "$RAW" 2>&1
 say "mem-audit exit=$? (see $RAW)"
 
+# Gate semantics (fix F0.5a): the heredoc's exit code (1 = OVER THRESHOLD)
+# must become the script's exit code — 99_run_all.sh's JG fails the tier on it.
+# It is captured here and re-expressed at the single exit path at the bottom;
+# the trailing `say`s used to swallow it (python's sys.exit(1) died at a `say`
+# and the script exited 0 — the audit's executed W17-A03 repro).
+rc=0
 $PY - "$RAW" "$MAX_RATIO" "$OUT/alloc/alloc-budget.txt" <<'PYEOF'
 import re, statistics, sys
 raw, max_ratio, out = sys.argv[1], float(sys.argv[2]), sys.argv[3]
@@ -130,6 +136,8 @@ if bad:
         print("  %.2fx  %s" % (r["excess"], r["file"]))
     sys.exit(1)
 PYEOF
+rc=$?
 
 say ""
 say "written: $OUT/alloc/alloc-budget.txt"
+exit "$rc"

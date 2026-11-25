@@ -13,8 +13,14 @@
 #   REVIEW linear scans embedded in a loop, counted and ranked, not gated:
 #            .contains(  .position(  .iter().any/find/filter(  .sort*  clone()
 #
-# The HARD count is RATCHETED against docs/audit/complexity-baseline.json:
-# a crate may not add an O(n) shift. First run creates the baseline.
+# The HARD count is RATCHETED against the COMMITTED
+# docs/audit/complexity-baseline.json: a crate may not add an O(n) shift.
+# A missing or unparseable baseline FAILS the gate (a ratchet with no floor is
+# a pass-through — the audit's W17-A04 finding). Regeneration is deliberate,
+# never automatic:
+#   scripts/quality/26_complexity.sh --write-baseline
+# Run that only after fixing what made the gate fail, never to silence an
+# unexplained drift.
 #
 # Real complexity proof needs measurement (doubling input, fitting the growth
 # exponent). That is T21/perf territory and cannot be faked from source.
@@ -25,13 +31,25 @@ mkdir -p "$OUT/complexity"
 BASE="$ROOT/docs/audit/complexity-baseline.json"
 OUTF="$OUT/complexity/complexity.txt"
 
+# --write-baseline: the one sanctioned way to (re)generate the ratchet floor
+# from the current tree. Without it, a missing/invalid baseline is a FAILURE.
+WRITE_BASELINE=0
+if [ "${1:-}" = "--write-baseline" ]; then WRITE_BASELINE=1; fi
+
 head1 "26. quadratic-idiom gate"
 
-$PY - "$ROOT" "$BASE" "$OUTF" <<'PYEOF'
+# Gate semantics (fix F0.5c): the heredoc's exit code (1 = baseline missing/
+# invalid, or a crate GREW) must become the script's exit code — 99_run_all.sh's
+# JG fails the tier on it. Captured here, re-expressed at the single exit path
+# at the bottom; the trailing `say`s used to swallow it (same class as the
+# 23_alloc_budget.sh W17-A03 finding).
+rc=0
+$PY - "$ROOT" "$BASE" "$OUTF" "$WRITE_BASELINE" <<'PYEOF'
 import json, os, re, sys
 from datetime import datetime, timezone
 
 root, base_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+write_baseline = (sys.argv[4] == "1")
 
 HARD = {
     "remove0":  re.compile(r"\.remove\(\s*0\s*\)"),
@@ -137,12 +155,21 @@ if os.path.exists(base_path):
 
 rc = 0
 if baseline is None:
-    json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-               "policy": "engineering-directives D-1..D-5",
-               "hard_total": hard_total, "review_total": review_total,
-               "hard": hard_by_crate, "review": review_by_crate},
-              open(base_path, "w", encoding="utf-8"), indent=1)
-    L.append("\nBaseline created: HARD=%d. The ratchet starts here." % hard_total)
+    if write_baseline:
+        json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "policy": "engineering-directives D-1..D-5",
+                   "hard_total": hard_total, "review_total": review_total,
+                   "hard": hard_by_crate, "review": review_by_crate},
+                  open(base_path, "w", encoding="utf-8"), indent=1)
+        L.append("\nBaseline written: HARD=%d (deliberate --write-baseline run; "
+                 "the ratchet floor is now this tree)." % hard_total)
+    else:
+        L.append("\n**GATE FAILED**: ratchet baseline %s is missing or invalid." % base_path)
+        L.append("A ratchet without its committed floor is a pass-through — the")
+        L.append("gate refuses to run green. Restore the baseline from history, or")
+        L.append("regenerate deliberately AFTER fixing what made it fail:")
+        L.append("  scripts/quality/26_complexity.sh --write-baseline")
+        rc = 1
 else:
     prior = baseline.get("hard", {})
     grew = [(k, prior.get(k, 0), hard_by_crate.get(k, 0))
@@ -166,6 +193,8 @@ open(out_path, "w", encoding="utf-8").write("\n".join(L) + "\n")
 print("\n".join(L[-10:]))
 sys.exit(rc)
 PYEOF
+rc=$?
 
 say ""
 say "written: $OUTF"
+exit "$rc"

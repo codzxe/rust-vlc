@@ -1,12 +1,28 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
+# Dependabot version updates — real ecosystems that exist in this tree
+# (fix F0.5f: the previous stub shipped `package-ecosystem: ""`, which
+# dependabot rejects, so NO update PRs were ever possible):
+#   cargo          — workspace root Cargo.toml + Cargo.lock (all workspace
+#                     crates inherit the root manifest)
+#   npm            — ui/ (package.json + package-lock.json)
+#   github-actions — .github/workflows/*.yml (actions pinned by SHA; bump
+#                     comments included)
+# ui/tools/eslint-plugin-local is a dependency-free local scaffold — no
+# entry. See the docs for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "cargo"
+    directory: "/"
     schedule:
       interval: "weekly"
- 
+
+  - package-ecosystem: "npm"
+    directory: "/ui"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

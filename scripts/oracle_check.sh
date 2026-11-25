@@ -20,13 +20,19 @@
 #   test that runs Lumen's decoder can now be judged against a hash
 #   that an independent engine produced.
 #
-# USAGE (opt-in — deliberately NOT wired into scripts/full_gate.sh or
-# any CI gate; the local gate must never depend on ffmpeg being
-# installed, mirroring the env-gated corpus suites):
+# USAGE
 #   bash scripts/oracle_check.sh            # from the repo root (or any
 #                                           # subdir — the root is found
 #                                           # from this script's path)
 #   bash scripts/oracle_check.sh -v         # also show ffmpeg's stderr
+#
+# WIRED INTO CI (fix F0.5d, 2026-11-25): .github/workflows/ci.yml `gate`
+# job, step 7 — the runner installs ffmpeg first (the prerequisite this
+# header demands). EXPECTED RED until FX6 pins the 6 unpinned .avi/.mp4
+# fixtures and brings the 15 perimeter files inside the pin set: the lane
+# must be able to fail, not be green. Still deliberately NOT wired into
+# scripts/full_gate.sh — the LOCAL gate must never depend on ffmpeg being
+# installed (mirroring the env-gated corpus suites).
 #
 # EXIT CODE
 #   0 = every fixture x stream hashed equal to its pin
