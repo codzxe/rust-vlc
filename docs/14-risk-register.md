@@ -108,6 +108,27 @@ smoke** (FIX-PLAN §3 F1.1 acceptance). Sources: `audit/fix/wave-FX4.tsv`;
 | R-29 | still **mitigating**; the host-wiring half of the mitigation landed in the CLI lane — the [VERIFY] surface advances but does not close | The row's deferred clause (host/backend-selection + verb wiring, §0.3) is realized for the shipped CLI host (FX4-A01/A02/A06; FX4-A05 evidence); remaining [VERIFY]: real-hardware underruns/hotplug/exclusive-mode + audibility itself — the Windows CI run of the `audio-cpal-check` lane + a Windows release smoke — and the desktop/tauri GUI lanes pending FX4-A03/A04 verification. |
 | R-20 | still mitigating; the audio-lie doc family re-pointed again (post-FX4 truth) | KNOWN-LIMITS §4, audio-pcm.md, the guides, the release-notes skeleton, ROADMAP/doc 01 ADR-005 status lines, and the matrix row's notes now state the wired-in-the-CLI-host truth with the GUI-lane and audibility [VERIFY] caveats (FX4-A07) — same-wave source+register update per the register's own rule. |
 
+## 0.5 Refresh — 2026-11-26 Devil-Fix waves FX5–FX7 governance (agent FX7-A04)
+
+No exposure scores changed and no rows are closed or retired (Lead-only per
+§1's re-scoring rule); this block records the remediation program's
+governance state after waves FX4–FX6 landed their lanes (audio host wiring
+FX4 — §0.4; mp4-seek FX5; frame lane FX6) and the same-wave FX7 governance
+pass (FX7-A04) registered the two defects those waves surfaced. Sources:
+`audit/fix/wave-FX7.tsv` (rows FX7-A01/FX7-A03/FX7-A04); `audit/fix/
+FIX-PLAN.md` §7 (the REAL% trajectory) + §8 (governance); `audit/fix/waves/
+FX5/FX5-A0{1,4,6}.md`; `audit/fix/waves/FX6/FX6-A0{1,2,3,5,6}.md` +
+`FX6-R3/R4.md`; `audit/fix/REALITY-RESCORE.md` (FX7-A03, same wave —
+landed in-tree at this pass's write time and read; the interim number
+quoted below is that document's own, never re-derived here).
+
+| ID | Delta (status/score unchanged unless stated) | One-line justification |
+|----|----------------------------------------------|------------------------|
+| R-20 | still mitigating; the doc family keeps pace with the code waves | The FX5/FX6 lane truths landed with their code in the same waves (seek docs FX5-A06; frame-lane docs FX6-A06 — both verified in-tree), and this §0.5 block + KNOWN-LIMITS' 2026-11-26 FX7 entry record the governance pass — per this register's own rule that the source updates with the register, never silently. |
+| W1-06 registered defect (new evidence, no row change — the consolidated register carries it) | recorded as a KNOWN-LIMITS §4 row, not an R-row; Lead may number it at the next re-score | The registered W1-06 KNOWN DEFECT (`apps/cli/src/pipeline_host.rs:1686-1714`): the window-full present-hold stashes the UNCONVERTED I420 frame → renderer refusals (18/60 on the `fx6_a04` drive class; the committed transcript's own 60→16 pair; FX6-R3/R4's diagnosis) — **fix assigned to FX7-A01 in the same wave (stash the CONVERTED frame; Lead-gated pacing/backpressure decision); FX7-A01's report was absent and the tree carried the unfixed hold at this pass's write time, so the closure is in flight, not claimed; sibling FX7-A02 landed in-wave and restores the in-process acceptance's 60/60 predicate coded against that fix — the central run is the closure's oracle.** |
+| tauri 2.12.5 fetch-queue defect (new evidence, no row change — the consolidated register carries it) | recorded as a KNOWN-LIMITS §4 row, not an R-row; Lead may number it at the next re-score | FX6-A03's vendored-source finding: tauri's internal per-webview `ChannelDataIpcQueue` is unbounded and unobservable from the app crate (no depth API, no ack, `Channel::send` fire-and-forget); the app-side ship queue is bounded since FX6-A03, but under a never-fetching webview the audit's ~370 MB/s worst-case accumulation stands inside tauri's queue — the W14-A07 unbounded-queue class's residual; **named follow-up: a webview→shell ack epoch (UI-side protocol change; FX6-A05's lane + `crates/commands` territory)**. |
+| REAL% trajectory (program metric, not a risk row) | the interim row recorded 2026-11-26 in `audit/fix/FIX-PLAN.md` §7's trajectory table + KNOWN-LIMITS §1's trajectory row, and the Phase-1 exit band re-projected there (~30–35% → ~20–22%) | FX7-A03's same-verdict-bucket re-score over the same 252-row denominator: **interim REAL% = 52/252 = 20.63%, floor 20%** (4 rows flip — mp4-seek SHALLOW→REAL, volume and EQ FALSE→REAL, resampler ACCURATE-ABSENT→UNDERSTATED; the frame lane owns no matrix row and W1-06's closure was not in the tree at re-score time, so nothing of it is counted); the number's home is `audit/fix/REALITY-RESCORE.md` (FX7-A03, same wave — read at this pass's write time); the trajectory is a first-class program metric per FIX-PLAN §1.6/§7, re-scored at every phase exit. |
+
 ## 1. Register format
 
 Each risk is one row with twelve fields. Because twelve columns are unreadable in one table, the register is rendered as **two synchronized views**: §2.1 (master table: identity, scores, ownership, status, cadence) and §2.2–§2.6 (detail tables: indicators, mitigations, contingency). Together they are the complete row; both views are sorted identically and carry the same IDs.
