@@ -57,8 +57,8 @@ use media_types::ids::SourceUri;
 use media_types::packet::SharedBytes;
 use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp};
 use media_types::{EngineError, MediaKind, Track, TrackId};
-use playback_engine::{QueuePlan, wire_error_code, wire_stage};
-use plugin_api::{Access, DemuxEvent, Demuxer, SeekSupport, access::SourceStream};
+use playback_engine::{wire_error_code, wire_stage, QueuePlan};
+use plugin_api::{access::SourceStream, Access, DemuxEvent, Demuxer, SeekSupport};
 
 /// The product's queue packet caps — the `[limits]` figures
 /// product.toml ships (`queue_packets_audio = 1024`,
@@ -995,5 +995,306 @@ mod tests {
         };
         assert!(err.message.contains("video"), "{err}");
         assert!(err.message.contains("ceiling"), "{err}");
+    }
+
+    // -- FX5-A07: the engine seek lane's host half ---------------------
+    //
+    // The engine's only in-session seek entry is `Demuxer::reanchor`
+    // (playback-engine pipeline.rs:1499 → this wrapper at :606 → the
+    // inner demuxer). The audit executed every MP4 seek as
+    // `TimingSeekFailed … plugin.demux.reanchor.unsupported` with
+    // `seekable: true` (wave-20 F-001): these tests pin that the
+    // wrapper itself forwards BOTH halves verbatim — the capability
+    // query and the acting call — so the failure above is provably
+    // the inner demuxer's default refusal, never a swallowed seam.
+
+    use std::sync::{Arc, Mutex};
+
+    /// The lane fixture's tick base: one tick = one millisecond.
+    fn lane_base() -> TimeBase {
+        TimeBase::new(1, 1_000).unwrap_or_else(|e| unreachable!("{e}"))
+    }
+
+    /// One audio track in the lane fixture's base.
+    fn lane_track() -> Track {
+        Track {
+            id: TrackId::new(0),
+            stream: media_types::StreamId::new(0),
+            kind: MediaKind::Audio,
+            language: None,
+            codec: media_types::ids::CodecDescriptor::new("lane-pcm")
+                .unwrap_or_else(|e| unreachable!("{e}")),
+            title: None,
+            flags: media_types::TrackFlags::NONE,
+            timing: media_types::TrackTiming {
+                span: TimeSpan {
+                    start: Stamp::Present(Timestamp::new(0, lane_base())),
+                    end: Stamp::Present(Timestamp::new(500, lane_base())),
+                },
+                base: lane_base(),
+                gaps: Vec::new(),
+            },
+        }
+    }
+
+    /// One lane packet at `pts_ms` (the track's own base).
+    fn lane_packet(pts_ms: i64) -> media_types::Packet {
+        media_types::Packet {
+            track: TrackId::new(0),
+            pts: Stamp::Present(Timestamp::new(pts_ms, lane_base())),
+            dts: Stamp::Missing,
+            duration: Some(media_types::Duration::Known(media_types::Nanoseconds(
+                1_000_000,
+            ))),
+            data: SharedBytes::from_static(&[0x1au8; 32]),
+            keyframe: true,
+            discontinuity: false,
+            generation: media_types::GenerationId::FIRST,
+        }
+    }
+
+    /// A present stamp's ticks (the lane's single base).
+    fn lane_ticks(stamp: &Stamp) -> i64 {
+        match stamp {
+            Stamp::Present(ts) => ts.ticks,
+            Stamp::Missing => unreachable!("lane stamps are present"),
+        }
+    }
+
+    /// A scripted inner demuxer whose `reanchor` is instrumented: it
+    /// records the exact target the wrapper handed it (into `seen`) and
+    /// lands at the packet ≤ the target, compute-then-commit (D4).
+    struct AnchoredInner {
+        packets: Vec<media_types::Packet>,
+        cursor: usize,
+        seen: Arc<Mutex<Option<i64>>>,
+    }
+
+    impl AnchoredInner {
+        /// 11 packets at 50 ms strides (0..=500 ms) plus the shared
+        /// target-recording cell the test keeps a clone of.
+        fn new() -> (AnchoredInner, Arc<Mutex<Option<i64>>>) {
+            let packets = (0..=10)
+                .map(|step| lane_packet(i64::from(step) * 50))
+                .collect();
+            let seen = Arc::new(Mutex::new(None));
+            (
+                AnchoredInner {
+                    packets,
+                    cursor: 0,
+                    seen: Arc::clone(&seen),
+                },
+                seen,
+            )
+        }
+    }
+
+    impl Demuxer for AnchoredInner {
+        fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+            Ok(vec![lane_track()])
+        }
+        fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {
+            match self.packets.get(self.cursor) {
+                Some(packet) => {
+                    let packet = packet.clone();
+                    self.cursor += 1;
+                    Ok(DemuxEvent::Packet(packet))
+                }
+                None => Ok(DemuxEvent::EndOfStream),
+            }
+        }
+        fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
+            // The pure query never moves anything (doc 03 §6: the
+            // acting half is `reanchor`).
+            Ok(TimeSpan::UNKNOWN)
+        }
+        fn seekability(&self) -> SeekSupport {
+            SeekSupport::Fast { indexed: true }
+        }
+        fn reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+            let Stamp::Present(ts) = target.start else {
+                unreachable!("lane tests target present stamps");
+            };
+            // The seam's whole question: the wrapper handed the inner
+            // the engine's target verbatim — recorded, not guessed.
+            *self
+                .seen
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(ts.ticks);
+            // The keyframe-safe packet ≤ the target (all keyframes).
+            let landing = self
+                .packets
+                .iter()
+                .rposition(|packet| lane_ticks(&packet.pts) <= ts.ticks)
+                .unwrap_or(0);
+            self.cursor = landing;
+            Ok(TimeSpan {
+                start: self.packets[landing].pts,
+                end: Stamp::Missing,
+            })
+        }
+    }
+
+    /// The pre-FX5-A01 `Mp4Demuxer` shape exactly: the capability
+    /// claims `Fast` while the trait-default `reanchor` refuses typed
+    /// (plugin-api demux.rs:113-120) — the pair the audit executed as
+    /// wave-20 F-001. Deliberately NO `reanchor` override.
+    struct UnanchoredInner {
+        packets: Vec<media_types::Packet>,
+        cursor: usize,
+    }
+
+    impl UnanchoredInner {
+        fn new() -> UnanchoredInner {
+            UnanchoredInner {
+                packets: (0..=10)
+                    .map(|step| lane_packet(i64::from(step) * 50))
+                    .collect(),
+                cursor: 0,
+            }
+        }
+    }
+
+    impl Demuxer for UnanchoredInner {
+        fn start(&mut self) -> Result<Vec<Track>, EngineError> {
+            Ok(vec![lane_track()])
+        }
+        fn next_event(&mut self) -> Result<DemuxEvent, EngineError> {
+            match self.packets.get(self.cursor) {
+                Some(packet) => {
+                    let packet = packet.clone();
+                    self.cursor += 1;
+                    Ok(DemuxEvent::Packet(packet))
+                }
+                None => Ok(DemuxEvent::EndOfStream),
+            }
+        }
+        fn seek(&mut self, _target: TimeSpan) -> Result<TimeSpan, EngineError> {
+            Ok(TimeSpan::UNKNOWN)
+        }
+        fn seekability(&self) -> SeekSupport {
+            // The claimed capability the engine's step-1 consult reads.
+            SeekSupport::Fast { indexed: true }
+        }
+    }
+
+    /// The wrapper forwards `reanchor` verbatim — the engine's only
+    /// acting seek entry — and a SUCCESSFUL landing clears the
+    /// open-time skip watermark (demux_host.rs:616): a backward seek
+    /// below a live `--start-time` watermark must not starve on the
+    /// pre-roll the watermark would still drop.
+    #[test]
+    fn fx5_a07_wrapper_forwards_reanchor_and_clears_the_skip_watermark() {
+        let (inner, seen) = AnchoredInner::new();
+        let mut wrapper = SelectDemuxer::new(
+            inner,
+            Some(350_000_000),
+            vec![(TrackId::new(0), lane_base())],
+            false,
+            false,
+        );
+        // Control: the watermark is live — the wrapper's `next_event`
+        // drops every packet below 350 ms (the first survivor is the
+        // watermark's own stride).
+        match wrapper.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                assert_eq!(lane_ticks(&packet.pts), 350);
+            }
+            other => unreachable!("a packet at the watermark must survive: {other:?}"),
+        }
+        // A backward reanchor BELOW the watermark: the wrapper must
+        // hand the inner demuxer the engine's target verbatim.
+        let target = TimeSpan {
+            start: Stamp::Present(Timestamp::new(250, lane_base())),
+            end: Stamp::Missing,
+        };
+        let landed = match wrapper.reanchor(target) {
+            Ok(span) => span,
+            Err(err) => unreachable!("the anchored inner must land: {err}"),
+        };
+        let seen_ticks = *seen.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(
+            seen_ticks,
+            Some(250),
+            "the target reached the inner verbatim"
+        );
+        assert_eq!(
+            lane_ticks(&landed.start),
+            250,
+            "the inner's own keyframe-safe landing (the packet ≤ the target)"
+        );
+        // The watermark died with the landing: the 250 ms packet —
+        // BELOW the old 350 ms watermark — now flows, and the rest of
+        // the media plays out to the end from the landing.
+        match wrapper.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                assert_eq!(lane_ticks(&packet.pts), 250, "the landing packet flows");
+            }
+            other => unreachable!("the landing packet must flow: {other:?}"),
+        }
+        let mut packets = 0u32;
+        loop {
+            match wrapper.next_event() {
+                Ok(DemuxEvent::Packet(_)) => packets += 1,
+                Ok(DemuxEvent::EndOfStream) => break,
+                Ok(_) => {}
+                Err(err) => unreachable!("{err}"),
+            }
+        }
+        assert_eq!(packets, 5, "the five strides after the consumed landing");
+    }
+
+    /// An inner demuxer that only CLAIMS seekability (the pre-FX5-A01
+    /// `Mp4Demuxer` shape) gets its typed default refusal propagated
+    /// through the wrapper — never swallowed into a success — and the
+    /// failed seek leaves the wrapper exactly where it stood (D4: the
+    /// open-time watermark survives, so playback keeps filtering at the
+    /// old position).
+    #[test]
+    fn fx5_a07_unsupported_inner_reanchor_propagates_typed_and_keeps_the_watermark() {
+        let inner = UnanchoredInner::new();
+        let mut wrapper = SelectDemuxer::new(
+            inner,
+            Some(350_000_000),
+            vec![(TrackId::new(0), lane_base())],
+            false,
+            false,
+        );
+        // The capability half forwards too — the engine's step-1
+        // consult (`pipeline.seekability`) reads the inner truth: the
+        // "seekable: true" of the executed F-001, not the wrapper's
+        // invention (and not a swallowed `None`).
+        assert_eq!(
+            wrapper.seekability(),
+            SeekSupport::Fast { indexed: true },
+            "the inner's declared capability forwards through the wrapper"
+        );
+        let target = TimeSpan {
+            start: Stamp::Present(Timestamp::new(250, lane_base())),
+            end: Stamp::Missing,
+        };
+        let err = match wrapper.reanchor(target) {
+            Ok(_) => unreachable!("the default refusal must propagate, never a fake success"),
+            Err(err) => err,
+        };
+        assert_eq!(err.stage, media_types::PipelineStage::Demux);
+        assert!(matches!(
+            err.kind,
+            media_types::ErrorKind::Unsupported { .. }
+        ));
+        assert_eq!(err.context.code, "plugin.demux.reanchor.unsupported");
+        // D4 at the wrapper seam: the failed reanchor cleared nothing —
+        // the first surviving packet is still the watermark's own
+        // stride (a cleared watermark would have answered 0 ms).
+        match wrapper.next_event() {
+            Ok(DemuxEvent::Packet(packet)) => {
+                assert_eq!(
+                    lane_ticks(&packet.pts),
+                    350,
+                    "the watermark survives the refusal"
+                );
+            }
+            other => unreachable!("the old filter must keep answering: {other:?}"),
+        }
     }
 }
