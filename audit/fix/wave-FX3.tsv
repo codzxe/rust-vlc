@@ -1,0 +1,9 @@
+agent	plan_item	defect	files	evidence
+FX3-A01	F1.1 Route A	cpal admission change: optional feature backend-cpal, real adapter, flip AUDIO_ADR005_ADMITTED, delete compile-time gate + refusal arm + BackendNotAdmitted	crates/audio-output/Cargo.toml; crates/audio-output/src/cpal.rs; crates/audio-output/src/lib.rs; crates/audio-output/src/stub.rs	docs/dependencies/records/cpal-0.18.2.md; FIX-PLAN §3 F1.1
+FX3-A02	F1.1 Route A	ADR-005 amendment + dependency allowlist rows + deny.toml allowances + gates-doc cross-refs	docs/dependencies/records/cpal-0.18.2.md; docs/11-dependency-security-compliance.md; deny.toml; ADR-005 location (rg)	docs/gates/phase0-exit-report.md; AGENTS.md
+FX3-A03	F1.1c	activate audio-engine Gain/Eq3Band/mixer as runtime-controllable streaming chain (currently UNITY, zero production callers)	crates/audio-engine/src/ (eq/mixer/gain modules)	audit/waves/wave-07 (W07-A02/A06/A07/A08)
+FX3-A04	F1.1	activate resampler rate conversion (convert.rs no SRC; pipeline refuses rate mismatch)	crates/audio-engine/src/ (convert.rs)	audit/waves/wave-07 engine map
+FX3-A05	FX4 prep	null backend instrumentation: sample/frame counters + stats accessor (test seam)	crates/audio-output/src/null.rs; crates/audio-output/src/counter.rs	crates/audio-output existing underrun accounting
+FX3-A06	F1.1	media-clock SampleCounterSource wiring by open device session (doc 03 §4.9 edge)	crates/media-clock/src/	crates/audio-output/Cargo.toml comment; docs
+FX3-A07	F1.1	CI: windows-latest lane compiles audio-output with backend-cpal feature; product.toml audio flag truth	.github/workflows/ci.yml; product.toml	FIX-PLAN §2 F0.1 lane pattern
+FX3-A08	F1.1	docs truth pass audio lane (KNOWN-LIMITS no-audio claims, audio-pcm.md, W8 S0 docs)	docs/KNOWN-LIMITS.md; docs/formats/audio-pcm.md; others per rg	audit/waves/wave-08; audit/final/DEVIL-AUDIT-REPORT.md
