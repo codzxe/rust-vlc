@@ -14,9 +14,6 @@
 //! fake success. The wire vocabulary is 100% the ONE command layer's
 //! (ARCH-5): this module constructs `WireResponse`s, it invents nothing.
 
-use commands::Command;
-use commands::WireRequest;
-use commands::WireResponse;
 use commands::catalog::command::CommandListing;
 use commands::catalog::command::CommandResult;
 use commands::catalog::ids::CommandId;
@@ -27,6 +24,9 @@ use commands::envelope::Generation;
 use commands::error::CommandError;
 use commands::error::ErrorCode;
 use commands::error::Stage;
+use commands::Command;
+use commands::WireRequest;
+use commands::WireResponse;
 
 use control_protocol::server::Dispatch;
 
@@ -120,14 +120,16 @@ mod tests {
     }
 
     #[test]
-    fn the_catalog_lists_all_65_commands_from_the_live_spec() {
+    fn the_catalog_lists_all_69_commands_from_the_live_spec() {
         let listings = catalog_listings();
         assert_eq!(listings.len(), CommandId::ALL.len());
         // 65 since w31.1 minted session.set-frame-channel (the GUI
         // canvas presenter's frame-channel bind); w31.1 missed these
         // control-server pins (its cli sibling was caught in w31.6) —
-        // the consolidation round catches them.
-        assert_eq!(listings.len(), 65);
+        // the consolidation round catches them. 69 since FX5-A02
+        // minted the audio quartet (set/get-balance and set/get-eq,
+        // the sound-experience knobs).
+        assert_eq!(listings.len(), 69);
         // Ordered by the catalog table, every row well-formed.
         let ids: Vec<&str> = listings.iter().map(|row| row.id.as_str()).collect();
         assert_eq!(ids.first().copied(), Some("session.open"));
@@ -160,7 +162,7 @@ mod tests {
         });
         match response.result {
             Ok(CommandOutcome::Completed(CommandResult::CommandListings { commands })) => {
-                assert_eq!(commands.len(), 65);
+                assert_eq!(commands.len(), 69);
             }
             other => unreachable!("list-commands result: {other:?}"),
         }

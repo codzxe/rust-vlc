@@ -86,7 +86,7 @@ fn version_prints_the_crate_version() {
     );
 }
 
-/// The catalog introspection: all 64 ids with their classes; every
+/// The catalog introspection: all 69 ids with their classes; every
 /// id the dispatch table serves is present.
 #[test]
 fn commands_lists_the_whole_catalog() {
@@ -97,7 +97,9 @@ fn commands_lists_the_whole_catalog() {
     // playback-operations verbs (frame-step, chapter nav, Go-to-Time,
     // bookmarks) had made it 64. w31.1 missed THIS pin (its checksum
     // sibling was fixed in w31.6); the consolidation round catches it.
-    assert!(out.contains("ok: 65 command(s)"), "{out}");
+    // 69 since FX5-A02 minted the audio quartet (set/get-balance and
+    // set/get-eq, the sound-experience knobs).
+    assert!(out.contains("ok: 69 command(s)"), "{out}");
     for id in [
         "session.open",
         "session.close",

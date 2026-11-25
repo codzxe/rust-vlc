@@ -961,7 +961,9 @@ mod tests {
         assert_eq!(code, 0);
         // 65 since w31.1 minted the shell-owned frame-channel bind
         // (64 before it: main's wave 8 playback-operations verbs).
-        assert!(out.contains("ok: 65 command(s)"), "{out}");
+        // 69 since FX5-A02 minted the audio quartet (set/get-balance
+        // and set/get-eq, the sound-experience knobs).
+        assert!(out.contains("ok: 69 command(s)"), "{out}");
         assert!(out.contains("session.open [a]"), "{out}");
         assert!(out.contains("config.set-setting [s]"), "{out}");
     }
