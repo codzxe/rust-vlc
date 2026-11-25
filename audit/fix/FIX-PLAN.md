@@ -279,7 +279,8 @@ Functional LOC estimate (from REMEDIATION-MAP §3, audit-derived):
 |---|---|---|
 | Today | 19.44% | measured (49/252) |
 | Phase 0 exit | ~20–22% | rows unchanged in substance; instruments now honest; a few FALSE rows (registry story) resolved |
-| Phase 1 exit (G1) | ~30–35% | mp4-seek row flips TRUE→REAL; volume/EQ rows become REAL; several SHALLOW playback rows become REAL |
+| 2026-11-26 interim — Phase-1 code-side exit, post-FX4/FX5/FX6 | **20.63% — REAL 52/252, floor 20%** (the re-score's home: `audit/fix/REALITY-RESCORE.md`, FX7-A03, Devil-Fix wave FX7) | measured with the same verdict buckets over the same 252-row denominator; 4 rows flip — mp4-seek SHALLOW→REAL (FX5-A01/A04/A06/A07), volume FALSE→REAL and EQ FALSE→REAL (FX3-A03 + FX4-A01/A02/A05 + FX5-A02/A03 + FX4-A08/FX5-A05), resampler ACCURATE-ABSENT→UNDERSTATED (FX3-A04 + FX4-A01, the conservative direction); the frame lane owns no matrix row (FX6-A06's guard) and W1-06's closure was not in the tree at re-score time, so nothing of the frame lane is counted as landed; row recorded 2026-11-26 by the docs pass FX7-A04 (same wave) |
+| Phase 1 exit (G1) | ~20–22% — **re-projected 2026-11-26** (FX7-A03's REALITY-RESCORE §7, carried to FX7-A04) from the original ~30–35% estimate; G1-closed projection ~21.0% (53/252 — row 169 becomes a REAL candidate) | the original band's own listed clauses never supported it: the "several SHALLOW playback rows" are F3.4/Phase-3 scope deferred by the G1 sequencing rule, and hardware-dependent rows count REAL-UNPROVEN until the Windows run (this interim is the code-side exit, pre-G1); the first two clauses matched by name and landed — mp4-seek flips TRUE→REAL (FX5), volume/EQ rows become REAL (FX3/FX4/FX5) |
 | Phase 2 exit | ~40–45% | 24 UNDERSTATED rows re-verified as REAL; FALSE rows resolved to truth |
 | Phase 3 exit | ~55–60% | 18 UNREACHABLE rows gain shipped consumers (12+ subtitle/playlist rows flip to REAL) |
 

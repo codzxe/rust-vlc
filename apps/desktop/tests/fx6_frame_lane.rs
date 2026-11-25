@@ -493,29 +493,33 @@ fn fx6_a04_stalled_consumer_is_bounded() {
 /// real AVI fixture end to end, and the frame lane's counters are
 /// proven against the engine's own decode accounting (the oracle
 /// pinned by apps/cli/tests/pipeline_accounting.rs for this fixture:
-/// 60 decoded video frames, 120 deliveries, position 2.000 s):
-/// produced == the renderer's present count (`video_presented`),
-/// every shipped record is counted, and the acceptance's
-/// conservation closes EXACTLY through the present-path loss
-/// ledger: produced + superseded_drops + hold_refusals (W1-06) ==
-/// decoded. The 60/60 presentation intent — produced alone covering
-/// every decoded frame — is NOT deleted: it is exactly what the
-/// ledger reduces to once W1-06's Lead-gated fix lands (stash the
-/// CONVERTED frame in the window-full hold). W1-06, the registered
-/// KNOWN DEFECT (apps/cli/src/pipeline_host.rs:1686-1714): the hold
-/// stashes the UNCONVERTED I420 original while the accept path
-/// converts I420→RGBA, so hold-retried frames are refused at the
-/// renderer (`render.upload.format-unsupported`); this fixture
-/// decodes as I420 (MJPEG 4:2:0). The gap is cadence-independent —
-/// NOT pace-derivable: the decode side has no backpressure (the
-/// defect register's own note), so the window+hold fill ahead of
-/// the clock under any pump cadence — a wall-paced
-/// `pump_wallclock_at` drive presents the same refusals as the
-/// whole-ring one; the loss is engine-side. Note the pace
-/// caveat: `pump_once` is the whole-ring headless pump (shell.rs's
-/// own docs), so its per-pump present bursts can overflow the
-/// capacity-2 mailbox by policy — the conservation identity (not a
-/// zero-drop pin) is what holds under this drive.
+/// 60 decoded video frames, 120 deliveries, position 2.000 s). The
+/// PRIMARY assertion is the acceptance's 60/60 intent, RESTORED
+/// (FX7-A02, 2026-11-26 — flipped back from FX6-R4's loss-ledger
+/// re-scope, which carried this intent in this doc comment while
+/// W1-06 made 60/60 impossible): produced — the renderer's present
+/// count (`video_presented`), mirrored to the tap — covers EVERY
+/// decoded frame; repeats ride the lane and are counted as presents
+/// (the test's own convention), so the pin is coverage, not a bare
+/// equality. The W1-06 outcome is realized (FX7-A01, 2026-11-26,
+/// evidence FX7-A01/FX7-A02: the window-full hold now stashes the
+/// CONVERTED frame — pre-fix it stashed the UNCONVERTED I420
+/// original at apps/cli/src/pipeline_host.rs:1686-1714, so
+/// hold-retried frames were refused at the renderer
+/// (`render.upload.format-unsupported`; this fixture decodes as
+/// I420, MJPEG 4:2:0) and the gap was cadence-independent, NOT
+/// pace-derivable — measured centrally at produced 18 of 60).
+/// FX6-R4's present-path loss ledger stays as the SECONDARY
+/// assertion — produced + superseded_drops + hold_refusals +
+/// surfaced_drops == decoded + repeats — the conservation must keep
+/// holding, and it now closes with ZERO hold-refusals. Note the
+/// pace caveat: `pump_once` is the whole-ring headless pump
+/// (shell.rs's own docs), so its per-pump present bursts can
+/// overflow the capacity-2 mailbox by policy — produced counts
+/// every present at the tap (a zero-drop pin is not what this drive
+/// proves; the mailbox's own conservation identity is asserted on
+/// its counters), and every shipped record is still counted and
+/// decoded below.
 ///
 /// (b) The zero-overflow steady state at the lane's normal pace — a
 /// 30 fps producer against a 60 Hz consumer (the nominal pairing,
@@ -639,35 +643,47 @@ fn fx6_a04_frame_counter_matches_decode_count_at_normal_pace() {
         stats.dropped_stale, 0,
         "no generation change mid-run: {stats:?}"
     );
-    // The acceptance's conservation, closed through the present-path
-    // loss ledger (the honest re-scope): produced + superseded_drops
-    // + hold_refusals (W1-06) == decoded. The engine surfaces decoded
-    // (scheduler_pushed, pinned at 60 above), produced
-    // (video_presented — mirrored to stats.offered above) and the
-    // late/stale drop policies (pinned at zero above); it does NOT
-    // surface the two loss classes this drive actually suffers, so
-    // each is DERIVED from the surfaced counters and the total is
-    // asserted to close exactly:
+    // The 60/60 acceptance intent, RESTORED as the primary assertion
+    // (FX7-A02, 2026-11-26 — flipped back from FX6-R4's loss-ledger
+    // re-scope, which held this intent in the doc comment while W1-06
+    // made 60/60 impossible): produced — the renderer's present count
+    // (video_presented, mirrored to the tap's offered above) — covers
+    // EVERY decoded frame. Repeats ride the lane and are counted as
+    // presents (the test's own convention), so the pin is coverage,
+    // not a bare equality. This is the W1-06 outcome realized
+    // (FX7-A01, 2026-11-26, evidence FX7-A01/FX7-A02: the
+    // window-full hold stashes the CONVERTED frame, so hold-retried
+    // frames present instead of being refused at the renderer's
+    // I420 upload gate); pre-FX7-A01 this assert failed at the
+    // measured 60 → 18 presentation gap (cadence-independent — the
+    // whole-ring pump drive and a wall-paced one suffer it alike).
+    let decode_count = accounting.scheduler_pushed;
+    let produced = stats.offered;
+    assert!(
+        produced >= decode_count,
+        "the 60/60 acceptance: produced ({produced}) must cover every one of the \
+         {decode_count} decoded frames (repeats ride the lane, counted as \
+         presents); the engine's own present-path accounting: {accounting:?}"
+    );
+
+    // The SECONDARY assertion — FX6-R4's present-path loss ledger,
+    // kept so the conservation keeps holding (it now closes with
+    // ZERO hold-refusals): produced + superseded_drops +
+    // hold_refusals + surfaced_drops == decoded + repeats. The
+    // engine surfaces decoded (scheduler_pushed, pinned at 60
+    // above), produced (video_presented — mirrored to stats.offered
+    // above) and the late/stale drop policies (pinned at zero
+    // above); it does NOT surface the two loss classes, so each is
+    // DERIVED from the surfaced counters and the total is asserted
+    // to close exactly:
     // * superseded_drops — the scheduler's step-4 prefix drop
     //   (crates/video-engine/src/scheduler.rs:792-812): per tick only
     //   the newest due frame presents, everything due before it
     //   drops;
-    // * hold_refusals — the W1-06 KNOWN DEFECT's renderer refusals:
-    //   the window-full hold stashes the UNCONVERTED I420 original
-    //   (apps/cli/src/pipeline_host.rs:1686-1714) while the accept
-    //   path converts I420→RGBA, so hold-retried frames reach the
-    //   renderer unconverted and it refuses them (the upload gate
-    //   pinned below). This fixture decodes as I420 (MJPEG 4:2:0),
-    //   so the defect is on this drive's path (measured centrally:
-    //   produced 18 of 60, the decode-count oracle fully green).
-    //
-    // The 60/60 intent is NOT deleted: produced == 60 is exactly what
-    // this ledger reduces to once W1-06's Lead-gated fix (stashing
-    // the CONVERTED frame) lands — hold_refusals goes to zero and
-    // produced covers every decoded frame; until then the gap is
-    // measured, named, and carried inside the same conservation.
-    let decode_count = accounting.scheduler_pushed;
-    let produced = stats.offered;
+    // * hold_refusals — the W1-06 defect's renderer refusals (the
+    //   window-full hold stashing the UNCONVERTED I420 original,
+    //   apps/cli/src/pipeline_host.rs:1686-1714 pre-FX7-A01): now
+    //   ZERO — the FX7-A01 outcome this flip codes against.
     let surfaced_drops = accounting.scheduler_dropped_late + accounting.scheduler_dropped_stale;
     // The structural invariants that make the derived losses
     // well-formed (each decoded frame is selected, dropped, or lost
@@ -685,27 +701,37 @@ fn fx6_a04_frame_counter_matches_decode_count_at_normal_pace() {
     let hold_refusals =
         accounting.scheduler_presented + accounting.scheduler_repeats - accounting.video_presented;
     // The mechanism pin at the renderer's own public gate: the v0
-    // renderer refuses I420 uploads, so an unconverted hold-retried
-    // frame cannot present — the W1-06 refusals the ledger measures.
-    // (This trips loudly if the renderer ever starts accepting I420,
-    // which would re-scope this ledger's W1-06 attribution.)
+    // renderer refuses I420 uploads — the refusal that made W1-06 a
+    // freeze, and the reason the hold must stash the CONVERTED frame
+    // (the FX7-A01 fix). (This trips loudly if the renderer ever
+    // starts accepting I420, which would re-scope this ledger's
+    // W1-06 attribution.)
     assert!(
         !renderer_wgpu::uploads_format(media_types::PixelFormat::I420),
         "the v0 upload gate must refuse I420 for the W1-06 attribution to hold"
     );
+    // The W1-06 closure, pinned by name: zero hold-retried refusals —
+    // every scheduler offer (present or repeat) was taken by the
+    // renderer.
+    assert_eq!(
+        hold_refusals, 0,
+        "W1-06 closed (FX7-A01): {hold_refusals} scheduler offers were refused at \
+         the renderer — every present-path take must succeed on the fixed hold; \
+         the engine's own present-path accounting: {accounting:?}"
+    );
     // The conservation: produced + superseded drops + hold refusals
-    // (the W1-06 gap) + surfaced drops == the decoded count plus the
-    // repeats (repeats ride the same lane, counted as presents — the
-    // defect's own frozen-clock retry storm inflates them; the term
-    // keeps the total exact on both sides of the W1-06 fix).
+    // + surfaced drops == the decoded count plus the repeats (repeats
+    // ride the same lane, counted as presents — the term keeps the
+    // total exact; pre-FX7-A01 the defect's own frozen-clock retry
+    // storm inflated them).
     assert_eq!(
         produced + superseded_drops + hold_refusals + surfaced_drops,
         decode_count + accounting.scheduler_repeats,
         "produced ({produced}) + superseded drops ({superseded_drops}) + hold \
-         refusals, the W1-06 gap ({hold_refusals}) + surfaced drops \
-         ({surfaced_drops}) must close over the {decode_count} decoded frames \
-         (repeats ride the same lane, counted as presents); the engine's own \
-         present-path accounting: {accounting:?}"
+         refusals ({hold_refusals}) + surfaced drops ({surfaced_drops}) must close \
+         over the {decode_count} decoded frames (repeats ride the same lane, \
+         counted as presents); the engine's own present-path accounting: \
+         {accounting:?}"
     );
 
     // The frame counter: every shipped record is one complete,

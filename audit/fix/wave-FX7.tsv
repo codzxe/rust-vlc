@@ -1,0 +1,5 @@
+agent	plan_item	defect	files	evidence
+FX7-A01	W1-06	F1.2 18/60 root cause: the present-hold stashes the UNCONVERTED I420 frame → renderer refusals; stash the CONVERTED frame	pipeline_host.rs:1686-1714 region	FX6-R3/R4 diagnosis; audit W1-06 registered defect
+FX7-A02	F1.2	After W1-06: flip fx6_a04 acceptance back to the 60/60 intent (produced covers every decoded frame)	apps/desktop/tests/fx6_frame_lane.rs	FX6-R4's Path-B note (60/60 awaits W1-06)
+FX7-A03	§1.6/§7	REAL% interim re-score with the same verdict buckets over the flipped rows (seek/volume/EQ/audio path/frame lane)	audit/fix/REALITY-RESCORE.md (new)	FIX-PLAN §1.6 + §7 trajectory
+FX7-A04	§8/F0.6	Docs governance: REAL% trajectory refresh, W1-06 closure, registered-defect ledger update	docs/* + audit/fix registry notes	FIX-PLAN §7/§8
