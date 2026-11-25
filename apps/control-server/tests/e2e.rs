@@ -14,19 +14,19 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
-use commands::CommandResult;
 use commands::envelope::CommandOutcome;
+use commands::CommandResult;
 use control_protocol::client::TestClient;
 use control_protocol::protocol::ClientFrame;
 use control_protocol::protocol::ProtocolErrorCode;
 use control_protocol::protocol::ServerFrame;
 use control_protocol::server::ControlServer;
 
-use control_server::CatalogDispatch;
 use control_server::load_config_file;
 use control_server::logging::MemoryLog;
 use control_server::resolve_server_config;
 use control_server::serve_loop;
+use control_server::CatalogDispatch;
 
 /// The workspace root (this file lives in apps/control-server/tests).
 fn repo_root() -> PathBuf {
@@ -308,14 +308,16 @@ fn e2e_full_session_through_the_app_stack() {
         other => unreachable!("expected welcome, got {other:?}"),
     }
 
-    // (1) Catalog introspection: all 65 commands, from the live table
+    // (1) Catalog introspection: all 69 commands, from the live table
     // (65 since w31.1's session.set-frame-channel; this pin was missed
     // with the dispatch ones — caught in the consolidation round).
+    // 69 since FX5-A02 minted the audio quartet (set/get-balance and
+    // set/get-eq, the sound-experience knobs).
     send(&mut client, &request(1, r#""cmd":"system.list-commands""#));
     match next_frame(&mut client) {
         ServerFrame::Response { response } => match response.result {
             Ok(CommandOutcome::Completed(CommandResult::CommandListings { commands })) => {
-                assert_eq!(commands.len(), 65);
+                assert_eq!(commands.len(), 69);
                 assert!(commands.iter().any(|row| row.id == "config.set-setting"));
             }
             other => unreachable!("list-commands result: {other:?}"),
