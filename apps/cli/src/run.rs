@@ -740,8 +740,12 @@ fn print_event<W: Write>(event: &WireEvent, out: &mut W) {
     let _ = writeln!(out, "event: {what}");
 }
 
-/// One parse failure's honest line(s).
-fn print_parse_error<E: Write>(err: &mut E, failure: &ParseError) {
+/// One parse failure's honest line(s). Public because `main`'s argv
+/// boundary (non-UTF-8 tokens — [`parse::argv_string`]) refuses
+/// through the same lane `run` refuses grammar failures through:
+/// this printer plus the `invalid-argument` exit code, so the two
+/// refusals cannot drift apart in shape.
+pub fn print_parse_error<E: Write>(err: &mut E, failure: &ParseError) {
     let _ = writeln!(err, "error: {}", failure.message);
     let _ = writeln!(err, "  {}", failure.hint);
 }

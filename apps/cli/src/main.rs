@@ -11,7 +11,28 @@ fn main() -> std::process::ExitCode {
     // wall; the bench falls back to its own start when the library
     // is driven without a main — the in-memory test path).
     lumen_cli::bench::mark_process_start();
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+    // argv in its OS-native form: a non-UTF-8 token (legal on Linux,
+    // where filenames are byte strings) is the grammar's typed
+    // refusal — never `std::env::args()`'s panic (its iterator
+    // unwraps the `OsString`→`String` conversion and aborts with
+    // exit 101 before a single player line runs).
+    let argv = match std::env::args_os()
+        .skip(1)
+        .map(|raw| lumen_cli::parse::argv_string(&raw))
+        .collect::<Result<Vec<String>, _>>()
+    {
+        Ok(argv) => argv,
+        Err(failure) => {
+            // The parse-refusal lane `run` itself takes: the runner's
+            // parse-error printer + its exit code (64 EX_USAGE,
+            // `exit::exit_code(InvalidArgument)`).
+            let mut err = std::io::stderr().lock();
+            lumen_cli::run::print_parse_error(&mut err, &failure);
+            return std::process::ExitCode::from(lumen_cli::exit::exit_code(
+                commands::ErrorCode::InvalidArgument,
+            ));
+        }
+    };
     let interactive = std::io::stdin().is_terminal();
     let mut input = std::io::stdin().lock();
     let mut out = std::io::stdout().lock();

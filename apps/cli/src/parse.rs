@@ -16,6 +16,7 @@
 //! card's command surface itself is the catalog subset.
 
 use commands::catalog::types::{OpenOptions, SeekTarget, SourceSpec, Timestamp};
+use std::ffi::OsStr;
 
 /// One parsed CLI action (argv mode and REPL lines share the grammar).
 #[derive(Debug, Clone, PartialEq)]
@@ -143,6 +144,27 @@ impl ParseError {
 
 /// The usage line every parse error carries.
 pub const USAGE: &str = "usage: lumen [OPTIONS] <COMMAND> [ARGS] — try `lumen --help`"; // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+
+/// One OS-native argv element in its `String` token form: the argv
+/// boundary [`std::env::args`] panics at (its iterator unwraps the
+/// `OsString`→`String` conversion — an abort before a single player
+/// line runs on any argv element that is not valid UTF-8, which
+/// Linux filenames legally are) becomes the grammar's own typed
+/// `invalid-argument` refusal instead.
+///
+/// # Errors
+/// [`ParseError`] when the token is not valid UTF-8 — the message
+/// names the class only (redaction-safe: the raw bytes are never
+/// echoed, and the token is never converted lossily either — a
+/// mojibake path would be a silent lie about what the user typed).
+pub fn argv_string(raw: &OsStr) -> Result<String, ParseError> {
+    raw.to_str().map(str::to_owned).ok_or_else(|| {
+        ParseError::new(
+            "an argv token is not valid UTF-8 (the grammar takes UTF-8 tokens)",
+            USAGE,
+        )
+    })
+}
 
 /// Parse the argv (argv[0] already removed).
 ///

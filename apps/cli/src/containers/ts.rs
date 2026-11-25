@@ -331,6 +331,14 @@ impl PesBridge {
     /// 304 030 == ffprobe exactly; intermediate AUs may differ by
     /// a tick — ffmpeg accumulates per-AU truncations, this wiring
     /// anchors each PES's AUs to the wire stamp).
+    ///
+    /// A `frame_length` smaller than the header's own size (zero
+    /// included — a shape the demux crate's three ADTS lanes refuse
+    /// as impossible structure) is never minted and never
+    /// re-parsed: the walk stops at it and counts the remaining
+    /// payload bytes as recovered damage
+    /// (`ts.pes.adts-short-frame`), so a crafted zero-length frame
+    /// can mint nothing and wedge nothing.
     fn mint_adts_aus(&mut self, pes: PesPacket, track: TrackId) -> Result<(), EngineError> {
         let PesPacket {
             pid: _,
@@ -355,6 +363,20 @@ impl PesBridge {
                 let Some(header) = AdtsHeader::parse(&payload[at..]) else {
                     break;
                 };
+                // A frame_length smaller than its own header — zero
+                // included — would mint nothing and advance nothing:
+                // the walk would re-parse the same header forever
+                // (an unbounded queue of empty packets). The demux
+                // crate's own lanes refuse the shape as impossible
+                // structure; this walk stops there, counting the
+                // remaining bytes as recovered damage — bounded.
+                if u64::from(header.frame_length) < header.header_len() {
+                    self.queue.push_back(DemuxEvent::Recovered {
+                        skipped: (payload.len() - at) as u64,
+                        reason: "ts.pes.adts-short-frame",
+                    });
+                    return Ok(());
+                }
                 let end = at + usize::from(header.frame_length);
                 if end > payload.len() {
                     // A trailing partial AU: the ffmpeg-honest stop.
