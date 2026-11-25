@@ -92,6 +92,39 @@
         "isDefault"
       ]
     },
+    "AudioEqBands": {
+      "description": "The three-band EQ configuration (`audio.set-eq`/`get-eq`, FX5-A02) —\nthe engine's `Eq3Band` truth: a low 250 Hz shelf, a mid 1 kHz peak,\na high 4 kHz shelf (fixed corners, FX3-A03), the three band gains\nin dB plus the preamp trim in dB. The preamp is the trim-into-the-EQ\nknob; the wire carries it in dB (the amplitude convention\n`10^(db/20)`) and the host converts to the engine's linear\n[`Volume`] at the boundary. Not `Eq`/`Hash` (f32 wire scalars).",
+      "type": "object",
+      "properties": {
+        "highDb": {
+          "description": "High-shelf gain (dB), `±40` engine runtime bound.",
+          "type": "number",
+          "format": "float"
+        },
+        "lowDb": {
+          "description": "Low-shelf gain (dB), `±40` engine runtime bound.",
+          "type": "number",
+          "format": "float"
+        },
+        "midDb": {
+          "description": "Mid-peak gain (dB), `±40` engine runtime bound.",
+          "type": "number",
+          "format": "float"
+        },
+        "preampDb": {
+          "description": "Preamp trim (dB), `20·log10` amplitude convention.",
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "lowDb",
+        "midDb",
+        "highDb",
+        "preampDb"
+      ]
+    },
     "AudioTrackInfo": {
       "description": "Audio-specific track facts (§2.2 `TrackInfo.audio`).",
       "type": "object",
@@ -868,6 +901,104 @@
           "required": [
             "cmd",
             "args"
+          ]
+        },
+        {
+          "description": "`audio.set-balance` — arm the constant-power balance stage\n(class S, FX5-A02). `position` is the pan knob the engine seam\ntakes (`AudioControls::set_balance`): `−1.0` hard left, `0.0`\ncenter, `+1.0` hard right — finite and in range at the boundary,\nnever clamped. Center is the pan law's −3.01 dB per channel;\nthe plain pass-through is the stage ABSENT (`get-balance` answers\n`null`), not `position: 0.0`.",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "position": {
+                  "description": "Stereo position, `−1.0..=1.0` (typed range check at the\nhost/engine boundary).",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "position"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-balance"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.get-balance` — the balance stage in force (class S),\nthe read twin of `audio.set-balance` (the set-volume family's\n`audio.get-volume` pattern). `position` is `null` while the\nstage is absent — the identity split (absence ≠ the pan law's\ncenter, which attenuates both channels).",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "audio.get-balance"
+            }
+          },
+          "required": [
+            "cmd"
+          ]
+        },
+        {
+          "description": "`audio.set-eq` — arm or update the three-band EQ (class S,\nFX5-A02). The engine's `Eq3Band` truth: low 250 Hz shelf /\nmid 1 kHz peak / high 4 kHz shelf (fixed corners), band gains\nin dB (runtime bound ±40), plus the preamp trim. `preamp_db`\ncarries the trim in dB (the `20·log10` amplitude convention —\nthe engine stores a linear `Volume` and the host converts at\nthe boundary); the field mapping is one-to-one with the\n`{ lowDb, midDb, highDb, preampDb }` the UI dispatches.",
+          "type": "object",
+          "properties": {
+            "args": {
+              "type": "object",
+              "properties": {
+                "highDb": {
+                  "description": "High-shelf gain (dB), `±40` engine runtime bound.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "lowDb": {
+                  "description": "Low-shelf gain (dB), `±40` engine runtime bound.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "midDb": {
+                  "description": "Mid-peak gain (dB), `±40` engine runtime bound.",
+                  "type": "number",
+                  "format": "float"
+                },
+                "preampDb": {
+                  "description": "Preamp trim (dB), `20·log10` amplitude convention.",
+                  "type": "number",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "lowDb",
+                "midDb",
+                "highDb",
+                "preampDb"
+              ]
+            },
+            "cmd": {
+              "type": "string",
+              "const": "audio.set-eq"
+            }
+          },
+          "required": [
+            "cmd",
+            "args"
+          ]
+        },
+        {
+          "description": "`audio.get-eq` — the EQ configuration in force (class S),\nthe read twin of `audio.set-eq`. `eq` is `null` while the stage\nis absent — an armed flat EQ is `(0, 0, 0, 0 dB)`, not absence.",
+          "type": "object",
+          "properties": {
+            "cmd": {
+              "type": "string",
+              "const": "audio.get-eq"
+            }
+          },
+          "required": [
+            "cmd"
           ]
         },
         {
@@ -2064,6 +2195,51 @@
           "required": [
             "kind",
             "devices"
+          ]
+        },
+        {
+          "description": "`audio.set-balance`/`get-balance` — the balance position in\nforce; `None` = the stage is absent (the identity split).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "audio-balance"
+            },
+            "position": {
+              "description": "The stereo position now in force, `−1.0..=1.0`; `null`\nwhile the stage is absent.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "`audio.set-eq`/`get-eq` — the EQ configuration in force;\n`None` = the stage is absent (an armed flat EQ is not absence).",
+          "type": "object",
+          "properties": {
+            "eq": {
+              "description": "The three band gains + preamp now in force; `null` while\nthe stage is absent.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AudioEqBands"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "audio-eq"
+            }
+          },
+          "required": [
+            "kind"
           ]
         },
         {

@@ -4,7 +4,8 @@
 //!
 //! [`catalog_data()`] is the single table the generators and
 //! `system.list-commands` consume: one [`CommandSpec`] per §2.1 id (61
-//! rows + the issue #32 bookmark trio), one [`EventSpec`] per §3.2 id
+//! rows + the issue #32 bookmark trio + the w31.1 frame-channel bind +
+//! the FX5-A02 audio-controls quartet), one [`EventSpec`] per §3.2 id
 //! (23 rows). The rows carry the
 //! metadata the payload types cannot express — completion class
 //! (§1.5), target (§1.1.3: engine vs shell), the gen-bumping flag
@@ -159,7 +160,8 @@ pub struct EventSpec {
 }
 
 /// The full command table, in doc 05 §2.1 order (61 rows + the issue #32
-/// bookmark trio + the w31.1 frame-channel bind).
+/// bookmark trio + the w31.1 frame-channel bind + the FX5-A02
+/// audio-controls quartet set/get-balance, set/get-eq).
 pub const fn catalog_data() -> &'static [CommandSpec] {
     &[
         // ---- session (§2.3) ----
@@ -349,6 +351,41 @@ pub const fn catalog_data() -> &'static [CommandSpec] {
             gen_bumping: false,
             args: PayloadDesc::Type("delay_ms: i64"),
             result: PayloadDesc::Type("AppliedDelayMs"),
+        },
+        // FX5-A02 (F1.1c): the audio-controls quartet — the §2.6
+        // set-volume family's shape (class S, engine, atomic between
+        // quanta; set answers the applied truth, get reads it).
+        CommandSpec {
+            id: CommandId::AudioSetBalance,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::Type("position: f32"),
+            result: PayloadDesc::Type("AudioBalance"),
+        },
+        CommandSpec {
+            id: CommandId::AudioGetBalance,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::None,
+            result: PayloadDesc::Type("AudioBalance"),
+        },
+        CommandSpec {
+            id: CommandId::AudioSetEq,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::Type("low_db: f32, mid_db: f32, high_db: f32, preamp_db: f32"),
+            result: PayloadDesc::Type("AudioEq"),
+        },
+        CommandSpec {
+            id: CommandId::AudioGetEq,
+            class: CompletionClass::S,
+            target: CommandTarget::Engine,
+            gen_bumping: false,
+            args: PayloadDesc::None,
+            result: PayloadDesc::Type("AudioEq"),
         },
         // ---- video (§2.7) ----
         CommandSpec {
@@ -1021,7 +1058,8 @@ mod tests {
     /// §1.5's classification policy consequences, as counts: the doc's
     /// tables classify 19 commands A and 42 S; issue #32 adds the three
     /// class-S bookmark commands; w31.1 adds the class-S shell-owned
-    /// frame-channel bind (19 A / 46 S / 65 total).
+    /// frame-channel bind; FX5-A02 adds the four class-S audio-controls
+    /// rows (19 A / 50 S / 69 total).
     #[test]
     fn class_counts_match_the_doc_05_tables() {
         let a = catalog_data()
@@ -1033,8 +1071,11 @@ mod tests {
             .filter(|spec| spec.class == CompletionClass::S)
             .count();
         assert_eq!(a, 19, "class-A count");
-        assert_eq!(s, 46, "class-S count (+1 frame-channel bind, w31.1)");
-        assert_eq!(a + s, 65);
+        assert_eq!(
+            s, 50,
+            "class-S count (+1 frame-channel bind, w31.1; +4 audio controls, FX5-A02)"
+        );
+        assert_eq!(a + s, 69);
     }
 
     /// §3.2's "gen" column: exactly the 13 pipeline-scoped events.

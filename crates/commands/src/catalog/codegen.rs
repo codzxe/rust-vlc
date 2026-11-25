@@ -473,7 +473,7 @@ mod tests {
             outputs.checksum.contains("catalog-fnv1a64: "),
             "checksum must lead with the catalog digest"
         );
-        assert!(outputs.checksum.contains("65 commands / 26 events"));
+        assert!(outputs.checksum.contains("69 commands / 26 events"));
     }
 
     /// The drift negative control at the file level: a doctored

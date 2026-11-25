@@ -2,8 +2,10 @@
 //! the id grammar, the enum ↔ spec-table coverage and the checksum.
 //!
 //! These pin the *shape* invariants doc 05 §2–§3 define: 61 command
-//! entries (+ the issue #32 bookmark trio = 64) / 26 event entries (23
-//! from the §3.2 tables + the issue #42 additive trio — `video.backend-changed`,
+//! entries (+ the issue #32 bookmark trio = 64; + the w31.1
+//! frame-channel bind = 65; + the FX5-A02 audio-controls quartet =
+//! 69) / 26 event entries (23 from the §3.2 tables + the issue #42
+//! additive trio — `video.backend-changed`,
 //! `devices.volume-added`, `devices.volume-removed`; doc 05 §6.2) (the
 //! §2.1 / §3.2 tables), ids of the form
 //! `<area>.<verb-noun>`, no orphan and no missing rows between the
@@ -14,12 +16,12 @@
 use std::error::Error;
 use std::path::Path;
 
-use commands::CommandId;
-use commands::EventId;
 use commands::catalog::codegen::default_paths;
 use commands::catalog::spec::catalog_checksum;
 use commands::catalog::spec::catalog_data;
 use commands::catalog::spec::event_catalog_data;
+use commands::CommandId;
+use commands::EventId;
 use serde_json::Value;
 
 /// The Lumen workspace root (this crate lives in `<root>/crates/commands`).
@@ -94,12 +96,13 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
     }
     // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
     // media.*-bookmark commands (64); w31.1 adds the shell-owned
-    // frame-channel bind (65); §3.2 lists 23 events + issue #42's
-    // additive trio (26).
+    // frame-channel bind (65); FX5-A02 adds the audio-controls quartet
+    // set/get-balance + set/get-eq (69); §3.2 lists 23 events + issue
+    // #42's additive trio (26).
     assert_eq!(
         schema_command_tags(&schema).len(),
-        65,
-        "§2.1 count (+3 bookmarks, issue #32; +1 frame channel, w31.1)"
+        69,
+        "§2.1 count (+3 bookmarks, issue #32; +1 frame channel, w31.1; +4 audio controls, FX5-A02)"
     );
     assert_eq!(
         schema_event_tags(&schema).len(),
@@ -107,7 +110,8 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         "§3.2 count + issue #42 trio"
     );
     // The §2.3–§2.12 tables classify 19 commands A and 42 S; issue #32's
-    // bookmark trio is class S (64 total).
+    // bookmark trio is class S; FX5-A02's audio-controls quartet is
+    // class S (69 total).
     let a = catalog_data()
         .iter()
         .filter(|spec| spec.class.as_str() == "a")
@@ -118,8 +122,8 @@ fn schema_has_the_doc_05_structure_and_counts() -> Result<(), Box<dyn Error>> {
         .count();
     assert_eq!(
         (a, s),
-        (19, 46),
-        "§1.5 classification counts (+3 S bookmarks, issue #32; +1 S frame channel, w31.1)"
+        (19, 50),
+        "§1.5 classification counts (+3 S bookmarks, issue #32; +1 S frame channel, w31.1; +4 S audio controls, FX5-A02)"
     );
     // §3.2's "gen" column: exactly the 13 pipeline-scoped events.
     let scoped = event_catalog_data()
@@ -175,8 +179,8 @@ fn every_id_parses_and_follows_the_grammar() -> Result<(), Box<dyn Error>> {
     }
     assert_eq!(
         CommandId::ALL.len(),
-        65,
-        "§2.1: 61 commands + issue #32 bookmark trio + w31.1 frame-channel bind"
+        69,
+        "§2.1: 61 commands + issue #32 bookmark trio + w31.1 frame-channel bind + FX5-A02 audio-controls quartet"
     );
     assert_eq!(EventId::ALL.len(), 26, "§3.2: 23 events + issue #42 trio");
     Ok(())
@@ -237,7 +241,7 @@ fn committed_checksum_recomputes() -> Result<(), Box<dyn Error>> {
          {expected_catalog}:\n{text}"
     );
     assert!(
-        text.contains("counts: 65 commands / 26 events"),
+        text.contains("counts: 69 commands / 26 events"),
         "committed checksum counts line drifted:\n{text}"
     );
     Ok(())

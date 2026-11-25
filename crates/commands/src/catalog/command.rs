@@ -33,6 +33,7 @@ use serde::Serialize;
 use crate::catalog::spec::CompletionClass;
 use crate::catalog::types::AspectRatioSpec;
 use crate::catalog::types::AudioDevice;
+use crate::catalog::types::AudioEqBands;
 use crate::catalog::types::Bookmark;
 use crate::catalog::types::Chapter;
 use crate::catalog::types::ConfigAreaInfo;
@@ -207,6 +208,50 @@ pub enum Command {
         /// Signed delay (ms), ±60 000.
         delay_ms: i64,
     },
+    /// `audio.set-balance` — arm the constant-power balance stage
+    /// (class S, FX5-A02). `position` is the pan knob the engine seam
+    /// takes (`AudioControls::set_balance`): `−1.0` hard left, `0.0`
+    /// center, `+1.0` hard right — finite and in range at the boundary,
+    /// never clamped. Center is the pan law's −3.01 dB per channel;
+    /// the plain pass-through is the stage ABSENT (`get-balance` answers
+    /// `null`), not `position: 0.0`.
+    #[serde(rename = "audio.set-balance")]
+    AudioSetBalance {
+        /// Stereo position, `−1.0..=1.0` (typed range check at the
+        /// host/engine boundary).
+        position: f32,
+    },
+    /// `audio.get-balance` — the balance stage in force (class S),
+    /// the read twin of `audio.set-balance` (the set-volume family's
+    /// `audio.get-volume` pattern). `position` is `null` while the
+    /// stage is absent — the identity split (absence ≠ the pan law's
+    /// center, which attenuates both channels).
+    #[serde(rename = "audio.get-balance")]
+    AudioGetBalance,
+    /// `audio.set-eq` — arm or update the three-band EQ (class S,
+    /// FX5-A02). The engine's `Eq3Band` truth: low 250 Hz shelf /
+    /// mid 1 kHz peak / high 4 kHz shelf (fixed corners), band gains
+    /// in dB (runtime bound ±40), plus the preamp trim. `preamp_db`
+    /// carries the trim in dB (the `20·log10` amplitude convention —
+    /// the engine stores a linear `Volume` and the host converts at
+    /// the boundary); the field mapping is one-to-one with the
+    /// `{ lowDb, midDb, highDb, preampDb }` the UI dispatches.
+    #[serde(rename = "audio.set-eq")]
+    AudioSetEq {
+        /// Low-shelf gain (dB), `±40` engine runtime bound.
+        low_db: f32,
+        /// Mid-peak gain (dB), `±40` engine runtime bound.
+        mid_db: f32,
+        /// High-shelf gain (dB), `±40` engine runtime bound.
+        high_db: f32,
+        /// Preamp trim (dB), `20·log10` amplitude convention.
+        preamp_db: f32,
+    },
+    /// `audio.get-eq` — the EQ configuration in force (class S),
+    /// the read twin of `audio.set-eq`. `eq` is `null` while the stage
+    /// is absent — an armed flat EQ is `(0, 0, 0, 0 dB)`, not absence.
+    #[serde(rename = "audio.get-eq")]
+    AudioGetEq,
 
     // ---- video (§2.7) ----
     /// `video.set-fullscreen` — **target: shell** (class S; the only
@@ -528,6 +573,20 @@ pub enum CommandResult {
     AudioDevices {
         /// Every available output device.
         devices: Vec<AudioDevice>,
+    },
+    /// `audio.set-balance`/`get-balance` — the balance position in
+    /// force; `None` = the stage is absent (the identity split).
+    AudioBalance {
+        /// The stereo position now in force, `−1.0..=1.0`; `null`
+        /// while the stage is absent.
+        position: Option<f32>,
+    },
+    /// `audio.set-eq`/`get-eq` — the EQ configuration in force;
+    /// `None` = the stage is absent (an armed flat EQ is not absence).
+    AudioEq {
+        /// The three band gains + preamp now in force; `null` while
+        /// the stage is absent.
+        eq: Option<AudioEqBands>,
     },
     /// `audio.set-delay`, `video.set-delay`, `subtitle.set-sync` — an
     /// applied delay in ms (for `set-sync`, the new absolute total).

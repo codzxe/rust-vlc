@@ -88,8 +88,11 @@ macro_rules! stable_id_enum {
 
 stable_id_enum! {
     /// One v1 catalog command (doc 05 §2.1 — 61 entries + the issue #32
-    /// bookmark trio; the §2.3–2.12 tables define each entry's payload,
-    /// class and errors).
+    /// bookmark trio + the w31.1 shell-owned frame-channel bind + the
+    /// FX5-A02 audio-controls quartet: `audio.set/get-balance`,
+    /// `audio.set/get-eq` — additive rows per §6.2, mirroring the
+    /// §2.6 set-volume family; the §2.3–2.12 tables define each entry's
+    /// payload, class and errors).
     ///
     /// The enum is metadata: [`crate::catalog::command::Command`] is the
     /// payload-carrying twin whose variants serialize under these ids.
@@ -121,6 +124,13 @@ stable_id_enum! {
         AudioListDevices => "audio.list-devices",
         AudioSetDevice => "audio.set-device",
         AudioSetDelay => "audio.set-delay",
+        // FX5-A02 (F1.1c): the audio-controls quartet the engine seam
+        // (FX3-A03 `AudioControls`) already carries — the set-volume
+        // family's set/get pattern, additive §6.2 rows.
+        AudioSetBalance => "audio.set-balance",
+        AudioGetBalance => "audio.get-balance",
+        AudioSetEq => "audio.set-eq",
+        AudioGetEq => "audio.get-eq",
         // video (§2.7)
         VideoSetFullscreen => "video.set-fullscreen",
         VideoSetAspectRatio => "video.set-aspect-ratio",
@@ -273,10 +283,11 @@ mod tests {
     fn catalog_sizes_match_doc_05() {
         // Doc 05 §2.1 lists 61 command entries; issue #32 adds the three
         // media.*-bookmark commands (64); w31.1 adds the shell-owned
-        // frame-channel bind (65 total). Doc 05 §3.2 lists 23 events;
-        // issue #42 adds the 7.C1/7.D1 additive trio (26 total, doc 05
-        // §6.2 additive rules).
-        assert_eq!(CommandId::ALL.len(), 65);
+        // frame-channel bind (65); FX5-A02 adds the audio-controls
+        // quartet set/get-balance + set/get-eq (69 total). Doc 05 §3.2
+        // lists 23 events; issue #42 adds the 7.C1/7.D1 additive trio
+        // (26 total, doc 05 §6.2 additive rules).
+        assert_eq!(CommandId::ALL.len(), 69);
         assert_eq!(EventId::ALL.len(), 26);
     }
 

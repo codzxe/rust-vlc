@@ -273,6 +273,26 @@ pub struct AudioDevice {
     pub is_default: bool,
 }
 
+/// The three-band EQ configuration (`audio.set-eq`/`get-eq`, FX5-A02) —
+/// the engine's `Eq3Band` truth: a low 250 Hz shelf, a mid 1 kHz peak,
+/// a high 4 kHz shelf (fixed corners, FX3-A03), the three band gains
+/// in dB plus the preamp trim in dB. The preamp is the trim-into-the-EQ
+/// knob; the wire carries it in dB (the amplitude convention
+/// `10^(db/20)`) and the host converts to the engine's linear
+/// [`Volume`] at the boundary. Not `Eq`/`Hash` (f32 wire scalars).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct AudioEqBands {
+    /// Low-shelf gain (dB), `±40` engine runtime bound.
+    pub low_db: f32,
+    /// Mid-peak gain (dB), `±40` engine runtime bound.
+    pub mid_db: f32,
+    /// High-shelf gain (dB), `±40` engine runtime bound.
+    pub high_db: f32,
+    /// Preamp trim (dB), `20·log10` amplitude convention.
+    pub preamp_db: f32,
+}
+
 /// The kind of a discovered local volume (7.D1 `devices.volume-added`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
