@@ -1,17 +1,37 @@
 # apps/desktop-tauri — ADR-004 admission close package (issue #67)
 
-> **Status: ADMITTED (code half) — 2026-11-13.** The wrapper exists, the
-> anti-bypass audit exists, the crate compiles in its dedicated CI lane
-> (`tauri-check`, Linux + webkit2gtk), and the 3-OS bundling + launch
-> verdicts are the remaining half. This file supersedes the 4.H1
-> INFRA-BLOCKED handoff (same document, rewritten; the 4.H1 text lives
-> in git history at the move commit).
+> **Status: ADMITTED (code half) — 2026-11-13; compile claim
+> corrected 2026-11-25 (FX1-A01 / FIX-PLAN F0.1).** The wrapper exists,
+> the anti-bypass audit exists, and the E0425 that broke this crate's
+> build on EVERY host is gone after FX1-A01: app.rs:301 called a ticker
+> name that is defined nowhere in the repository — a one-token typo for
+> the real ticker `spawn_event_pump` (app.rs:190; the Devil audit's
+> S0, four independent confirmations) — and the call site now names
+> the defined function — the crate compiles on webview-equipped hosts
+> per its dedicated CI lane (`tauri-check` in ci.yml, Linux + webkit2gtk,
+> which now runs an explicit `cargo build --manifest-path
+> apps/desktop-tauri/Cargo.toml` — lib + the real `lumen-tauri` bin —
+> ahead of `cargo test --all-targets`). Honesty note: this sandbox
+> cannot compile the crate (no webkit2gtk/gdk-sys — the baseline dies
+> at gdk-sys before these sources are type-checked), so local proof is
+> rg-level only (the never-defined name → 0 hits anywhere under
+> apps/desktop-tauri/; `fn spawn_event_pump` → the one definition); the
+> 2026-11-13 "the crate compiles" sentence was FALSE against that tree, and no green
+> tauri-check run of the fixed tree exists yet — the lane is the
+> authority that proves the compile, not this file. The 3-OS bundling
+> + launch verdicts are the remaining half. This file supersedes the
+> 4.H1 INFRA-BLOCKED handoff (same document, rewritten; the 4.H1 text
+> lives in git history at the move commit).
 >
 > **w30 progress (2026-11-15, this wave):** §B.1 is DONE (the real app
 > ships in every payload; the stub is gone), §B.2 is advanced (Windows
 > launch smokes ride the release lane; deep verdicts still manual), the
 > crash face + the playback pacer landed, and the WebView2 posture has
-> a visible-dialog/crash-log half — see the §B notes.
+> a visible-dialog/crash-log half — see the §B notes. **FX1-A01
+> correction (2026-11-25):** §B.1's DONE was false while the E0425
+> stood — the release lane builds this crate and could not pass; it
+> becomes true again only on a green release-lane run of the fixed
+> tree, and none exists yet.
 
 ## A. DONE at admission (2026-11-13, issue #67)
 
@@ -39,13 +59,16 @@
 - **Capabilities**: unchanged `core:default` only (no plugins — the
   4.H1 posture).
 - **CI lane** (`ci.yml` → `tauri-check`): webkit2gtk dev packages, the
-  ui/dist build (frontendDist embeds at compile time), `cargo test
-  --locked --all-targets`, clippy `-D warnings`, cargo-deny (bans/
-  licenses/advisories) over the subcrate lock with the repo-root
-  deny.toml (the scoped `libloading` wrapper covers the tray-icon
-  edge — an INACTIVE optional feature path, allowlisted only through
-  `libappindicator-sys`, never blanket), and a link/exit smoke
-  (0 or 86 acceptable).
+  ui/dist build (frontendDist embeds at compile time), `cargo build
+  --locked` over the whole crate (F0.1/FX1-A01: lib + the real
+  `lumen-tauri` bin — the GUI binary itself, not just test-harness
+  targets), `cargo test --locked --all-targets`, clippy `-D warnings`,
+  cargo-deny (bans/licenses/advisories) over the subcrate lock with the
+  repo-root deny.toml (the scoped `libloading` wrapper covers the
+  tray-icon edge — an INACTIVE optional feature path, allowlisted only
+  through `libappindicator-sys`, never blanket), and an ldd link smoke (the
+  built `target/debug/lumen-tauri`: every dynamic dependency resolves;
+  no exec on a display-less host — that half is tauri-launch.yml's).
 - **The dependency record** (`docs/dependencies/records/tauri-wry-2.x.md`):
   verdict flipped to "imported (this crate's lockfile only)"; the
   workspace graph stays tauri-free. R1–R9 refreshes there.

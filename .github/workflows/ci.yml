@@ -245,6 +245,22 @@ jobs:
         if: always()
         run: bash scripts/fuzz_registry_check.sh
 
+      - name: "7. external-oracle hash check (scripts/oracle_check.sh; F0.5d)"
+        # W17-A04 F-001/F-002: the external-oracle verifier was wired into
+        # NOTHING — its permanently-red state was invisible to every gate.
+        # EXPECTED RED until FX6 pins the fixtures: 6 of 8 .avi/.mp4
+        # fixtures have no .oracle.sha256 sidecar and 15 media files sit
+        # outside the pinned {.avi,.mp4} perimeter, so oracle_check.sh
+        # exits 1 today (verified locally: 15 WARN lines + RESULT = FAIL).
+        # That is BY DESIGN: the gate must be able to fail, not be green.
+        # FX6 closes it the way the script's own header demands (sidecar +
+        # perimeter + UNSUPPORTED_MEDIA in one commit per family).
+        # No continue-on-error, no `|| true` on this step, ever.
+        # Prerequisites per the script's own header: ffmpeg (step 1 above
+        # installs it), sha256sum, awk (ubuntu-latest defaults).
+        if: always()
+        run: bash scripts/oracle_check.sh
+
   # ------------------------------------------------------------------------
   # G1/G6 schema validation (doc 10 §4.6; spec: doc 07 §3.4 + §9 C4).
   # Folded from the parked file unchanged (activated by card 1.E2; every
@@ -727,6 +743,20 @@ jobs:
           workspaces: |
             .
             apps/desktop-tauri
+      # F0.1 (FX1-A01, 2026-11-25): the merge gate compiles the FULL crate
+      # in normal build mode — lib + the real `lumen-tauri` bin (the GUI
+      # executable the release lane ships). `cargo test --all-targets`
+      # below compiles the lib and the bins with the test harness; the
+      # normal-profile binary this step produces is what the ldd smoke
+      # at the lane's tail asserts against, by construction instead of
+      # by whatever `cargo test` leaves in target/. This is the FIX-PLAN
+      # F0.1 acceptance command verbatim: the lane the "the crate
+      # compiles" claim rests on must build the app, not just the lib.
+      # (Regression catch for the E0425 class: app.rs:301 called the
+      # never-defined `spawn_session_pump` — lib and bin alike fail to
+      # resolve it; this step fails first, ahead of the test step.)
+      - name: Build the admission crate (lib + bin — the real GUI binary)
+        run: cargo build --manifest-path apps/desktop-tauri/Cargo.toml --locked
       - name: Test the admission crate (incl. the §7.4 anti-bypass audit)
         run: cargo test --manifest-path apps/desktop-tauri/Cargo.toml --locked --all-targets
       - name: Clippy the admission crate

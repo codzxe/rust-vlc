@@ -298,7 +298,7 @@ pub fn run() -> tauri::Result<()> {
             // bridge. Passing `app` itself died on the first real compile
             // (CI tauri-check, run 43384519598, two E0308s).
             apply_window_spec(app.handle())?;
-            spawn_session_pump(app.handle().clone());
+            spawn_event_pump(app.handle().clone());
             open_argv_files(app.handle());
             Ok(())
         })
