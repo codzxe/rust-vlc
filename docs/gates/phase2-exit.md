@@ -61,7 +61,11 @@ Test-count trajectory across the phase: 529 (Phase-1 exit) → 1329
 - **D-018** — first-vertical container: AVI+MJPEG+PCM (in-house, zero new
   deps); 2.B3 closed not-selected. Recorded at the 2.B1+2.A3 close-out.
 - **Dependency posture (carried ADRs)**: cpal NOT admitted (conditional-E2,
-  platform-adapter fallback, ADR-005 draft); wgpu NOT imported (no GPU stack
+  platform-adapter fallback, ADR-005 draft — *posture amended 2026-11-25,
+  Devil-Fix FX3 per `audit/fix/FIX-PLAN.md` §3 F1.1 Route A: cpal 0.18.2
+  admitted behind audio-output's optional `backend-cpal` feature, per the
+  ADR-005 amendment + `records/cpal-0.18.2.md`'s ADMISSION amendment; this
+  row records the 2026-10-21 gate state*); wgpu NOT imported (no GPU stack
   in sandbox + libloading in the GL graph; Compositor seam + software path,
   admission-time obligations listed); tauri/wry NOT imported (no webview
   runtime; engine-side protocol core is std-only). All three have honest
@@ -81,7 +85,11 @@ Test-count trajectory across the phase: 529 (Phase-1 exit) → 1329
    `docs/prototypes/video-in-webview.md` (Node harness + the three webview
    runtimes). PROVISIONAL-B stands.
 3. **Real-hardware tiers**: no `real` evidence tier exists anywhere the suite
-   can currently run (reference hardware + ADR-005/wgpu backends required).
+   can currently run (reference hardware + ADR-005/wgpu backends required) —
+   *amended 2026-11-25: ADR-005's cpal substrate is admitted (behind
+   `backend-cpal`), but this Linux sandbox still cannot build alsa-sys, so
+   the real tier remains Windows-lane + hardware work (FX3-A07 wires the
+   lane; device-path evidence still [VERIFY]).*
 
 ## 5. Carried risks (updates)
 

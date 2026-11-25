@@ -48,7 +48,9 @@ product-config, settings-schema) · thiserror (localization,
 product-config, settings-schema) · schemars (commands — the doc 05 §5.1
 schema-derivation dep behind `cargo xtask codegen`) · ureq (streaming —
 the HTTP(S) transport behind the `HttpFetch` port, card 6.A1b, admitted
-under ADR-011). All other rows are transitive-only. `scope = "all"`
+under ADR-011) · cpal (audio-output — the optional `backend-cpal`
+feature edge, admitted 2026-11-25 under ADR-005 per its amendment).
+All other rows are transitive-only. `scope = "all"`
 (normal+build edges; the workspace has no registry dev-dependencies —
 `testkit` is a path dev-dep, §4).
 
@@ -66,6 +68,7 @@ lockfile-complete.
 | thiserror | 2.0.21 | >=2.0.21, <3.0.0 | MIT OR Apache-2.0 | pure-rust | **pass** — inherited preaudit-foundation |
 | schemars | 1.2.3 | >=1.2.3, <2.0.0 | MIT | pure-rust | **pass** — inherited preaudit-foundation (2026-10-12); card 1.D4 re-verified the license from the vendored crate manifest via `cargo metadata` (the crate is MIT-only, not dual-licensed). The doc 05 §5.1 schema-derivation dep for `commands` (catalog codegen). |
 | ureq | 3.5.0 | =3.5.0 (exact pin; any bump re-triggers the record, doc 11 §3.7) | MIT OR Apache-2.0 (record R7, verified 2026-10-30) | pure-rust transport; the tree's TLS crypto core (ring 0.17.14) is the E2 audited-native-crypto exception (ADR-011, the rav1d-asm posture) | **pass** — `records/ureq-3.5.0.md` R1–R10 (validate-then-admit, 2026-10-30); R10's condition — the Lead accepting the recorded ring deviation — **discharged by ADR-011 accepted 2026-11-09**; locked 3.5.0 in both the main and `fuzz/` lockfiles; row added by the w30.4 audit-fix lane (2026-11-15) |
+| cpal | 0.18.2 | =0.18.2 (exact pin; any bump or feature change re-triggers the record, doc 11 §3.7) | Apache-2.0 (record R7, verified 2026-10-21); closure classes — alsa Apache-2.0/MIT, alsa-sys MIT, dasp_sample/libc/bitflags/cfg-if/windows family MIT OR Apache-2.0, all inside the allow set | E2 audited OS-audio-service bindings (ADR-005, audio output's E2 slot) behind a feature gate | **conditional (E2, feature-gated)** — `records/cpal-0.18.2.md` (P0 verification 2026-10-21) + the wave-14 admission spike + the **ADMISSION amendment (2026-11-25, Devil-Fix FX3 per FIX-PLAN §3 F1.1 Route A)**: admitted as `audio-output`'s optional `backend-cpal` feature dep (off by default — null backend stays the default path); Windows CI lane compiles it (FX3-A07); the remediation Linux sandbox cannot build alsa-sys (record R5) and macOS stays per-target pending — the [VERIFY] obligations bound to the admission merge's CI runs are recorded in the record's amendment |
 | dyn-clone | 1.0.20 | >=1.0.20, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — dtolnay; via schemars (card 1.D4) |
 | equivalent | 1.0.3 | >=1.0.3, <2.0.0 | Apache-2.0 OR MIT | pure-rust | **quick-pass** `[VERIFY]` — indexmap support (indexmap-rs org); via indexmap |
 | hashbrown | 0.17.1 | >=0.17.1, <0.18.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — rust-lang org; via indexmap; 0.x ⇒ minor pin |
@@ -103,6 +106,17 @@ table's **first active feature pin** — `default-features = false,
 features = ["rustls", "rustls-webpki-roots"]` (the record's "The feature
 pin" section is the enforcement text; the exact `=3.5.0` pin lives at
 `crates/streaming/Cargo.toml`).
+
+The cpal row (2026-11-25, Devil-Fix FX3 — the **second active feature
+pin and the first E2-conditional row**) differs likewise, per its record's
+ADMISSION amendment: `approver = "Lead"` by the ADR-005 amendment
+(2026-11-25) rather than the snapshot's merge-decision default; feature
+pin `backend-cpal` (the optional-cpal edge at
+`crates/audio-output/Cargo.toml`, off by default); exact `=0.18.2` pin;
+and an honest open
+evidence field — the record's `[VERIFY-P1]` set is bound to the
+admission merge's CI runs (cargo-deny + the FX3-A07 Windows lane
+compiling the feature), `[VERIFY on merge]` until green.
 
 Re-audit triggers, all rows (doc 11 §3.7): version change · new transitive
 dep · build.rs/links= change across the bump · license-file change ·
@@ -146,12 +160,18 @@ is scoped to unpublished workspace members).
 - **Pre-audited, not in the lockfile** (preaudit-foundation.md verdicts stand;
   they get rows here only when actually added): tracing /
   tracing-subscriber (pass), raw-window-handle (pass), wasm-bindgen (pass),
-  cpal / wgpu / winit / windows / windows-sys / objc2 / core-foundation
-  (conditional, E2), tauri / wry (exception-ADR-004). Pre-audit/verification
-  records exist for four of these: `records/wasmi.md` (full R1–R10, ADR-002
-  decision input — not yet imported; `plugin-host-wasm` is Phase 7),
-  `records/cpal-0.18.2.md` (P0 verification, conditional-E2, NOT admitted —
-  ADR-005 input), `records/wgpu-30.0.1.md` (deferral record, conditional-E2,
+  wgpu / winit / windows / windows-sys / objc2 / core-foundation
+  (conditional, E2), tauri / wry (exception-ADR-004) —
+  **cpal left this list 2026-11-25** (Devil-Fix FX3: admitted behind
+  `backend-cpal` per the ADR-005 amendment; its row is in §3 above, and it
+  now locks in the main Cargo.lock as an optional dependency).
+  Pre-audit/verification records exist for four of these: `records/wasmi.md`
+  (full R1–R10, ADR-002 decision input — not yet imported;
+  `plugin-host-wasm` is Phase 7),
+  `records/cpal-0.18.2.md` (P0 verification + the 2026-11-25 ADMISSION
+  amendment — admitted behind audio-output's optional `backend-cpal`
+  feature per the ADR-005 amendment; §3 row above),
+  `records/wgpu-30.0.1.md` (deferral record, conditional-E2,
   NOT imported — admission-time obligations listed in its §6),
   `records/tauri-wry-2.x.md` (pre-audit, exception-ADR-004, NOT imported —
   the ADR-004 admission vehicle, criteria in its §"Admission criteria").

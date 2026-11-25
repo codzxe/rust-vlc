@@ -59,6 +59,8 @@ Ready to launch in dependency order: 1.A workspace + lints + CI skeleton →
 commands crates (incl. ts_ns envelope decision) → 1.D media-types + plugin-api
 (Lead-owned) → 1.E theme-tokens + keymap wiring + xtask suite → 1.F testkit v0
 + boundary check + wasm CI job. ADR-005 (audio backend) decides at 1.C per
-D-008.
+D-008 — *discharged late, honestly (2026-11-25, Devil-Fix FX3 per
+`audit/fix/FIX-PLAN.md` §3 F1.1 Route A): cpal 0.18.2 admitted behind
+audio-output's optional `backend-cpal` feature; ADR-005 amended.*
 
 **Phase 0 is complete. Tag: phase-0-gate.**

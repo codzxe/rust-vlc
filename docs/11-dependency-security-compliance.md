@@ -91,6 +91,33 @@ seam (`HTTPS_ADR011_ADMITTED` const + the `SchemeError::HttpsNotAdmitted`
 vocabulary) from `crates/streaming/src/schemes.rs`; re-audit re-triggers
 per §3.7 on any ureq/rustls version or feature change.
 
+**Admission register — cpal audio substrate `[ADMITTED — E2-class
+exception; ADR-005 amended 2026-11-25]`:** audio output's E2 slot (the
+second named slot in the E2 class above). The Devil-Fix program's F1.1
+Route A decision (`audit/fix/FIX-PLAN.md` §3: "admit cpal (recommended)")
+admits **cpal `=0.18.2` (exact pin), feature-gated behind
+`audio-output`'s optional `backend-cpal` feature — off by default, so the
+null backend remains the default path and the seam stays std-only**;
+record `deps/records/cpal-0.18.2.md` (the 2026-10-21 P0 verification +
+the wave-14 admission spike `records/audio-output-cpal.md`), whose
+2026-11-25 ADMISSION amendment supersedes the record's original
+conditional-E2/not-admitted verdict. License per the record R7: cpal
+Apache-2.0; the closure's classes (alsa Apache-2.0/MIT, alsa-sys MIT,
+dasp_sample/libc/bitflags/cfg-if and the metadata `windows` 0.62 family:
+MIT OR Apache-2.0) are all inside deny.toml's existing allow set — **no
+license-class addition was needed** (the check is recorded in deny.toml's
+licenses comment). Native surface (R4): the OS's own audio services
+(WASAPI via the metadata-based `windows` crate — no bindgen on the
+admitted lane; ALSA libasound on Linux). Sandbox honesty: the remediation
+Linux box cannot build alsa-sys (no `alsa.pc`, the recorded exit-101
+class) — the Windows CI lane compiles the feature (FX3-A07); macOS
+admission stays per-target pending (the coreaudio-sys bindgen chain is
+*locked* in the target-agnostic Cargo.lock, hence deny.toml's
+wrapper-scoped allowances). Allowlist row:
+`docs/dependencies/allowlist.md` §3 (approver = Lead via the ADR-005
+amendment); re-audit re-triggers per §3.7 on any cpal version or feature
+change.
+
 ### 1.3 The intake procedure (what an agent does)
 
 1. Check the crate against F1–F7 using the §4.1 method *before* proposing it.

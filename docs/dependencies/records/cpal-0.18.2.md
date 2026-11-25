@@ -9,8 +9,13 @@
 > 0.4.0), and one **build attempt of a throwaway /tmp project** (not this
 > workspace — the 1.E5-R negative-fixture convention).
 > **Final acceptance and the allowlist row are Lead decisions (doc 11
-> §3.1).** This record's verdict: **conditional (E2), NOT admitted in
-> 2.C3 — the card's platform-adapter fallback is executed instead.**
+> §3.1).** This record's original verdict: **conditional (E2), NOT admitted
+> in 2.C3 — the card's platform-adapter fallback is executed instead.**
+> **ADMITTED by amendment 2026-11-25 (Devil-Fix FX3, `audit/fix/FIX-PLAN.md`
+> §3 F1.1 Route A): cpal `=0.18.2` (exact pin) behind `audio-output`'s
+> optional `backend-cpal` feature, per the ADR-005 amendment of the same
+> date — see "ADMISSION — amendment" at the end of this record; it
+> supersedes the R10 verdict below.**
 
 ## R1 — Language & source
 
@@ -135,7 +140,9 @@ manifests, `cpal 0.18.2` default-features on
 
 ## R10 — Verdict
 
-**conditional (E2) — and NOT admitted by card 2.C3.** The card's own
+**conditional (E2) — and NOT admitted by card 2.C3.** **[Superseded by the
+ADMISSION amendment (2026-11-25) at the end of this record; the four
+grounds below are re-answered there.]** The card's own
 decision procedure resolves this way on four independent grounds:
 
 1. **Policy vehicle missing.** E2 admission requires an ADR with the
@@ -175,3 +182,70 @@ tarball extractions, full build.rs reads, the /tmp build attempt with
 un-piped exit code 101 — the DISK-INCIDENT-1 lesson applied). Nothing
 was run against a real audio device; nothing here asserts device
 behavior.*
+
+---
+
+## ADMISSION — amendment (2026-11-25, Devil-Fix FX3)
+
+> **Verdict (superseding R10 above): ADMITTED — `cpal =0.18.2` (exact pin),
+> as an optional dependency of `crates/audio-output` behind the
+> `backend-cpal` feature, off by default.** Decision authority: the
+> Devil-Fix program's F1.1 Route A decision (`audit/fix/FIX-PLAN.md` §3:
+> "admit cpal (recommended)" over finishing the WASAPI render path),
+> recorded as the ADR-005 amendment of the same date
+> (`docs/adr/ADR-005-audio-output.md`, "Amendment — the admission", which
+> carries the doc 11 §1.2 E2 safety review). The allowlist row:
+> `docs/dependencies/allowlist.md` §3; doc 11 §1.2's admission register
+> paragraph records the same. The four R10 grounds, re-answered:
+
+1. **Policy vehicle missing** → the vehicle now exists and is amended:
+   ADR-005 is written and its 2026-11-25 amendment records the substrate
+   choice, the E2 safety review (API surface, unsafe scope, crash
+   behavior, activation truth), and the per-target posture.
+2. **Architecture places OS backends in L5** → the Lead explicitly took
+   the registry-row amendment this record's own closing paragraph
+   anticipated ("or in an audio-output feature if the Lead explicitly
+   amends the registry row"): the substrate sits in L4 `audio-output`
+   *behind a default-off feature*; the adapter adds no `unsafe` of its
+   own (all C-FFI unsafe stays confined inside cpal and its host
+   crates — the spike's R4 counts); the seam contract is unchanged and
+   default builds remain std-only on the null backend.
+3. **The sandbox cannot honestly validate it** → unchanged, and carried
+   as recorded honesty rather than waived: the remediation Linux box
+   still has no `alsa.pc` (alsa-sys cannot build — the R5 exit-101
+   class) and no audio device. The admission's compile evidence is the
+   Windows CI lane (FX3-A07; cpal's Windows host is the metadata-based
+   `windows`-crate path, no bindgen — R5); device-path behavior stays
+   `[VERIFY]` (Phase-3+ hardware-labeled, MP §13).
+4. **Wave-2 dependency discipline** → superseded by the Devil-Fix Lead
+   decision: FIX-PLAN §3 F1.1 Route A over Route B (the 787-LOC
+   enumeration-only WASAPI file + +800–1,500 LOC of COM FFI render
+   work). The discipline transfers to the pin: exact `=0.18.2`, no
+   default-feature drift, re-audit triggers per doc 11 §3.7 on any
+   version or feature change.
+
+**Obligations landed with this admission (same date, cross-checkable):**
+the ADR-005 amendment (above); the allowlist row
+(`docs/dependencies/allowlist.md` §3 — second active feature pin after
+ureq's, approver Lead via the ADR-005 amendment); doc 11 §1.2's admission
+register paragraph; deny.toml's allowance rows for the admission closure
+(wrapper-scoped `bindgen`/`libloading` entries for the macOS build chain
+that Cargo.lock carries target-agnostically — cpal, alsa/alsa-sys, and the
+`windows` family needed none: not banned, licenses inside the allow set
+per R7).
+
+**`[VERIFY]` obligations binding the admission merge's CI evidence**
+(honest state: not run in this sandbox — cargo-deny is absent here, the
+W01-A03 audit's recorded baseline): R2's lockfile-graph regeneration from
+our own `Cargo.lock` (the R2 graph above walked API + tarballs, not a
+lockfile); R7's dasp_sample license re-check at the pinned version; R8's
+RustSec query at admission date; R9's publisher identity + index-hash
+pins. First run = the FX3 merge's `cargo deny --workspace check licenses
+sources bans advisories` on the regenerated lock, plus FX3-A07's Windows
+lane compiling the feature. Until that run is green these stay
+`[VERIFY]`, not waived.
+
+*Evidence posture for this amendment (AGENTS §3.4): every dated fact above
+cites this record's own R1–R10 evidence or the repo files named; nothing
+new was executed in the remediation sandbox (no cargo-deny, no cargo, no
+network); no device behavior is asserted.*

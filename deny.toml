@@ -139,6 +139,20 @@ allow = [
     # under the minimal-set posture above.
     "Zlib",
     "Apache-2.0 WITH LLVM-exception",
+    # ---- added by the Devil-Fix FX3 lane (ADR-005 admission — cpal 0.18.2
+    # behind audio-output's optional `backend-cpal` feature, 2026-11-25) ----
+    # License check for the admission closure: NO new classes were needed
+    # and NO row is added — cpal is Apache-2.0; the closure's classes (alsa
+    # Apache-2.0/MIT; alsa-sys MIT; dasp_sample, libc, bitflags, cfg-if,
+    # core-foundation-sys and the metadata `windows` 0.62 family: MIT OR
+    # Apache-2.0) are all inside the sets above. Evidence:
+    # docs/dependencies/records/cpal-0.18.2.md R7 (+ the wave-14 spike's
+    # R7). This block records the check so the minimal-set posture's
+    # same-PR review rule stays auditable — the wrapper-scoped [bans]
+    # entries for this admission (bindgen via coreaudio-sys; libloading
+    # via clang-sys) are its companions.
+    # First CI encounter: the FX3 merge's cargo-deny run on the
+    # regenerated Cargo.lock [VERIFY on merge].
 ]
 
 [licenses.private]
@@ -186,9 +200,30 @@ deny = [
     # that is the OS-shell E1 path (records/tauri-wry-2.x.md §R4), not
     # a media-engine dlopen. Any OTHER path to libloading still trips
     # the ban — this is a scoped allow, never a blanket lift.
-    { name = "libloading", wrappers = ["libappindicator-sys"] },  # nagisa/rust_libloading
+    #
+    # ADR-005 admission exception (Devil-Fix FX3, 2026-11-25): a SECOND
+    # scoped wrapper. cpal 0.18.2 — audio-output's optional
+    # `backend-cpal` feature, off by default — locks a target-agnostic
+    # closure in Cargo.lock, and its macOS build chain
+    # coreaudio-sys -> bindgen -> clang-sys reaches libloading as
+    # clang-sys's runtime dlopen of libclang. macOS admission is NOT
+    # granted (per-target flip pending per the ADR-005 amendment); the
+    # chain is locked-only and never built here. Any OTHER path to
+    # libloading still trips the ban.
+    { name = "libloading", wrappers = ["libappindicator-sys", "clang-sys"] },  # nagisa/rust_libloading
     # Bindings-generation implies C headers (F3 signal, doc 11 §1.1).
-    "bindgen",           # rust-lang/rust-bindgen, 0.73.2
+    #
+    # ADR-005 admission exception (Devil-Fix FX3, 2026-11-25): bindgen
+    # is reached ONLY through cpal's macOS coreaudio-sys build chain
+    # (cpal 0.18.2 is audio-output's optional `backend-cpal` feature,
+    # off by default; Cargo.lock carries its closure target-agnostically
+    # even with the feature disabled). macOS admission is NOT granted
+    # (per-target flip pending per the ADR-005 amendment) — the chain is
+    # locked, never built here. Any OTHER path to bindgen still trips the
+    # ban — a scoped allow, never a blanket lift (the libloading
+    # pattern above). Windows, the admitted lane, is the metadata
+    # `windows`-crate path: no bindgen (records/cpal-0.18.2.md R5).
+    { name = "bindgen", wrappers = ["coreaudio-sys"] },  # rust-lang/rust-bindgen, 0.73.2
 
     # ---- FFmpeg/libav wrapper family (task 1.E5, doc 04 §1.2) -----------
     "ffmpeg-next",       # zmwangx/rust-ffmpeg, 9.0.0

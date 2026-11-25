@@ -131,9 +131,13 @@ wave-4 full-gate log was not committed (§5 gap 5).
    per OS — on the merge commit; record run links in the final gate doc.
 2. **Real-hardware tiers.** Carried unchanged from `phase2-exit.md` §4.3: no
    `real` evidence tier exists in this sandbox (reference hardware +
-   ADR-005/wgpu backends required); audio-device and surface-loss scenarios run
-   on the testkit's synthetic devices, and the 4 h soak needs a desktop-class
-   runtime to be more than synthetic.
+   ADR-005/wgpu backends required — *amended 2026-11-25: ADR-005's substrate,
+   cpal 0.18.2, is admitted behind audio-output's optional `backend-cpal`
+   feature (Devil-Fix FX3), but this Linux box still cannot build alsa-sys,
+   so the admission compiles on the Windows CI lane only (FX3-A07) and the
+   real tier stays Windows-lane + hardware work*); audio-device and
+   surface-loss scenarios run on the testkit's synthetic devices, and the 4 h
+   soak needs a desktop-class runtime to be more than synthetic.
 3. **Soak target is not frozen.** "< 5 MB/h" is `[PROPOSAL]` until the first
    measured baseline justifies and freezes it (doc 10 §6.5) — the gate clause
    "within target" must cite `wip/w5-10`'s measured slope AND the then-frozen
