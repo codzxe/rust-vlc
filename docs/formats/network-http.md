@@ -1,20 +1,35 @@
 # Protocol record — HTTP(S) access + scheme registry (network stack)
 
-Status: **implemented (library stack)** — the fetch port (6.A1a), the
-admitted ureq client (6.A1b/6.A1c), the ranged seekable resource
-(6.A2a) with the no-range linear-scan fallback (6.A2b), and the scheme
-dispatch registry (6.A3) are landed and tested in `crates/streaming`.
-**The CLI open path does not dispatch through the registry yet** — the
-composition card (probe-over-network + product-limits join; the
-`open-path-for-http` handoff named by 6.A2a/6.A2b) owns that wiring;
-today every `SourceSpec::Url` still refuses at
-`apps/cli/src/demux_host.rs` (`UnsupportedForHost`, "needs the
-streaming crate"). Front-matter keys per doc 04 §6:
+Status (audit-corrected 2026-11-24, Devil Audit C-004): **implemented
+(shipped + CLI-reachable)** — the fetch port (6.A1a), the admitted ureq
+client (6.A1b/6.A1c), the ranged seekable resource (6.A2a) with the
+no-range linear-scan fallback (6.A2b), and the scheme dispatch
+registry (6.A3) are landed and tested in `crates/streaming`, and **the
+CLI open path dispatches `http(s)` through them (w31.3)**:
+`apps/cli/src/demux_host.rs:427` — `"http" | "https" =>
+open_http_source(url, fetch)?,` — rides the production ureq
+transport + `RangedResource`, serving the same
+`plugin_api::access::SourceStream` contract as the file lane so probe
+and container registry run verbatim; a `file:` URL resolves through
+the same `input` seam; every other scheme keeps the honest
+host-capability refusal naming its blocked lane. Audit disproof of
+this record's earlier claim (the CLI never dispatching through the
+registry; every `SourceSpec::Url` refused at the host — FALSE-STALE,
+overtaken by the w31.3 landing): the executed loopback e2e through
+the REAL binary
+(`http_url_opens_over_a_real_loopback_socket`, exit 0 + session
+accepted) and the in-process proof
+(`http_url_opens_through_the_ranged_resource`) — W18-A10, the W13
+trace, `audit/final/CONTRADICTIONS.md` C-004; matrix row 096
+`protocol-http-https` = `implemented` with that w31.3 evidence.
+Front-matter keys per doc 04 §6:
 
 - id = `protocol-http-https` (the access row; `network-http-client`
   and `network-tls-policy` cover the client/TLS feature rows)
-- status = implemented (library); platform-independent code, evidence
-  Linux-only (mock-server tests + the two `--ignored` live-net tests)
+- status = implemented (shipped + CLI-reachable; the 6.A3-era
+  "library-only" understatement corrected above); platform-independent
+  code, evidence Linux-only (mock-server tests + the two `--ignored`
+  live-net tests + the w31.3 loopback e2e)
 - phase = 6 (waves 6.A1–6.A3)
 - fuzz_target = `fuzz_scheme_classify` (in-crate
   `streaming::schemes::fuzz_scheme_classify` + deterministic sweeps;
@@ -25,7 +40,8 @@ streaming crate"). Front-matter keys per doc 04 §6:
   the Lead-ADR ring deviation live there)]
 - self_built = [`crates/streaming/src/{fetch,error,client,ranged,
   schemes,mockhttp}.rs`]
-- last_audit = 2026-10-31 (card 6.A3)
+- last_audit = 2026-10-31 (card 6.A3); audit-corrected 2026-11-24
+  (Devil Audit C-004 / W19-S2 ledger)
 
 ## What landed when (the stack this record covers)
 
@@ -171,25 +187,33 @@ Run this session in `worktrees/p6-a3` (branch `wip/p6-a3`):
 
 ## Honest gaps (6.A3)
 
-- **CLI dispatch not wired**: the registry landed in `streaming`; the
-  open path still refuses every URL at `demux_host.rs`. Wiring it is
-  *not* a one-line join: `apps/cli` would gain the `streaming`
-  dependency (pulling the ureq/rustls/ring tree into the CLI binary)
-  and needs the `boundaries.toml` delta — `[crates.streaming]` has no
-  entry yet (pre-existing since 6.A1a; `check-architecture` ownership
-  is the Lead's) — plus the probe-over-network, product-limits and
-  moov-at-end composition the A2a/A2b worklogs scoped to the
-  open-path-for-http card. Recorded as the follow-up, not snuck in.
+- **CLI dispatch — WIRED (w31.3; this section's earlier
+  CLI-unwired text was FALSE-STALE — C-004)**: `apps/cli/src/demux_host.rs:427`
+  dispatches `http(s)` through `open_http_source` (the streaming
+crate's `RangedResource` over the production ureq transport), so the
+  CLI binary does carry the ureq/rustls/ring tree the old text said
+  it would avoid (`apps/cli/Cargo.toml` depends on `streaming`);
+  `boundaries.toml` carries its `[crates.streaming]` entry. Audit
+  proof: the executed loopback e2e (exit 0) and the in-process
+  ranged-resource test (W18-A10; matrix row 096's evidence string).
+  What honestly remains: per-OS live-net runs on real hardware
+  (`[VERIFY at first live run]`, the matrix row's notes) — the two
+  `--ignored` live-net tests below are still the only live-wire
+  evidence.
 - Host-case normalization: the port's `Url` preserves host case
   (`HTTP://Example.com` → host `Example.com`); DNS is
   case-insensitive, servers see the original form. Recorded, not
   silently folded.
 - Non-UTF-8 `file:` URI paths refuse typed (the bare-path arm passes
   OS strings through natively; only the URI grammar is UTF-8 here).
-- Matrix rows (`protocol-http-https`, `network-http-client`) still
-  read `not_started` with empty evidence — this record is that
-  evidence; amendment recorded in-file for the Lead (the 5.REC-1
-  convention; agents do not edit the matrix).
+- Matrix rows: `protocol-http-https` (row 096) has since flipped to
+  `implemented` with the w31.3 evidence (`open_http_source` + the
+  loopback e2e); `network-http-client` (row 095) still reads
+  `not_started` with empty evidence against ~4,620–5,350 LOC of
+  landed, tested, executed streaming code — the understatement
+  direction (CONTRADICTIONS C-008); this record is that evidence;
+  amendment recorded in-file for the Lead (the 5.REC-1 convention;
+  agents do not edit the matrix).
 - Live-network evidence: the two `--ignored` live tests (example.com,
   httpbin redirect chain) were re-run green once by 6.A3 (1.26 s,
   above); 6.A3 added no new live test — the registry's dispatch

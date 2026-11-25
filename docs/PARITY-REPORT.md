@@ -119,15 +119,43 @@ Verified-only (MP §1 strict definition — automated evidence): **0/252
 > **Lumen's verified parity is 0/252, honestly.** 64 of 252 inventory
 > features (25.4%) are `implemented` on each desktop platform (windows,
 > linux, macos identically — the code is platform-shared and untested on
-> real per-OS hardware) and 0 on web; **not one row claims `verified`**,
-> because CI is billing-blocked on this private repository: every GitHub
-> Actions run dies at 0 steps regardless of code (`worklog.md` 7.CLOSEOUT;
-> risk R-16/R-20 refresh; `docs/RELEASE.md` known-limit #2). All landed
-> evidence is therefore **local-run, `hardware_class = mock`** per doc 10
-> §7.1 — green local gates with pinned provenance (workspace tests, the
-> first-vertical recovery matrix, schema/codegen drift checks, cargo-deny, e2e/visual lanes), but no automated CI evidence, and no
-> reference-hardware artifacts. Under MP §1's binding definition the only
-> truthful verified-parity number is **zero, pending CI**.
+> real per-OS hardware) and 0 on web; **not one row claims `verified`**
+> (audit-confirmed: 0 `= "verified"` cells in the whole matrix — W19-A10
+> ledger, claim #1). CI billing was unblocked 2026-11-12 and the
+> workflows HAVE executed (v0.1.0–v0.1.2) — the six
+> in-tree live run IDs and their real outcomes, per
+> `audit/final/CONTRADICTIONS.md` C-005 (the pre-unblock CI-blockade
+> claim that stood in this paragraph — every Actions run dead at 0
+> steps regardless of code — is registered FALSE there;
+> side B = `docs/RELEASE.md:145-148` + `worklog.md:1625/1968/2065`):
+>
+> - **43378741271 / 43378741286 / 43378757248** — the first full real
+>   execution of all five workflows (`worklog.md:1625`); the triage
+>   recorded there: UI visual lane 13/50 on the runner (host-font
+>   divergence → Inter bundled), gate step 3 cargo-test died pre-build
+>   (→ build-before-test), release dry-run 4 lanes died (script exec
+>   bits + MSI-guard CR) — each fixed in-band.
+> - **43464162696** — the v0.1.0 tag run: all five OS jobs green, the
+>   release job green through checksums + notes + tag cross-check, the
+>   final step died `gh release create` HTTP 422 "body is too long"
+>   (`worklog.md:1968`).
+> - **43466814633** — the v0.1.0 release published (17:00:58Z, tag
+>   `v0.1.0` @ `a64b7030`) with the MSI upgrade-path test green
+>   (`docs/RELEASE.md:195`, `:210-211`).
+> - **43729218652** — the v0.1.1 release-lane failure: MSI upgrade
+>   test exit 1603 (windows job) — the gen-wxs.sh heredoc twin
+>   divergence, fixed by the w28.1 hotfix with self-test pins +
+>   `scripts/twin_parity.py` (`worklog.md:2065`).
+>
+> Landed row evidence remains **local-run, `hardware_class = mock`**
+> per doc 10 §7.1 — green local gates with pinned provenance
+> (workspace tests, the first-vertical recovery matrix, schema/codegen
+> drift checks, cargo-deny, e2e/visual lanes) — with no
+> reference-hardware artifacts; the runs above are CI-lane and
+> release-pipeline executions, and the matrix still counts 0 `verified`
+> cells after them (W19-A10). Under MP §1's binding definition the
+> only truthful verified-parity number is **zero — because zero rows
+> claim `verified`**, not because CI is blocked.
 
 What this statement does and does not claim:
 

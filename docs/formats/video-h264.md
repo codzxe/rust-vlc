@@ -1,25 +1,41 @@
 # Codec record — H.264/AVC (decode)
 
-Status: **hw decode-path seam delivered (card 5.F2); playback
-`hw-only` pending Phase-7 adapters**. The 5.F1 clean-room parser
-(NAL/Annex-B/AVC/avcC, SPS/PPS, slice headers, SEI) is LANDED and
-corpus-verified. 5.F2 adds the **hardware consumption point**:
-`codecs::video::h264::hw` (the adapter seam) +
-`codecs::video::h264::decode` (the codec-api `Decoder`). **There is
-no software H.264 decode, and none is scheduled before ADR-001's
-conformance-gated software track produces a validated decoder** —
-doc 04 §4.2: "no production-grade pure-Rust H.264 decoder exists
-today" (the 2026 wave — rusty_h264-decoder 0.16.1 et al. — stays out
-until it passes our corpus + fuzz + differential kit).
+Status (audit-corrected 2026-11-24, Devil Audit C-001): **software
+H.264 decode is SHIPPED and executed** — `rust_h264` 0.6.1 behind the
+codec-api contract, Lead-admitted 2026-11-15 (admission record
+`docs/dependencies/records/rust_h264-0.6.1.md`; differential evidence
+`crates/codecs/tests/h264_sw_differential.rs`: bit-exact vs ffmpeg 7.1.5
+on six lanes × both entry forms). The shipped dispatch arm is
+`"h264" | "avc1" => self.seeded(track, config, H264SwDecoder::new)`
+(`apps/cli/src/pipeline_host.rs:346`), seeded from the container's
+`avcC` harvest (`apps/cli/src/containers/mp4.rs:237`). Audit ground
+truth: the release binary decodes h264+aac to **100.0% end-of-media**
+(3.041814 s, exit 0), moov-at-end and faststart demux open
+identically, I420→RGBA executes (`pipeline_host.rs:1340-1342`), and
+`H264SwDecoder::emit_frame` symbols are present in the shipped binary
+(581 `rust_h264` strings) — `audit/final/MP4-REALITY-TRACE.md` §1/§3
+(W20-A05) and DEVIL-AUDIT-REPORT §2's corrected interpretation
+(W20-A02 F-3). The 5.F1 clean-room parser (NAL/Annex-B/AVC/avcC,
+SPS/PPS, slice headers, SEI) is LANDED and corpus-verified; 5.F2's
+**hardware consumption point** (`codecs::video::h264::hw` +
+`codecs::video::h264::decode`) remains the adapter seam — **no
+hardware lane is wired in the shipped build** (the
+`H264Decoder::from_setting` / `playback.hw-decode-policy` opt-in
+Phase-7 path, `pipeline_host.rs:341-345`; the audit's honest
+remaining gaps: null audio sink, headless renderer, MP4 reanchor —
+MP4-REALITY-TRACE F-002/F-003/F-001).
 
 - Date of evidence: **2026-10-25** (card 5.F2; parser evidence
-  2026-10-2x per 5.F1).
+  2026-10-2x per 5.F1) — superseded 2026-11-15 (rust_h264 admission)
+  and audit-corrected 2026-11-24 (Devil Audit C-001/W20-A05).
 - Governing decision: **ADR-001** (hw-first for H.264/HEVC, E2
   OS-ABI exception, truthful active-decoder reporting).
-- Feature-matrix proposal (for the Lead's matrix pass):
-  `codec-video-h264` = `hw-only`: `probe`/`parse` done, `decode`
-  behind the hw seam, `software_decode = blocked` on every platform,
-  wasm32 = `blocked` (no OS decoder; WebCodecs is ADR-008 territory).
+- Feature-matrix status: the 2026-10 proposal (h264 as the hw-only
+  seam with software decode blocked on every platform) is
+  **superseded** — software decode landed 2026-11-15 and ships; the
+  audit holds row 023's sw-decode lane REAL (W19-S2 ledger).
+  wasm32 stays `blocked` (no OS decoder; WebCodecs is ADR-008
+  territory).
 
 ## Parse / Decode / Encode
 
@@ -132,8 +148,12 @@ accumulator; MP §12).
 
 VLC decodes H.264 via `avcodec` (ffmpeghw priority 10001 — the
 pinned baseline itself prefers hardware). Our mirror of that
-posture is the seam + truthful matrix rows above; actual decode
-arrives with the Phase-7 per-OS adapters. Until then an H.264 track
-on any machine surfaces the typed `h264.hw.*` refusal — which is
-doc 04 §4.2's requirement verbatim: the format is listed with its
+posture was the seam + truthful matrix rows; **software decode has
+since landed and ships** (rust_h264 0.6.1, above — the binary decodes
+h264 tracks on every machine, MP4-REALITY-TRACE §1: 100.0%
+end-of-media, exit 0). The hardware adapters remain the absent half:
+today's honest status is "software decode shipped, hw lane not
+wired" — the typed `h264.hw.*` refusals above are the hardware
+session's surface for the machines/policies that demand it. Doc 04
+§4.2's requirement stands verbatim: the format is listed with its
 real status, not smuggled in as "sometimes works".
