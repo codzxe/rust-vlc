@@ -65,9 +65,9 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
     ("duration", "media.get-duration", "media duration"),
     ("tracks", "tracks.list", "the track list"),
     (
-        "volume <level> | mute <on|off> (machine mode)",
-        "audio.set-volume / audio.get-volume / audio.set-mute",
-        "the session's audio controls (volume + mute, class S, answered with the applied truth)",
+        "volume <level> | mute <on|off> | balance <pos> | eq <dB> (machine mode)",
+        "audio.set-volume / audio.get-volume / audio.set-mute / audio.set-balance / audio.set-eq",
+        "the session's audio controls (volume, mute, balance + EQ, class S, answered with the applied truth)",
     ),
     (
         "engine-info",
@@ -264,7 +264,8 @@ pub fn known_areas(generated: &str) -> Vec<String> {
 /// The catalog ids the synopsis claims — the dispatch table's served
 /// set is tested against this (see `dispatch::SERVED`). Shared
 /// synopsis lines name several ids (the settings row: get + set; the
-/// audio row: set-volume + get-volume + set-mute).
+/// audio row: set-volume + get-volume + set-mute + set-balance +
+/// set-eq).
 #[must_use]
 pub fn synopsis_catalog_ids() -> Vec<CommandId> {
     SUBCOMMANDS
@@ -287,11 +288,16 @@ fn catalog_ids(id: &str) -> Vec<CommandId> {
         "media.get-current-time" => vec![CommandId::MediaGetCurrentTime],
         "media.get-duration" => vec![CommandId::MediaGetDuration],
         "tracks.list" => vec![CommandId::TracksList],
-        "audio.set-volume / audio.get-volume / audio.set-mute" => vec![
-            CommandId::AudioSetVolume,
-            CommandId::AudioGetVolume,
-            CommandId::AudioSetMute,
-        ],
+        "audio.set-volume / audio.get-volume / audio.set-mute / audio.set-balance / audio.set-eq" =>
+        {
+            vec![
+                CommandId::AudioSetVolume,
+                CommandId::AudioGetVolume,
+                CommandId::AudioSetMute,
+                CommandId::AudioSetBalance,
+                CommandId::AudioSetEq,
+            ]
+        }
         "system.get-engine-info" => vec![CommandId::SystemGetEngineInfo],
         "system.list-commands" => vec![CommandId::SystemListCommands],
         "config.get-setting / config.set-setting" => {
@@ -439,16 +445,18 @@ mod tests {
         let ids = synopsis_catalog_ids();
         assert_eq!(
             ids.len(),
-            18,
-            "one per catalog-serving synopsis row (the settings row counts twice, the audio row three times)"
+            20,
+            "one per catalog-serving synopsis row (the settings row counts twice, the audio row five times)"
         );
         // Distinct by construction of the table; spot-pin two.
         assert!(ids.contains(&CommandId::SessionOpen));
         assert!(ids.contains(&CommandId::PlaybackSeek));
         assert!(ids.contains(&CommandId::ConfigSetSetting));
-        // The F1.1c audio-control row parses to its three catalog ids.
+        // The F1.1c audio-control row parses to its five catalog ids.
         assert!(ids.contains(&CommandId::AudioSetVolume));
         assert!(ids.contains(&CommandId::AudioGetVolume));
         assert!(ids.contains(&CommandId::AudioSetMute));
+        assert!(ids.contains(&CommandId::AudioSetBalance));
+        assert!(ids.contains(&CommandId::AudioSetEq));
     }
 }

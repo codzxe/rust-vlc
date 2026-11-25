@@ -79,8 +79,8 @@ use std::sync::Arc;
 use audio_output::null::NullDevice;
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
-    Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, SettingValue, TimeRange, Timestamp,
-    TrackInfo, TrackKind, Volume,
+    AudioEqBands, Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, SettingValue, TimeRange,
+    Timestamp, TrackInfo, TrackKind, Volume,
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
 use commands::{CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent};
@@ -1452,6 +1452,92 @@ impl CliHost {
         controls.set_muted(muted);
         Ok(CommandResult::AppliedBool {
             value: controls.muted(),
+        })
+    }
+
+    /// The `audio.set-balance` verb (class S — the response says what
+    /// IS, §2.6): arm the constant-power balance stage on the LIVE
+    /// session's master chain at the requested position (−1.0 hard
+    /// left … +1.0 hard right) and answer the chain's own read-back.
+    /// The stage is optional on the chain: the pan law's center
+    /// (−3.01 dB per channel) is NOT unity, so it arms only when a
+    /// host asks — a pass-through center is the absent stage
+    /// (FX3-A03's documented law). The knob's hard stops are refused
+    /// by the control boundary itself: the setter returns `Result`,
+    /// so the engine's own `audio.effects_balance_position` code (for
+    /// non-finite or out-of-range positions) surfaces through
+    /// [`wire_error`] — never a clamp (D-6).
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: the balance range (the setter's
+    /// own `Result`, mapped through [`wire_error`]), no session
+    /// (`not-ready`), and a session without an audio limb
+    /// ([`no_audio_limb`], the ADTS family's recorded gap).
+    pub(crate) fn audio_set_balance(
+        &mut self,
+        balance: f32,
+    ) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let mut guard = consumer.lock();
+        let controls = audio_limb_controls(&mut guard).ok_or_else(no_audio_limb)?;
+        controls
+            .set_balance(balance)
+            .map_err(|error| wire_error(&error))?;
+        Ok(CommandResult::AudioBalance {
+            // The chain's own read-back — `Some` by construction after
+            // the accepted set armed the stage at the position; the
+            // plain `Option<f32>` (FX5-A02's authoritative shape)
+            // carries the stage truth — `null` only if the stage were
+            // absent, never a fabricated default.
+            position: controls.balance(),
+        })
+    }
+
+    /// The `audio.set-eq` verb (class S — the response says what IS,
+    /// §2.6): arm (first call) or update (later calls) the three-band
+    /// EQ on the LIVE session's master chain — an in-place coefficient
+    /// recompute with the biquad state preserved, never a rebuild
+    /// (FX3-A03's `Eq3Band::set_bands`) — and answer the chain's own
+    /// read-back in the wire's dB vocabulary.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: the preamp crosses at the
+    /// control boundary (dB → the engine's linear `Volume`, the
+    /// `audio.gain_db_*` codes for non-finite or overflowing values),
+    /// the band gains are refused by the setter's own
+    /// `audio.effects_eq_params` (non-finite or |gain| beyond ±40 dB,
+    /// the runtime bound), no session (`not-ready`), and a session
+    /// without an audio limb ([`no_audio_limb`]).
+    pub(crate) fn audio_set_eq(
+        &mut self,
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+        preamp_db: f32,
+    ) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let mut guard = consumer.lock();
+        let controls = audio_limb_controls(&mut guard).ok_or_else(no_audio_limb)?;
+        let preamp =
+            audio_engine::Volume::from_db(preamp_db).map_err(|error| wire_error(&error))?;
+        controls
+            .set_eq(low_db, mid_db, high_db, preamp)
+            .map_err(|error| wire_error(&error))?;
+        Ok(CommandResult::AudioEq {
+            // The chain's own read-back: the armed Eq3Band's stored
+            // band gains (dB, verbatim) and the preamp rendered back
+            // to dB from the stored linear gain (0 dB is exact —
+            // 10^0 = 1 and log10(1) = 0) — `Some` by construction
+            // after the accepted set armed the stage; the `Option`
+            // (FX5-A02's bands shape) carries the stage truth.
+            eq: controls
+                .eq_bands()
+                .map(|(low, mid, high, preamp)| AudioEqBands {
+                    low_db: low,
+                    mid_db: mid,
+                    high_db: high,
+                    preamp_db: preamp.db(),
+                }),
         })
     }
 

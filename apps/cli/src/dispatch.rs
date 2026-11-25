@@ -11,8 +11,9 @@
 //! first vertical owns the **playing subset** (the state machine +
 //! snapshots + the settings seam — exactly what the engine and its
 //! wired pipeline can honor today), plus the F1.1c audio-control
-//! verbs (`audio.set-volume`/`get-volume`/`set-mute`, routed to the
-//! live session's controls seam — W07's dead-surface fix). [`SERVED`]
+//! verbs (`audio.set-volume`/`get-volume`/`set-mute`/`set-balance`/
+//! `set-eq`, routed to the live session's controls seam — W07's
+//! dead-surface fix). [`SERVED`]
 //! is that set as data; the `--help` synopsis ([`crate::help`]) is
 //! tested against it, so the two cannot drift. Every other catalog id
 //! answers the honest typed refusal `unsupported-for-host` naming
@@ -52,6 +53,8 @@ pub const SERVED: &[CommandId] = &[
     CommandId::AudioSetVolume,
     CommandId::AudioGetVolume,
     CommandId::AudioSetMute,
+    CommandId::AudioSetBalance,
+    CommandId::AudioSetEq,
     CommandId::SystemGetEngineInfo,
     CommandId::SystemListCommands,
     CommandId::ConfigGetSetting,
@@ -151,6 +154,17 @@ fn route(
         Command::AudioSetMute { muted } => {
             Ok(CommandOutcome::Completed(host.audio_set_muted(*muted)?))
         }
+        Command::AudioSetBalance { position } => Ok(CommandOutcome::Completed(
+            host.audio_set_balance(*position)?,
+        )),
+        Command::AudioSetEq {
+            low_db,
+            mid_db,
+            high_db,
+            preamp_db,
+        } => Ok(CommandOutcome::Completed(
+            host.audio_set_eq(*low_db, *mid_db, *high_db, *preamp_db)?,
+        )),
         Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(CommandResult::EngineInfo {
             info: crate::host::engine_info(),
         })),
