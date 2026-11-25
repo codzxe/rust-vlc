@@ -12,9 +12,12 @@
 //! - [`NullStream::device`] — the driver the test/integration owns
 //!   (consumer side): it invokes the real-time callback exactly as a
 //!   device would ([`NullDevice::render`]), records underruns,
-//!   advances the sample counter, and (configured with
+//!   advances the sample counter, (configured with
 //!   [`NullConfig::capture`]) records every byte "played" for the
-//!   sink-buffer hash AC.
+//!   sink-buffer hash AC, and counts every served buffer into the
+//!   shared [`SinkStats`] ledger (FX3-A05 — the discard made
+//!   observable for the end-to-end waves: samples, frames, buffers,
+//!   bytes, the data/silence split).
 //!
 //! The [`AudioBackend`] trait path (`open`) parks the driver inside
 //! the backend — the sink is live (backpressure, counter, pause) but
@@ -42,7 +45,7 @@ use media_clock::SampleCounterSource;
 use media_types::frame::{AudioFormat, AudioLayout, SampleFormat};
 use media_types::time::{Duration, Nanoseconds};
 
-use crate::counter::SampleCounter;
+use crate::counter::{SampleCounter, SinkStats};
 use crate::device::{AudioBackend, DeviceDesc, DeviceId};
 use crate::error;
 use crate::render::{RenderStats, render_into};
@@ -68,6 +71,13 @@ struct Shared {
     /// 6.FIX-ogg-reanchor). Relaxed: the counter is only read for
     /// bookkeeping outside the RT path, never for ordering.
     written: AtomicU64,
+    /// The discard accounting (FX3-A05): samples/frames/buffers/bytes
+    /// the device half consumed, plus the silence split — the
+    /// observable truth for the end-to-end waves. Relaxed atomics,
+    /// recorded driver-side after the callback (capture's
+    /// discipline); readable from either half or the backend
+    /// (`stats()`).
+    stats: SinkStats,
 }
 
 impl Shared {
@@ -87,6 +97,7 @@ impl Shared {
             underruns: AtomicU64::new(0),
             paused: AtomicBool::new(false),
             written: AtomicU64::new(0),
+            stats: SinkStats::default(),
         })
     }
 }
@@ -153,6 +164,14 @@ impl NullSink {
     /// accept window's in-flight staging.
     pub fn written_frames(&self) -> u64 {
         self.shared.written.load(Ordering::Relaxed)
+    }
+
+    /// The session's discard accounting ([`SinkStats`]) — the
+    /// write-side view of the same shared ledger the device half
+    /// records after every callback (one state, two views — the
+    /// counter's pattern). Observable from outside the crate.
+    pub fn stats(&self) -> &SinkStats {
+        &self.shared.stats
     }
 
     /// Write raw interleaved f32 **bytes** (the convenience the AC
@@ -304,6 +323,11 @@ impl NullDevice {
             &self.shared.underruns,
             out,
         );
+        // The discard accounting, from the callback's own ledger —
+        // driver-side, after the callback (capture's discipline: never
+        // under the real-time rules). Paused and refused calls return
+        // above, so they record nothing (nothing was consumed).
+        self.shared.stats.record(&stats, self.channels);
         if let Some(capture) = self.capture.as_mut() {
             for sample in out.iter() {
                 capture.extend_from_slice(&sample.to_le_bytes());
@@ -340,6 +364,13 @@ impl NullDevice {
     /// Frames currently sitting in the ring.
     pub fn buffered_frames(&self) -> usize {
         self.shared.ring.available_frames()
+    }
+
+    /// The session's discard accounting ([`SinkStats`]) — the
+    /// device-side view of the same shared ledger the sink half
+    /// reads. Observable from outside the crate.
+    pub fn stats(&self) -> &SinkStats {
+        &self.shared.stats
     }
 }
 
@@ -395,6 +426,15 @@ impl NullBackend {
     /// Whether a session is open.
     pub fn is_open(&self) -> bool {
         self.session.is_some()
+    }
+
+    /// The open session's discard accounting ([`SinkStats`]); `None`
+    /// before open (honest state — the `clock_source` precedent). The
+    /// ledger is shared session state, not driver state, so it stays
+    /// readable after [`NullBackend::take_device`] moved the driver
+    /// out.
+    pub fn stats(&self) -> Option<&SinkStats> {
+        self.session.as_ref().map(|(shared, _)| &shared.stats)
     }
 
     fn shared(&self) -> Result<&Arc<Shared>, EngineError> {
