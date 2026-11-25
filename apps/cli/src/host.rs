@@ -80,7 +80,7 @@ use audio_output::null::NullDevice;
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
     Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, SettingValue, TimeRange, Timestamp,
-    TrackInfo, TrackKind,
+    TrackInfo, TrackKind, Volume,
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
 use commands::{CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent};
@@ -1388,6 +1388,73 @@ impl CliHost {
         })
     }
 
+    // -- the audio-control verbs (§2.6 — F1.1c, the live controls seam) ----
+
+    /// The `audio.set-volume` verb (class S — the response says what
+    /// IS, §2.6): validate at the control boundary, then apply on the
+    /// LIVE session's master chain and answer the chain's own
+    /// read-back, never the request echoed. W07-A02's finding was
+    /// `audio.set-volume` refused by every shipped host with zero
+    /// production callers of `set_volume` — this is the routing the
+    /// FX3-A03 engine surface waited for.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: a non-finite or negative volume
+    /// (the engine's own `audio.gain_*` codes, mapped through
+    /// [`wire_error`] — W07-A02 F-001's discipline: never a clamp),
+    /// no session (`not-ready`), and a session without an audio limb
+    /// (video-only or limb-less open — [`no_audio_limb`], the ADTS
+    /// family's recorded gap).
+    pub(crate) fn audio_set_volume(
+        &mut self,
+        volume: Volume,
+    ) -> Result<CommandResult, CommandError> {
+        let gain = audio_engine::Volume::from_linear(volume).map_err(|error| wire_error(&error))?;
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let mut guard = consumer.lock();
+        let controls = audio_limb_controls(&mut guard).ok_or_else(no_audio_limb)?;
+        controls.set_volume(gain);
+        Ok(CommandResult::AudioVolume {
+            volume: controls.volume().linear(),
+        })
+    }
+
+    /// The `audio.get-volume` verb (class S — the hydration read,
+    /// §2.6's "prefer the snapshot on hydration"): answers the live
+    /// chain's getter, never a remembered request — a fresh session
+    /// answers the identity (`1.0`).
+    ///
+    /// # Errors
+    /// The same typed boundaries as [`CliHost::audio_set_volume`]
+    /// (no session; a session with no audio limb).
+    pub(crate) fn audio_get_volume(&self) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let mut guard = consumer.lock();
+        let controls = audio_limb_controls(&mut guard).ok_or_else(no_audio_limb)?;
+        Ok(CommandResult::AudioVolume {
+            volume: controls.volume().linear(),
+        })
+    }
+
+    /// The `audio.set-mute` verb (class S, independent of volume,
+    /// §2.6): `true` zeroes every mixed quantum; `false` restores
+    /// the signal bit-exactly — the stage is a stateless multiply by
+    /// zero, so mute never disturbs the volume or the EQ state
+    /// (FX3-A03's composition property, kept honest here).
+    ///
+    /// # Errors
+    /// The same typed boundaries as [`CliHost::audio_set_volume`]
+    /// (no session; a session with no audio limb).
+    pub(crate) fn audio_set_muted(&mut self, muted: bool) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let mut guard = consumer.lock();
+        let controls = audio_limb_controls(&mut guard).ok_or_else(no_audio_limb)?;
+        controls.set_muted(muted);
+        Ok(CommandResult::AppliedBool {
+            value: controls.muted(),
+        })
+    }
+
     /// The settings-schema seam: one setting's value + meta.
     pub(crate) fn setting_get(&self, area: &str, key: &str) -> Result<CommandResult, CommandError> {
         let full = format!("{area}.{key}");
@@ -1433,6 +1500,50 @@ impl CliHost {
             restart_required: def.restart_required,
         })
     }
+}
+
+// ---------------------------------------------------------------------------
+// The audio-control verbs' helpers (F1.1c — the W07 "dead audio-controls
+// surface", host half)
+// ---------------------------------------------------------------------------
+
+/// The no-session refusal (the class-S snapshot shape `media_info`
+/// answers with).
+fn no_session_open() -> CommandError {
+    CommandError::new(Stage::Session, ErrorCode::NotReady, "no session open")
+}
+
+/// The no-audio-limb refusal: a session that opened without an audio
+/// half (video-only media, `--no-audio`, or the limb-less geometry
+/// gap the ADTS family records) carries no live controls chain to
+/// drive — the honest typed answer, never a fabricated default
+/// applied nowhere.
+fn no_audio_limb() -> CommandError {
+    CommandError::new(
+        Stage::AudioOutput,
+        ErrorCode::NotReady,
+        "this session has no audio output to control (video-only or limb-less open)",
+    )
+}
+
+/// The live audio session's controls (the frozen FX4-A01 contract):
+/// the host-facing audio session exposes `audio_controls()` — the
+/// runtime master chain FX3-A03 activated on the streaming pipeline
+/// (volume/mute/balance/EQ), reached through the consumer's locked
+/// state, the same audio-half seam the pump's renders read. The
+/// engine's own docs name `AudioLimb` as the host seam (audio-engine
+/// `controls.rs`), so the limb twin of `ConsumerState::audio` carries
+/// the entry. Setters run between quanta: the next mixed quantum
+/// reads the new parameters — never a rebuild.
+///
+/// This is the ONE call site of the sibling seam in this file; if the
+/// landed pipeline_host shape differs, it reconciles here alone.
+fn audio_limb_controls<'guard>(
+    guard: &'guard mut std::sync::MutexGuard<'_, crate::pipeline_host::ConsumerState>,
+) -> Option<&'guard mut audio_engine::AudioControls> {
+    guard
+        .audio_mut()
+        .map(crate::pipeline_host::AudioLimb::audio_controls)
 }
 
 /// The engine's own wire conversion of its session state (the mapping

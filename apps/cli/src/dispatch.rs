@@ -10,12 +10,14 @@
 //! Doc 05 §5.3 maps the CLI's top-30 verbs onto catalog ids; the
 //! first vertical owns the **playing subset** (the state machine +
 //! snapshots + the settings seam — exactly what the engine and its
-//! wired pipeline can honor today). [`SERVED`] is that set as data;
-//! the `--help` synopsis ([`crate::help`]) is tested against it, so
-//! the two cannot drift. Every other catalog id answers the honest
-//! typed refusal `unsupported-for-host` naming the wave that owns it
-//! — the same posture doc 05 §5.2 prescribes for the web host's
-//! capability gaps ("typed, not silent").
+//! wired pipeline can honor today), plus the F1.1c audio-control
+//! verbs (`audio.set-volume`/`get-volume`/`set-mute`, routed to the
+//! live session's controls seam — W07's dead-surface fix). [`SERVED`]
+//! is that set as data; the `--help` synopsis ([`crate::help`]) is
+//! tested against it, so the two cannot drift. Every other catalog id
+//! answers the honest typed refusal `unsupported-for-host` naming
+//! the wave that owns it — the same posture doc 05 §5.2 prescribes
+//! for the web host's capability gaps ("typed, not silent").
 //!
 //! # Class-A completion truth
 //!
@@ -47,6 +49,9 @@ pub const SERVED: &[CommandId] = &[
     CommandId::MediaGetCurrentTime,
     CommandId::MediaGetDuration,
     CommandId::TracksList,
+    CommandId::AudioSetVolume,
+    CommandId::AudioGetVolume,
+    CommandId::AudioSetMute,
     CommandId::SystemGetEngineInfo,
     CommandId::SystemListCommands,
     CommandId::ConfigGetSetting,
@@ -136,6 +141,16 @@ fn route(
         Command::TracksList => Ok(CommandOutcome::Completed(CommandResult::TrackList {
             tracks: host.track_snapshot(),
         })),
+        // ---- the audio-control verbs (§2.6 — F1.1c, class S: routed
+        // to the live session's controls seam; the response says
+        // what IS, never the request echoed) ----
+        Command::AudioSetVolume { volume } => {
+            Ok(CommandOutcome::Completed(host.audio_set_volume(*volume)?))
+        }
+        Command::AudioGetVolume => Ok(CommandOutcome::Completed(host.audio_get_volume()?)),
+        Command::AudioSetMute { muted } => {
+            Ok(CommandOutcome::Completed(host.audio_set_muted(*muted)?))
+        }
         Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(CommandResult::EngineInfo {
             info: crate::host::engine_info(),
         })),

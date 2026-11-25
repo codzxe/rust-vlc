@@ -65,6 +65,11 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
     ("duration", "media.get-duration", "media duration"),
     ("tracks", "tracks.list", "the track list"),
     (
+        "volume <level> | mute <on|off> (machine mode)",
+        "audio.set-volume / audio.get-volume / audio.set-mute",
+        "the session's audio controls (volume + mute, class S, answered with the applied truth)",
+    ),
+    (
         "engine-info",
         "system.get-engine-info",
         "engine self-description",
@@ -116,6 +121,18 @@ pub fn help_text() -> Result<String, String> {
     out.push_str("  lumen [OPTIONS] <COMMAND> [ARGS]     one-shot / interactive\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("  lumen --control-stdio                NDJSON machine mode\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("  lumen --help [AREA]                  this help / one settings area\n\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
+    out.push_str("Audio flags (the session's audio path is built at open):\n");
+    out.push_str("  --audio-backend <null|auto>  the audio output backend the session's\n");
+    out.push_str("      audio path is constructed with. `auto` (the default) prefers a\n");
+    out.push_str("      real device backend when this build carries one (the audio-output\n");
+    out.push_str("      `backend-cpal` feature) and falls back to the instrumented null\n");
+    out.push_str("      backend otherwise; `null` forces the instrumented null backend —\n");
+    out.push_str("      samples are counted (the sample counter is the session clock's\n");
+    out.push_str("      truth source) and discarded: deterministic, no audio device.\n");
+    out.push_str("  --no-audio                   skip the audio path entirely: no audio\n");
+    out.push_str("      track selected, no audio pipeline built — the session clock runs\n");
+    out.push_str("      on wall time. The argv form rides the `open` command (its own\n");
+    out.push_str("      `--no-audio` is the per-command form of the same choice).\n\n");
     out.push_str("Commands (the playing subset of the command catalog):\n");
     for (verb, id, help) in SUBCOMMANDS {
         out.push_str(&format!("  {verb:<58} {id}\n      {help}\n"));
@@ -124,7 +141,7 @@ pub fn help_text() -> Result<String, String> {
     out.push_str("  `lumen --help` lists areas with counts; `lumen --help <area>` lists that\n"); // lumen-allow-literal: CLI argv0/usage prose — identity wiring pending (see help.rs [PROPOSAL])
     out.push_str("  area's flags (the VLC --longhelp pattern, generated).\n");
     out.push_str("  Reserved (non-settings) flags: -h/--help, -v/--version, --json,\n");
-    out.push_str("  --control-stdio.\n\n");
+    out.push_str("  --control-stdio, --audio-backend <null|auto>, --no-audio.\n\n");
     out.push_str(&areas_block(&generated));
     Ok(out)
 }
@@ -245,8 +262,9 @@ pub fn known_areas(generated: &str) -> Vec<String> {
 }
 
 /// The catalog ids the synopsis claims — the dispatch table's served
-/// set is tested against this (see `dispatch::SERVED`). The settings
-/// row names two ids (get and set share one synopsis line).
+/// set is tested against this (see `dispatch::SERVED`). Shared
+/// synopsis lines name several ids (the settings row: get + set; the
+/// audio row: set-volume + get-volume + set-mute).
 #[must_use]
 pub fn synopsis_catalog_ids() -> Vec<CommandId> {
     SUBCOMMANDS
@@ -269,6 +287,11 @@ fn catalog_ids(id: &str) -> Vec<CommandId> {
         "media.get-current-time" => vec![CommandId::MediaGetCurrentTime],
         "media.get-duration" => vec![CommandId::MediaGetDuration],
         "tracks.list" => vec![CommandId::TracksList],
+        "audio.set-volume / audio.get-volume / audio.set-mute" => vec![
+            CommandId::AudioSetVolume,
+            CommandId::AudioGetVolume,
+            CommandId::AudioSetMute,
+        ],
         "system.get-engine-info" => vec![CommandId::SystemGetEngineInfo],
         "system.list-commands" => vec![CommandId::SystemListCommands],
         "config.get-setting / config.set-setting" => {
@@ -416,12 +439,16 @@ mod tests {
         let ids = synopsis_catalog_ids();
         assert_eq!(
             ids.len(),
-            15,
-            "one per catalog-serving synopsis row (the settings row counts twice)"
+            18,
+            "one per catalog-serving synopsis row (the settings row counts twice, the audio row three times)"
         );
         // Distinct by construction of the table; spot-pin two.
         assert!(ids.contains(&CommandId::SessionOpen));
         assert!(ids.contains(&CommandId::PlaybackSeek));
         assert!(ids.contains(&CommandId::ConfigSetSetting));
+        // The F1.1c audio-control row parses to its three catalog ids.
+        assert!(ids.contains(&CommandId::AudioSetVolume));
+        assert!(ids.contains(&CommandId::AudioGetVolume));
+        assert!(ids.contains(&CommandId::AudioSetMute));
     }
 }
