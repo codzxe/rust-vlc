@@ -33,12 +33,27 @@ wired the shipped **CLI host** to the backend factory (the cpal
 adapter when built with `backend-cpal`, the instrumented null backend
 otherwise; `--audio-backend`/`--no-audio` selection — FX4-A01/A06)
 and the volume/mute/balance/EQ verbs (FX4-A02), but the
-desktop/tauri GUI lanes are **pending verification** (FX4-A03/A04)
+desktop/tauri GUI audio lanes are **pending verification** (FX4-A03/A04)
 and audibility on real hardware is **[VERIFY] pending the Windows CI
 run of the `audio-cpal-check` lane + a Windows release smoke** — and
-the desktop shell is the ADR-004 **skeleton** (no
-window). The engine really demuxes/decodes/synchronizes — watch the
-event stream, `time` and `info` in the CLI. This is the honest state,
+a `lumen` CLI session opens **no video window** by design (the CLI
+lane is headless; `decode-bench` is the frame-count oracle). The
+GUI's video lane is real in code and instrumented since Devil-Fix
+wave FX6 (2026-11-26, FIX-PLAN §3 F1.2): the canvas exists
+(`ui/src/components/player/MediaSurface.tsx:342`, `putImageData` —
+wave-15 finding 1), the mailbox is bounded with a documented drop
+policy, timestamp passthrough and produced/dropped counters (FX6-A01),
+the 10 ms ticker ships policy-aware with the counters surfaced
+(FX6-A02), the tauri frame channel is bounded with
+shipped/dropped-by-overflow counters (FX6-A03), and the UI surfaces the frame-lane counters the
+webview observes (presented/skipped; FX6-A05) — but frames
+actually watched by a user
+on Windows hardware are **[VERIFY] pending the Windows GUI run**
+(smoothness and 4K starvation included; `docs/KNOWN-LIMITS.md` §4).
+The engine really demuxes/decodes/synchronizes — watch the
+event stream, `time` and `info` in the CLI, and in the GUI the
+surfaced lane counters (presented/skipped; FX6-A05). This is the
+honest state,
 tracked in `docs/KNOWN-LIMITS.md` §4.
 
 **A claimed format still fails**

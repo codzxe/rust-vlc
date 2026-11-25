@@ -929,7 +929,8 @@ traits defined in core crates, and never leak OS types upward (ARCH-6).
 
 **Interim status (recorded 2026-10-22, card 3.DOC-1; audio half
 amended 2026-11-25, Devil-Fix wave FX3; host half amended 2026-11-26,
-Devil-Fix wave FX4): Phase 2 shipped a
+Devil-Fix wave FX4; frame-lane half amended 2026-11-26, Devil-Fix
+wave FX6): Phase 2 shipped a
 seam-based interim instead of these crates.** The vertical's platform
 surface is carried today by typed seams one layer down: `audio-output`
 (L4) implements the `AudioBackend` adapter trait + the null backend
@@ -951,7 +952,17 @@ lane + a Windows release smoke)**; `renderer-wgpu`
 implements the `Compositor` seam with the software compositor linked (wgpu
 deferral recorded in `docs/dependencies/records/wgpu-30.0.1.md`, admission-
 time obligations in its §6); the desktop shell is the ADR-004 webview seam
-(`apps/desktop`, std-only, `HostError::WebviewPending` until admission).
+(`apps/desktop`, std-only, `HostError::WebviewPending` until admission —
+amended 2026-11-26, Devil-Fix wave FX6: the shipped webview shell is
+`apps/desktop-tauri` (`lumen-tauri`, built and launched per ADR-004's
+own 2026-11-13 update; the std-only `lumen-desktop` binary keeps its
+`WebviewPending` exit), and its frame lane is bounded and instrumented —
+mailbox drop policy + produced/dropped counters (FX6-A01), policy-aware
+10 ms ticker with counters surfaced (FX6-A02), bounded tauri channel
+with overflow counters (FX6-A03), the real canvas
+(`ui/src/components/player/MediaSurface.tsx:342`, wave-15 finding 1) with
+the frame-lane counters surfaced, presented/skipped (FX6-A05) — while a user-watched run on
+Windows hardware stays [VERIFY] pending the Windows GUI run).
 No `platform-*` crate exists yet. **[PROPOSAL]: defer the platform-* crates
 to Phase 7 (hardware decode, real audio backends and per-OS surfaces land
 together) — or absorb them into the seam crates if the seams prove

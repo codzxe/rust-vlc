@@ -57,9 +57,22 @@ What this release actually does, per `docs/feature-matrix.toml`
   - **No sound on any OS yet.** The engine decodes and syncs audio, but
     the output backend is not enabled — playback is silent. (The
     honest register: `docs/KNOWN-LIMITS.md` §4.)
-  - **The app shows no video yet.** The player surface is an honest
-    empty region; the video-display path is built but not connected.
-    The `lumen` CLI decodes and renders frames headless.
+  - **Watching video in the app is the open [VERIFY] — the frame lane
+    itself is real and instrumented (Devil-Fix wave FX6, 2026-11-26).**
+    The canvas is real (`ui/src/components/player/MediaSurface.tsx:342`
+    `putImageData`, wave-15 finding 1), the mailbox is bounded with a
+    documented drop policy, timestamp passthrough and produced/dropped
+    counters (FX6-A01), the 10 ms ticker ships policy-aware with the
+    counters surfaced (FX6-A02), the tauri frame channel is bounded with
+    shipped/dropped-by-overflow counters (FX6-A03 — a stalled webview
+    cannot grow an unbounded queue), and the UI surfaces the frame-lane
+    counters the webview observes (presented/skipped;
+    FX6-A05). What is not yet proven: a user-watched end-to-end
+    run on Windows hardware — frames actually seen, smoothness, 4K
+    starvation at the 10 ms cadence — **[VERIFY] pending the Windows GUI
+    run** (`docs/KNOWN-LIMITS.md` §4). The `lumen` CLI decodes and
+    renders frames headless by design (`decode-bench` is the count
+    oracle).
   - **Network addresses (http/https/HLS) don't play yet.** They are
     refused with a clear message; the streaming engine exists and
     enabling it for playback is the next release's work.
@@ -126,8 +139,16 @@ headlines users will hit:
 
 - **No sound yet, on any OS** — the audio backend is not enabled;
   playback is silent while decode and sync run for real.
-- **No video display in the app yet** — the player surface is an honest
-  empty region; the CLI renders frames headless.
+- **Video display in the app is real in code, the watched run is
+  [VERIFY]** — the frame lane is bounded and instrumented since
+  Devil-Fix wave FX6 (2026-11-26: canvas at
+  `ui/src/components/player/MediaSurface.tsx:342`,
+  mailbox drop policy + produced/dropped counters FX6-A01, policy-aware
+  ticker FX6-A02, bounded channel with overflow counters FX6-A03, UI
+  frame-lane counter display FX6-A05); frames actually watched by a user on
+  Windows hardware — smoothness, 4K starvation — stay [VERIFY] pending
+  the Windows GUI run (`docs/KNOWN-LIMITS.md` §4). The CLI renders
+  frames headless by design.
 - **Network addresses (http/https/HLS) are refused** with a clear
   message; streaming playback is the next release's work.
 - **The installer does not auto-launch the app** — start from the Start

@@ -46,7 +46,14 @@ What this release actually does, per `docs/feature-matrix.toml`
   (KNOWN-LIMITS §4).
 - `lumen-desktop` is the ADR-004 std-only composition-root skeleton —
   it opens no window; it ships so packaging paths are exercised
-  honestly. The Tauri webview shell is infra-blocked (issue #4, R-04).
+  honestly. (Superseded for the shell itself: w28 built and shipped
+  `lumen-tauri` — the real tauri app, v0.1.1/v0.1.2 artifacts; its
+  frame lane is bounded and instrumented since Devil-Fix wave FX6,
+  2026-11-26 — canvas at `ui/src/components/player/MediaSurface.tsx:342`, mailbox drop policy +
+  produced/dropped counters FX6-A01, policy-aware ticker FX6-A02,
+  bounded channel with overflow counters FX6-A03, UI frame-lane counter
+  display FX6-A05 — with a user-watched Windows run still [VERIFY];
+  `docs/KNOWN-LIMITS.md` §4. The v0.1.0 artifact itself predates w28.)
 - No release has existed before this one; there is no upgrade path to
   test and **no update mechanism ships** (the MSI's frozen UpgradeCode
   makes future MSIs replace this one rather than co-install).
@@ -96,8 +103,12 @@ headlines users will hit:
   and audibility on real hardware is [VERIFY] pending the Windows CI
   run of the `audio-cpal-check` lane + a Windows release smoke — see
   KNOWN-LIMITS §4.
-- **The desktop binary opens no window** (ADR-004 skeleton; Tauri
-  shell infra-blocked).
+- **The desktop binary opens no window** (ADR-004 skeleton —
+  `lumen-desktop`, std-only). The tauri shell is real and shipped
+  since w28 (`lumen-tauri`), its frame lane bounded and instrumented
+  since Devil-Fix wave FX6 (2026-11-26, FX6-A01/A02/A03/A05); the
+  user-watched Windows GUI run stays [VERIFY] (`docs/KNOWN-LIMITS.md`
+  §4).
 - **Web build: zero claimed rows** — the wasm engine exists and is
   smoke-built (`scripts/rc-smoke.sh` check 6), but no format is
   claimed on web.

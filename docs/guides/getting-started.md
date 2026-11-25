@@ -70,7 +70,22 @@ schema): `open <path> [--start-time T] [--start-paused] [--no-video]
 and synchronizes for real. The default audio path is still the **null
 backend — instrumented with sample/frame counters** (Devil-Fix wave
 FX3, 2026-11-25: real progress/underrun evidence, not silence), and
-there is no video window (ADR-004: the desktop shell is a skeleton).
+the CLI itself opens **no video window** — the CLI lane is headless
+by design (`decode-bench` is the frame-count oracle). The GUI's
+frame lane is real in code and instrumented since Devil-Fix wave FX6
+(2026-11-26, FIX-PLAN §3 F1.2): the canvas exists
+(`ui/src/components/player/MediaSurface.tsx:342`, `putImageData` behind
+`__TAURI_INTERNALS__` — wave-15 finding 1), the mailbox is bounded
+with a documented drop policy, timestamp passthrough and
+produced/dropped counters (FX6-A01), the 10 ms ticker ships
+policy-aware with the counters surfaced (FX6-A02), the tauri frame
+channel is bounded with shipped/dropped-by-overflow counters
+(FX6-A03 — a stalled webview cannot grow an unbounded queue), and
+the UI surfaces the frame-lane counters the webview
+observes (presented/skipped/last-id; FX6-A05). **A user-watched
+end-to-end run on Windows hardware is [VERIFY] pending the Windows
+GUI run** — frames actually seen, smoothness, 4K starvation at the
+10 ms cadence (`docs/KNOWN-LIMITS.md` §4).
 A real OS audio adapter exists behind the optional `backend-cpal`
 build feature of `crates/audio-output` (ADR-005, amended — FIX-PLAN
 §3 F1.1 Route A; the windows-latest CI lane compiles it) — and, since
@@ -150,8 +165,13 @@ A fresh profile boots into the first-run onboarding wizard
 surface. The settings screens (`/settings/*`), the shortcuts screen
 (`/keyboard-shortcuts`) and the playlist/media-info routes are real
 and driven by generated data from `schemas/settings.toml` and
-`keymaps/default.toml`. Playing media through the UI is not wired to
-the engine yet — see the index's honest-scope note.
+`keymaps/default.toml`. The real media-surface lane (the canvas at
+`ui/src/components/player/MediaSurface.tsx:342`) rides the desktop webview host's frame
+channel — the dev-server session you get from `npm run dev` is the
+honestly-badged demo lane (wave-15: `DemoTransport`; the browser
+build is genuinely canvas-less). End-to-end video through the UI is
+**[VERIFY] pending the Windows GUI run** — see the index's honest-scope
+note and `docs/KNOWN-LIMITS.md` §4.
 
 ## 5. Where to go next
 

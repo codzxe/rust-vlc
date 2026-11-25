@@ -23,7 +23,18 @@ hardware lane is wired in the shipped build** (the
 `H264Decoder::from_setting` / `playback.hw-decode-policy` opt-in
 Phase-7 path, `pipeline_host.rs:341-345`; the audit's honest
 remaining gaps: null audio sink, headless renderer, MP4 reanchor —
-MP4-REALITY-TRACE F-002/F-003/F-001).
+MP4-REALITY-TRACE F-002/F-003/F-001; the frame-lane item (F-003, "no
+display surface anywhere in the shipped build") is superseded for the
+GUI lane since 2026-11-26, Devil-Fix wave FX6 — the canvas is real
+(`ui/src/components/player/MediaSurface.tsx:342` `putImageData`, wave-15
+finding 1) and the lane is bounded and instrumented end to end
+(mailbox drop policy + produced/dropped counters, FX6-A01;
+policy-aware 10 ms ticker, FX6-A02; bounded tauri channel with
+overflow counters, FX6-A03; UI frame-lane counter display, FX6-A05) —
+while the CLI lane stays headless by design and a user-watched
+end-to-end run on Windows hardware (smoothness, 4K starvation)
+remains [VERIFY] pending the Windows GUI run; the audio-sink and
+reanchor items ride their own records' truths).
 
 - Date of evidence: **2026-10-25** (card 5.F2; parser evidence
   2026-10-2x per 5.F1) — superseded 2026-11-15 (rust_h264 admission)
