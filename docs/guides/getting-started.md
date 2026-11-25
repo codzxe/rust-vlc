@@ -73,11 +73,17 @@ FX3, 2026-11-25: real progress/underrun evidence, not silence), and
 there is no video window (ADR-004: the desktop shell is a skeleton).
 A real OS audio adapter exists behind the optional `backend-cpal`
 build feature of `crates/audio-output` (ADR-005, amended — FIX-PLAN
-§3 F1.1 Route A; the windows-latest CI lane compiles it), but the
-shipped hosts do not select it yet — backend selection and the
-volume/mute/balance/EQ verbs are wired into the hosts in wave FX4,
-and **audibility on real hardware is [VERIFY] pending a Windows
-run** (`docs/KNOWN-LIMITS.md` §4). On a default build you will not
+§3 F1.1 Route A; the windows-latest CI lane compiles it) — and, since
+Devil-Fix wave FX4 (2026-11-26), the shipped **CLI host** routes
+through the backend factory (the cpal adapter when the feature is on,
+the instrumented null backend otherwise; `--audio-backend`/`--no-audio`
+flags — FX4-A01/A06) and the volume/mute/balance/EQ verbs are wired
+to the pipeline controls (FX4-A02; observable in rendered samples in
+the `fx4_audio_path.rs` integration tests, FX4-A05). The
+desktop/tauri GUI lanes are **pending verification** (FX4-A03/A04),
+and **audibility on real hardware is [VERIFY] pending the Windows CI
+run of the `audio-cpal-check` lane + a Windows release smoke**
+(`docs/KNOWN-LIMITS.md` §4). On a default build you will not
 hear or see anything; `info`, `time` and the event stream are the
 observable surface. **In-session seek is
 not implemented (reanchor pending)**: on MP4 every seek fails typed at

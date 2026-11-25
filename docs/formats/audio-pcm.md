@@ -70,13 +70,20 @@ Shared-target worktree `wt/w24e` @ `c339ee8`, 2-core Linux sandbox:
   compiles it, FX3-A07). Default builds still render into the null
   backend — now instrumented with sample/frame counters (FX3-A05), so
   this record's sink-hash evidence rests on real counter evidence.
-  Shipped hosts still open the null backend today; backend selection
-  and the volume/mute/balance/EQ verbs are wired into the hosts in
-  wave FX4 (`docs/KNOWN-LIMITS.md` §4). **Audible output on real
-  hardware remains [VERIFY] pending a Windows run** (FIX-PLAN §3 F1.1
-  acceptance) — this record's decode evidence stays headless-labeled
-  until then (`audit/waves/wave-08/SUMMARY.md` S0 is the finding this
-  row used to summarize).
+  **Updated 2026-11-26 (Devil-Fix wave FX4, agent FX4-A07):** the
+  shipped CLI host routes through the backend factory — the cpal adapter
+  when built with `backend-cpal`, the instrumented null backend as
+  fallback (FX4-A01; `--audio-backend`/`--no-audio` selection flags,
+  FX4-A06) — and the volume/mute/balance/EQ verbs route to the
+  pipeline's `audio_controls()` (FX4-A02; end-to-end integration
+  evidence `apps/cli/tests/fx4_audio_path.rs`, FX4-A05 — volume/mute/EQ
+  observable in rendered samples). The desktop/tauri GUI lanes are
+  pending verification (FX4-A03/A04; `docs/KNOWN-LIMITS.md` §4).
+  **Audible output on real hardware remains [VERIFY] pending the
+  Windows CI run of the `audio-cpal-check` lane + a Windows release
+  smoke** (FIX-PLAN §3 F1.1 acceptance) — this record's decode evidence
+  stays headless-labeled until then (`audit/waves/wave-08/SUMMARY.md`
+  S0 is the finding this row used to summarize).
 - Web (`wasm32`): the wasm host ships the engine core decoder-less
   (the `codecs` crate's external engines do not build for the
   target; the in-house PCM decoder is native-side per the 7.H1

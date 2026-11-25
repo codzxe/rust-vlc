@@ -35,9 +35,14 @@ What this release actually does, per `docs/feature-matrix.toml`
   the null backend by default (instrumented with sample/frame counters
   — Devil-Fix wave FX3, 2026-11-25); a real output adapter is admitted
   behind the optional `backend-cpal` build feature (ADR-005, amended),
-  compiled by the windows-latest CI lane — but host selection and the
-  volume/mute/balance/EQ verbs are wired in wave FX4, and audible
-  output on real hardware is [VERIFY] pending a Windows run
+  compiled by the windows-latest CI lane — and Devil-Fix wave FX4
+  (2026-11-26) wired the shipped **CLI host**: the backend factory
+  selects the cpal adapter when the feature is on and the volume/
+  mute/balance/EQ verbs route to the pipeline controls (FX4-A01/A02;
+  `--audio-backend`/`--no-audio` flags, FX4-A06) — while the
+  desktop/tauri GUI lanes are pending verification (FX4-A03/A04) and
+  audible output on real hardware is [VERIFY] pending the Windows CI
+  run of the `audio-cpal-check` lane + a Windows release smoke
   (KNOWN-LIMITS §4).
 - `lumen-desktop` is the ADR-004 std-only composition-root skeleton —
   it opens no window; it ships so packaging paths are exercised
@@ -84,9 +89,12 @@ headlines users will hit:
 - **Audio: default builds render to the instrumented null backend**
   (ADR-005, amended by Devil-Fix wave FX3): the cpal adapter is
   admitted behind the optional `backend-cpal` feature and compiled by
-  the windows-latest CI lane, but shipped hosts do not select it yet
-  (host wiring + volume/mute/balance/EQ verbs land in wave FX4) and
-  audibility on real hardware is [VERIFY] pending a Windows run — see
+  the windows-latest CI lane; the shipped **CLI host** is wired to it
+  since Devil-Fix wave FX4, 2026-11-26 — backend factory +
+  volume/mute/balance/EQ verbs (FX4-A01/A02; flags FX4-A06) — while
+  the desktop/tauri GUI lanes are pending verification (FX4-A03/A04)
+  and audibility on real hardware is [VERIFY] pending the Windows CI
+  run of the `audio-cpal-check` lane + a Windows release smoke — see
   KNOWN-LIMITS §4.
 - **The desktop binary opens no window** (ADR-004 skeleton; Tauri
   shell infra-blocked).
