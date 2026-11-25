@@ -56,7 +56,7 @@ use std::sync::{Arc, Mutex};
 use audio_engine::resample::RateResampler;
 use audio_engine::{AudioBuffer, AudioControls, AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
-use audio_output::{NullBackend, NullConfig, NullStream, cpal_linked};
+use audio_output::{cpal_linked, NullBackend, NullConfig, NullStream};
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use codecs::audio::aac::AacDecoder;
 use codecs::audio::adpcm::AdpcmDecoder;
@@ -1683,33 +1683,36 @@ fn accept_video(
     match video.scheduler.push(uploadable) {
         PushOutcome::Scheduled | PushOutcome::Inferred { .. } => Ok(()),
         PushOutcome::Held | PushOutcome::MissingDropped { .. } => Ok(()),
-        PushOutcome::WindowFull { .. } if state.video_hold.len() < MAX_VIDEO_HOLD => {
+        PushOutcome::WindowFull { frame: held, .. } if state.video_hold.len() < MAX_VIDEO_HOLD => {
             // Early, not late: hold the frame and retry after the next
             // scheduler tick (the pump moves time on `advance`; the
             // window drains as the clock advances).
             //
-            // [KNOWN DEFECT, registered as the W1-06 follow-up card
-            // (Lead decision required): this arm stashes the
-            // UNCONVERTED original (`frame.clone()`), so every
-            // hold-retried I420 frame is refused at the renderer
-            // (`render.upload.format-unsupported`) and the surface
-            // freezes on an early window frame. Stashing the CONVERTED
-            // frame (the outcome hands it back) is the obvious fix —
-            // W1-06 proved it — but it EXPOSES a second, load-bearing
-            // defect: `advance_time`'s render loop drains the whole
-            // ring per pump, so with the renderer accepting frames one
+            // [W1-06 CLOSED (FX7-A01): this arm stashes the CONVERTED
+            // frame — the `uploadable` the accept path built and the
+            // outcome hands back untouched — so hold-retried I420
+            // frames present at the renderer instead of refusing: the
+            // old unconverted stash fed the renderer I420 it refuses
+            // (`render.upload.format-unsupported`), freezing the
+            // surface at the first early window frame — 16-18 of the
+            // fixture's 60 decoded frames taken while the scheduler
+            // selected them all. The hold's other semantics are
+            // unchanged: FIFO order, the [`MAX_VIDEO_HOLD`] bound, the
+            // drop-and-count past the bound, and the seek boundary's
+            // generation-filtered retain.
+            //
+            // The second, load-bearing defect the W1-06 register note
+            // warned this fix exposes STAYS REGISTERED (doc 03 §8 /
+            // 3.B): `advance_time`'s render loop drains the whole ring
+            // per pump, so with the renderer accepting frames one
             // `advance` tick plays the ENTIRE 2.000 s fixture (the
-            // mid-media pause/stop scenarios become unreachable, and a
-            // longer media would fatal `ring_full` under a
-            // one-quantum-per-pump bound — the decode side has no
-            // backpressure from the ring yet, doc 03 §8 / 3.B). Main's
-            // pause/stop pacing is an artifact of this renderer
-            // refusal breaking the render loop early. The complete fix
-            // needs the Lead's pacing/backpressure decision; until
-            // then this keeps main's exact behavior (D-5: no test was
-            // weakened — the scenarios keep their bug-masked shape and
-            // the defect is on the register).]
-            state.video_hold.push_back(frame.clone());
+            // mid-media pause/stop scenarios' 64-pump warm-ups
+            // overshoot into `Ended`, and a longer media would fatal
+            // `ring_full` under a one-quantum-per-pump bound — the
+            // decode side has no backpressure from the ring yet).
+            // That needs the Lead's pacing/backpressure decision; the
+            // present-path fix is deliberately complete on its own.]
+            state.video_hold.push_back(held);
             Ok(())
         }
         PushOutcome::WindowFull { .. } | PushOutcome::UnschedulablePts { .. } => {
@@ -2367,6 +2370,92 @@ mod tests {
         for channel in [r, g, b] {
             assert!((i32::from(channel) - 130).abs() <= 1, "{channel}");
         }
+    }
+
+    /// The W1-06 regression, pinned at the unit: the window-full hold
+    /// must stash the CONVERTED frame, not the original. The accept
+    /// path builds `uploadable` (I420→RGBA) and hands it to the
+    /// scheduler; when the window is at capacity (16 — video-engine's
+    /// `DEFAULT_MAX_PENDING`) the outcome hands the SAME converted
+    /// frame back, and the hold arm stashes it. Before the fix the
+    /// arm re-cloned the UNCONVERTED original, so every hold-retried
+    /// I420 frame reached the renderer in a format it refuses
+    /// (`render.upload.format-unsupported`) and the surface froze —
+    /// 16-18 of the fixture's 60 decoded frames presented while the
+    /// scheduler selected them all (FX6-R3/R4's diagnosis, the root
+    /// cause of the fx6_a04 18/60 shortfall). The integration twin
+    /// (apps/cli/tests/fx7_a01_hold_presents_decoded_frames.rs)
+    /// drives the whole pipeline; this unit pins the stash shape.
+    #[test]
+    fn fx7_a01_window_full_hold_stashes_the_converted_frame() {
+        // The accept path's inputs: fact-less facts (the scheduler
+        // cfg falls back to the 30 fps frame duration) and the wall
+        // clock anchored at zero (the frames below are future-dated,
+        // so nothing presents during the pushes).
+        let facts = Arc::new(MediaFacts {
+            tracks: Vec::new(),
+            facts: Vec::new(),
+            container: "unit".to_string(),
+        });
+        let clock = match wall_clock(0) {
+            Ok(clock) => clock,
+            Err(err) => unreachable!("wall clock: {err}"),
+        };
+        let consumer = CliFrameConsumer::new(None, Arc::clone(&facts), Arc::clone(&clock));
+        let mut state = consumer.lock();
+        let track = TrackId::new(0);
+        // Fill the scheduler window (cap 16) with future-dated I420
+        // frames; the video limb builds lazily from the first.
+        for slot in 1..=16i64 {
+            let mut frame = i420_frame(8, 8, 128, 128, 128);
+            frame.pts = Stamp::Present(Timestamp::new(slot * 33_333_333, media_clock::NANO_BASE));
+            match accept_video(&mut state, &frame, track, &facts, &clock) {
+                Ok(()) => {}
+                Err(err) => unreachable!("admit slot {slot}: {err}"),
+            }
+        }
+        // The 17th push hits the full window → the hold arm.
+        let mut early = i420_frame(8, 8, 90, 100, 110);
+        early.pts = Stamp::Present(Timestamp::new(17 * 33_333_333, media_clock::NANO_BASE));
+        match accept_video(&mut state, &early, track, &facts, &clock) {
+            Ok(()) => {}
+            Err(err) => unreachable!("the held accept must succeed: {err}"),
+        }
+        assert_eq!(
+            state.video_hold.len(),
+            1,
+            "the early frame is held, not refused"
+        );
+        let held = match state.video_hold.front().cloned() {
+            Some(frame) => frame,
+            None => unreachable!("the hold just admitted a frame"),
+        };
+        // The stash is the CONVERTED frame: RGBA format, the RGBA
+        // payload extent, and THIS frame's own conversion content —
+        // not the 96-byte I420 original the defect used to stash.
+        assert_eq!(
+            held.format,
+            PixelFormat::Rgba8,
+            "the hold stashes the converted frame (W1-06)"
+        );
+        let payload = match &held.data {
+            FrameStorage::Cpu(bytes) => bytes.as_slice().len(),
+            FrameStorage::OpaqueHandle(_) => 0,
+        };
+        assert_eq!(
+            payload,
+            8 * 8 * 4,
+            "the RGBA payload, not the 96-byte I420 original"
+        );
+        // JFIF BT.601 full, Y=90 Cb=100 Cr=110:
+        // R = 90 + 1.402·(110−128) ≈ 65;
+        // G = 90 − 0.344136·(100−128) − 0.714136·(110−128) ≈ 112;
+        // B = 90 + 1.772·(100−128) ≈ 40 (±1 Q16 rounding).
+        let [r, g, b, a] = pixel(&held, 0, 0);
+        assert_eq!(a, 255);
+        assert!((i32::from(r) - 65).abs() <= 1, "{r}");
+        assert!((i32::from(g) - 112).abs() <= 1, "{g}");
+        assert!((i32::from(b) - 40).abs() <= 1, "{b}");
     }
 
     /// A media-types packet field sanity check for the imports this
