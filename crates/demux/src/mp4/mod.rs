@@ -286,7 +286,9 @@ struct TopBox {
 /// `ftyp`+`moov` (progressive sample tables or `mvex` fragment
 /// defaults), enumerates tracks and chapters; `next_event` yields
 /// samples in file order (progressive merge or moof-scan);
-/// `seek` lands on the keyframe-safe position ≤ target.
+/// `seek` lands on the keyframe-safe position ≤ target; `reanchor`
+/// commits it in session (the acting half — packets resume from the
+/// landing, forward or backward).
 pub struct Mp4Demuxer {
     reader: SourceReader,
     pool: PayloadSlots,
@@ -2072,6 +2074,37 @@ impl Demuxer for Mp4Demuxer {
     }
 
     fn seek(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        let (ref_idx, target_nanos) = self.seek_target(target)?;
+        // ---- compute (D4: nothing moves until every landing is known)
+        if self.fragmented {
+            self.seek_fragment(ref_idx, target_nanos)
+        } else {
+            self.seek_progressive(ref_idx, target_nanos)
+        }
+    }
+
+    fn reanchor(&mut self, target: TimeSpan) -> Result<TimeSpan, EngineError> {
+        // The acting half of a seek (doc 03 §6 step 4, card 3.A1):
+        // the same compute as the query above, then the full commit —
+        // per-track position, the emission cursor rewound to the
+        // landing, the pending flush, the event re-prime. D4 holds by
+        // construction: every failure path in the shared preamble and
+        // the landing helpers answers before anything moves.
+        let (ref_idx, target_nanos) = self.seek_target(target)?;
+        if self.fragmented {
+            self.reanchor_fragment(ref_idx, target_nanos)
+        } else {
+            self.reanchor_progressive(ref_idx, target_nanos)
+        }
+    }
+}
+
+impl Mp4Demuxer {
+    /// The shared seek preamble (the `locate` half of the WAV/AVI
+    /// precedent): validation, the reference track, and the target in
+    /// nanoseconds. Pure — never commits, so every failure below
+    /// leaves the demuxer untouched (D4).
+    fn seek_target(&self, target: TimeSpan) -> Result<(usize, u64), EngineError> {
         if !self.started {
             return Err(error::not_started());
         }
@@ -2094,20 +2127,13 @@ impl Demuxer for Mp4Demuxer {
         };
         if self
             .extent_nanos()
-            .is_some_and(|e| e > 0 && target_nanos > e)
+            .is_some_and(|extent| extent > 0 && target_nanos > extent)
         {
             return Err(error::seek_out_of_range());
         }
-        // ---- compute (D4: nothing moves until every landing is known)
-        if self.fragmented {
-            self.seek_fragment(ref_idx, target_nanos)
-        } else {
-            self.seek_progressive(ref_idx, target_nanos)
-        }
+        Ok((ref_idx, target_nanos))
     }
-}
 
-impl Mp4Demuxer {
     /// Progressive seek: reference-track keyframe walk-back, then
     /// every track's first sample ≥ the landing. The landing is in
     /// the emitted (movie-timeline PTS) domain — exactly what
@@ -2118,6 +2144,36 @@ impl Mp4Demuxer {
         ref_idx: usize,
         target_nanos: u64,
     ) -> Result<TimeSpan, EngineError> {
+        // Compute; the commit below is the query's own (a re-anchor
+        // additionally rewinds the emission cursor — see
+        // `reanchor_progressive`).
+        let (nexts, land_pts, base) = self.progressive_landings(ref_idx, target_nanos)?;
+        // Commit: per-track cursors (compute-then-commit — every
+        // landing above already succeeded).
+        for (ti, t) in self.tracks.iter_mut().enumerate() {
+            t.next = nexts[ti];
+        }
+        self.pending.clear();
+        self.eos = false;
+        Ok(TimeSpan {
+            start: Stamp::Present(Timestamp::new(land_pts as i64, base)),
+            end: Stamp::Missing,
+        })
+    }
+
+    /// The shared progressive seek computation (doc 03 §6 step 4's
+    /// query half): the reference track's keyframe walk-back, then
+    /// every track's first sample at/after the landing. **Never
+    /// commits** (D4's compute-then-commit) — `seek` and `reanchor`
+    /// mutate only after this answers `Ok`. Returns the per-track
+    /// `next` cursors, the landing PTS (media ticks of the reference
+    /// track, emitted-timeline domain), and the reference track's
+    /// time base.
+    fn progressive_landings(
+        &self,
+        ref_idx: usize,
+        target_nanos: u64,
+    ) -> Result<(Vec<usize>, u64, TimeBase), EngineError> {
         // PTS of a sample on the emitted timeline: `elst` media_time
         // trims, the empty edit delays (mirrors `mint_packet`).
         let pts_of = |t: &TrackState, s: &Sample| {
@@ -2143,28 +2199,60 @@ impl Mp4Demuxer {
         while land_idx > 0 && !ref_track.samples[land_idx].sync {
             land_idx -= 1;
         }
-        let land_pts = pts_of(
-            &self.tracks[ref_idx],
-            &self.tracks[ref_idx].samples[land_idx],
-        );
-        let land_nanos = ticks_to_nanos(land_pts, self.tracks[ref_idx].timescale);
-        // Commit: per-track cursors (compute-then-commit — every
-        // landing above already succeeded).
-        for (ti, t) in self.tracks.iter_mut().enumerate() {
+        let land_pts = pts_of(ref_track, &ref_track.samples[land_idx]);
+        let land_nanos = ticks_to_nanos(land_pts, ref_track.timescale);
+        let mut nexts = Vec::with_capacity(self.tracks.len());
+        for (ti, t) in self.tracks.iter().enumerate() {
             if ti == ref_idx {
-                t.next = land_idx;
+                nexts.push(land_idx);
             } else {
                 let land_ticks = nanos_to_ticks(land_nanos, t.timescale);
-                t.next = t
-                    .samples
-                    .iter()
-                    .position(|s| pts_of(t, s) >= land_ticks)
-                    .unwrap_or(t.samples.len());
+                nexts.push(
+                    t.samples
+                        .iter()
+                        .position(|s| pts_of(t, s) >= land_ticks)
+                        .unwrap_or(t.samples.len()),
+                );
             }
         }
+        Ok((nexts, land_pts, ref_track.base))
+    }
+
+    /// The acting half over the progressive tables (card 3.A1, doc 03
+    /// §6 step 4): the shared landing computation, then the full
+    /// commit — per-track cursors, the emission-order cursor rewound
+    /// to the first surviving sample (without the rewind a backward
+    /// re-anchor would silently drop every sample the order cursor
+    /// had already passed — audit F-004's shape), the pending
+    /// flush, and the event re-prime.
+    fn reanchor_progressive(
+        &mut self,
+        ref_idx: usize,
+        target_nanos: u64,
+    ) -> Result<TimeSpan, EngineError> {
+        // Compute (D4: every failure above left the demuxer
+        // untouched)…
+        let (nexts, land_pts, base) = self.progressive_landings(ref_idx, target_nanos)?;
+        // …then commit. Per-track cursors.
+        for (ti, t) in self.tracks.iter_mut().enumerate() {
+            t.next = nexts[ti];
+        }
+        // The emission cursor: first order entry whose sample survives
+        // the per-track cursors. The walk's `si < track.next` skip
+        // makes everything before it pre-landing samples — so the
+        // stream resumes exactly at the landing, forward or backward.
+        self.order_cursor = self
+            .order
+            .iter()
+            .position(|&(_, ti, si)| si >= self.tracks[ti].next)
+            .unwrap_or(self.order.len());
+        // Pre-seek queued events (damage records, the header-time
+        // cover packet) die with the old position — the demux-side
+        // stale purge (doc 03 §5's events-in-flight rule, applied
+        // where the engine cannot see them).
         self.pending.clear();
+        // A seek revives an exhausted stream.
         self.eos = false;
-        let base = self.tracks[ref_idx].base;
         Ok(TimeSpan {
             start: Stamp::Present(Timestamp::new(land_pts as i64, base)),
             end: Stamp::Missing,
@@ -2172,12 +2260,74 @@ impl Mp4Demuxer {
     }
 
     /// Fragmented seek: bounded moof-scan to the moof whose reference
-    /// track starts a sync sample ≤ target.
+    /// track starts a sync sample ≤ target. The scan starts at the
+    /// walk's current position (the forward-query shape; the
+    /// backward half is [`Mp4Demuxer::reanchor_fragment`]'s).
     fn seek_fragment(
         &mut self,
         ref_idx: usize,
         target_nanos: u64,
     ) -> Result<TimeSpan, EngineError> {
+        let scan_from = self.frag_pos.unwrap_or(self.reader.length());
+        let Some((moof_offset, land_dts)) =
+            self.scan_fragments(ref_idx, target_nanos, scan_from)?
+        else {
+            return Err(error::seek_out_of_range());
+        };
+        // Commit: restart the fragment walk at the chosen moof.
+        self.frag_pos = Some(moof_offset);
+        self.pending.clear();
+        self.eos = false;
+        let base = self.tracks[ref_idx].base;
+        Ok(TimeSpan {
+            start: Stamp::Present(Timestamp::new(land_dts as i64, base)),
+            end: Stamp::Missing,
+        })
+    }
+
+    /// The acting half over fragments (card 3.A1, doc 03 §6 step 4):
+    /// the shared scan **from the file start** — a re-anchor may go
+    /// backward, and a walk position already past the target is no
+    /// reason to refuse — then the commit: the fragment walk
+    /// restarts at the chosen moof, the pending queue is flushed, the
+    /// event state re-primed.
+    fn reanchor_fragment(
+        &mut self,
+        ref_idx: usize,
+        target_nanos: u64,
+    ) -> Result<TimeSpan, EngineError> {
+        // Compute (D4: the scan reads only — nothing moves on any
+        // failure path)…
+        let Some((moof_offset, land_dts)) = self.scan_fragments(ref_idx, target_nanos, 0)? else {
+            return Err(error::seek_out_of_range());
+        };
+        // …then commit: restart the fragment walk at the chosen moof.
+        self.frag_pos = Some(moof_offset);
+        // Pre-seek queued events (a partially consumed fragment
+        // batch, damage records) die with the old position.
+        self.pending.clear();
+        // A seek revives an exhausted stream.
+        self.eos = false;
+        let base = self.tracks[ref_idx].base;
+        Ok(TimeSpan {
+            start: Stamp::Present(Timestamp::new(land_dts as i64, base)),
+            end: Stamp::Missing,
+        })
+    }
+
+    /// The shared fragmented seek computation (doc 03 §6 step 4's
+    /// query half): a bounded moof scan for the last fragment whose
+    /// reference track starts a sync sample ≤ target. Reads only (the
+    /// walk position, pending queue and EOS flag never move — D4's
+    /// compute-then-commit). Returns the moof's file offset and the
+    /// landing DTS (media ticks, emitted-timeline domain), or `None`
+    /// when no fragment qualifies.
+    fn scan_fragments(
+        &mut self,
+        ref_idx: usize,
+        target_nanos: u64,
+        from: u64,
+    ) -> Result<Option<(u64, u64)>, EngineError> {
         let len = self.reader.length();
         let timescale = self.tracks[ref_idx].timescale;
         let media_time = self.tracks[ref_idx].media_time;
@@ -2185,7 +2335,7 @@ impl Mp4Demuxer {
         // Emitted-timeline PTS (mirrors `mint_packet`).
         let pts_of = |s: &Sample| s.dts.saturating_sub(media_time).saturating_add(edit_delay);
         let target_ticks = nanos_to_ticks(target_nanos, timescale);
-        let mut pos = self.frag_pos.unwrap_or(len);
+        let mut pos = from;
         let mut best: Option<(u64, u64)> = None; // (moof offset, land dts)
         let mut budget = MAX_FRAGMENT_SCAN_BOXES;
         while pos < len && budget > 0 {
@@ -2233,17 +2383,6 @@ impl Mp4Demuxer {
         if budget == 0 {
             return Err(error::scan_budget_exhausted());
         }
-        let Some((moof_offset, land_dts)) = best else {
-            return Err(error::seek_out_of_range());
-        };
-        // Commit: restart the fragment walk at the chosen moof.
-        self.frag_pos = Some(moof_offset);
-        self.pending.clear();
-        self.eos = false;
-        let base = self.tracks[ref_idx].base;
-        Ok(TimeSpan {
-            start: Stamp::Present(Timestamp::new(land_dts as i64, base)),
-            end: Stamp::Missing,
-        })
+        Ok(best)
     }
 }
