@@ -5,7 +5,12 @@
 //! # Discipline
 //!
 //! - **Bounded**: `capacity` frames, non-zero by construction
-//!   ([`NonZeroUsize`]).
+//!   ([`NonZeroUsize`]). Occupancy can never exceed the bound no
+//!   matter how fast the producer runs — a stalled consumer cannot
+//!   grow this side without limit (the W14-A07 unbounded-queue class
+//!   lives down-lane in the host channel, never here). At ~3.7 MB per
+//!   1280×720 RGBA frame the default capacity 2 is ≈7.4 MB worst-case
+//!   resident payload.
 //! - **Latest-wins**: when the mailbox is full, the *oldest*
 //!   un-consumed frame is dropped (counted) — the freshest frame
 //!   always wins, the presenter is never blocked, order is never
@@ -18,9 +23,12 @@
 //!   scheduler's contract), so only the ≤ capacity frames already in
 //!   flight at a seek/stop need the flush `[PROPOSAL: v2 wire
 //!   "flush" record for cross-process hosts]`.
-//! - **Every event is counted** — offered, drawn, dropped (overflow
-//!   vs stale) — so the compatibility matrix's "dropped frames" cell
-//!   is measured arithmetic, not vibes.
+//! - **Every event is counted AND attributed** — offered, drawn,
+//!   dropped (overflow vs stale), the last drop's reason, and the
+//!   last enqueued/dequeued emit stamps — so the compatibility
+//!   matrix's "dropped frames" cell is measured arithmetic, not
+//!   vibes, and the lane's produced-vs-dropped instrumentation is a
+//!   [`MailboxStats`] read, not a reimplementation.
 //!
 //! # Latency accounting
 //!
@@ -31,6 +39,10 @@
 //! `drawn − pts`. The prototype's harness drives both on one virtual
 //! clock (end-to-end measurable headlessly); the browser run adds
 //! the `performance.now()` half per `prototype/lumen-frames.mjs`.
+//! The mailbox itself reads no clock (deterministic by
+//! construction): `last_enqueued_ns`/`last_dequeued_ns` are the
+//! offered/drawn frames' own `emitted_ns` stamps, so a monitor can
+//! read the backlog's freshness without draining.
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -43,7 +55,12 @@ pub struct MailboxConfig {
     /// Maximum queued frames. 2 (the default) absorbs one missed
     /// consumer tick at 60 Hz without dropping; the doc 03 §4.11 c
     /// depth-1 mailbox is the render-thread seam, not this one —
-    /// `[PROPOSAL: tune on desktop measurements]`.
+    /// `[PROPOSAL: tune on desktop measurements]`. The bound is
+    /// memory, not just slots: ~3.7 MB per 1280×720 RGBA frame means
+    /// capacity N holds ≈3.7·N MB of resident payload, and the
+    /// pacer's 10 ms drain is exhaustive (depth would only age
+    /// frames into the one-per-tick shipper's drops), so the default
+    /// moves only on hardware evidence, never speculatively.
     pub capacity: NonZeroUsize,
 }
 
@@ -84,6 +101,18 @@ impl std::fmt::Display for MailboxError {
 
 impl std::error::Error for MailboxError {}
 
+/// Why the mailbox last dropped a frame — drops are counted AND
+/// attributed, never silent (the FX6-A01 observability rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailboxDropReason {
+    /// The mailbox was full: the OLDEST queued frame lost its slot
+    /// (latest-wins — the freshest frame always survives).
+    Overflow,
+    /// A generation flush dropped queued frames wholesale (the
+    /// seek/stop class-A acceptance path).
+    Stale,
+}
+
 /// The frame the consumer side draws (a decoded record: header with
 /// all accounting stamps + payload).
 pub type ShippedFrame = DecodedFrame;
@@ -101,11 +130,36 @@ pub struct MailboxStats {
     pub dropped_stale: u64,
     /// Generation flushes performed.
     pub flushes: u64,
+    /// Why the most recent drop happened (`None` before the first).
+    pub last_drop_reason: Option<MailboxDropReason>,
+    /// The `emitted_ns` stamp carried by the most recently offered
+    /// frame (the backlog's freshest emit stamp — the mailbox reads
+    /// no clock of its own, stamps come from the frames).
+    pub last_enqueued_ns: Option<u64>,
+    /// The `emitted_ns` stamp carried by the most recently drawn
+    /// frame (the consumer's end-to-end latency observable:
+    /// `now − last_dequeued_ns`).
+    pub last_dequeued_ns: Option<u64>,
 }
 
 impl MailboxStats {
+    /// Frames produced into the mailbox so far (the produced half of
+    /// the produced-vs-dropped instrumentation; == `offered`).
+    #[must_use = "pure arithmetic"]
+    pub fn frames_produced(&self) -> u64 {
+        self.offered
+    }
+
+    /// Frames dropped so far, either reason (overflow + stale).
+    #[must_use = "pure arithmetic"]
+    pub fn frames_dropped(&self) -> u64 {
+        self.dropped_overflow + self.dropped_stale
+    }
+
     /// Conservation identity: every offered frame is drawn or
-    /// dropped, exactly once.
+    /// dropped, exactly once — which holds when the queue is empty;
+    /// mid-stream, `offered` exceeds the right side by exactly the
+    /// frames still queued (`len()`).
     #[must_use = "pure arithmetic"]
     pub fn conserves(&self) -> bool {
         self.offered == self.drawn + self.dropped_overflow + self.dropped_stale
@@ -147,7 +201,9 @@ impl FrameMailbox {
         }
         if self.queue.len() == self.capacity && self.queue.pop_front().is_some() {
             self.stats.dropped_overflow += 1;
+            self.stats.last_drop_reason = Some(MailboxDropReason::Overflow);
         }
+        self.stats.last_enqueued_ns = Some(frame.header.emitted_ns);
         self.queue.push_back(frame);
         self.stats.offered += 1;
         Ok(())
@@ -157,13 +213,38 @@ impl FrameMailbox {
     pub fn draw_next(&mut self) -> Option<ShippedFrame> {
         let frame = self.queue.pop_front()?;
         self.stats.drawn += 1;
+        self.stats.last_dequeued_ns = Some(frame.header.emitted_ns);
         Some(frame)
+    }
+
+    /// Drain every queued frame into `out`, FIFO order (the consumer
+    /// primitive the pacer's exhaustive 10 ms drain is the lane-wide
+    /// instance of). Per-record timestamps ride each frame's header.
+    /// Accounting is exactly repeated [`FrameMailbox::draw_next`]:
+    /// every drained frame ticks `drawn` and re-stamps
+    /// `last_dequeued_ns`. Returns how many frames were appended.
+    pub fn drain_to(&mut self, out: &mut Vec<ShippedFrame>) -> usize {
+        let count = self.queue.len();
+        while let Some(frame) = self.queue.pop_front() {
+            self.stats.drawn += 1;
+            self.stats.last_dequeued_ns = Some(frame.header.emitted_ns);
+            out.push(frame);
+        }
+        count
     }
 
     /// Peek without consuming (diagnostics/tests).
     #[must_use = "pure inspection"]
     pub fn peek(&self) -> Option<&ShippedFrame> {
         self.queue.front()
+    }
+
+    /// The configured bound — occupancy can never exceed it (the
+    /// observable half of "bounded": a monitor computes
+    /// `len()/capacity()` without touching config plumbing).
+    #[must_use = "observable evidence"]
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// Frames currently queued.
@@ -185,6 +266,9 @@ impl FrameMailbox {
         let dropped = self.queue.len();
         self.stats.dropped_stale += dropped as u64;
         self.stats.flushes += 1;
+        if dropped > 0 {
+            self.stats.last_drop_reason = Some(MailboxDropReason::Stale);
+        }
         self.queue.clear();
         dropped
     }
@@ -360,5 +444,184 @@ mod tests {
         // And the wire error family displays for host surfaces.
         let wire = WireError::Truncated { missing: 4 };
         assert!(wire.to_string().contains("4 bytes missing"));
+    }
+
+    // ---- FX6-A01: the hardened-backpressure surface (drop policy
+    // pinned, timestamps passed through, counters + drop reason +
+    // emit stamps observable, bounded occupancy, drain primitive).
+
+    /// A frame with distinct presentation and emit stamps (the
+    /// passthrough oracle: what went in must come out untouched).
+    fn stamped(id: u64, pts_ns: i64, emitted_ns: u64) -> ShippedFrame {
+        ShippedFrame::detached(
+            FrameHeader {
+                format: crate::wire::FormatCode::Rgba8,
+                flags: crate::wire::FrameFlags::default(),
+                width: 1,
+                height: 1,
+                payload_len: 4,
+                frame_id: id,
+                pts_ns,
+                emitted_ns,
+            },
+            vec![id as u8, 0, 0, 255],
+        )
+    }
+
+    /// The stalled-consumer property at this seam: production never
+    /// stops, nobody ever drains, and occupancy NEVER exceeds the
+    /// configured bound — the W14-A07 unbounded-queue class is
+    /// impossible here by construction (every excess offer is a
+    /// counted, attributed drop).
+    #[test]
+    fn fx6_a01_occupancy_never_exceeds_capacity_under_endless_production() {
+        let capacity = 3;
+        let mut mailbox = FrameMailbox::new(MailboxConfig {
+            capacity: NonZeroUsize::new(capacity).must(),
+        })
+        .must();
+        assert_eq!(mailbox.capacity(), capacity);
+        for id in 0..25u64 {
+            mailbox
+                .offer(stamped(id, id as i64 * 1_000, 10_000 + id))
+                .must();
+            assert!(
+                mailbox.len() <= capacity,
+                "offer {id} pushed occupancy past the bound"
+            );
+        }
+        assert_eq!(mailbox.len(), capacity);
+        let stats = mailbox.stats();
+        assert_eq!(stats.offered, 25);
+        assert_eq!(stats.frames_dropped(), 22);
+        assert_eq!(stats.dropped_overflow, 22);
+        assert_eq!(stats.last_drop_reason, Some(MailboxDropReason::Overflow));
+        // The oldest survivor is the 22nd offer (latest-wins kept the
+        // three freshest frames).
+        assert_eq!(mailbox.peek().must().header.frame_id, 22);
+    }
+
+    /// The drop policy is drop-oldest/latest-wins AND attributed: the
+    /// last drop's reason is `Overflow` under pressure and flips to
+    /// `Stale` on a flush that drops; a flush that drops nothing
+    /// changes no observable.
+    #[test]
+    fn fx6_a01_drop_policy_reports_last_reason_and_keeps_latest() {
+        let mut mailbox = FrameMailbox::new(MailboxConfig::default()).must();
+        for id in 0..5u64 {
+            mailbox
+                .offer(stamped(id, id as i64 * 1_000, 500 + id))
+                .must();
+        }
+        // Capacity 2, 5 offered: the two freshest survive.
+        assert_eq!(mailbox.len(), 2);
+        assert_eq!(mailbox.peek().must().header.frame_id, 3);
+        assert_eq!(
+            mailbox.stats().last_drop_reason,
+            Some(MailboxDropReason::Overflow)
+        );
+        // A flush that drops reports the stale reason instead.
+        assert_eq!(mailbox.flush_stale(), 2);
+        let stats = mailbox.stats();
+        assert_eq!(stats.last_drop_reason, Some(MailboxDropReason::Stale));
+        assert_eq!(stats.dropped_stale, 2);
+        assert_eq!(stats.flushes, 1);
+        // A flush that drops nothing changes no observable.
+        assert_eq!(mailbox.flush_stale(), 0);
+        assert_eq!(
+            mailbox.stats().last_drop_reason,
+            Some(MailboxDropReason::Stale)
+        );
+        assert!(mailbox.stats().conserves());
+    }
+
+    /// Timestamp passthrough: every drained record carries the exact
+    /// pts/emitted stamps it was offered with, and the mailbox-level
+    /// enqueued/dequeued observables track the frames' own emitted
+    /// stamps (no clock is read inside the mailbox).
+    #[test]
+    fn fx6_a01_timestamps_pass_through_and_stamp_the_observables() {
+        let mut mailbox = FrameMailbox::new(MailboxConfig {
+            capacity: NonZeroUsize::new(2).must(),
+        })
+        .must();
+        mailbox.offer(stamped(1, 1_000, 10_000)).must();
+        mailbox.offer(stamped(2, 2_000, 20_000)).must();
+        mailbox.offer(stamped(3, 3_000, 30_000)).must(); // id 1 dropped
+        let stats = mailbox.stats();
+        assert_eq!(stats.last_enqueued_ns, Some(30_000));
+        assert_eq!(stats.last_dequeued_ns, None);
+        let first = mailbox.draw_next().must();
+        let second = mailbox.draw_next().must();
+        assert_eq!(first.header.frame_id, 2);
+        assert_eq!(first.header.pts_ns, 2_000);
+        assert_eq!(first.header.emitted_ns, 20_000);
+        assert_eq!(second.header.frame_id, 3);
+        assert_eq!(second.header.pts_ns, 3_000);
+        assert_eq!(second.header.emitted_ns, 30_000);
+        assert_eq!(mailbox.stats().last_dequeued_ns, Some(30_000));
+        assert!(mailbox.draw_next().is_none());
+    }
+
+    /// The counters tick through the whole lifecycle (offers, overflow
+    /// drops, one draw, a flush) and conserve exactly at the end; the
+    /// policy-governed default capacity is part of the tested
+    /// contract.
+    #[test]
+    fn fx6_a01_counters_tick_through_the_lifecycle_and_conserve() {
+        let mut mailbox = FrameMailbox::new(MailboxConfig::default()).must();
+        for id in 0..4u64 {
+            mailbox
+                .offer(stamped(id, id as i64 * 250, 1_000 + id))
+                .must();
+        }
+        assert_eq!(mailbox.draw_next().must().header.frame_id, 2);
+        assert_eq!(mailbox.flush_stale(), 1);
+        let stats = mailbox.stats();
+        assert_eq!(stats.frames_produced(), 4);
+        assert_eq!(stats.drawn, 1);
+        assert_eq!(stats.dropped_overflow, 2);
+        assert_eq!(stats.dropped_stale, 1);
+        assert_eq!(stats.frames_dropped(), 3);
+        assert!(stats.conserves());
+        // Policy-governed capacity: the default (which frame_tap's
+        // bound test pins at the lane's only default consumer) is 2.
+        assert_eq!(MailboxConfig::default().capacity.get(), 2);
+    }
+
+    /// `drain_to` is the exhaustive consumer primitive: FIFO order,
+    /// per-record stamps intact, accounting identical to repeated
+    /// `draw_next`, and a second drain is a no-op.
+    #[test]
+    fn fx6_a01_drain_to_empties_fifo_and_accounts_like_draws() {
+        let mut mailbox = FrameMailbox::new(MailboxConfig {
+            capacity: NonZeroUsize::new(4).must(),
+        })
+        .must();
+        for id in 0..3u64 {
+            mailbox
+                .offer(stamped(id, id as i64 * 500, 1_000 + 1_000 * id))
+                .must();
+        }
+        let mut drained: Vec<ShippedFrame> = Vec::new();
+        assert_eq!(mailbox.drain_to(&mut drained), 3);
+        assert_eq!(
+            drained
+                .iter()
+                .map(|frame| frame.header.frame_id)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
+        // Per-record stamps survive the drain untouched.
+        assert_eq!(drained[1].header.pts_ns, 500);
+        assert_eq!(drained[1].header.emitted_ns, 2_000);
+        assert!(mailbox.is_empty());
+        let stats = mailbox.stats();
+        assert_eq!(stats.drawn, 3);
+        assert_eq!(stats.last_dequeued_ns, Some(3_000));
+        // Draining twice appends nothing (the drain is exhaustive).
+        assert_eq!(mailbox.drain_to(&mut drained), 0);
+        assert_eq!(drained.len(), 3);
+        assert!(mailbox.stats().conserves());
     }
 }
