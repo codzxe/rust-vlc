@@ -239,27 +239,20 @@ fn lace_frames(body: &[u8], lacing: Lacing, scratch: &mut BlockScratch) -> Resul
         }
         Lacing::Xiph => {
             let (frame_count, consumed) = xiph_sizes(body, &mut scratch.sizes)?;
-            if frame_count == 0 {
-                return Err(consumed);
-            }
             build_frames(body, consumed, &scratch.sizes, frame_count, frames)
         }
         Lacing::Ebml => {
             let (frame_count, consumed) = ebml_sizes(body, &mut scratch.sizes)?;
-            if frame_count == 0 {
-                return Err(consumed);
-            }
             build_frames(body, consumed, &scratch.sizes, frame_count, frames)
         }
         Lacing::Fixed => {
             if body.is_empty() {
                 return Err(0);
             }
-            let frame_count = body[0] as usize;
+            // The count byte is frames − 1 (spec §6.3.6): 0 is the
+            // degenerate one-frame lace, 0xFF the 256-frame maximum.
+            let frame_count = body[0] as usize + 1;
             let consumed = 1usize;
-            if frame_count == 0 {
-                return Err(0);
-            }
             let rest = body.len() - consumed;
             if !rest.is_multiple_of(frame_count) || rest == 0 {
                 // Fixed lacing divides the payload exactly.
@@ -277,14 +270,17 @@ fn lace_frames(body: &[u8], lacing: Lacing, scratch: &mut BlockScratch) -> Resul
     }
 }
 
-/// Xiph lacing sizes: count byte, then `count-1` little-endian sizes
-/// in 255-continuation form. The last frame is the remainder. The
-/// sizes land in `sizes` (cleared first — the recycled scratch).
+/// Xiph lacing sizes: the count byte (frames − 1), then that many
+/// little-endian sizes in 255-continuation form — one per frame
+/// except the last, which is the payload remainder. The sizes land
+/// in `sizes` (cleared first — the recycled scratch).
 fn xiph_sizes(body: &[u8], sizes: &mut Vec<usize>) -> Result<(usize, usize), usize> {
     let Some(&count) = body.first() else {
         return Err(0);
     };
-    let frame_count = count as usize;
+    // The count byte is frames − 1 (spec §6.3.6): 0 is the degenerate
+    // one-frame lace, 0xFF the 256-frame maximum.
+    let frame_count = count as usize + 1;
     sizes.clear();
     sizes.reserve(frame_count.saturating_sub(1));
     let mut at = 1usize;
@@ -310,29 +306,35 @@ fn xiph_sizes(body: &[u8], sizes: &mut Vec<usize>) -> Result<(usize, usize), usi
     Ok((frame_count, at))
 }
 
-/// EBML lacing sizes: count byte, then `count-1` sizes where the
-/// first is a vint of (size − 1) and the rest are vint *deltas*
-/// (signed accumulate). The sizes land in `sizes` (cleared first).
+/// EBML lacing sizes: the count byte (frames − 1), then that many
+/// sizes where the first is a vint of (size − 1) and the rest are
+/// vint *deltas* (signed accumulate); the last frame is the payload
+/// remainder. The sizes land in `sizes` (cleared first).
 fn ebml_sizes(body: &[u8], sizes: &mut Vec<usize>) -> Result<(usize, usize), usize> {
     let Some(&count) = body.first() else {
         return Err(0);
     };
-    let frame_count = count as usize;
-    if frame_count == 0 {
-        return Err(0);
-    }
+    // The count byte is frames − 1 (spec §6.3.6): 0 is the degenerate
+    // one-frame lace, 0xFF the 256-frame maximum.
+    let frame_count = count as usize + 1;
     sizes.clear();
     sizes.reserve(frame_count);
+    if frame_count == 1 {
+        // The degenerate one-frame lace carries no coded sizes at
+        // all: the body past the count byte is the frame (Xiph's
+        // shape — the codings agree on the byte).
+        return Ok((frame_count, 1));
+    }
     let mut at = 1usize;
     // First size: vint value plus 1 (the spec's −1 offset keeps the
-    // 1-byte vint usable for small frames). A single-frame lace
-    // (count 1) carries just it.
+    // 1-byte vint usable for small frames).
     let v = parse_vint_value(body, at)?;
     at = v.1;
     let mut current = usize::try_from(v.0.checked_add(1).ok_or(at)?).map_err(|_| at)?;
     sizes.push(current);
-    // The first size vint plus (count − 2) deltas: count − 1 vints
-    // total, the last frame is the payload remainder (Xiph's shape).
+    // The first size vint plus (count − 1) deltas: count vints total
+    // (frames − 1 coded sizes), the last frame is the payload
+    // remainder (Xiph's shape).
     for _ in 2..frame_count {
         let prev = at;
         let (value, end) = parse_vint_value(body, at)?;
@@ -467,8 +469,10 @@ mod tests {
 
     #[test]
     fn xiph_lacing_splits_and_remainder_last() {
-        // 3 frames: sizes 5, 300 (0xFF,0x2D continuation), rest.
-        let mut body = vec![3, 5, 0xFF, 0x2D];
+        // 3 frames — the count byte is frames − 1 (spec §6.3.6), so
+        // the lace head is 2: sizes 5, 300 (0xFF,0x2D continuation),
+        // rest.
+        let mut body = vec![2, 5, 0xFF, 0x2D];
         body.extend_from_slice(&[0xA0; 5]);
         body.extend_from_slice(&[0xB0; 300]);
         body.extend_from_slice(&[0xC0; 160]);
@@ -484,7 +488,9 @@ mod tests {
 
     #[test]
     fn fixed_lacing_divides_exactly() {
-        let body = [4u8, 1, 2, 3, 4, 5, 6, 7, 8];
+        // The count byte is frames − 1 (spec §6.3.6): head 3 → four
+        // equal frames over the 8 payload bytes.
+        let body = [3u8, 1, 2, 3, 4, 5, 6, 7, 8];
         let data = block(2, 10, 0x04, &body); // 0b100 >> 1 = Fixed
         let b = parse_block(&data, 0, true).must();
         assert_eq!(b.lacing, Lacing::Fixed);
@@ -494,9 +500,10 @@ mod tests {
 
     #[test]
     fn ebml_lacing_sizes_decode() {
-        // 3 frames; first size vint 0x82 (value 2 → size 3); the
-        // equal-size delta 0 encodes as value 63 = bias 2^6−1 → 0xBF.
-        let mut body = vec![3, 0x82, 0xBF];
+        // 3 frames — the count byte is frames − 1 (spec §6.3.6), so
+        // the lace head is 2; first size vint 0x82 (value 2 → size 3);
+        // the equal-size delta 0 encodes as value 63 = bias 2^6−1 → 0xBF.
+        let mut body = vec![2, 0x82, 0xBF];
         body.extend_from_slice(&[0xAA; 3]);
         body.extend_from_slice(&[0xBB; 3]);
         body.extend_from_slice(&[0xCC; 2]);

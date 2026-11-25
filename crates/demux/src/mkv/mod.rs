@@ -604,6 +604,14 @@ impl MkvDemuxer {
                     Ok(data) => data,
                     Err(e) => break Err(e),
                 };
+                if data.is_empty() {
+                    // The stream ended inside the cluster's declared
+                    // extent (a short read — the stall): a zero-byte
+                    // window cannot advance the walk, and re-issuing
+                    // the identical read would spin forever (the
+                    // window-slide livelock) — the typed truncation.
+                    break Err(error::truncated(window.end, from));
+                }
                 window = ClusterWindow {
                     data,
                     base: from,
@@ -653,6 +661,14 @@ impl MkvDemuxer {
                     Ok(data) => data,
                     Err(e) => break Err(e),
                 };
+                if data_end > from + data.len() as u64 {
+                    // The slide cannot cover the block — its span is
+                    // wider than MAX_CLUSTER_WINDOW, or the stream is
+                    // short of the declared bytes: another identical
+                    // slide would never progress (the window-slide
+                    // livelock) — the typed truncation instead.
+                    break Err(error::truncated(data_end, from + data.len() as u64));
+                }
                 window = ClusterWindow {
                     data,
                     base: from,

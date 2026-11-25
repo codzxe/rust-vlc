@@ -224,7 +224,8 @@ fn uint_payload(value: u64) -> Vec<u8> {
 }
 
 /// A minimal one-track matroska file whose three SimpleBlocks carry
-/// Xiph, EBML and fixed lacing (2/3/3 frames).
+/// Xiph, EBML and fixed lacing — 3 frames each (the count byte is
+/// frames − 1 per spec §6.3.6, so every lace head below is 2).
 fn laced_fixture() -> Arc<[u8]> {
     let mut out = Vec::new();
     // EBML header.
@@ -255,25 +256,25 @@ fn laced_fixture() -> Arc<[u8]> {
     // Cluster: Timecode 0 + three laced SimpleBlocks.
     let mut cluster = Vec::new();
     el(&mut cluster, &[0xE7], &uint_payload(0)); // Timecode
-    // Xiph: 3 frames — two size bytes (4, 5), the last frame is
-    // the payload remainder (6).
-    let mut xiph_body = vec![3u8, 4, 5];
+    // Xiph: 3 frames — count byte 2 (= frames − 1); two size bytes
+    // (4, 5), the last frame is the payload remainder (6).
+    let mut xiph_body = vec![2u8, 4, 5];
     xiph_body.extend_from_slice(&[0xA1, 0xA2, 0xA3, 0xA4]);
     xiph_body.extend_from_slice(&[0xB1, 0xB2, 0xB3, 0xB4, 0xB5]);
     xiph_body.extend_from_slice(&[0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6]);
     let mut xiph_block = vec![0x81, 0x00, 0x00, 0x80 | 0x02]; // track 1, tc 0, keyframe+Xiph
     xiph_block.extend_from_slice(&xiph_body);
     el(&mut cluster, &[0xA3], &xiph_block);
-    // EBML: 3 frames, sizes 3/3/remainder 2.
-    let mut ebml_body = vec![3u8, 0x82, 0xBF];
+    // EBML: 3 frames (count byte 2 = frames − 1), sizes 3/3/remainder 2.
+    let mut ebml_body = vec![2u8, 0x82, 0xBF];
     ebml_body.extend_from_slice(&[0xAA; 3]);
     ebml_body.extend_from_slice(&[0xBB; 3]);
     ebml_body.extend_from_slice(&[0xCC; 2]);
     let mut ebml_block = vec![0x81, 0x00, 0x08, 0x80 | 0x06]; // rel tc 8, keyframe+EBML
     ebml_block.extend_from_slice(&ebml_body);
     el(&mut cluster, &[0xA3], &ebml_block);
-    // Fixed: 3 frames of 2 bytes each.
-    let mut fixed_body = vec![3u8];
+    // Fixed: 3 frames of 2 bytes each (count byte 2 = frames − 1).
+    let mut fixed_body = vec![2u8];
     fixed_body.extend_from_slice(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
     let mut fixed_block = vec![0x81, 0x00, 0x10, 0x80 | 0x04]; // rel tc 16, keyframe+fixed
     fixed_block.extend_from_slice(&fixed_body);
