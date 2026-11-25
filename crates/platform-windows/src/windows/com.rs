@@ -231,16 +231,23 @@ pub struct PropertyKey {
     pub pid: u32,
 }
 
-/// `PROPVARIANT` — only the `VT_LPWSTR` arm is ever constructed by
-/// the property-store reads this crate performs; the union keeps the
-/// 8-byte payload slot.
+/// `PROPVARIANT` — the 8-byte vt/reserved header plus the payload
+/// union, whose largest x64 members (the counted arrays and `BLOB`,
+/// e.g. `CAUB {ULONG cElements; UBYTE *pElements}`) are 16 bytes: the
+/// x64 ABI size is 24. Only the `VT_LPWSTR` arm is ever constructed by
+/// the property-store reads this crate performs; the padding member
+/// pins the full ABI size so `GetValue` and `PropVariantClear` never
+/// write past the Rust object (W08-A10 F-001: the 16-byte pin left
+/// an 8-byte stack under-write domain).
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union PropVariant {
     /// Header: `VT_LPWSTR` = 31 plus three reserved words.
     pub header: PropVariantHeader,
-    /// Padding pinning the struct at its ABI size.
-    pub raw: [u64; 2],
+    /// Padding pinning the struct at the 24-byte x64 ABI size (8-byte
+    /// header + 16-byte payload union) — the same raw-word pin idiom
+    /// the sibling dxgi.rs declarations use.
+    pub raw: [u64; 3],
 }
 
 /// The leading fields of `PROPVARIANT`.
@@ -260,7 +267,10 @@ pub const VT_LPWSTR: u16 = 31;
 
 /// Zero a `PROPVARIANT` for hand-in to `IPropertyStore::GetValue`.
 pub fn empty_prop_variant() -> PropVariant {
-    PropVariant { raw: [0, 0] }
+    // All 24 ABI bytes are zeroed (W08-A10 F-001: the two-word zero
+    // left the last 8 bytes of the callee's write domain as
+    // uninitialized stack).
+    PropVariant { raw: [0, 0, 0] }
 }
 
 /// Read a `VT_LPWSTR` `PROPVARIANT` into an owned `String`, then
