@@ -14,9 +14,12 @@
 //!    linear or dB gain, and stereo-pair routing (identity, swap,
 //!    mono→stereo, stereo→mono, explicit routes).
 //! 3. **Stage C — the mixer** ([`Mixer`]): a *straight* sum of all
-//!    active tracks with per-track gain. No reverb, no EQ, no
-//!    crossfade — those are later filter-chain cards (doc 03 §4.8 b,
-//!    insertion point B is empty in v0).
+//!    active tracks with per-track gain, then **stage C′ — the
+//!    runtime master chain** ([`AudioControls`], FX3-A03): session
+//!    volume, mute, balance and the 3-band EQ over the mixed quantum
+//!    — the effect machinery's streaming instantiation, identity
+//!    (bit-exact bypass) until a control arrives. No reverb, no
+//!    crossfade — later filter-chain cards (doc 03 §4.8 b).
 //! 4. **Stage D — device adaptation** ([`convert`]): the mixed f32
 //!    planes become interleaved f32 bytes (the device format v0
 //!    devices speak; integer targets are converted with saturating
@@ -109,6 +112,7 @@
 
 pub mod buffer;
 pub mod channel_map;
+pub mod controls;
 pub mod convert;
 pub mod effects;
 pub mod error;
@@ -120,7 +124,8 @@ pub mod volume;
 
 pub use buffer::{AudioBuffer, AudioSink};
 pub use channel_map::ChannelMap;
-pub use effects::{AudioEffect, Balance, EffectChain, Gain, MAX_EFFECTS, Mute};
+pub use controls::AudioControls;
+pub use effects::{AudioEffect, Balance, EffectChain, Eq3Band, Gain, MAX_EFFECTS, Mute};
 pub use governor::{DriftGovernor, DriftStats};
 pub use mix::Mixer;
 pub use pipeline::{AudioPipeline, PipelineSpec};

@@ -9,7 +9,10 @@
 //! b's insertion point B, empty in card 2.C3, starts here). Every
 //! effect mutates its channel planes **in place**: the process loop
 //! allocates nothing (D-1), so the hot path is a plain multiply or a
-//! two-gain split per sample.
+//! two-gain split per sample. The chain's first streaming
+//! instantiation is the master seam — [`AudioControls`](crate::controls)
+//! (FX3-A03) runs `Gain`/`Mute`/`Balance`/`Eq3Band` over every mixed
+//! quantum in [`AudioPipeline`](crate::AudioPipeline).
 //!
 //! [`EffectChain`] is the ordered composition: at most
 //! [`MAX_EFFECTS`] stages (bounded memory by construction), pushed in
@@ -138,9 +141,10 @@ impl EffectChain {
 }
 
 /// A gain stage: one [`Volume`] scalar multiply on every sample of
-/// every channel (the effect-chain's front door for `audio.set-volume`
-/// — engine-side it is the same multiply the mixer applies, exposed as
-/// an ordered stage so filter cards compose with it deterministically).
+/// every channel (the master chain's volume stage — [`AudioControls`](crate::controls)
+/// runs one in the streaming path, FX3-A03; it is the engine-side
+/// target of the `audio.set-volume` host verb, whose host wiring lands
+/// with the pipeline seam's later waves).
 #[derive(Debug, Clone, Copy)]
 pub struct Gain {
     volume: Volume,

@@ -28,6 +28,13 @@ use crate::volume::Volume;
 
 use super::AudioEffect;
 
+/// The band-gain bound the runtime control surface enforces (W07-A06
+/// F-004, armed by FX3-A03): the shelf precomputes overflow f32 toward
+/// inf/NaN coefficients once |G| grows large (A = 10^(G/40), A² >
+/// f32::MAX near |G| ≈ 770 dB). The UI design range is ±20 dB;
+/// ±40 dB is the hard stop. Typed refusal, never silent clamping (D-6).
+pub const EQ_GAIN_DB_MAX: f32 = 40.0;
+
 /// Normalized biquad coefficients (RBJ cookbook).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BiquadCoeffs {
@@ -53,8 +60,9 @@ impl BiquadCoeffs {
     /// corner steepness; 0.707 is the maximally-flat default).
     ///
     /// # Errors
-    /// `audio.effects_eq_params` for non-finite inputs or a corner
-    /// frequency outside `(0, rate/2)`.
+    /// `audio.effects_eq_params` for non-finite inputs, a corner
+    /// frequency outside `(0, rate/2)`, or a band gain beyond
+    /// ±[`EQ_GAIN_DB_MAX`] dB (the runtime-control bound).
     pub fn low_shelf(
         rate: u32,
         freq: f32,
@@ -137,6 +145,9 @@ fn check_params(rate: u32, freq: f32, gain_db: f32, q: f32) -> Result<(), Engine
     if freq <= 0.0 || freq >= (rate as f32) / 2.0 {
         return Err(error::unsupported_format("audio.effects_eq_params"));
     }
+    if gain_db.abs() > EQ_GAIN_DB_MAX {
+        return Err(error::unsupported_format("audio.effects_eq_params"));
+    }
     Ok(())
 }
 
@@ -171,6 +182,15 @@ impl BiquadFilter {
         self.coeffs
     }
 
+    /// Swap the coefficients in place, preserving the per-channel
+    /// direct-form-1 state — the runtime EQ update seam (FX3-A03): a
+    /// live parameter change is a coefficient swap on the same filter,
+    /// never a rebuild; the carried state keeps the change to a short
+    /// transient instead of a full-filter reset click.
+    pub fn set_coeffs(&mut self, coeffs: BiquadCoeffs) {
+        self.coeffs = coeffs;
+    }
+
     fn process(&mut self, planes: &mut [Vec<f32>]) {
         if self.state.len() != planes.len() {
             // First quantum (or channel-count change): warm the state.
@@ -193,6 +213,13 @@ impl BiquadFilter {
 #[derive(Debug, Clone)]
 pub struct Eq3Band {
     preamp: Volume,
+    /// The session rate the bands are computed at (the runtime
+    /// recompute rate — FX3-A03's [`set_bands`](Eq3Band::set_bands)).
+    rate: u32,
+    /// The armed band gains (dB) — the configuration getters' truth.
+    low_db: f32,
+    mid_db: f32,
+    high_db: f32,
     low: BiquadFilter,
     mid: BiquadFilter,
     high: BiquadFilter,
@@ -205,7 +232,9 @@ impl Eq3Band {
     ///
     /// # Errors
     /// `audio.effects_eq_params` for bad band parameters (see the
-    /// biquad constructors).
+    /// biquad constructors — non-finite, |gain| beyond
+    /// ±[`EQ_GAIN_DB_MAX`] dB, or a rate too low for the fixed
+    /// 4 kHz shelf corner).
     pub fn new(
         rate: u32,
         low_db: f32,
@@ -215,6 +244,10 @@ impl Eq3Band {
     ) -> Result<Eq3Band, EngineError> {
         Ok(Eq3Band {
             preamp,
+            rate,
+            low_db,
+            mid_db,
+            high_db,
             low: BiquadFilter::new(BiquadCoeffs::low_shelf(rate, 250.0, low_db, 0.707)?),
             mid: BiquadFilter::new(BiquadCoeffs::peaking(rate, 1000.0, mid_db, 1.0)?),
             high: BiquadFilter::new(BiquadCoeffs::high_shelf(rate, 4000.0, high_db, 0.707)?),
@@ -229,6 +262,63 @@ impl Eq3Band {
     /// The preamp volume.
     pub fn preamp(&self) -> Volume {
         self.preamp
+    }
+
+    /// The rate the bands are computed at.
+    #[must_use]
+    pub fn rate(&self) -> u32 {
+        self.rate
+    }
+
+    /// The low-shelf gain (dB).
+    #[must_use]
+    pub fn low_db(&self) -> f32 {
+        self.low_db
+    }
+
+    /// The mid-peak gain (dB).
+    #[must_use]
+    pub fn mid_db(&self) -> f32 {
+        self.mid_db
+    }
+
+    /// The high-shelf gain (dB).
+    #[must_use]
+    pub fn high_db(&self) -> f32 {
+        self.high_db
+    }
+
+    /// Re-arm every band in place — the live session's runtime EQ
+    /// update (FX3-A03): recompute the three coefficient sets at the
+    /// construction rate and swap them in **preserving the biquad
+    /// state** ([`BiquadFilter::set_coeffs`]) — a parameter change,
+    /// never a filter or pipeline rebuild. Fail-atomic: a rejected
+    /// parameter leaves the filter exactly as it was.
+    ///
+    /// # Errors
+    /// `audio.effects_eq_params` for bad band parameters (the
+    /// constructors' own vocabulary — including the ±[`EQ_GAIN_DB_MAX`]
+    /// dB runtime bound).
+    pub fn set_bands(
+        &mut self,
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+        preamp: Volume,
+    ) -> Result<(), EngineError> {
+        // Compute every coefficient set before touching the filter
+        // (fail-atomic: the `?`s here leave the old bands in force).
+        let low = BiquadCoeffs::low_shelf(self.rate, 250.0, low_db, 0.707)?;
+        let mid = BiquadCoeffs::peaking(self.rate, 1000.0, mid_db, 1.0)?;
+        let high = BiquadCoeffs::high_shelf(self.rate, 4000.0, high_db, 0.707)?;
+        self.low.set_coeffs(low);
+        self.mid.set_coeffs(mid);
+        self.high.set_coeffs(high);
+        self.low_db = low_db;
+        self.mid_db = mid_db;
+        self.high_db = high_db;
+        self.preamp = preamp;
+        Ok(())
     }
 }
 
@@ -388,5 +478,54 @@ mod tests {
         let mut planes = vec![original.clone()];
         chain.process(&mut planes).must();
         assert_eq!(planes[0], original);
+    }
+
+    // ---- FX3-A03: the runtime EQ update seam (set_bands/set_coeffs) ----
+
+    #[test]
+    fn fx3_a03_eq_set_bands_recomputes_and_keeps_state() {
+        // The live session's update path: arm +6 dB mid, settle, then
+        // set_bands to −6 dB mid on the SAME filter — the settled
+        // amplitude ratio is the 12 dB delta (state preserved through
+        // the coefficient swap; the transient is discarded by the
+        // settled-tail probe, the crate's own convention).
+        let mut eq = Eq3Band::new(RATE, 0.0, 6.0, 0.0, Volume::UNITY).must();
+        let mut planes = vec![sine(24_000, 1000.0, 0.4)];
+        eq.process(&mut planes).must();
+        let boosted = settled_peak(&planes[0]);
+        eq.set_bands(0.0, -6.0, 0.0, Volume::UNITY).must();
+        let mut planes = vec![sine(24_000, 1000.0, 0.4)];
+        eq.process(&mut planes).must();
+        let cut = settled_peak(&planes[0]);
+        let ratio = boosted / cut;
+        let want = 10.0_f32.powf(12.0 / 20.0);
+        assert!(
+            (ratio - want).abs() / want < 0.05,
+            "ratio {ratio} vs expected {want}"
+        );
+        // The configuration getters report the re-armed bands.
+        assert_eq!(eq.low_db(), 0.0);
+        assert_eq!(eq.mid_db(), -6.0);
+        assert_eq!(eq.high_db(), 0.0);
+        assert_eq!(eq.rate(), RATE);
+    }
+
+    #[test]
+    fn fx3_a03_eq_band_gain_bound_is_typed() {
+        // The runtime-control bound (W07-A06 F-004): |gain| beyond
+        // ±40 dB is a typed refusal — the shelf precompute overflows
+        // f32 toward inf/NaN coefficients long before the UI's ±20 dB
+        // design range is left.
+        assert!(Eq3Band::new(RATE, 41.0, 0.0, 0.0, Volume::UNITY).is_err());
+        assert!(BiquadCoeffs::low_shelf(RATE, 250.0, -41.0, 0.707).is_err());
+        assert!(BiquadCoeffs::peaking(RATE, 1000.0, 40.5, 1.0).is_err());
+        // The bound itself is inclusive: exactly ±40 dB constructs.
+        assert!(Eq3Band::new(RATE, 40.0, -40.0, 40.0, Volume::UNITY).is_ok());
+        // Fail-atomic: a rejected set_bands leaves the old bands armed.
+        let mut eq = Eq3Band::new(RATE, 3.0, -3.0, 6.0, Volume::UNITY).must();
+        assert!(eq.set_bands(41.0, 0.0, 0.0, Volume::UNITY).is_err());
+        assert_eq!(eq.low_db(), 3.0);
+        assert_eq!(eq.mid_db(), -3.0);
+        assert_eq!(eq.high_db(), 6.0);
     }
 }

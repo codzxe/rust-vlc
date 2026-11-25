@@ -11,7 +11,10 @@
 //!    [`AudioFrame`] — stage A converts it to f32 planes and the
 //!    track's [`ChannelMap`] routes them into the mixer shape;
 //! 2. [`mix`](AudioPipeline::mix) once — per-track [`Volume`],
-//!    straight sum, stage D interleave;
+//!    straight sum, then the runtime master chain
+//!    ([`AudioControls`](crate::controls) — volume, mute, balance,
+//!    3-band EQ; identity until a control arrives) and the stage D
+//!    interleave;
 //! 3. [`take_output`](AudioPipeline::take_output) — the
 //!    [`AudioBuffer`] headed for the [`AudioSink`](crate::AudioSink).
 //!
@@ -29,6 +32,7 @@ use media_types::time::Stamp;
 
 use crate::buffer::AudioBuffer;
 use crate::channel_map::ChannelMap;
+use crate::controls::AudioControls;
 use crate::convert::{frame_to_f32_planes, planes_to_f32_interleaved_into};
 use crate::error;
 use crate::governor::{DriftGovernor, DriftStats};
@@ -65,6 +69,11 @@ pub struct PipelineSpec {
 pub struct AudioPipeline {
     spec: PipelineSpec,
     mixer: Mixer,
+    /// Stage C′ — the runtime master chain (FX3-A03): session
+    /// volume, mute, balance and the 3-band EQ over the mixed
+    /// quantum, before the drift seam. Identity by default — see
+    /// [`controls`](crate::controls).
+    controls: AudioControls,
     maps: Vec<ChannelMap>,
     /// Stage-A scratch: the just-decoded f32 planes (reused).
     scratch: Vec<Vec<f32>>,
@@ -120,6 +129,7 @@ impl AudioPipeline {
         Ok(AudioPipeline {
             spec,
             mixer: Mixer::new(spec.tracks)?,
+            controls: AudioControls::new(spec.rate),
             maps,
             scratch: Vec::new(),
             stage: vec![Vec::new(); spec.tracks],
@@ -247,6 +257,112 @@ impl AudioPipeline {
         self.mixer.volume(track)
     }
 
+    // ---- The runtime master chain (FX3-A03; see [`AudioControls`]) ----
+    // The "sound experience knobs"' engine side; the audit's
+    // W07-A02/A06/A07/A08 dead surface, now live): session-level
+    // volume, mute, balance and 3-band EQ, applied to every mixed
+    // quantum between the mixer and stage D. Every setter below is
+    // safe between quanta on the live pipeline — a field swap or an
+    // in-place coefficient recompute, never a rebuild; controls take
+    // effect at the next `mix`. The default is the exact identity
+    // (see [`AudioControls::is_identity`]): an uncontrolled pipeline
+    // is bit-identical to the pre-FX3-A03 path.
+
+    /// Session master volume (the post-mix gain stage — the
+    /// engine-side target of the `audio.set-volume` host verb).
+    /// [`Volume::UNITY`] restores the identity.
+    pub fn set_master_volume(&mut self, volume: Volume) {
+        self.controls.set_volume(volume);
+    }
+
+    /// The master volume in force.
+    #[must_use]
+    pub fn master_volume(&self) -> Volume {
+        self.controls.volume()
+    }
+
+    /// Session mute: `true` zeroes every mixed quantum; `false`
+    /// restores the signal bit-exactly (a stateless ×0 — no residue).
+    pub fn set_muted(&mut self, muted: bool) {
+        self.controls.set_muted(muted);
+    }
+
+    /// Whether the session is muted.
+    #[must_use]
+    pub fn muted(&self) -> bool {
+        self.controls.muted()
+    }
+
+    /// Session balance (constant-power pan — see
+    /// [`Balance`](crate::effects::Balance)): the stage is absent
+    /// (`None`) until a position is set; 0.0 arms the pan law's center
+    /// (−3.01 dB per channel — documented, not unity).
+    ///
+    /// # Errors
+    /// `audio.effects_balance_channels` when the negotiated shape is
+    /// not stereo (the stage's own process-time gate, surfaced at set
+    /// time — a session that takes the `Ok` never fails at mix) or
+    /// `audio.effects_balance_position` for out-of-range positions.
+    pub fn set_balance(&mut self, position: f32) -> Result<(), EngineError> {
+        if self.spec.channels != 2 {
+            return Err(error::channel_range("audio.effects_balance_channels"));
+        }
+        self.controls.set_balance(position)
+    }
+
+    /// Remove the balance stage (the identity split).
+    pub fn clear_balance(&mut self) {
+        self.controls.clear_balance();
+    }
+
+    /// The balance position in force (`None` when the stage is
+    /// absent).
+    #[must_use]
+    pub fn balance(&self) -> Option<f32> {
+        self.controls.balance()
+    }
+
+    /// Arm or update the session 3-band EQ (low/mid/high dB +
+    /// preamp; corners fixed by [`Eq3Band`](crate::effects::Eq3Band)
+    /// design: 250 Hz / 1 kHz / 4 kHz). The first call builds the
+    /// filters at the negotiated rate; later calls recompute the
+    /// coefficients in place, preserving the biquad state — a
+    /// parameter change on the live chain.
+    ///
+    /// # Errors
+    /// `audio.effects_eq_params` for bad band parameters
+    /// (non-finite, |gain| beyond ±40 dB — the runtime bound — or a
+    /// session rate too low for the 4 kHz shelf corner).
+    pub fn set_eq(
+        &mut self,
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+        preamp: Volume,
+    ) -> Result<(), EngineError> {
+        self.controls.set_eq(low_db, mid_db, high_db, preamp)
+    }
+
+    /// Remove the EQ stage (the identity).
+    pub fn clear_eq(&mut self) {
+        self.controls.clear_eq();
+    }
+
+    /// The EQ configuration in force — (low, mid, high dB, preamp) —
+    /// `None` when the stage is absent.
+    #[must_use]
+    pub fn eq_bands(&self) -> Option<(f32, f32, f32, Volume)> {
+        self.controls.eq_bands()
+    }
+
+    /// The runtime master chain, read-only (the validated setters
+    /// above are the write surface; a `&mut` hand-off would bypass
+    /// the balance shape gate).
+    #[must_use]
+    pub fn controls(&self) -> &AudioControls {
+        &self.controls
+    }
+
     /// Set one track's channel map (decoded shape → mixer shape).
     ///
     /// # Errors
@@ -344,6 +460,14 @@ impl AudioPipeline {
             self.mixed = mixed;
             mix_result?;
         }
+        // Stage C′ — the runtime master chain (FX3-A03, the
+        // W07-A02/A06/A07/A08 dead-controls fix): volume → mute →
+        // balance → EQ over the mixed quantum, before the drift seam
+        // and stage D. Identity by default — nothing runs until a
+        // control arrives, so the uncontrolled path stays
+        // byte-identical to the pre-FX3-A03 pipeline; controls read
+        // here see every runtime update without a rebuild.
+        self.controls.process(&mut self.mixed)?;
         // The 3.B1 drift seam — between `mix` and stage D (doc 03
         // §4.7 e / §4.8 e-f): a non-zero correction resamples the
         // mixed planes through the micro-resampler into its own

@@ -56,18 +56,27 @@ impl Volume {
     ///
     /// # Errors
     /// [`Unsupported`](media_types::ErrorKind::Unsupported) with code
-    /// `audio.gain_db_not_finite`: the dB value must be finite
-    /// (callers that mean silence say [`Volume::MUTE`]; keeping the
-    /// domain finite keeps the conversion total and deterministic).
+    /// `audio.gain_db_not_finite` (the dB value must be finite;
+    /// callers that mean silence say [`Volume::MUTE`]) or
+    /// `audio.gain_db_overflow` (a finite dB whose converted gain is
+    /// not — `db > 770.64…` overflows `10^(db/20)` to `+inf`, W07-A02
+    /// F-001's executed proof; a stored `inf` would poison every
+    /// multiplied sample, so the control boundary rejects it — deep
+    /// negative dB underflows to (finite) silence and stays `Ok`).
     pub fn from_db(db: f32) -> Result<Volume, EngineError> {
         if !db.is_finite() {
             return Err(error::bad_gain("audio.gain_db_not_finite"));
         }
         // 10^(db/20) via std: powf is deterministic per IEEE 754 on
         // every host for the same input (exp10 is not in std).
-        Ok(Volume {
-            linear: 10.0_f32.powf(db / 20.0),
-        })
+        let linear = 10.0_f32.powf(db / 20.0);
+        // The output check the type's "always finite" invariant always
+        // promised (FX3-A03 wired the runtime control surface — the
+        // guard is the boundary's own).
+        if !linear.is_finite() {
+            return Err(error::bad_gain("audio.gain_db_overflow"));
+        }
+        Ok(Volume { linear })
     }
 
     /// The linear gain (finite, non-negative by construction).
@@ -172,5 +181,20 @@ mod tests {
         assert_eq!(v.apply(-0.75), -0.375);
         // NaN payload survives (data, not poison-from-the-gain).
         assert!(v.apply(f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn fx3_a03_from_db_overflow_is_rejected() {
+        // W07-A02 F-001, executed proof: a FINITE db = 771 used to
+        // store +inf gain (10^(771/20) > f32::MAX), breaking the
+        // "stored value is always finite" invariant the DSP relies on
+        // — now the typed refusal at the control boundary.
+        let err = Volume::from_db(771.0).err().must();
+        assert_eq!(err.context.code, "audio.gain_db_overflow");
+        let err = Volume::from_db(1_000.0).err().must();
+        assert_eq!(err.context.code, "audio.gain_db_overflow");
+        // Deep negative underflows to (finite) silence — honest zero,
+        // not an error: the asymmetry is the math's, documented here.
+        assert_eq!(Volume::from_db(-1_000.0).must().linear(), 0.0);
     }
 }
