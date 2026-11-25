@@ -39,8 +39,19 @@ keys per doc 04 §6:
   types damage-note `cover-type-unsupported`.
 - Handle alignment: packets carry the EXPOSED ordinal via an
   explicit `exposed` map (hidden chapter traks leave gaps).
-- Seek: stss walk-back `Fast{indexed}` / bounded moof-scan
-  `SlowLinear`; lands at-or-before target.
+- Seek: **not implemented (reanchor pending)**. `Mp4Demuxer`'s
+  `seekability()` still reports stss walk-back `Fast{indexed}` /
+  bounded moof-scan `SlowLinear` — the claim `MediaInfoReady` echoes
+  as `seekable: true` — but the impl block overrides no `reanchor`,
+  so every in-session seek dies at the trait default's typed refusal
+  `plugin.demux.reanchor.unsupported` (executed: `seek 1s` on every
+  MP4 sample → `TimingSeekFailed`, position stays 0; all seek forms
+  90s/1s/50%/+10s/-1m fail identically; W20-A05 F-001,
+  audit/final/CONTRADICTIONS.md C-003). WAV seek completes (the
+  executed reference — `TimingSeekCompleted`; W20-A05); MP4/other
+  containers pending the real reanchor (FIX-PLAN F1.3). The pure
+  `seek()` query only powers `--start-time` (W20-A05: `--start-time
+  2s` lands at 2.000000 s).
 - Codec surface: h264, hevc, mpeg4video, mjpeg, png, vp8, vp9, av1,
   h263, aac, alac, ac3, eac3, opus, flac, mp3, amr_nb/wb, PCM
   family, mov_text.

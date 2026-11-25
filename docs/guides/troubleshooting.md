@@ -109,8 +109,15 @@ enumeration without audible sink. Known and tracked; see
 It is: `features.hw-decode = false` in `product.toml` (rule F2 — the
 adapter lanes are compile-verified, the per-OS integration gate has
 not run; ADR-001). `playback.hw-decode-policy` therefore stays inert
-at `software-only`, and `engine-info` reports the truthful active
-decoder.
+at `software-only`. `engine-info`'s decoder list derives from the
+CLI's single decoder dispatch table (14 codec families — the one
+registry): `engine-info`, `decode-bench` and the `landed:` refusal
+string all report from it. Before that single-sourcing the list was a
+hardcoded two-entry understatement (mjpeg/pcm_s16le) while the same
+binary decoded H.264 + AAC end to end — the audit's four-registry
+story (engine-info 2 · refusal string 12 · bench "none" · dispatch
+16 arms/14 families; audit/final/CONTRADICTIONS.md C-002; W20-A02
+F-3, wave-13).
 
 ## Reporting
 

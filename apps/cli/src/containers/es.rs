@@ -14,14 +14,22 @@
 //!   decoders are wired (`pipeline_host` `mp3`/`mp2` arms).
 //! * **`h264` / `hevc`** → [`AnnexbVideoDemuxer`](demux::es::annexb::
 //!   AnnexbVideoDemuxer) with the codec the probe's NAL-set
-//!   discrimination named. These lanes **open and demux, then
-//!   refuse decode honestly** — H.264/HEVC have no software decoder
-//!   in this tree (`codecs/src/video/h264/mod.rs`: parsers +
-//!   hardware-path seam only), so the provider answers the typed
-//!   `cli.codec_unavailable` and an all-video session lands in the
-//!   engine's `NoDecodableTrack` naming the container. That honest
-//!   refusal IS these lanes' value: packet-exact demux of the
-//!   hw-path codecs with no silent wrong decode.
+//!   discrimination named. The decode truth is the SINGLE decoder
+//!   registry — the provider's dispatch table
+//!   (`pipeline_host`): **`h264` has a software decoder arm**
+//!   (`"h264" | "avc1"` → `H264SwDecoder`, rust_h264 0.6.1 admitted
+//!   w27; Annex-B configures lazily from in-band parameter sets —
+//!   audit/final/CONTRADICTIONS.md C-002 dispatch side / C-001),
+//!   while **`hevc` has no arm**: the typed `cli.codec_unavailable`
+//!   refusal is the honest answer (executed: sample-hevc.mp4 exits
+//!   65, W20-A05 F-004), and an all-HEVC session lands in the
+//!   engine's `NoDecodableTrack` naming the container. The older
+//!   wording here claimed neither H.264 nor HEVC had any software
+//!   decoder in this tree — one of the four-registry story's doc
+//!   lies (wave-13 LIE 3): engine-info, decode-bench, the `landed:`
+//!   refusal string and the dispatch table disagreed, and the
+//!   dispatch table is the one registry every reporter derives
+//!   from now.
 //! * **`flac`** → the honest typed refusal: the `fLaC` probe id is
 //!   landed, but **no raw-FLAC demuxer exists** — `crates/demux/
 //!   src/es` covers h264/hevc/mp3/aac only (card 5.I3a's slice).

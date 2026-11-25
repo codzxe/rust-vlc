@@ -1,15 +1,17 @@
 //! # lumen-cli — the command-line player (card 2.D2; doc 05 §5.3)
 //!
-//! The headless host of the first vertical: a composition root that
-//! drives the **real** pipeline — access (`input`) → probe
-//! (`media-probe`) → demux (`demux`, AVI per D-018) → packet queues →
-//! decode (`codecs`, MJPEG + PCM) → audio (`audio-engine` →
-//! `audio-output`'s null device: no audio hardware in this sandbox) →
-//! video (`video-engine` scheduler → `renderer-wgpu`'s software
-//! compositor: no GPU in this sandbox) — all orchestrated by the
-//! `playback-engine` state machine, and reached **only through the one
-//! command layer** (ARCH-5): every host surface (argv subcommands, the
-//! interactive REPL, the `--control-stdio` machine mode) builds a
+//! The headless host: a composition root that drives the **real**
+//! pipeline — access (`input`) → probe (`media-probe`) → demux
+//! (`demux` via the 15-arm container dispatch: 14 demuxers + the
+//! honest raw-flac refusal) → packet queues → decode (`codecs`,
+//! through the provider's dispatch table — 14 codec families) →
+//! audio (`audio-engine` → `audio-output`'s null device: no audio
+//! hardware in this sandbox) → video (`video-engine` scheduler →
+//! `renderer-wgpu`'s software compositor: no GPU in this sandbox) —
+//! all orchestrated by the `playback-engine` state machine, and
+//! reached **only through the one command layer** (ARCH-5): every
+//! host surface (argv subcommands, the interactive REPL, the
+//! `--control-stdio` machine mode) builds a
 //! [`commands::CommandRequest`] and calls [`lumen_dispatch`] — the
 //! single dispatch entry, the CLI's shape of doc 05 §5.1's
 //! `lumen_dispatch`.
@@ -23,10 +25,17 @@
 //! - [`help`]     — `--help`/`--version` text, generated from the
 //!   embedded `settings-schema` (per the card) + the command catalog.
 //! - [`demux_host`] — the open path: file URI → `FileAccess` →
-//!   `probe_stream` → `AviDemuxer`, plus the seek/start-time skip
-//!   wrapper and the track-facts pre-pass the decoder provider needs.
+//!   `probe_stream` → the container dispatch (`containers::open` —
+//!   15 arms), plus the seek/start-time skip wrapper and the
+//!   track-facts pre-pass the decoder provider needs.
 //! - [`pipeline_host`] — the pipeline composition the engine drives:
-//!   the `DecoderProvider` (mjpeg/pcm from track facts), the
+//!   the `DecoderProvider` — the SINGLE decoder registry (the
+//!   dispatch table's 16 arms / 14 codec families — mjpeg, flac,
+//!   mp3/mp1, mp2, vorbis, opus, aac/aac-lc, alac, adpcm_*, av1,
+//!   vp9, dnxhd, h264/avc1, pcm_*); `engine-info`, `decode-bench`
+//!   and the `landed:` refusal string all derive from it
+//!   (audit/final/CONTRADICTIONS.md C-002 — the four-registry story:
+//!   the pre-fix binary answered 2 / "none" / 12 / 16), plus the
 //!   `FrameConsumer` (audio → `AudioPipeline` → null sink; video →
 //!   I420→RGBA host conversion → `PresentationScheduler` → the
 //!   software `Renderer`).
@@ -35,7 +44,9 @@
 //!   crates, one machine-parseable BENCH line.
 //! - [`containers`] — THE container-host registry (6.OPW-PREP): the
 //!   post-probe format dispatch — one `containers/<fmt>.rs` per wired
-//!   family (avi today), the honest typed refusal for the rest.
+//!   family (15 probe-id arms today: 14 real demuxers plus the honest
+//!   raw-flac refusal; no `asf` arm — audit/final/CONTRADICTIONS.md
+//!   C-009), the honest typed refusal for the rest.
 //! - [`host`]     — the [`host::CliHost`]: owns the `Engine`, pumps it
 //!   (the host's poll IS the session thread, 2.C2's invariant S1),
 //!   correlates receipts to requests, records events and state
@@ -49,12 +60,18 @@
 //!
 //! # Honest scope notes (recorded for the Lead)
 //!
-//! - **Seek** (doc 05 §2.4) is composed host-side as
-//!   `stop → close → open-at-target` through the real engine
-//!   transitions, because the engine-level seek input is card 3.A1.
-//!   The demuxer's real seek-to-time (`demux` 2.B2) resolves the
-//!   landing; a wrapper drops pre-target packets. `[PROPOSAL]` — see
-//!   [`host::CliHost::dispatch_seek`]'s docs.
+//! - **Seek** (doc 05 §2.4): in-session seek is
+//!   **not implemented (reanchor pending)** — the engine's only seek entry calls the
+//!   `Demuxer::reanchor` trait default, which refuses typed
+//!   (`plugin.demux.reanchor.unsupported`); every in-session MP4
+//!   seek fails there (executed: W20-A05 F-001,
+//!   audit/final/CONTRADICTIONS.md C-003). WAV seek completes (the
+//!   executed reference; W20-A05) — MP4/other containers without a
+//!   `reanchor` implementation pending FIX-PLAN F1.3. The old
+//!   host-side stop→close→open-at-target composition this note used
+//!   to describe is gone; `--start-time` at open rides the skip
+//!   watermark (the pure `seek()` query), which works (W20-A05:
+//!   lands at 2.000000 s).
 //! - **Pacing**: the engine advances only when the host pumps it
 //!   (2.C2's synchronous single-writer model). The REPL/machine modes
 //!   pump at command boundaries plus the explicit `advance` verb —

@@ -1514,9 +1514,9 @@ description = "Arbitrary seek, Go-to-Time, 4 jump magnitudes (extrashort/short/m
 priority = "P0"
 phase_target = 3
 inventory_ref = "inventory/options-linux.json#key-jump-extrashort"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/playback-engine/src/seek.rs (SeekTarget + seek planning) + crates/playback-engine/src/session.rs (pub seek); jump scalars seeded in keymaps/default.toml (3/10/60/300 s); Ctrl+T dialog ui/src/screens/player/dialogs/GotoTimeDialog.tsx"
-notes = "3.A seek-and-cancellation; jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family. Backfill (issue #20): engine seek + Go-to-Time dialog live (Linux-only evidence, CI 3-OS pending)."
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = "audit/executed: audit/runs/W20-A05.log.md 5 (`seek 1s` on every MP4 sample -> TimingSeekFailed plugin.demux.reanchor.unsupported; sample.wav -> TimingSeekCompleted) + audit/verify/W20-A02-reverification.md F-1/F-2 + audit/final/CONTRADICTIONS.md C-003; code: crates/plugin-api/src/demux.rs:113-120 (trait-default reanchor refuses), crates/demux/src/mp4/mod.rs:2008-2084 (no reanchor override)"
+notes = "2026-11-24 devil-audit downgrade (C-003, the seek triple-lie): in-session seek is not implemented (reanchor pending) — every in-session MP4 seek returns plugin.demux.reanchor.unsupported (Mp4Demuxer implements no reanchor; the trait default refuses; executed W20-A05 F-001: all seek forms 90s/1s/50%/+10s/-1m fail identically, position stays 0). WAV seek completes (the executed reference — TimingSeekCompleted; W20-A05), and avi/ogg/mkv/ivf/adts/aiff/ps carry reanchor implementations (W20-A02 F-1); MP4/other containers pending until the real reanchor lands (FIX-PLAN F1.3 — WAV is the reference implementation of the contract). The prior implemented x3 row had no container-reanchor evidence: the engine seek flow, Go-to-Time dialog and --start-time open-seek exist (W20-A05: --start-time 2s lands at 2.000000 s), but the in-session entry the engine actually calls is the unimplemented reanchor. Jump-size scalars seeded 3/10/60/300 s (keymaps/default.toml); Ctrl+T dialog; seek-step options family."
 
 [[feature]]
 id = "playback-rate"

@@ -214,7 +214,12 @@ in `crates/*` needs to change.
 
 The demuxer trait **already exists**: `plugin_api::Demuxer` (`plugin-api/src/demux.rs:52-121`) —
 `start()` (track list), `next_event()` (packet pump), `seek()` (pure query),
-`seekability()`, `reanchor()` (compute-then-commit). Every container already implements it (§2).
+`seekability()`, `reanchor()` (compute-then-commit). Every container already implements it (§2)
+— **correction (2026-11-24 audit, C-003): `Mp4Demuxer` alone overrides no `reanchor`** (the
+trait default refuses typed; every in-session MP4 seek returns `plugin.demux.reanchor.unsupported`
+— executed: W20-A05 F-001; audit/final/CONTRADICTIONS.md C-003). In-session seek is
+not implemented (reanchor pending) on MP4; WAV seek completes (the executed reference); MP4/other
+containers lacking a `reanchor` pending FIX-PLAN F1.3.
 Therefore **no new trait is needed**. A "container host" is exactly one free function per
 container with a fixed signature:
 

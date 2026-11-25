@@ -71,8 +71,18 @@ and synchronizes for real — but the audio output is the typed null
 device (ADR-005: no real audio backend admitted yet) and there is no
 video window (ADR-004: the desktop shell is a skeleton). You will not
 hear or see anything; `info`, `time` and the event stream are the
-observable surface. The deterministic open→play→pause→seek→stop
-session is pinned by `apps/cli/tests/session_script.rs`.
+observable surface. **In-session seek is
+not implemented (reanchor pending)**: on MP4 every seek fails typed at
+`plugin.demux.reanchor.unsupported` (the `Mp4Demuxer` implements no
+`reanchor`; executed: W20-A05 F-001, audit/final/CONTRADICTIONS.md
+C-003), while WAV seek completes (the executed reference —
+`TimingSeekCompleted` at 1 s; W20-A05). MP4/other containers are
+pending the real reanchor (FIX-PLAN F1.3); `--start-time` at open
+works on MP4 (W20-A05: lands at 2.000000 s). The `seekable:` line
+in `info` reports the engine's seek support, not a constant. The
+deterministic open→play→pause→seek→stop session is pinned by
+`apps/cli/tests/session_script.rs` on the AVI fixture — the AVI
+demuxer implements `reanchor`.
 
 Quick decode check without the REPL:
 
@@ -87,10 +97,20 @@ v_frames=60 v_decoded=60 a_frames=60 a_decoded=60 wall_s=0.008 decode_s=0.008
 The formats with claimed support (implemented or partial, desktop) are
 listed in `docs/feature-matrix.toml` — 37 of 73 format rows as of
 2026-11-10: the AVI/MP4/MKV/Ogg/MP3/WAV/MPEG-PS/TS/ADTS/AIFF/ASF/IVF/
-Annex-B demuxers, the MJPEG/AV1/VP9/(partial) H.264/HEVC/ProRes video
-decoders, the PCM/MP3/MP2/AAC-LC/FLAC/Vorbis/Opus/ALAC/ADPCM audio
-decoders, and the SRT/VTT/ASS/PGS/DVB/VobSub/CC subtitle parsers
-(plus subtitle encoding detection — the 37th claimed row). Every
+Annex-B demuxers, the MJPEG/AV1/VP9/H.264 software video decoders
+(the dispatch table also carries a DNxHD arm — no container lane
+mints its descriptor yet; see `docs/formats/video-prores-dnxhd.md`),
+the PCM/MP3/MP2/AAC-LC/FLAC/Vorbis/Opus/ALAC/ADPCM audio decoders,
+and the SRT/VTT/ASS/PGS/DVB/VobSub/CC subtitle parsers (plus
+subtitle encoding detection — the 37th claimed row). HEVC has no
+software decoder lane in any shipped host — it refuses decode typed
+(executed: sample-hevc.mp4 exits 65, W20-A05 F-004). The shipped
+decoder set is the CLI's single decoder dispatch table — the one
+registry: `engine-info`, `decode-bench` and the `landed:` refusal
+string all derive from it (the audit found four different decoder
+inventories in one binary — engine-info said 2, the refusal string
+12, bench "none", the dispatch 16 arms/14 families;
+audit/final/CONTRADICTIONS.md C-002, wave-13). Every
 row links its evidence; per-format details and known gaps live in
 `docs/formats/<record>.md`. Anything not in that list produces a typed
 error (see [troubleshooting](troubleshooting.md)) — never a hang or a
