@@ -175,6 +175,16 @@ impl Clut {
             _ => &self.bank256,
         }
     }
+
+    /// One bank color by index, bounds-checked against the bank the
+    /// region depth selects: `None` when the index is stale for that
+    /// depth (e.g. a region redefined to a shallower depth after its
+    /// pixels were painted at 8-bit). The render path turns that into
+    /// typed damage and skips the region — indexing [`Self::bank`]
+    /// directly with stream-painted indices can read out of bounds.
+    pub fn color_at(&self, depth: u8, index: u8) -> Option<Rgba> {
+        self.bank(depth).get(usize::from(index)).copied()
+    }
 }
 
 /// One CLUT definition entry, pre-extraction.

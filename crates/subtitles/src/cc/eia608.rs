@@ -8,9 +8,10 @@
 //!
 //! Carriage hands the decoder `(field, pair)` tuples; a field keeps
 //! an **active-channel latch** — every code with a channel bit
-//! (control `0x10..=0x1F` first bytes and PAC `0x40..=0x5F` first
-//! bytes carry it in bit 3, `0x08`) re-latches it, plain text rides
-//! the latched channel. Per channel ([`CcChannel`]: CC1–CC4):
+//! (the control family's `0x10..=0x1F` first bytes — control codes
+//! and PACs alike — carry it in bit 3, `0x08`) re-latches it, plain
+//! text (first bytes `0x20..=0x7F`) rides the latched channel. Per
+//! channel ([`CcChannel`]: CC1–CC4):
 //!
 //! * two 15×32 [`CcGrid`]s — **displayed** and **non-displayed**;
 //! * a write cursor (row, column) and a pen (color, underline,
@@ -381,12 +382,19 @@ impl Cc608Channel {
     pub(crate) fn decode_pair(&mut self, hi: u8, lo: u8) -> bool {
         self.flags = PairFlags::default();
         if (0x10..=0x1F).contains(&hi) {
+            // Control-family first byte. A second byte in the
+            // `0x40..=0x7F` window makes the pair a PAC (EIA-608
+            // preamble address codes: control-range first byte,
+            // text-range second byte — row + pen + indent); anything
+            // below is the misc/mid-row/extended/tab family.
+            if (0x40..=0x7F).contains(&lo) {
+                return self.pac(hi, lo);
+            }
             return self.control_code(hi & 0x07, lo);
         }
-        if (0x40..=0x5F).contains(&hi) && lo >= 0x40 {
-            return self.pac(hi, lo);
-        }
-        // Plain text (or a malformed pair): both bytes as characters.
+        // Plain text (or a malformed pair): both bytes as characters
+        // — text first bytes live at `0x20..=0x7F`, so "HE"/"AB"
+        // pairs are text, never PACs (the W09-A07 finding).
         let mut changed = false;
         if (0x20..=0x7F).contains(&hi) {
             changed |= self.put_char(basic_char(hi));
@@ -648,20 +656,20 @@ mod tests {
     #[test]
     fn pac_row_table_matches_reference_layout() {
         let ch = Cc608Channel::new();
-        // Row 15 (the roll-up base): first 0x44, second D5 set.
+        // Row 15 (the roll-up base): first 0x14, second bit 5 set.
         let mut ch = ch;
-        ch.pac(0x44, 0x60);
+        ch.pac(0x14, 0x60);
         assert_eq!(ch.cursor(), (14, 0));
-        ch.pac(0x44, 0x40);
+        ch.pac(0x14, 0x40);
         assert_eq!(ch.cursor(), (13, 0)); // row 14
-        ch.pac(0x41, 0x40);
+        ch.pac(0x11, 0x40);
         assert_eq!(ch.cursor(), (0, 0)); // row 1
-        ch.pac(0x41, 0x60);
+        ch.pac(0x11, 0x60);
         assert_eq!(ch.cursor(), (1, 0)); // row 2
-        ch.pac(0x47, 0x40);
+        ch.pac(0x17, 0x40);
         assert_eq!(ch.cursor(), (8, 0)); // row 9
         // Indent PAC: 0x68 -> indent 8*4 = 32 -> clamped to 31.
-        ch.pac(0x44, 0x68);
+        ch.pac(0x14, 0x68);
         assert_eq!(ch.cursor(), (14, 31));
     }
 
@@ -716,7 +724,7 @@ mod tests {
     fn roll_up_scrolls_the_window() {
         let mut ch = Cc608Channel::new();
         ch.decode_pair(0x14, 0x25); // RU2, entry clear
-        ch.pac(0x44, 0x60); // base row 15
+        ch.pac(0x14, 0x60); // base row 15
         ch.decode_pair(0x31, 0x00); // "1"
         assert_eq!(ch.displayed.row_text(14), "1");
         ch.decode_pair(0x14, 0x2D); // CR
@@ -758,7 +766,7 @@ mod tests {
     #[test]
     fn text_is_written_with_the_pac_pen() {
         let mut ch = paint();
-        ch.pac(0x42, 0x42); // row 3, green pen
+        ch.pac(0x12, 0x42); // row 3, green pen
         ch.decode_pair(0x31, 0x32);
         assert_eq!(ch.cursor(), (2, 2));
         assert_eq!(ch.displayed.cell(2, 0).color, CcColor::Green);

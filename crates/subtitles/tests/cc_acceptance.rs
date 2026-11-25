@@ -49,7 +49,7 @@ fn ga94(pairs: &[(u8, u8)]) -> Vec<u8> {
 /// "1", CR, "2", CR, "3".
 fn rollup_frames() -> Vec<Vec<CcDataTriplet>> {
     vec![
-        vec![t608(0x14, 0x25), t608(0x44, 0x60), t608(0x31, 0x20)],
+        vec![t608(0x14, 0x25), t608(0x14, 0x60), t608(0x31, 0x20)],
         vec![t608(0x14, 0x2D), t608(0x32, 0x20)],
         vec![t608(0x14, 0x2D), t608(0x33, 0x20)],
     ]
@@ -103,7 +103,7 @@ fn ga94_sei_carriage_end_to_end() {
     // The same roll-up, but through the SEI type-4 payload + the
     // decode_ga94 convenience (the codecs SEI seam consume path).
     let mut dec = CcDecoder::new();
-    let payload = ga94(&[(0x14, 0x25), (0x44, 0x60), (0x31, 0x20)]);
+    let payload = ga94(&[(0x14, 0x25), (0x14, 0x60), (0x31, 0x20)]);
     let u = dec.decode_ga94(&payload, Some(5)).must();
     assert_eq!(u.events.len(), 1);
     assert_eq!(u.events[0].grid.row_text(14), "1");
@@ -111,8 +111,7 @@ fn ga94_sei_carriage_end_to_end() {
 
 #[test]
 fn pac_colors_reach_the_bitmap() {
-    // Paint-on + red mid-row + "A1" (a text pair: the second byte
-    // below 0x40 — "AB" would be a PAC): both cells red.
+    // Paint-on + red mid-row + "A1" (a text pair): both cells red.
     let mut dec = CcDecoder::new();
     let u = dec.decode(
         &[
@@ -157,7 +156,7 @@ fn pop_on_double_buffers_until_end_caption() {
     // Resume caption loading + PAC row 5 + "H1" (a text pair) ->
     // hidden only.
     let u1 = dec.decode(
-        &[t608(0x14, 0x20), t608(0x45, 0x40), t608(0x48, 0x31)],
+        &[t608(0x14, 0x20), t608(0x15, 0x40), t608(0x48, 0x31)],
         Some(1),
     );
     assert!(u1.events.is_empty(), "pop-on writes stay off-screen");
@@ -252,8 +251,7 @@ fn cea708_service1_routes_to_608_and_native_is_recorded() {
         Some(1),
     );
     // The service-1 route painted "A1" in red on CC1 (the mid-row
-    // took column 0; "A1" is a text pair — second byte below 0x40,
-    // unlike "AB" which would read as a PAC).
+    // took column 0; "A1" is a text pair like any other).
     assert_eq!(u.events.len(), 1);
     assert_eq!(u.events[0].grid.row_text(14), " A1");
     assert_eq!(u.events[0].grid.cell(14, 1).color, CcColor::Red);
@@ -404,8 +402,8 @@ fn fuzz_lite_survival_seeded_mutations() {
     // Seeds: the hand-crafted grammars above. Mutations: byte
     // writes, truncations, insertions. Budget: < 200 KB total input.
     let seeds: Vec<Vec<u8>> = vec![
-        ga94(&[(0x14, 0x25), (0x44, 0x60), (0x31, 0x20)]),
-        ga94(&[(0x14, 0x20), (0x45, 0x40), (0x48, 0x49), (0x14, 0x2F)]),
+        ga94(&[(0x14, 0x25), (0x14, 0x60), (0x31, 0x20)]),
+        ga94(&[(0x14, 0x20), (0x15, 0x40), (0x48, 0x49), (0x14, 0x2F)]),
         {
             // The SCTE-20 payload from the test above.
             let mut v = vec![CC_TYPE_CODE, 0x42];
@@ -470,7 +468,7 @@ fn systematic_truncation_sweep_survives() {
     // Every truncation of every seed through every surface — the
     // typed-truncation paths are the whole point.
     let seeds: Vec<Vec<u8>> = vec![
-        ga94(&[(0x14, 0x25), (0x44, 0x60), (0x31, 0x20), (0x14, 0x2D)]),
+        ga94(&[(0x14, 0x25), (0x14, 0x60), (0x31, 0x20), (0x14, 0x2D)]),
         vec![
             0x03,
             0x42,

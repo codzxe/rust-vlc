@@ -607,7 +607,15 @@ impl PsDemuxer {
             (at as u64, p, d)
         };
         let data_start = pos + 6 + header_len;
-        let payload_len = u64::from(declared_len) - header_len;
+        // The MPEG-1 lane has no `want > declared_len` guard (the
+        // MPEG-2 lane checks it above), so a header longer than the
+        // declared packet would wrap this subtraction — the typed
+        // refusal instead of a wrapped (≈2^64) payload_len that
+        // kills the session as `payload-too-large`.
+        let payload_len = match u64::from(declared_len).checked_sub(header_len) {
+            Some(len) => len,
+            None => return Err(error::bad_pes_header(pos)),
+        };
         Ok(PesHeader {
             stream_id,
             declared_len,

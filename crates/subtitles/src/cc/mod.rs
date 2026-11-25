@@ -336,9 +336,11 @@ impl CcDecoder {
             }
             return;
         }
-        // The channel latch: codes that carry the channel bit re-latch
-        // it; plain text rides the latched channel.
-        if (0x10..=0x1F).contains(&hi) || ((0x40..=0x5F).contains(&hi) && lo >= 0x40) {
+        // The channel latch: control-family first bytes (`0x10..=0x1F`
+        // — control codes AND PACs, the EIA-608 layout) carry the
+        // channel bit and re-latch it; plain text (first bytes
+        // `0x20..=0x7F`) rides the latched channel.
+        if (0x10..=0x1F).contains(&hi) {
             self.fields[field].active = usize::from(hi & 0x08 != 0);
         }
         let channel = self.fields[field].active;

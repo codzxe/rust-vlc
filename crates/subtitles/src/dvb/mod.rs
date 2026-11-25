@@ -122,6 +122,11 @@ pub enum DvbDamage {
     ObjectCodingUnsupported { object_id: u16, coding: u8 },
     /// A pixel-data sub-block with an unknown data-type byte.
     UnknownPixelBlock { byte: u8, object_id: u16 },
+    /// The region's pixel buffer holds an index beyond its CLUT
+    /// depth's bank (a region redefined to a shallower depth keeps
+    /// its painted pixels) — the region was skipped rather than
+    /// rendered from a wrong palette.
+    StaleClutIndex { region_id: u8, index: u8 },
     /// The damage ledger overflowed (count of dropped events).
     DamageOverflow { dropped: usize },
 }
@@ -187,6 +192,10 @@ impl std::fmt::Display for DvbDamage {
                     "unknown pixel-data sub-block 0x{byte:02X} in object {object_id}"
                 )
             }
+            DvbDamage::StaleClutIndex { region_id, index } => write!(
+                f,
+                "region {region_id} pixel index {index} stale for its CLUT depth (region skipped)"
+            ),
             DvbDamage::DamageOverflow { dropped } => {
                 write!(f, "damage ledger overflow: {dropped} events dropped")
             }
@@ -803,14 +812,30 @@ impl DvbDecoder {
                 continue;
             }
             match self.cluts.get(&region.clut_id) {
-                Some(clut) => out.push(Self::region_image(*entry, region, clut)),
+                Some(clut) => match Self::region_image(*entry, region, clut) {
+                    Ok(image) => out.push(image),
+                    Err(index) => {
+                        self.damage(DvbDamage::StaleClutIndex {
+                            region_id: entry.region_id,
+                            index,
+                        });
+                    }
+                },
                 None => {
                     let bad = DvbDamage::BadClutId {
                         clut_id: region.clut_id,
                         region_id: entry.region_id,
                     };
                     let clut = clut::Clut::default_banks();
-                    out.push(Self::region_image(*entry, region, &clut));
+                    match Self::region_image(*entry, region, &clut) {
+                        Ok(image) => out.push(image),
+                        Err(index) => {
+                            self.damage(DvbDamage::StaleClutIndex {
+                                region_id: entry.region_id,
+                                index,
+                            });
+                        }
+                    }
                     self.damage(bad);
                 }
             }
@@ -818,24 +843,29 @@ impl DvbDecoder {
         self.composed_regions = out;
     }
 
+    /// Render one region's pixel buffer through its CLUT. `Err`
+    /// carries the first index beyond the depth's bank (the stale-
+    /// CLUT guard: a region redefined to a shallower depth keeps its
+    /// painted pixels; `bank[index]` would read out of bounds).
     fn region_image(
         entry: segment::PageRegionRef,
         region: &RegionState,
         clut: &clut::Clut,
-    ) -> DvbRegionImage {
-        let bank = clut.bank(region.depth);
+    ) -> Result<DvbRegionImage, u8> {
         let mut rgba = Vec::with_capacity(region.pbuf.len() * 4);
         for &index in &region.pbuf {
-            let c = bank[index as usize];
+            let Some(c) = clut.color_at(region.depth, index) else {
+                return Err(index);
+            };
             rgba.extend_from_slice(&[c.r, c.g, c.b, c.a]);
         }
-        DvbRegionImage {
+        Ok(DvbRegionImage {
             x: entry.x,
             y: entry.y,
             width: region.width,
             height: region.height,
             rgba,
-        }
+        })
     }
 }
 

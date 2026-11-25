@@ -55,8 +55,9 @@
 //! # Never
 //!
 //! I/O, unsafe, unbounded allocation (object canvases capped at
-//! [`rle::MAX_OBJECT_PIXELS`], 8 palettes / 64 objects per epoch —
-//! the reference caps), panics.
+//! [`rle::MAX_OBJECT_PIXELS`], the composed RGBA one display set
+//! retains at [`MAX_COMPOSED_RGBA_BYTES`], 8 palettes / 64 objects
+//! per epoch — the reference caps), panics.
 
 pub mod fuzz;
 pub mod palette;
@@ -80,6 +81,14 @@ pub const MAX_DAMAGE_EVENTS: usize = 64;
 pub const MAX_EPOCH_PALETTES: usize = 8;
 /// Max objects live in one epoch (the reference's cap).
 pub const MAX_EPOCH_OBJECTS: usize = 64;
+/// Composed-RGBA retention cap for one display set (64 MiB — four
+/// [`rle::MAX_OBJECT_PIXELS`] canvases). A PCS object-reference
+/// count is an uncapped header byte (≤255) and `compose()` follows
+/// it blindly, so a ~2 KiB display set can re-reference one 16 MiB
+/// canvas 255 times and retain ~4 GiB; the cap turns that
+/// amplification into one typed [`PgsDamage::CompositionRetained`]
+/// event and drops the remaining references.
+pub const MAX_COMPOSED_RGBA_BYTES: usize = 64 * 1024 * 1024;
 
 /// Typed decode damage (never a panic; the decode continues).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +133,10 @@ pub enum PgsDamage {
     /// A mid-stream ODS arrived with no first fragment in flight for
     /// its id — dropped.
     FragmentWithoutHeader { object_id: u16 },
+    /// The composed RGBA the display set retains crossed
+    /// [`MAX_COMPOSED_RGBA_BYTES`] — the remaining object references
+    /// were dropped (the composition-amplification guard).
+    CompositionRetained { bytes: usize },
     /// The damage ledger overflowed (count of dropped events).
     DamageOverflow { dropped: usize },
 }
@@ -167,6 +180,10 @@ impl std::fmt::Display for PgsDamage {
             PgsDamage::FragmentWithoutHeader { object_id } => write!(
                 f,
                 "object {object_id} continuation fragment with no first fragment"
+            ),
+            PgsDamage::CompositionRetained { bytes } => write!(
+                f,
+                "composed RGBA retention crossed the cap ({bytes} bytes; references dropped)"
             ),
             PgsDamage::DamageOverflow { dropped } => {
                 write!(f, "damage ledger overflow: {dropped} events dropped")
@@ -542,6 +559,11 @@ impl PgsDecoder {
             self.composed_objects = out;
             return;
         };
+        // Retention guard: the PCS may legally re-list one object up
+        // to 255 times and every reference re-decodes + re-copies its
+        // canvas — accumulate the composed bytes and stop (typed)
+        // once the display set would retain past the cap.
+        let mut retained = 0usize;
         for comp in &pcs.objects {
             let Some(object) = self.objects.get(&comp.id).cloned() else {
                 self.damage(PgsDamage::ObjectMissing { object_id: comp.id });
@@ -551,6 +573,11 @@ impl PgsDecoder {
                 rle::decode_object(&object.rle, object.width, object.height);
             if rle_damage.any() {
                 self.damage(PgsDamage::RleOverrun { object_id: comp.id });
+            }
+            retained = retained.saturating_add(indices.len().saturating_mul(4));
+            if retained > MAX_COMPOSED_RGBA_BYTES {
+                self.damage(PgsDamage::CompositionRetained { bytes: retained });
+                break;
             }
             let mut rgba = Vec::with_capacity(indices.len() * 4);
             for &index in &indices {
