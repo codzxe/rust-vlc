@@ -151,7 +151,8 @@ fn signed_wrap_delta(a: u64, b: u64) -> i64 {
 /// Parse the HLS ISO-8601 profile (`YYYY-MM-DDTHH:MM:SS[.f{1,9}]Z`,
 /// UTC `Z` spelling only — the form every public HLS example uses)
 /// into Unix-epoch milliseconds. Out-of-range fields (month 13,
-/// Feb 30, hour 24, …) are refused, not clamped.
+/// Feb 30, hour 24, a year past the i64 epoch-millisecond horizon,
+/// …) are refused, not clamped.
 fn parse_iso8601_utc(text: &str) -> Option<i64> {
     let text = text.trim().strip_suffix('Z')?;
     let (date, time) = text.split_once('T')?;
@@ -192,7 +193,19 @@ fn parse_iso8601_utc(text: &str) -> Option<i64> {
         return None;
     }
     let days = days_from_civil(year, month, day);
-    Some(((days * 24 + hour) * 60 + minute) * 60 * 1000 + second * 1000 + frac_ms)
+    // Checked accumulation: the days→milliseconds chain overflows
+    // i64 once the year sits past the epoch-millisecond horizon (the
+    // crafted 9-digit `LOCAL` year — a panic under overflow-checks,
+    // a silently wrapped anchor in release). Out of range is `None`
+    // per this parser's contract, never a panic and never a guess.
+    let hours = days.checked_mul(24)?.checked_add(hour)?;
+    let minutes = hours.checked_mul(60)?.checked_add(minute)?;
+    let seconds = minutes.checked_mul(60)?;
+    let millis = seconds
+        .checked_mul(1000)?
+        .checked_add(second.checked_mul(1000)?)?
+        .checked_add(frac_ms)?;
+    Some(millis)
 }
 
 fn is_leap_year(year: i64) -> bool {

@@ -621,6 +621,22 @@ impl HlsAdaptiveStream {
         let mut out = Vec::new();
         while out.len() < len {
             if self.pos < self.fetched_upto {
+                // A cursor inside the fetched range but before the
+                // retained window: the bytes at `pos` were evicted —
+                // one segment body over `max_retained_bytes` (a
+                // config-accepted shape) restarts the window at the
+                // body's end. Refuse typed instead of wrapping the
+                // window offset (`pos - retained_from` underflowed,
+                // then the retained slice panicked — the audit's
+                // crafted-oversized-segment repro).
+                if self.pos < self.retained_from {
+                    return Err(mint(
+                        ErrorKind::Inaccessible {
+                            reason: AccessDenied::NotFound,
+                        },
+                        "streaming.hls.read-unretained",
+                    ));
+                }
                 let at = (self.pos - self.retained_from) as usize;
                 let have = self.retained.len() - at;
                 let take = have.min(len - out.len());

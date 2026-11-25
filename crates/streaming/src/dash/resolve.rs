@@ -24,7 +24,9 @@
 //!   §5.3.9.6) resolves against the next entry's `@t` when present,
 //!   else `Period@duration`/presentation duration, else refuses
 //!   typed ([`DashResolveError::TimelineExtentUnknown`]) — never a
-//!   guess.
+//!   guess. A zero tile duration (`@d="0"` on the timeline, or
+//!   `@duration="0"` on a template) cannot tile any extent either
+//!   and refuses the same way — never a divide-by-zero.
 //! * Budgets (D-1, and the fuzz harness's bounded-memory contract):
 //!   [`MAX_PLAN_SEGMENTS`] segments per representation,
 //!   [`MAX_PLAN_URL_BYTES`] URL bytes + struct cost per
@@ -403,6 +405,14 @@ fn expand_timeline(
                 .ok_or(DashResolveError::TimelineOverflow)?,
             // Negative: until the next entry's @t …
             Some(_) => {
+                // A zero @d cannot tile any extent: the repeat count
+                // is undefined — and the ceil-divisions below would
+                // divide by zero on the crafted `@d="0"` timeline
+                // (the parser accepts it; the resolver must not
+                // panic on it). Refuse typed, never a guess.
+                if entry.d == 0 {
+                    return Err(DashResolveError::TimelineExtentUnknown);
+                }
                 let next_t = entries[i + 1..].iter().find_map(|e| e.t);
                 match next_t {
                     Some(t) if t > start => {
@@ -732,6 +742,14 @@ fn period_duration_ticks(mpd: &Mpd, period: &Period, timescale: u64) -> Option<u
 /// (ceil-division on ticks; None when the extent is unknown).
 fn fixed_segment_count(mpd: &Mpd, period: &Period, timescale: u64, duration: u64) -> Option<u64> {
     let end = period_duration_ticks(mpd, period, timescale)?;
+    // A zero @duration tiles no period finitely — the count is
+    // undefined, and `end / duration` below would divide by zero on
+    // the crafted `@duration="0"` template (the parser accepts it;
+    // the resolver must not panic on it). `None` is the caller's
+    // typed `TimelineExtentUnknown` refusal, never a panic.
+    if duration == 0 {
+        return None;
+    }
     let count = end / duration + u64::from(end % duration != 0);
     if count == 0 { None } else { Some(count) }
 }
