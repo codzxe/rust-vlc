@@ -32,8 +32,13 @@ What this release actually does, per `docs/feature-matrix.toml`
   formats. **Zero rows are claimed for the web build.**
 - The `lumen` CLI is the real engine surface in this release —
   headless decode, playback state, seeking, A/V sync. Audio output is
-  the ADR-005 null device (real output adapters exist as seams but no
-  backend is admitted yet).
+  the null backend by default (instrumented with sample/frame counters
+  — Devil-Fix wave FX3, 2026-11-25); a real output adapter is admitted
+  behind the optional `backend-cpal` build feature (ADR-005, amended),
+  compiled by the windows-latest CI lane — but host selection and the
+  volume/mute/balance/EQ verbs are wired in wave FX4, and audible
+  output on real hardware is [VERIFY] pending a Windows run
+  (KNOWN-LIMITS §4).
 - `lumen-desktop` is the ADR-004 std-only composition-root skeleton —
   it opens no window; it ships so packaging paths are exercised
   honestly. The Tauri webview shell is infra-blocked (issue #4, R-04).
@@ -76,8 +81,12 @@ headlines users will hit:
   Apple Developer ID / notarization (external procurement blockers,
   tracked in the wave program). Windows SmartScreen will warn; macOS
   Gatekeeper requires right-click → Open.
-- **Audio output is not admitted yet** (ADR-005): the CLI decodes and
-  syncs, but the audio backend is the typed null device — see
+- **Audio: default builds render to the instrumented null backend**
+  (ADR-005, amended by Devil-Fix wave FX3): the cpal adapter is
+  admitted behind the optional `backend-cpal` feature and compiled by
+  the windows-latest CI lane, but shipped hosts do not select it yet
+  (host wiring + volume/mute/balance/EQ verbs land in wave FX4) and
+  audibility on real hardware is [VERIFY] pending a Windows run — see
   KNOWN-LIMITS §4.
 - **The desktop binary opens no window** (ADR-004 skeleton; Tauri
   shell infra-blocked).

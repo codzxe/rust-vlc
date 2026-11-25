@@ -860,11 +860,16 @@ the registry).
 `AudioBackend` trait (extends `audio-engine::AudioSink` with device
 enumeration/open), backend selection, a null backend for tests/headless,
 and the browser (WebAudio-compatible) backend for the wasm target (MP §10).
-OS-specific backends are implemented in `platform-*`. *Interim (Phase 2,
-per ADR-005): the crate ships the trait seam, the null backend, the SPSC
-output ring + `render_into` real-time callback, the `SampleCounter` clock
-truth, and typed OS-backend stubs (`audio.os_backend_pending`) — no real
-backend is imported yet; see `docs/adr/ADR-005-audio-output.md`.*
+OS-specific backends are implemented in `platform-*`. *Amended 2026-11-25
+(Devil-Fix wave FX3, FIX-PLAN §3 F1.1 Route A; FX3-A01/A02): the interim
+ended* — ADR-005 is amended and **cpal 0.18.2 is admitted as an optional
+dependency behind the `backend-cpal` cargo feature of this crate** (the
+adapter is `src/cpal.rs`; the windows-latest CI lane compiles it, FX3-A07).
+The crate still ships the trait seam, the null backend (now instrumented
+with sample/frame counters, FX3-A05), the SPSC output ring + `render_into`
+real-time callback, and the `SampleCounter` clock truth; default builds
+(no feature) link **no** OS audio library. See
+`docs/adr/ADR-005-audio-output.md` (amended).*
 **(b) Interface sketch.**
 
 ```rust
@@ -881,7 +886,10 @@ truth source, doc 03 §4.7/§4.9; an L4→L2 downward edge, recorded in
 `boundaries.toml` since 2.C3 — the original two-dep row under-specified
 it). **(d) Never.** Decode/mix logic, blocking or locking inside the
 real-time callback, OS types in public signatures (ARCH-6), linking an OS
-audio library directly (ADR-005: real backends live in `platform-*`).
+audio library directly (ADR-005: real backends live in `platform-*` —
+**amended 2026-11-25, wave FX3: the one admitted exception is cpal behind
+the crate's own optional `backend-cpal` feature, an audited OS-service
+binding per ADR-005's amended terms; default builds stay std-only**).
 **(e) Tests.** Per-backend device tests with real-hardware evidence labeled
 separately from mock evidence (MP §13); underrun counting; device-loss
 handling (MP §13).
@@ -919,12 +927,21 @@ have exactly one home. They contain the only permitted `unsafe` (with
 documented invariants and an ADR reference per module — MP §9), implement
 traits defined in core crates, and never leak OS types upward (ARCH-6).
 
-**Interim status (recorded 2026-10-22, card 3.DOC-1): Phase 2 shipped a
+**Interim status (recorded 2026-10-22, card 3.DOC-1; audio half
+amended 2026-11-25, Devil-Fix wave FX3): Phase 2 shipped a
 seam-based interim instead of these crates.** The vertical's platform
 surface is carried today by typed seams one layer down: `audio-output`
-(L4) implements the `AudioBackend` adapter trait + the null backend + typed
-OS-backend stubs — **ADR-005**, accepted for exactly that seam, with real
-backends landing here per its admission gate; `renderer-wgpu` (L4)
+(L4) implements the `AudioBackend` adapter trait + the null backend
+(instrumented with sample/frame counters, FX3-A05) — **ADR-005,
+accepted for exactly that seam, and amended 2026-11-25 (wave FX3,
+FIX-PLAN §3 F1.1 Route A): cpal 0.18.2 is admitted as an optional
+dependency of `audio-output` itself, behind the crate's
+`backend-cpal` cargo feature (adapter `src/cpal.rs`, FX3-A01;
+windows-latest CI lane compiles it, FX3-A07) — the platform-*
+fallback was superseded for audio; shipped hosts do not select the
+backend yet (host wiring + volume/mute/balance/EQ verbs land in wave
+FX4; audibility [VERIFY] pending a Windows run)**; `renderer-wgpu`
+(L4)
 implements the `Compositor` seam with the software compositor linked (wgpu
 deferral recorded in `docs/dependencies/records/wgpu-30.0.1.md`, admission-
 time obligations in its §6); the desktop shell is the ADR-004 webview seam
@@ -1496,7 +1513,7 @@ accepted / rejected / superseded`.
 | ADR-002 | WASM extension runtime | **accepted** | 2026-10-19 (Phase 0 gate; D-014) | runtime for `plugin-host-wasm`; must pass the dependency audit with no hidden native code (MP §6) — decided: **wasmi 2.x** (`docs/adr/ADR-002-wasm-runtime-wasmi.md`; note `ADR-002-evidence.md` is the 0.C4-I **evidence pack**, an input — not the decision record; runtime not yet imported, `plugin-host-wasm` is Phase 7) | candidates evaluated in doc 04 | sandbox strength, perf, maintenance exposure |
 | ADR-003 | Video-in-webview strategy | **accepted** | 2026-10-19 (Phase 0 gate; D-014; per-OS confirmation gated on Phase 2 prototypes — 2.D3 delivered **PROVISIONAL-B**, per-OS browser matrix pending desktop runtimes) | native wgpu surface behind transparent webview vs frame streaming to canvas; WebView2 / WKWebView / WebKitGTK tested separately; Linux highest risk — decided: per-OS landing (A on macOS; A-or-B Windows; B on Linux) | per-OS mixed strategy | riskiest UI decision; affects `renderer-wgpu` surface trait |
 | ADR-004 | OS webview exception | **accepted** | 2026-10-22 (formalized; policy since Phase 0 — D-008) | document the webview as the Rust-only exception (MP §2, §9): exact APIs, versions, security review; product never described as all-Rust — decided in `docs/adr/ADR-004-os-webview.md` (engine-side seam landed 2.D3; per-OS webview verdicts + the Phase-4 security review honestly PENDING there) | custom Rust windowing shell (large new surface) | dependency/security exposure; honest messaging |
-| ADR-005 | Audio output backend | **accepted (adapter seam)** | 2026-10-22 (formalized from the 2.C3 draft) | OS audio APIs as audited OS-service bindings (MP §9); latency/jitter budget; unsafe invariants — decided: `AudioBackend` trait seam in audio-output (L4, std-only) + null backend + typed stubs, real backends in `platform-*` (L5) behind the admission gate (`docs/adr/ADR-005-audio-output.md`; **real-backend admission PENDING** with the trigger recorded; cpal NOT admitted — `records/cpal-0.18.2.md`) | single cross-platform backend (doc 04 candidates) | real-time guarantees; platform test matrix |
+| ADR-005 | Audio output backend | **amended (adapter seam accepted 2026-10-22; cpal admitted behind `backend-cpal` 2026-11-25, Devil-Fix wave FX3 — FX3-A02)** | 2026-10-22 (formalized from the 2.C3 draft); amended 2026-11-25 | OS audio APIs as audited OS-service bindings (MP §9); latency/jitter budget; unsafe invariants — decided: `AudioBackend` trait seam in audio-output (L4, std-only) + null backend; **amended: cpal 0.18.2 admitted as an optional dependency of `audio-output` itself behind the crate's `backend-cpal` cargo feature** (adapter `crates/audio-output/src/cpal.rs`, FX3-A01; windows-latest CI lane compiles it, FX3-A07; default builds link no OS audio library; null backend instrumented with sample/frame counters, FX3-A05; host/backend-selection wiring + volume/mute/balance/EQ verbs land in wave FX4; audibility [VERIFY] pending a Windows run) (`docs/adr/ADR-005-audio-output.md`, amended; `records/cpal-0.18.2.md`) | single cross-platform backend (doc 04 candidates) | real-time guarantees; platform test matrix |
 | ADR-006 | License of this repository | **accepted** | 2026-10-19 (user decision) | source license for the reimplementation; clean-room means VLC's GPL does not automatically apply — decided: **MIT** (`LICENSE`; `docs/adr/ADR-006-license-mit.md`, moved from `docs/decisions/` 2026-10-22 for register consistency; D-009; closes R-05) | GPL-family; permissive; dual-licensing | ecosystem compatibility, patent posture, asset redistribution |
 | ADR-007 | VLC 3.0.23 as external test oracle **[PROPOSAL]** | planned | Phase 0 | boundaries for using VLC externally as differential oracle (MP §1 allows running it; vendoring is forbidden) — **identity note (2026-11-09, issue #21): this row is the register authority (Lead decision, card 3.DOC-1); ROADMAP §6 is now aligned to it, and no `ADR-007-*.md` file exists in `docs/adr/` yet** | golden files only | parity evidence quality; CI cost; GPL hygiene |
 | ADR-008 | Optical disc support scope **[PROPOSAL]** | planned | Phase 0→7 | DVD/Blu-ray menus and copy protection, each decided by ADR (MP §14) | full navigation; raw sectors; unsupported | C-dependency pressure; legal risk; feature-matrix entries |

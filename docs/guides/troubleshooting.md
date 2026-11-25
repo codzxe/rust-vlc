@@ -26,9 +26,14 @@ reason and next step there.
 
 **The file plays but I hear nothing / see no window**
 
-Expected in the current phase: audio output goes to the typed **null
-device** (ADR-005 — no real audio backend admitted; cpal is
-Lead-gated) and the desktop shell is the ADR-004 **skeleton** (no
+Expected in the current phase: audio output goes to the **null
+backend** in every shipped host build (instrumented with sample/frame
+counters — Devil-Fix wave FX3, 2026-11-25; the real cpal adapter is
+admitted behind the optional `backend-cpal` build feature and compiled
+by the windows-latest CI lane, but hosts do not select it yet — that
+wiring lands in wave FX4, and audibility on real hardware is
+**[VERIFY] pending a Windows run**) and the desktop shell is the
+ADR-004 **skeleton** (no
 window). The engine really demuxes/decodes/synchronizes — watch the
 event stream, `time` and `info` in the CLI. This is the honest state,
 tracked in `docs/KNOWN-LIMITS.md` §4.
@@ -99,10 +104,18 @@ pinned sandbox chromium via an explicit `executablePath`
 **No audio device appears / device switching does nothing**
 
 Device *discovery* landed in wave 23 (hotplug events, `/discovery`
-UI, issue #42) but *output* is still the null device (ADR-005) —
-enumeration without audible sink. Known and tracked; see
-`docs/KNOWN-LIMITS.md` §4 and the device-discovery merge record
-(`d5611d1`).
+UI, issue #42). *Output* is still the null backend in every shipped
+host build today — enumeration without audible sink — **updated
+2026-11-25 (Devil-Fix wave FX3, FIX-PLAN §3 F1.1 Route A)**: ADR-005
+is amended and a real cpal adapter exists behind the optional
+`backend-cpal` build feature of `crates/audio-output` (compiled by
+the windows-latest CI lane), the null backend is instrumented with
+sample/frame counters, and volume/mute/balance/EQ are real engine
+controls — but backend selection into the shipped hosts and those
+verbs' host wiring land in **wave FX4**, so the symptoms above stand
+until then, and audibility on real hardware is **[VERIFY] pending a
+Windows run**. Known and tracked; see `docs/KNOWN-LIMITS.md` §4 and
+the device-discovery merge record (`d5611d1`).
 
 **Hardware decode seems inactive**
 

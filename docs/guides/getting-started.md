@@ -67,9 +67,17 @@ schema): `open <path> [--start-time T] [--start-paused] [--no-video]
 `decode-bench <path>`, `advance [ticks]`, `help`, `quit`.
 
 **What "playing" means today (honest):** the engine demuxes, decodes
-and synchronizes for real — but the audio output is the typed null
-device (ADR-005: no real audio backend admitted yet) and there is no
-video window (ADR-004: the desktop shell is a skeleton). You will not
+and synchronizes for real. The default audio path is still the **null
+backend — instrumented with sample/frame counters** (Devil-Fix wave
+FX3, 2026-11-25: real progress/underrun evidence, not silence), and
+there is no video window (ADR-004: the desktop shell is a skeleton).
+A real OS audio adapter exists behind the optional `backend-cpal`
+build feature of `crates/audio-output` (ADR-005, amended — FIX-PLAN
+§3 F1.1 Route A; the windows-latest CI lane compiles it), but the
+shipped hosts do not select it yet — backend selection and the
+volume/mute/balance/EQ verbs are wired into the hosts in wave FX4,
+and **audibility on real hardware is [VERIFY] pending a Windows
+run** (`docs/KNOWN-LIMITS.md` §4). On a default build you will not
 hear or see anything; `info`, `time` and the event stream are the
 observable surface. **In-session seek is
 not implemented (reanchor pending)**: on MP4 every seek fails typed at

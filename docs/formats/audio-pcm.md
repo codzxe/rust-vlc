@@ -61,9 +61,22 @@ Shared-target worktree `wt/w24e` @ `c339ee8`, 2-core Linux sandbox:
 
 ## Known gaps / honest limits
 
-- Linux-only evidence, mock-labeled audio output (null device —
-  ADR-005's pending real-backend admission; `docs/KNOWN-LIMITS.md`
-  §4).
+- Linux-only evidence, mock-labeled audio output. **Updated 2026-11-25
+  (Devil-Fix wave FX3, agent FX3-A08):** the null device is no longer
+  "ADR-005's pending real-backend admission" — ADR-005 is amended
+  (FX3-A02) and cpal 0.18.2 is admitted behind the optional
+  `backend-cpal` cargo feature of `crates/audio-output` (adapter
+  `crates/audio-output/src/cpal.rs`, FX3-A01; the windows-latest CI lane
+  compiles it, FX3-A07). Default builds still render into the null
+  backend — now instrumented with sample/frame counters (FX3-A05), so
+  this record's sink-hash evidence rests on real counter evidence.
+  Shipped hosts still open the null backend today; backend selection
+  and the volume/mute/balance/EQ verbs are wired into the hosts in
+  wave FX4 (`docs/KNOWN-LIMITS.md` §4). **Audible output on real
+  hardware remains [VERIFY] pending a Windows run** (FIX-PLAN §3 F1.1
+  acceptance) — this record's decode evidence stays headless-labeled
+  until then (`audit/waves/wave-08/SUMMARY.md` S0 is the finding this
+  row used to summarize).
 - Web (`wasm32`): the wasm host ships the engine core decoder-less
   (the `codecs` crate's external engines do not build for the
   target; the in-house PCM decoder is native-side per the 7.H1
