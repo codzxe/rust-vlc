@@ -44,16 +44,39 @@
 //!   output (the pipeline is the only caller and guarantees the
 //!   shape — the guard is defensive, not reachable).
 //!
-//! # Why not a general resampler
+//! # The two resamplers: bounded drift vs. track-rate conversion
 //!
-//! Track-rate conversion (a 48 kHz track in a 44.1 kHz session) is a
-//! different, later card: it changes the *negotiated* rate, not the
-//! device-vs-nominal ratio. This type's whole contract is the
-//! ±1000 ppm *correction* bound — the limiter is the invariant
-//! (drift.rs:23-25), which is why the ratio derives from
-//! [`DriftCorrection`] and never from a free-form number.
+//! Track-rate conversion (a 44.1 kHz track in a 48 kHz session) was
+//! this module's "different, later card" — the card wave-07's engine
+//! map recorded as absent ("Resampler: LINEAR, ±1000 ppm drift-only,
+//! NO 44.1→48 conversion (convert.rs contains no SRC; pipeline
+//! refuses rate mismatch)") — and it is [`RateResampler`] below.
+//! [`MicroResampler`] keeps its whole contract untouched: the
+//! ±1000 ppm *correction* bound is the invariant (drift.rs:23-25), so
+//! its ratio derives from [`DriftCorrection`] and never from a
+//! free-form number. [`RateResampler`] takes the two session rates as
+//! its ratio, so no limiter bounds it — a 160/147 ratio is the
+//! nominal case there, not an edge. The pipeline's
+//! `audio.rate_mismatch` refusal still stands (pipeline.rs:288-289):
+//! wiring this converter into that refusal is the audio-output lane's
+//! card, not this crate's — the engine capability is real and tested
+//! here, the call is a later wave's.
+//!
+//! Fidelity honesty for the rate path (wave-07's characterization,
+//! kept verbatim in spirit): LINEAR interpolation is this crate's
+//! documented interpolation level. At drift-scale ratios (±1000 ppm)
+//! the kernel's error stays in the top ~0.1 % of the spectrum; at a
+//! macroscopic ratio the linear kernel's real limits show —
+//! upsampling attenuates near the source Nyquist (the triangular
+//! kernel's sinc² response), downsampling aliases everything above
+//! the destination Nyquist (there is no pre-filter — do not expect
+//! transparency downconverting loud high-frequency content). A
+//! higher-quality kernel is a later quality knob, deliberately not
+//! invented here.
 
+use crate::error;
 use media_clock::DriftCorrection;
+use media_types::EngineError;
 
 /// The ppm scale: 1 ppm = 1e-6 of the nominal rate (drift.rs's own
 /// constant, restated for the phase arithmetic below).
@@ -269,6 +292,291 @@ impl MicroResampler {
         // pinned output bits, not an accident to “fix”.
         if cursor == last_abs && frac == 0 {
             let weight = frac as f32 / step_den as f32;
+            let idx = (cursor - base_abs) as usize;
+            for (plane, in_plane) in self.out.iter_mut().zip(input.iter()) {
+                let a = in_plane[idx];
+                let b = a;
+                plane[emitted] = a + (b - a) * weight;
+            }
+            emitted += 1;
+            advance!();
+        }
+
+        for plane in &mut self.out {
+            plane.truncate(emitted);
+        }
+
+        // Commit the phase and roll the tail: this quantum's last
+        // sample becomes the cross-quantum history; the next quantum
+        // starts right after it.
+        self.cursor_abs = cursor;
+        self.frac_num = frac;
+        for (c, slot) in self.tail.iter_mut().enumerate() {
+            *slot = input[c][in_frames - 1];
+        }
+        self.tail_base = last_abs;
+        emitted
+    }
+}
+
+/// Euclid's gcd for the rate reduction (both operands are nonzero u32
+/// rates widened to u64 — the constructor refused the zeros).
+fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        let remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    a
+}
+
+/// The track-rate conversion resampler — the SRC card (wave-07's
+/// engine-map gap "NO 44.1→48 conversion: convert.rs contains no SRC,
+/// the pipeline refuses rate mismatch", activated as an engine
+/// capability). Converts between two *different* negotiated rates:
+/// the source (track) rate in, the destination (device) rate out —
+/// the same linear kernel, the same exact `i128`/`i64` rational phase
+/// accumulator and the same one-sample-tail streaming shape as
+/// [`MicroResampler`]; only the ratio's source differs (the two rates,
+/// not a bounded [`DriftCorrection`] — see the module docs' fidelity
+/// honesty: linear is the documented level, with its sinc² rolloff
+/// upsampled and its un-pre-filtered aliasing downsampled).
+///
+/// Equal rates are a **bit-exact passthrough**: `process` returns the
+/// input count and the input bits verbatim (a copy, not the
+/// arithmetic path — even `-0.0` survives), so a session that
+/// negotiates matching rates can wire this unconditionally and pay
+/// nothing but the copy.
+///
+/// Streaming shape (identical contract to the drift twin):
+/// [`RateResampler::process`] takes one quantum's planes and emits the
+/// converted quantum into the reused output planes, answering the
+/// output frame count. State is O(channels) fixed-size — the phase
+/// accumulator plus one history sample per channel (D-1); nothing
+/// grows with stream length.
+#[derive(Debug, Clone)]
+pub struct RateResampler {
+    /// Channel count (the mixer shape; fixed at construction).
+    channels: usize,
+    /// The session rates the ratio derives from (kept for `rates`).
+    src_rate: u32,
+    dst_rate: u32,
+    /// The reduced step: `step_num / step_den` input samples per
+    /// output sample (`step_num = src / gcd`, `step_den = dst / gcd`)
+    /// — the same exact rational the drift path derives from ppm.
+    step_num: u64,
+    step_den: u64,
+    /// The absolute whole-input-sample cursor (input samples consumed
+    /// since the stream origin — `i128`, the drift twin's width).
+    cursor_abs: i128,
+    /// The fractional part of the input position, as a numerator over
+    /// `step_den` (`0 ≤ frac < step_den`, the rational carry).
+    frac_num: u64,
+    /// The absolute index of the previous quantum's last input sample
+    /// (the tail's stream position); `−1` before the first quantum.
+    tail_base: i128,
+    /// One history sample per channel: the previous quantum's last
+    /// input sample (the only cross-quantum read the linear kernel
+    /// can make).
+    tail: Vec<f32>,
+    /// The output planes (reused; cleared and refilled per quantum).
+    out: Vec<Vec<f32>>,
+}
+
+impl RateResampler {
+    /// Build for a mixer shape and the two session rates: the source
+    /// (track) rate and the destination (device) rate. Equal rates
+    /// build the bit-exact passthrough below.
+    ///
+    /// # Errors
+    /// [`Unsupported`](media_types::ErrorKind::Unsupported) with code
+    /// `audio.pipeline_shape_invalid` when the channel count or either
+    /// rate is zero (the same code [`AudioPipeline::new`] refuses a
+    /// zero shape with — a zero rate has no ratio).
+    ///
+    /// [`AudioPipeline::new`]: crate::pipeline::AudioPipeline::new
+    pub fn new(channels: u32, src_rate: u32, dst_rate: u32) -> Result<RateResampler, EngineError> {
+        if channels == 0 || src_rate == 0 || dst_rate == 0 {
+            return Err(error::unsupported_format("audio.pipeline_shape_invalid"));
+        }
+        let g = gcd(u64::from(src_rate), u64::from(dst_rate));
+        let channels = channels as usize;
+        Ok(RateResampler {
+            channels,
+            src_rate,
+            dst_rate,
+            step_num: u64::from(src_rate) / g,
+            step_den: u64::from(dst_rate) / g,
+            cursor_abs: 0,
+            frac_num: 0,
+            tail_base: -1,
+            tail: vec![0.0; channels],
+            out: vec![Vec::new(); channels],
+        })
+    }
+
+    /// The session rates this converter was built for.
+    #[must_use]
+    pub fn rates(&self) -> (u32, u32) {
+        (self.src_rate, self.dst_rate)
+    }
+
+    /// The rates match: `process` is the bit-exact passthrough (the
+    /// wiring's "skip the converter" check).
+    #[must_use]
+    pub fn is_passthrough(&self) -> bool {
+        self.step_num == self.step_den
+    }
+
+    /// Drop the stream phase only (a new regime: seek / generation /
+    /// anchor epoch). The rates stay — they are session facts, not
+    /// stream state (the same split as the drift twin's `reset`).
+    pub fn reset(&mut self) {
+        self.cursor_abs = 0;
+        self.frac_num = 0;
+        self.tail_base = -1;
+        self.tail.fill(0.0);
+    }
+
+    /// The output planes of the last [`RateResampler::process`] call.
+    /// Empty before the first call; `out[c].len()` equals the returned
+    /// frame count for every channel.
+    #[must_use]
+    pub fn planes(&self) -> &[Vec<f32>] {
+        &self.out
+    }
+
+    /// Convert one quantum: read `input[c][0..in_frames]` at the
+    /// source rate, emit the same waveform on the destination rate's
+    /// sampling grid into the reused output planes, answer the output
+    /// frame count.
+    ///
+    /// # Phase math (exact, no floats)
+    ///
+    /// The input position advances `step = src/dst` input samples per
+    /// output sample, carried as `cursor_abs + frac_num/step_den`
+    /// across quanta — the drift resampler's rational accumulator with
+    /// the rates as the numerator/denominator source. The advance is
+    /// a division, never a subtraction loop: a step of any magnitude
+    /// costs one div/mod (no pathological-ratio spin).
+    ///
+    /// # Geometry (the drift twin's audit F-002 class, done right here)
+    ///
+    /// A channel-count mismatch OR a plane shorter than `in_frames`
+    /// produces zero output — no panic, no partial state change.
+    ///
+    /// # Bounds
+    ///
+    /// Every emitted position lies in the closed window
+    /// `[base−1, last_abs]` of its quantum, so `out ≤ ⌊(in+1)·
+    /// dst/src⌋ + 1` (the lattice bound; capacity reserved per call).
+    /// Equal rates return the input count and the input bits. Zero
+    /// `in_frames` is a no-op returning 0.
+    pub fn process(&mut self, input: &[Vec<f32>], in_frames: usize) -> usize {
+        if in_frames == 0
+            || input.len() != self.channels
+            || input.iter().any(|plane| plane.len() < in_frames)
+        {
+            return 0;
+        }
+        // The passthrough fast path: equal rates keep the input count
+        // and the input BITS verbatim (a copy, not the interpolation —
+        // `−0.0` survives; the arithmetic path's `a + (b−a)·0` sum
+        // would flush it). The phase rolls exactly where the
+        // arithmetic path would leave it: cursor on the next base,
+        // fraction zero.
+        if self.step_num == self.step_den {
+            for (plane, source) in self.out.iter_mut().zip(input.iter()) {
+                plane.resize(in_frames, 0.0);
+                plane.copy_from_slice(&source[..in_frames]);
+            }
+            self.cursor_abs += in_frames as i128;
+            self.tail_base += in_frames as i128;
+            for (slot, source) in self.tail.iter_mut().zip(input.iter()) {
+                *slot = source[in_frames - 1];
+            }
+            return in_frames;
+        }
+        let step_num = self.step_num;
+        let step_den = self.step_den;
+        // This quantum's absolute placement: right after the previous
+        // quantum's last sample (tail_base), which the tail holds.
+        let base_abs = self.tail_base + 1;
+        // The absolute index of this quantum's last input sample.
+        let last_abs = base_abs + in_frames as i128 - 1;
+
+        // Local phase copies: the kernel reads the tail (immutable)
+        // while the output planes mutate — field-disjoint borrows.
+        let mut cursor = self.cursor_abs;
+        let mut frac = self.frac_num;
+        let tail = &self.tail;
+
+        // Emit: pre-size the reused planes to the worst-case capacity
+        // once (after warm-up a plain length refit — D-1), write by
+        // index, truncate to the emitted count. The capacity is the
+        // lattice bound above; `u128` because a whole-track quantum
+        // times a 2^32-rate still fits with three decades to spare.
+        let cap = ((in_frames as u128 + 1) * step_den as u128 / step_num as u128 + 2) as usize;
+        for plane in &mut self.out {
+            plane.resize(cap, 0.0);
+        }
+        let mut emitted = 0usize;
+
+        // The interpolation weight and phase advance, shared by all
+        // three loop segments. The weight is the only float on this
+        // path (it scales sample DATA, never a position): computed in
+        // f64 and narrowed once, so it is the correctly-rounded
+        // `frac/den` for every representable rate — no f32-precision
+        // cliff at 2^24 Hz like the drift twin's f32 divide has (its
+        // operands are ppm-bounded and stay exact there).
+        macro_rules! advance {
+            () => {
+                frac += step_num;
+                let whole = frac / step_den;
+                frac -= whole * step_den;
+                cursor += whole as i128;
+            };
+        }
+
+        // Prefix: the entry-cursor invariant (the exit cursor is
+        // always ≥ last_abs = the next base − 1) puts the stream at
+        // most one sample behind the quantum (`base − 1`): `a` is the
+        // carried history sample, `b` the quantum's first input
+        // sample. At upsample ratios this emits until the phase
+        // crosses the base — every position in `[base−1, base)`.
+        while cursor < base_abs {
+            let weight = (frac as f64 / step_den as f64) as f32;
+            for (c, plane) in self.out.iter_mut().enumerate() {
+                let a = tail[c];
+                let b = input[c][0];
+                plane[emitted] = a + (b - a) * weight;
+            }
+            emitted += 1;
+            advance!();
+        }
+
+        // Body: both kernel samples inside the quantum, fetched as one
+        // two-sample window (single bounds check per output).
+        while cursor < last_abs {
+            let weight = (frac as f64 / step_den as f64) as f32;
+            let idx = (cursor - base_abs) as usize;
+            for (plane, in_plane) in self.out.iter_mut().zip(input.iter()) {
+                let window = &in_plane[idx..idx + 2];
+                let a = window[0];
+                let b = window[1];
+                plane[emitted] = a + (b - a) * weight;
+            }
+            emitted += 1;
+            advance!();
+        }
+
+        // Exact tail: the one whole-sample emission whose right
+        // neighbor would lie in the next quantum — weight 0, no right
+        // sample read. The interpolation formula is kept verbatim
+        // (`a + (b − a) · weight` with `b = a`), matching the drift
+        // twin's pinned output bits.
+        if cursor == last_abs && frac == 0 {
+            let weight = (frac as f64 / step_den as f64) as f32;
             let idx = (cursor - base_abs) as usize;
             for (plane, in_plane) in self.out.iter_mut().zip(input.iter()) {
                 let a = in_plane[idx];
