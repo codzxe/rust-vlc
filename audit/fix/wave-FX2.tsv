@@ -1,11 +1,11 @@
 agent	plan_item	defect	files	evidence
-FX2-A01	F0.2	engine-info registry single-source (derive from dispatch table, 16 arms)	apps/cli/src/host.rs:1643-1658	audit/final/DEVIL-AUDIT-REPORT.md; audit/files/apps/cli/src/host.rs.audit.md
-FX2-A02	F0.2	decode-bench real measurement (h264 v_frames > 0 for the file it plays)	apps/cli/src/bench.rs:299-334	audit/files/apps/cli/src/bench.rs.audit.md; audit/waves/wave-13
+FX2-A01	F0.2+F0.3	engine-info single-source from dispatch table + seekable truth (same file, one owner)	apps/cli/src/host.rs:1643-1658 + :1307	audit/final/DEVIL-AUDIT-REPORT.md; audit/waves/wave-13
+FX2-A02	F0.2	decode-bench real measurement (v_frames > 0 for the file it plays)	apps/cli/src/bench.rs:299-334	audit/files/apps/cli/src/bench.rs.audit.md
 FX2-A03	F0.2	landed-string refusal derives from dispatch table	apps/cli/src/pipeline_host.rs:372-378	audit/files/apps/cli/src/pipeline_host.rs.audit.md
-FX2-A04	F0.3	CLI info seekable: read engine SeekSupport, delete the true constant	apps/cli/src/host.rs:1307	audit/waves/wave-13 (W13-A02 disproof)
+FX2-A04	followups	asf walk_header_extension unchecked adds + ctts v1 i64 misread + signature no-panic false promise	crates/demux/src/asf/header.rs:1002-1013; crates/demux/src/mp4/mod.rs (ctts v1); crates/media-probe/src/signature/mod.rs:470-492	wave FX1 risk sections: audit/fix/waves/FX1/FX1-A03.md FX1-A02.md FX1-A07.md
 FX2-A05	F1.1b	PropVariant pinned 16B vs 24 on x64 (stack under-write class)	crates/platform-windows/src/windows/com.rs	audit/waves/wave-08 (W08-A10)
-FX2-A06	F1.1b	dxgi vtable missing 4 IDXGIObject slots; get_desc1 calls EnumOutputs	crates/platform-windows/src/windows/dxgi.rs	audit/waves/wave-08
+FX2-A06	F1.1b	dxgi vtable missing 4 IDXGIObject slots; get_desc1 actually calls EnumOutputs	crates/platform-windows/src/windows/dxgi.rs	audit/waves/wave-08
 FX2-A07	F1.1c	CoreAudio ELEMENT_MAIN=1 vs master=0 property-address bug	crates/platform-macos/src/macos/coreaudio.rs	audit/waves/wave-08 (W08-A02)
-FX2-A08	F0.6	doc lies: video-h264.md C-001; PARITY-REPORT C-002 billing claim; network-http.md C-004	docs/formats/video-h264.md; docs/PARITY-REPORT.md:122-125; docs/network-http.md	audit/final/CONTRADICTIONS.md C-001..C-006
-FX2-A09	F0.6	doc lies: seek triple-lie rows; four-registry story; INFRA-BLOCKED remainder	docs/feature-matrix*; docs/MediaInfo*; matrix notes	audit/final/CONTRADICTIONS.md; audit/waves/wave-11
-FX2-A10	followups	4 leftover guards: hls/media.rs + hls/live.rs underflow (A06 risk); asf walk_header_extension unchecked adds (A07 risk); ctts v1 i64 misread (A03 risk F-007); signature no-panic false promise sweep (A02 risk)	crates/streaming/src/hls/media.rs; crates/streaming/src/hls/live.rs; crates/demux/src/asf/header.rs:1002-1013; crates/demux/src/mp4/mod.rs ctts v1; crates/media-probe/src/signature/mod.rs:470-492	wave FX1 reports audit/fix/waves/FX1/*.md (risk sections)
+FX2-A08	F0.6	doc lies C-001 video-h264.md; C-002 PARITY-REPORT billing claim; C-004 network-http.md	docs/formats/video-h264.md:8-12; docs/PARITY-REPORT.md:122-125; docs/network-http.md	audit/final/CONTRADICTIONS.md
+FX2-A09	F0.6	doc lies: seek triple-lie rows (matrix + MediaInfo) + four-registry story	docs/ (feature-matrix, MediaInfo, registry story docs)	audit/final/CONTRADICTIONS.md; audit/waves/wave-11
+FX2-A10	followups	hls/media.rs + hls/live.rs retained-window underflow twins (same class as master.rs fix)	crates/streaming/src/hls/media.rs; crates/streaming/src/hls/live.rs	wave FX1 risk section: audit/fix/waves/FX1/FX1-A06.md
