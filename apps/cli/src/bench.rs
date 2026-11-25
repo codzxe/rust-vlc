@@ -1,18 +1,20 @@
 //! `decode-bench` — the Lumen runner of the ffmpeg speed-parity
 //! benchmark (card W4-R2; the runner half of `tools/corpus/
-//! speed_bench.py --runner lumen='lumen decode-bench {file}'`, the
-//! gap 4.CORPUS-V3 registered).
+//! speed_bench.py --runner lumen='lumen decode-bench {file}'`,
+//! the gap 4.CORPUS-V3 registered).
 //!
 //! # What it measures
 //!
-//! Open → demux → **decode to null** over the real first-vertical
-//! pipeline pieces — the very [`crate::demux_host::open_source`] path
-//! the player uses (canonicalize → `input` access → `media-probe` →
-//! `AviDemuxer::start` + the strf facts pre-pass), then the
-//! [`codecs`] decoders behind the [`codec_api::Decoder`] contract,
-//! fed straight from [`Demuxer::next_event`] — no engine, no queues,
-//! no devices: the benchmark isolates open + demux + decode, the
-//! stages whose speed ffmpeg's `-f null -` run exercises.
+//! Open → demux → **decode to null** over the real pipeline pieces —
+//! the very [`crate::demux_host::open_source`] path the player uses
+//! (canonicalize → `input` access → `media-probe` → the container
+//! registry → the per-container facts pre-pass), then the decoders
+//! **THE dispatch selects** ([`crate::pipeline_host::HostDecoderProvider`]
+//! — the single registry `lumen open` wires; the bench keeps no codec
+//! list of its own), behind the [`codec_api::Decoder`] contract, fed
+//! straight from [`Demuxer::next_event`] — no engine, no queues, no
+//! devices: the benchmark isolates open + demux + decode, the stages
+//! whose speed ffmpeg's `-f null -` run exercises.
 //!
 //! # The BENCH line (the contract with speed_bench.py)
 //!
@@ -35,38 +37,40 @@
 //! # Per-stream coverage (honest)
 //!
 //! The first video stream and the first audio stream are benched;
-//! their packet/decoded counts are the line's `v_*`/`a_*` pairs, so
-//! a codec family without a decoder shows up as `v_decoded < v_frames`
-//! (or `v_frames=0` when the demuxer enumerates no such track — the
-//! AVI demuxer refuses non-MJPEG video and non-PCM audio streams at
-//! `start`, so those files answer with the demuxer's typed refusal).
-//! Human notes ride stderr only.
+//! their packet/decoded counts are the line's `v_*`/`a_*` pairs.
+//! The limbs come from the dispatch, so a codec family outside its
+//! arms answers with the dispatch's own typed refusal ("no decoder
+//! for `<codec>` in this build", the landed inventory named): as the
+//! coverage note when the other kind still benches, and — when
+//! nothing at all was benched — as the command's typed failure (no
+//! BENCH line, nonzero exit: a bench that measured nothing is not a
+//! successful zero). Human notes ride stderr only.
 //!
 //! # Decode-loop discipline (D-1)
 //!
 //! The loop introduces zero per-frame allocations of its own: packets
 //! move by value into `decode`, the demuxer's payload slot pool
-//! recycles, the MJPEG decoder reuses its decode context, PCM's
-//! native path is zero-copy, and the sink drops frames without
-//! touching them. Per-frame damage is concealed exactly like the
-//! engine does it (`playback-engine`'s `per_frame_damage` rule +
-//! the 1000-consecutive budget), so dirty files stay bounded.
+//! recycles, and the sink drops frames without touching them.
+//! Per-frame damage is concealed exactly like the engine does it
+//! (`playback-engine`'s `per_frame_damage` rule + the
+//! 1000-consecutive budget), so dirty files stay bounded.
 
 use std::io::Write;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use commands::catalog::types::SourceSpec;
 use commands::{CommandError, ErrorCode, Stage};
 use media_types::error::DecodeCause;
-use media_types::ids::CodecDescriptor;
 use media_types::{EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet};
+use playback_engine::DecoderProvider;
 use plugin_api::DemuxEvent;
 
 use crate::demux_host;
 use crate::exit;
+use crate::pipeline_host::HostDecoderProvider;
 
 /// The maximum run of consecutive concealed per-frame damage before
 /// the bench gives up (mirrors `playback-engine`'s
@@ -74,6 +78,16 @@ use crate::exit;
 /// a stream whose every packet fails is not being benchmarked, it is
 /// broken).
 const CONCEALMENT_BUDGET: u32 = 1000;
+
+/// The per-limb end-of-stream flush budget: flush calls before the
+/// decoder's `Drained` answer is taken as final (the engine's own
+/// flush-to-`Drained` loop shape, `TickBudget::flush_calls_per_limb`
+/// per tick at EOF — the bench drains once, so it carries its own
+/// bound). The stateless codecs the bench originally hand-coded
+/// (MJPEG/PCM) answered the first flush; the dispatch's inter-frame
+/// codecs (h264 reorder) emit held frames on flush first and answer
+/// `Drained` after.
+const FLUSH_BUDGET: u32 = 64;
 
 /// The wall-clock origin, seeded by `main` (true process wall). The
 /// library/test path (no `main`) falls back to first use — the
@@ -162,14 +176,23 @@ impl Limb {
         Ok(())
     }
 
-    /// Drain at end-of-stream (stateless codecs answer immediately).
+    /// Drain at end-of-stream to the decoder's own `Drained` answer,
+    /// bounded by [`FLUSH_BUDGET`] (a reordered video limb can hold
+    /// frames past the last packet — a single flush call would
+    /// under-count them; stateless codecs answer immediately).
     fn drain(&mut self, sink: &mut NullSink) -> Result<(), CommandError> {
-        match self.decoder.flush(sink) {
-            Ok(DecodeOutcome::Emitted { frames }) => {
-                self.decoded += u64::from(frames);
+        for _ in 0..FLUSH_BUDGET {
+            match self.decoder.flush(sink) {
+                Ok(DecodeOutcome::Emitted { frames }) => {
+                    self.decoded += u64::from(frames);
+                }
+                Ok(DecodeOutcome::Recovered { .. }) => {}
+                // `Drained` is final; `NeedMoreInput` at end-of-stream
+                // means no more input exists — the residue stays the
+                // decoder's honest answer either way.
+                Ok(DecodeOutcome::Drained | DecodeOutcome::NeedMoreInput) => break,
+                Err(error) => return Err(demux_host::wire_error(&error)),
             }
-            Ok(_) => {}
-            Err(error) => return Err(demux_host::wire_error(&error)),
         }
         Ok(())
     }
@@ -201,6 +224,11 @@ struct BenchReport {
     v_concealed: u64,
     a_concealed: u64,
     demux_recovered: u64,
+    /// The per-stream coverage notes (data — [`run_bench`] prints
+    /// them to stderr; see the module docs).
+    notes: Vec<String>,
+    /// The probe's container id (the coverage note's trailer).
+    container: String,
 }
 
 /// The `decode-bench` host verb: run the bench, print the BENCH line
@@ -208,11 +236,20 @@ struct BenchReport {
 ///
 /// Never panics — every failure path is a typed [`CommandError`]
 /// through the one honest printer, including garbage input (the
-/// probe's refusal) and mid-walk container damage (the demuxer's
-/// sticky fatal).
+/// probe's refusal), mid-walk container damage (the demuxer's
+/// sticky fatal) and a source no dispatch decoder can bench (the
+/// dispatch's own refusal — never a fabricated zero line).
 pub fn run_bench<W: Write, E: Write>(source: &str, out: &mut W, err: &mut E) -> u8 {
-    match bench(source, err) {
+    match measure(source) {
         Ok(report) => {
+            // The per-stream coverage note: stderr only (stdout stays
+            // the one machine line).
+            let _ = writeln!(
+                err,
+                "bench: {} (container {})",
+                report.notes.join("; "),
+                report.container
+            );
             let _ = writeln!(out, "{}", bench_line(&report, source));
             if report.v_concealed + report.a_concealed + report.demux_recovered > 0 {
                 let _ = writeln!(
@@ -253,22 +290,44 @@ fn bench_line(report: &BenchReport, source: &str) -> String {
     )
 }
 
-/// The bench itself: open (the player's own path), select the first
-/// video + first audio stream, decode every packet to null.
-fn bench<E: Write>(source: &str, err: &mut E) -> Result<BenchReport, CommandError> {
+/// The bench itself (FX2-A02: the real measurement): open (the
+/// player's own path), offer the first video + first audio stream to
+/// THE decoder dispatch, decode every packet to null.
+///
+/// A pure measurement seam — the only I/O is the input path itself
+/// (access, probe, demux, stat); stdout/stderr lines are
+/// [`run_bench`]'s to print, with the coverage notes riding back in
+/// the report as data.
+///
+/// # Errors
+/// Typed [`CommandError`]s at the honest stages: the open path's
+/// (probe refusal, demux parse, mid-walk demux fatals — the loop
+/// carries the partial counts as details), and the dispatch's own
+/// typed refusal when the benched kinds' codecs have no decoder arm
+/// — which, when NOTHING was benched, is the command's answer (no
+/// BENCH line, nonzero exit) instead of a successful zero.
+fn measure(source: &str) -> Result<BenchReport, CommandError> {
     // The wall origin: `main`'s seeded process start in the binary
     // (true process wall), the bench's own start in the library path
     // (no `main` — the in-memory tests). Read once, up front, so the
     // wall always covers the open + the loop.
     let wall_start = process_start();
     // 1. Open — the exact path `lumen open` takes (canonicalize →
-    //    access → probe → demuxer start → strf facts). Garbage files
-    //    refuse here (probe), non-AVI containers refuse here (D-018).
+    //    access → probe → the container-host registry → the per-
+    //    container facts pre-pass). Garbage files refuse here
+    //    (probe), unwired containers refuse here (typed, named).
     let spec = SourceSpec::File {
         path: Path::new(source).to_path_buf(),
     };
     let mut opened = demux_host::open_source(&spec, None, false, false)?;
-    let facts = &opened.facts;
+    // The ONE registry: the provider over the open path's harvested
+    // facts — the same construction the `open` path hands the
+    // engine, so what the bench decodes is exactly what the player
+    // decodes (the bench keeps no codec list of its own; the
+    // extra_data seeding, the PCM facts seam and the honest
+    // per-codec configure gates all live in the dispatch).
+    let facts = Arc::new(opened.facts);
+    let provider = HostDecoderProvider::new(Arc::clone(&facts));
 
     // 2. Source size (the file resolved and opened; metadata is the
     //    same truth the access layer read).
@@ -282,73 +341,115 @@ fn bench<E: Write>(source: &str, err: &mut E) -> Result<BenchReport, CommandErro
         })?
         .len();
 
-    // 3. Limb selection: first video + first audio stream, decoders
-    //    from the harvested facts (the `strf` seam). The demuxer
-    //    stamps every packet `GenerationId::FIRST` (avi/mod.rs), so
-    //    the configs carry FIRST — anything else would drop every
-    //    packet as stale.
+    // 3. Limb selection: the FIRST video stream and the FIRST audio
+    //    stream are offered to the dispatch — one offer per kind,
+    //    the engine's `wire`/`obtain_decoder` shape (the container
+    //    default's first-of-kind in stream order here). The demuxers
+    //    stamp every packet `GenerationId::FIRST` (each container
+    //    host's pre-pass), so the config carries FIRST — anything
+    //    else would drop every packet as stale.
     let generation = GenerationId::FIRST;
     let mut video: Option<Limb> = None;
     let mut audio: Option<Limb> = None;
     let mut notes: Vec<String> = Vec::new();
+    let mut refusal: Option<CommandError> = None;
+    let mut first_video_offered = false;
+    let mut first_audio_offered = false;
     for track in &facts.tracks {
         let Some(fact) = facts.fact_for(track.id) else {
             continue;
         };
         let handle = track.id.handle();
-        match track.kind {
-            MediaKind::Video if video.is_none() && fact.codec == "mjpeg" => {
-                let mut decoder = codecs::video::mjpeg::MjpegDecoder::new();
-                configure(&mut decoder, &track.codec, generation)?;
-                video = Some(Limb {
-                    decoder: Box::new(decoder),
-                    track: track.id,
-                    frames: 0,
-                    decoded: 0,
-                    concealed: 0,
-                });
-                notes.push(format!("video track#{handle} mjpeg — decoding"));
+        let offered = match track.kind {
+            MediaKind::Video if !first_video_offered => {
+                first_video_offered = true;
+                true
             }
-            MediaKind::Audio
-                if audio.is_none() && fact.codec.starts_with("pcm_") && fact.pcm.is_some() =>
-            {
-                let (channels, rate) = fact.pcm.ok_or_else(|| facts_absent(handle))?;
-                let mut decoder = codecs::audio::pcm::PcmDecoder::with_format(channels, rate)
-                    .map_err(|error| demux_host::wire_error(&error))?;
-                configure(&mut decoder, &track.codec, generation)?;
-                audio = Some(Limb {
-                    decoder: Box::new(decoder),
-                    track: track.id,
-                    frames: 0,
-                    decoded: 0,
-                    concealed: 0,
-                });
-                notes.push(format!("audio track#{handle} {} — decoding", fact.codec));
+            MediaKind::Audio if !first_audio_offered => {
+                first_audio_offered = true;
+                true
             }
-            _ => {
-                let reason = if matches!(track.kind, MediaKind::Video) && video.is_some()
-                    || matches!(track.kind, MediaKind::Audio) && audio.is_some()
-                {
-                    "first-of-kind already benched"
-                } else {
-                    "no decoder in this build (first vertical: mjpeg + pcm)"
-                };
-                notes.push(format!(
-                    "{} track#{handle} {} — not benched ({reason})",
-                    kind_name(track.kind),
-                    fact.codec
-                ));
+            _ => false,
+        };
+        let reason: String = if offered {
+            // The engine's own `obtain_decoder` config shape, fed to
+            // the dispatch: descriptor + generation + one thread, no
+            // accelerator, no extradata (the dispatch seeds the
+            // container's blobs from the facts itself).
+            let config = DecoderConfig::new(
+                track.codec.clone(),
+                generation,
+                ThreadBudget::default(),
+                None,
+                None,
+            );
+            match provider.decoder_for(track, &config) {
+                Ok(decoder) => {
+                    let limb = Limb {
+                        decoder,
+                        track: track.id,
+                        frames: 0,
+                        decoded: 0,
+                        concealed: 0,
+                    };
+                    match track.kind {
+                        MediaKind::Video => video = Some(limb),
+                        MediaKind::Audio => audio = Some(limb),
+                        _ => {}
+                    }
+                    notes.push(format!(
+                        "{} track#{handle} {} — decoding",
+                        kind_name(track.kind),
+                        fact.codec
+                    ));
+                    continue;
+                }
+                // The dispatch's own typed refusal ("no decoder for
+                // `<codec>` in this build", the landed inventory
+                // named) — the note's reason here, and the command's
+                // answer below if nothing else benched.
+                Err(error) => {
+                    let wired = demux_host::wire_error(&error);
+                    let reason = wired.message.clone();
+                    refusal.get_or_insert(wired);
+                    reason
+                }
             }
-        }
+        } else {
+            let reason = match track.kind {
+                MediaKind::Video | MediaKind::Audio => {
+                    if (matches!(track.kind, MediaKind::Video) && video.is_some())
+                        || (matches!(track.kind, MediaKind::Audio) && audio.is_some())
+                    {
+                        "first-of-kind already benched"
+                    } else {
+                        "first-of-kind not benched"
+                    }
+                }
+                _ => "not an audio/video stream",
+            };
+            reason.to_string()
+        };
+        notes.push(format!(
+            "{} track#{handle} {} — not benched ({reason})",
+            kind_name(track.kind),
+            fact.codec
+        ));
     }
-    // The per-stream coverage note: stderr only (stdout stays the
-    // one machine line).
-    let _ = writeln!(
-        err,
-        "bench: {} (container {})",
-        notes.join("; "),
-        facts.container
-    );
+    // Nothing benched is a typed refusal, not a successful zero
+    // line (the audit's executed F-003 hole: an h264-only file
+    // answered all-zeros + exit 0 while the same binary played it).
+    // The dispatch's own refusal is the honest sentence it prints.
+    if video.is_none() && audio.is_none() {
+        return Err(refusal.unwrap_or_else(|| {
+            CommandError::new(
+                Stage::Decode,
+                ErrorCode::Unsupported,
+                "no audio or video track in this source — nothing to bench",
+            )
+            .with_detail("container", facts.container.clone())
+        }));
+    }
 
     // 4. The decode loop — decode_s starts here (after open).
     let decode_start = Instant::now();
@@ -421,38 +522,9 @@ fn bench<E: Write>(source: &str, err: &mut E) -> Result<BenchReport, CommandErro
         v_concealed,
         a_concealed,
         demux_recovered,
+        notes,
+        container: facts.container.clone(),
     })
-}
-
-/// Configure one decoder for the bench (codec descriptor from the
-/// demuxed track, the demuxer's FIRST generation, one thread, no
-/// accelerator, no extradata — the strf facts went in via
-/// `PcmDecoder::with_format`, the 2.B5 seam).
-fn configure(
-    decoder: &mut dyn Decoder,
-    codec: &CodecDescriptor,
-    generation: GenerationId,
-) -> Result<(), CommandError> {
-    let config = DecoderConfig::new(
-        codec.clone(),
-        generation,
-        ThreadBudget::default(),
-        None,
-        None,
-    );
-    decoder
-        .configure(&config)
-        .map_err(|error| demux_host::wire_error(&error))
-}
-
-/// The impossible-facts refusal (a PCM fact row without its facts —
-/// harvest cannot produce it, the selection guards on it anyway).
-fn facts_absent(handle: u32) -> CommandError {
-    CommandError::new(
-        Stage::Decode,
-        ErrorCode::Internal,
-        format!("PCM facts absent for track#{handle} despite the selection guard"),
-    )
 }
 
 /// A track kind's note name (MediaKind is Display-less by design in
@@ -492,6 +564,8 @@ mod tests {
             v_concealed: 0,
             a_concealed: 0,
             demux_recovered: 0,
+            notes: Vec::new(),
+            container: "avi".to_string(),
         };
         assert_eq!(
             bench_line(&report, "/corpus/media/0001-avi-video.avi"),
@@ -582,5 +656,36 @@ mod tests {
             "no result line on failure:\n{}",
             String::from_utf8_lossy(&out)
         );
+    }
+
+    /// FX2-A02, the seam: the measurement itself (no output I/O)
+    /// counts the h264+aac MP4 the same binary plays — the audit's
+    /// F-001 reproduction inverted (the old hand-rolled registry
+    /// answered v_frames=0 + "no decoder in this build" for exactly
+    /// this class of file).
+    #[test]
+    fn fx2_a02_measure_counts_h264_aac_the_open_path_decodes() {
+        let report = measure(&fixture("generated/valid/mp4_h264_aac.mp4"))
+            .unwrap_or_else(|error| panic!("the dispatch decodes this fixture: {error}"));
+        assert!(
+            report.v_frames > 0,
+            "video packets fed to the h264 limb (old bench: 0)"
+        );
+        assert!(
+            report.v_decoded > 0,
+            "h264 frames decoded (old bench: 0 — the lie)"
+        );
+        assert!(
+            report.a_frames > 0,
+            "audio packets fed to the aac limb (old bench: 0)"
+        );
+        assert!(
+            report.a_decoded > 0,
+            "aac frames decoded (old bench: 0 — the lie)"
+        );
+        // The coverage notes name both limbs as decoding.
+        let notes = report.notes.join("; ");
+        assert!(notes.contains("h264 — decoding"), "notes: {notes}");
+        assert!(notes.contains("aac — decoding"), "notes: {notes}");
     }
 }
