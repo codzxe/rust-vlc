@@ -19,7 +19,7 @@ import type {
   Event,
 } from "../../../../client/transport";
 import { PlayerControlsProvider, usePlayerControls } from "../../context";
-import type { PlayerState } from "../../context";
+import type { EqSetRequest, PlayerState } from "../../context";
 import { EqualizerTool } from "./EqualizerTool";
 import { EQ_PRESETS } from "./presets";
 
@@ -70,9 +70,16 @@ function mountTool(transport: RecordingTransport, onState?: (s: PlayerState) => 
 }
 
 /** Only the audio.set-eq requests (the provider's mount-time probes
- * legitimately dispatch system.get-state-snapshot / media.get-*). */
-const eqRequests = (transport: RecordingTransport): CommandRequest[] =>
-  transport.sent.filter((request) => request.cmd === "audio.set-eq");
+ * legitimately dispatch system.get-state-snapshot / media.get-*), viewed
+ * through the seam's typed forward declaration: EqSetRequest rides the
+ * CommandRequest union until the central codegen refresh carries FX5-A02's
+ * landed catalog id in the generated union — the same documented cast the
+ * context's own dispatch makes (the discriminator check is on the runtime
+ * cmd string). */
+const eqRequests = (transport: RecordingTransport): EqSetRequest[] =>
+  transport.sent
+    .map((request) => request as unknown as EqSetRequest)
+    .filter((request) => request.cmd === "audio.set-eq");
 
 const flush = async (): Promise<void> => {
   await act(async () => {});
@@ -177,12 +184,16 @@ describe("FX4-A08 — the EQ panel calls the real IPC verb (wave FX4, F1.1)", ()
     // swallowed (the provider's own §5.4 contract; the tool keeps the
     // faders as the editing surface and the error chip tells the truth).
     const transport = new RecordingTransport();
-    let latest: PlayerState | null = null;
-    mountTool(transport, (state) => (latest = state));
+    let latestState: PlayerState | null = null;
+    mountTool(transport, (state) => (latestState = state));
+    // The same-function-flow narrowing that TS applies to a captured `let`
+    // would reduce it to its initial null — read through a getter with the
+    // context.test mountProbe convention (latest(): PlayerState).
+    const latest = (): PlayerState => latestState as PlayerState;
     // Only the eq verb answers the typed refusal (the mount-time probes
     // answer completed) — so the surfaced error is unambiguously the eq one.
     transport.respond = (request) =>
-      request.cmd === "audio.set-eq"
+      (request as unknown as EqSetRequest).cmd === "audio.set-eq"
         ? {
             error: {
               code: "invalid-argument",
@@ -196,8 +207,8 @@ describe("FX4-A08 — the EQ panel calls the real IPC verb (wave FX4, F1.1)", ()
       key: "ArrowUp",
     });
     await flush();
-    expect(latest?.lastError?.code).toBe("invalid-argument");
-    expect(latest?.lastError?.details).toMatchObject({ cmd: "audio.set-eq" });
+    expect(latest().lastError?.code).toBe("invalid-argument");
+    expect(latest().lastError?.details).toMatchObject({ cmd: "audio.set-eq" });
   });
 
   it("fx4_a08_eq_without_player_context_falls_back_to_the_local_seam", () => {

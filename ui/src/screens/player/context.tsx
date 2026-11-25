@@ -155,21 +155,32 @@ export function usePlayerControlsOrNull(): PlayerControls | null {
 const SEEK_CONFIRM_TOLERANCE_SECONDS = 0.75;
 
 /**
- * FX4-A08 (wave FX4, plan F1.1) — the `audio.set-eq` wire seam.
+ * FX4-A08 (wave FX4, plan F1.1) — the `audio.set-eq` wire seam;
+ * FX5-A05 (wave FX5, plan F1.1c) — reconciled to the landed catalog verb.
  *
  * The verb id is the wave contract's (the UI's pre-wave staging markers
- * named it, FX4-A02 routes it to the pipeline's `audio_controls()` in
- * apps/cli/src/host.rs, and FX4-A07's docs pass cites it by name); the
- * payload mirrors the engine setter it feeds — `AudioControls::set_eq(
- * low_db, mid_db, high_db, preamp)` (crates/audio-engine/src/controls.rs)
- * — in the wire's camelCase field convention (`delayMs`/`volume`/`muted`
- * …). The catalog codegen (ui/src/generated/commands.ts — "never
- * hand-edit") carries the command in the union once the wave's central
- * `cargo xtask codegen` refresh lands; until the regenerated union
- * reaches this tree THIS interface is the one typed construction site —
+ * named it; FX5-A02 added it to the command catalog this wave —
+ * `AudioSetEq { low_db, mid_db, high_db, preamp_db }` in
+ * crates/commands/src/catalog/command.rs, whose doc states the field
+ * mapping is "one-to-one with the { lowDb, midDb, highDb, preampDb }
+ * the UI dispatches" — plus the `audio.set-balance`/`get-balance`/
+ * `get-eq` siblings; FX5-A03 routed it through the live
+ * `audio_controls()` seam in apps/cli/src/host.rs + dispatch.rs,
+ * answering the chain's own `AudioEq` read-back). The payload therefore
+ * stays the engine setter's shape — `AudioControls::set_eq(low_db,
+ * mid_db, high_db, preamp)` (crates/audio-engine/src/controls.rs) — in
+ * the wire's camelCase field convention (`delayMs`/`volume`/`muted` …):
+ * `{ lowDb, midDb, highDb, preampDb }`. The remaining gap is ONLY the
+ * central `cargo xtask codegen` refresh: the generated union
+ * (ui/src/generated/commands.ts — "never hand-edit") does not carry the
+ * command yet, so THIS interface is the one typed construction site —
  * the deliberate forward declaration (the k07 lane-key pattern applied
  * to a command payload: one seam, the Lead's regeneration folds it
- * away).
+ * away). A host that does not serve the verb answers the typed refusal
+ * (`unsupported-for-host`) — which the provider SURFACES via
+ * `lastError`, never swallows; the completed `audio-eq` answer owns no
+ * state field here (applyCompleted's applied-bool guard keeps it off
+ * `muted`; the faders stay the editing surface).
  */
 export interface EqSetArgs {
   /** Low-shelf gain in dB (engine corner: 250 Hz). */
@@ -446,9 +457,10 @@ export function PlayerControlsProvider({
         // Same lane as setVolume/setMute — the single transport.send
         // dispatch every working player control rides, with the same
         // monotonic requestId discipline. The cast is the documented
-        // forward declaration at the EqSetRequest seam above: the request
-        // is shape-identical to the catalog's command requests, carried
-        // there until the wave's regenerated union lands.
+        // forward declaration at the EqSetRequest seam above: the
+        // request is shape-identical to the catalog's AudioSetEq command
+        // (FX5-A02, landed) and is carried there typed until the central
+        // codegen refresh puts it in the generated union.
         const request: EqSetRequest = {
           cmd: "audio.set-eq",
           args: bands,
