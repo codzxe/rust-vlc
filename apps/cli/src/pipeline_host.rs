@@ -51,7 +51,7 @@ use std::sync::{Arc, Mutex};
 use audio_engine::{AudioPipeline, PipelineSpec};
 use audio_output::null::{NullDevice, NullSink};
 use audio_output::{NullBackend, NullConfig, NullStream};
-use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink};
+use codec_api::{DecodeOutcome, Decoder, DecoderConfig, FrameSink, ThreadBudget};
 use codecs::audio::aac::AacDecoder;
 use codecs::audio::adpcm::AdpcmDecoder;
 use codecs::audio::alac::AlacDecoder;
@@ -69,11 +69,12 @@ use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
     VideoFrame,
 };
+use media_types::ids::CodecDescriptor;
 use media_types::packet::SharedBytes;
-use media_types::time::Timestamp;
+use media_types::time::{TimeBase, TimeSpan, Timestamp, TrackTiming};
 use media_types::{
-    EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, PipelineStage, Rate, Track,
-    TrackId,
+    EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, PipelineStage, Rate, StreamId,
+    Track, TrackFlags, TrackId,
 };
 use playback_engine::{DecoderProvider, FrameConsumer};
 use renderer_wgpu::color::SurfaceFormat;
@@ -372,12 +373,197 @@ impl DecoderProvider for HostDecoderProvider {
             other => Err(host_error(
                 PipelineStage::Decode,
                 "cli.codec_unavailable",
-                format!(
-                    "no decoder for `{other}` in this build (landed: mjpeg, pcm, flac, \
-                     mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1, h264)"
-                ),
+                codec_unavailable_message(other),
             )),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch registry (the one source of truth, FIX-PLAN F0.2)
+// ---------------------------------------------------------------------------
+
+/// One row of the decoder dispatch registry: the family name the
+/// user-facing surfaces print, the lane's kind, and the descriptors
+/// the dispatch's arms accept for the family.
+///
+/// [`LANDED_DECODER_FAMILIES`] below is the match in
+/// [`HostDecoderProvider::decoder_for`] exported as data — the
+/// `landed:` refusal string (the `other` arm's message),
+/// `engine-info`'s decoder list and `decode-bench`'s coverage note
+/// all derive from it, never from a hand-maintained copy beside
+/// it. The wave-13 F-003 finding was exactly that drift: the
+/// hand-list omitted vp9/dnxhd while both arms lived in this same
+/// file, and answered differently from engine-info and bench.
+#[derive(Debug, Clone, Copy)]
+pub struct DecoderFamily {
+    /// The family name user-facing strings print (the refusal
+    /// string's `landed:` list is these names, in registry order).
+    pub name: &'static str,
+    /// The family's lane kind (`engine-info`'s decoder rows derive
+    /// name and kind from this row).
+    pub kind: MediaKind,
+    /// The descriptors the dispatch accepts for the family — the
+    /// arm's literal patterns where the arm matches literals
+    /// (`"h264" | "avc1"`), a representative descriptor where it
+    /// matches a prefix (`pcm_*`, `adpcm_*`). Every listed
+    /// descriptor must have a live arm — the `fx2_a03` regression
+    /// tests pin this against the match itself.
+    pub descriptors: &'static [&'static str],
+}
+
+/// The dispatch table's landed decoder families — one row per arm
+/// family of [`HostDecoderProvider::decoder_for`], in the arms'
+/// top-to-bottom order. THE registry: every user-facing capability
+/// list this binary prints derives from this table (the refusal
+/// string via [`codec_unavailable_message`]; `engine-info` and
+/// `decode-bench` per their own files) — there is no second list.
+pub const LANDED_DECODER_FAMILIES: &[DecoderFamily] = &[
+    DecoderFamily {
+        name: "mjpeg",
+        kind: MediaKind::Video,
+        descriptors: &["mjpeg"],
+    },
+    DecoderFamily {
+        name: "flac",
+        kind: MediaKind::Audio,
+        descriptors: &["flac"],
+    },
+    DecoderFamily {
+        name: "mp3",
+        kind: MediaKind::Audio,
+        descriptors: &["mp3", "mp1"],
+    },
+    DecoderFamily {
+        name: "mp2",
+        kind: MediaKind::Audio,
+        descriptors: &["mp2"],
+    },
+    DecoderFamily {
+        name: "vorbis",
+        kind: MediaKind::Audio,
+        descriptors: &["vorbis"],
+    },
+    DecoderFamily {
+        name: "opus",
+        kind: MediaKind::Audio,
+        descriptors: &["opus"],
+    },
+    DecoderFamily {
+        name: "aac-lc",
+        kind: MediaKind::Audio,
+        descriptors: &["aac-lc", "aac"],
+    },
+    DecoderFamily {
+        name: "alac",
+        kind: MediaKind::Audio,
+        descriptors: &["alac"],
+    },
+    DecoderFamily {
+        name: "adpcm",
+        kind: MediaKind::Audio,
+        descriptors: &["adpcm_ima_wav", "adpcm_ms"],
+    },
+    DecoderFamily {
+        name: "av1",
+        kind: MediaKind::Video,
+        descriptors: &["av1", "av01"],
+    },
+    DecoderFamily {
+        name: "vp9",
+        kind: MediaKind::Video,
+        descriptors: &["vp9"],
+    },
+    DecoderFamily {
+        name: "dnxhd",
+        kind: MediaKind::Video,
+        descriptors: &["dnxhd"],
+    },
+    DecoderFamily {
+        name: "h264",
+        kind: MediaKind::Video,
+        descriptors: &["h264", "avc1"],
+    },
+    DecoderFamily {
+        name: "pcm",
+        kind: MediaKind::Audio,
+        descriptors: &["pcm_s16le", "pcm_u8"],
+    },
+];
+
+/// The catch-all arm's human message — derived from
+/// [`LANDED_DECODER_FAMILIES`], never hand-maintained (the wave-13
+/// F-003 fix: the hand-list had drifted inside this very file). The
+/// shape is unchanged from the hand-list era — one line, the
+/// unknown codec in backticks, the landed families comma-joined —
+/// so every consumer that matches on the `no decoder for \`X\``
+/// prefix keeps working; only the list's content can now move with
+/// the arms, which is the point.
+#[must_use]
+pub fn codec_unavailable_message(codec: &str) -> String {
+    format!(
+        "no decoder for `{codec}` in this build (landed: {})",
+        LANDED_DECODER_FAMILIES
+            .iter()
+            .map(|row| row.name)
+            .collect::<Vec<&str>>()
+            .join(", ")
+    )
+}
+
+/// Whether the dispatch table has an arm accepting `descriptor` —
+/// the registry-introspection seam: `engine-info`, `decode-bench`
+/// and the `fx2_a03` regression tests ask the match itself, never a
+/// list beside it.
+///
+/// The probe drives one fact-less track through
+/// [`HostDecoderProvider::decoder_for`]: an arm whose honest
+/// `configure` gate refuses a fact-less lane (flac without its
+/// STREAMINFO, pcm without its strf facts) still counts as landed —
+/// the gate's typed refusal carries the codec's own error code,
+/// not this registry's `cli.codec_unavailable` catch-all. Only the
+/// catch-all itself answers `false`.
+#[must_use]
+pub fn descriptor_is_landed(descriptor: &str) -> bool {
+    let Ok(codec) = CodecDescriptor::new(descriptor) else {
+        // A malformed descriptor cannot be dispatched by any arm.
+        return false;
+    };
+    let provider = HostDecoderProvider::new(Arc::new(MediaFacts {
+        tracks: Vec::new(),
+        facts: Vec::new(),
+        container: String::new(),
+    }));
+    let config = DecoderConfig::new(
+        codec.clone(),
+        GenerationId::FIRST,
+        ThreadBudget::default(),
+        None,
+        None,
+    );
+    match provider.decoder_for(&probe_track(codec), &config) {
+        Ok(_) => true,
+        Err(err) => err.context.code.as_str() != "cli.codec_unavailable",
+    }
+}
+
+/// The minimal fact-less probe track (the dispatch's match reads
+/// the codec descriptor only; the timing/flags fields are inert
+/// filler the registry never consults).
+fn probe_track(codec: CodecDescriptor) -> Track {
+    Track {
+        id: TrackId::new(0),
+        stream: StreamId::new(0),
+        kind: MediaKind::Video,
+        language: None,
+        codec,
+        title: None,
+        flags: TrackFlags::NONE,
+        timing: TrackTiming {
+            span: TimeSpan::UNKNOWN,
+            base: TimeBase { num: 1, den: 1000 },
+            gaps: Vec::new(),
+        },
     }
 }
 
