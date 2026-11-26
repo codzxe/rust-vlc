@@ -212,9 +212,9 @@ priority = "P2"
 phase_target = 5
 vlc_modules = ["asf"]
 inventory_ref = "inventory/formats.json#asf-wmv"
-status = { windows = "implemented", linux = "partial", macos = "implemented", web = "not_started" }
-evidence = "crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback, issue #9; record docs/formats/container-asf.md; 36-test asf unit suite in the 454-test demux crate; ffmpeg 7.1.5 sha256-pinned fixture differential incl. live ffprobe codec + -count_packets cross-check); Linux-only evidence, CI 3-OS pending; docs/corpus/compat-matrix-20261110.md (this run's matrix table + raw rows)"
-notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path. Next step: wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix"
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "library: crates/demux/src/asf/** (cards 6.ASF-a header tree + 6.ASF-b Data Object packets/fragment reassembly hold-and-flush + 6.ASF-c Simple-Index seeking with bounded linear fallback; FX1-A07 landed the header child-size panic guard — crates/demux/tests/fx1_a07_asf_child_size.rs; the asf unit suite inside the demux crate; record docs/formats/container-asf.md) — UNREACHABLE from every shipped lane: the post-probe container dispatch carries NO asf arm (apps/cli/src/containers/mod.rs — adts..wav then the unwired_refusal catch-all; rg asf = 0) and the probe registers no ASF signature, so every shipped binary refuses ASF typed (probe.no-demuxer — executed by the compat-matrix run, docs/corpus/compat-matrix-20261110.md; audit/final/CONTRADICTIONS.md C-009)"
+notes = "Decision card 5.K3-I self-build executed clean-room (spec text unavailable in sandbox — every layout byte-verified against muxer output, [VERIFY-P0] spec pin recorded in the record). WMA audio decode blocked codec-side (see codec-audio-wma) — container emits WAVEFORMATEX-described objects regardless; broadcast files refuse typed (ffprobe agrees, measured); variable packet size + compressed replication refuse typed as unverified shapes. 2026-11-10T20:07:51Z compat-matrix gap triage (issue #53, card 8.B2; applied by cargo xtask compat-matrix apply-transitions): linux implemented->partial — compat-matrix run (linux-native lane): the open path REFUSES the corpus files of probe format `asf` — unsupported (sniffed 30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c) (probe.no-demuxer): probe hints: extension=wmv, size=10329. The container claim cannot be exercised end-to-end through the player's open path. Next step: wire the missing probe signature / container-registry arm for `asf` (the ivf/mpegps open-path wiring precedent), then re-run the matrix. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the win/mac `implemented` cells were fiction — C-009: the open path refuses ASF on EVERY platform (no probe signature, no container-registry arm; no executed ASF playback anywhere on record). Demoted windows/macos to partial (the linux truth): the demuxer library is real + tested but unreachable from every shipped lane; re-raise only behind the missing probe signature + container-registry arm + an executed open."
 
 [[feature]]
 id = "container-wav"
@@ -1258,9 +1258,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["filesystem"]
 inventory_ref = "inventory/formats.json#file"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "2.A1 input crate; first vertical."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "code: crates/input/src/file.rs (`FileAccess::open` — bounded buffered seekable local-file stream) constructed by the shipped local open lane (apps/cli/src/demux_host.rs — the canonical tail every local open lane shares, bare paths and file:// URIs alike) + executed by the orchestrator baseline through the shipped release binary (audit/runs/baseline/rc-smoke.txt headless-decode lanes exit 0; audit/runs/baseline/mp4-smoke.md)"
+notes = "2.A1 input crate; first vertical. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the shipped `lumen open` local lane IS `input::FileAccess` (demux_host.rs, rg-verified) — the first vertical's core open path was hiding behind a not_started row with empty evidence (audit/final/CONTRADICTIONS.md C-012; REALITY-SCORE row 084 UNDERSTATED). Status implemented: linux-executed baseline evidence; win/mac the same pure-Rust code per house convention (CI 3-OS pending); web stays its own lane."
 
 [[feature]]
 id = "protocol-directory"
@@ -1410,9 +1410,9 @@ priority = "P0"
 phase_target = 6
 vlc_modules = ["access"]
 inventory_ref = "inventory/formats.json#http-https"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.A1: ureq or reqwest per ADR-011; all network responses are untrusted input (MP §12); mock-server tests (redirect loops, timeouts, 416 range)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "code: crates/streaming/src/client.rs (the production `UreqClient` — the real HTTP(S) transport behind the HttpFetch port: deadlines, bounded redirects + visited-loop detection, cross-host policy, Authorization never re-sent on a followed hop) constructed by the shipped http(s) open lane (apps/cli/src/demux_host.rs `open_http_source` → `streaming::schemes::SchemeRegistry::new()` — the production registry's UreqClient) + the loopback e2e through the REAL binary (apps/cli/tests/unsupported_path.rs `http_url_opens_over_a_real_loopback_socket`, exit 0) + audit/final/CONTRADICTIONS.md C-008 (W20-A02 executed: streaming --lib 212 passed, 0 failed)"
+notes = "6.A1: ureq or reqwest per ADR-011; all network responses are untrusted input (MP §12); mock-server tests (redirect loops, timeouts, 416 range). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the shipped http(s) open path runs over this client (rg-verified: demux_host.rs `open_http_source` → SchemeRegistry::new → UreqClient) — the `no work yet` row with empty evidence hid the repo's core streaming transport (C-008). Status implemented (linux-executed loopback e2e + baseline; win/mac the same pure-Rust code per house convention); a real-egress TLS handshake round-trip stays [VERIFY] (network-tls-policy row)."
 
 [[feature]]
 id = "network-tls-policy"
@@ -1461,9 +1461,9 @@ description = "Bounded retry with backoff, resume-from-offset, generation-safe c
 priority = "P1"
 phase_target = 6
 inventory_ref = "docs/13-agent-wave-program.md#6.D"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.D1/6.D2 [PROPOSAL parameters]; buffering budget per product.toml limits."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/streaming/src/reconnect.rs (`RetryPolicy`/`RetryFetch` — bounded retry with backoff, resume-from-offset, generation-safe cancellation; 1560 lines) + crates/streaming/src/buffer.rs (`BufferModel`/`BufferLevel`/`BufferSignal` — the adaptive-buffer signals; 827 lines) + the host adoption point `SchemeRegistry::with_retrying_fetch` (crates/streaming/src/schemes.rs — every open_http fetch of the retrying registry retries retryable transport weather under the policy); tests: 30 in-module (reconnect 20 + buffer 10) + audit/final/CONTRADICTIONS.md C-008 (streaming --lib 212 passed, 0 failed)"
+notes = "6.D1/6.D2 [PROPOSAL parameters]; buffering budget per product.toml limits. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the bounded reconnect/buffering library is real + tested (C-008); partial — the shipped open path constructs the PLAIN registry (SchemeRegistry::new, demux_host.rs), so no shipped host adopts the retrying fetch yet (rg-verified: with_retrying_fetch has zero non-test callers outside schemes.rs); the working subset is the library layer."
 
 [[feature]]
 id = "network-auth"
@@ -1473,9 +1473,9 @@ description = "HTTP basic/digest auth; OS keychain credential storage; redaction
 priority = "P1"
 phase_target = 6
 inventory_ref = "docs/13-agent-wave-program.md#6.E"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.E1; keychain policy + crate per OS [VERIFY]; no secrets in logs/errors (media-types policy doc 01 §2.5)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/streaming/src/auth.rs (challenge-first HTTP Basic RFC 7617 + Digest MD5 RFC 7616, the `AuthFetch` compose wrapper, the `CredentialStore` seam + InMemoryCredentialStore, redaction-safe credential vocabulary; 1562 lines) + the challenge-surfacing half wired in the production transport (`UreqClient::fetch_with_challenge` — crates/streaming/src/client.rs: a final 401 is returned Ok with WWW-Authenticate intact so the auth layer can answer); tests: 21 over real sockets (auth.rs 11 in-module + crates/streaming/tests/auth_e2e.rs 8 + auth_scheme_gate.rs 2)"
+notes = "6.E1; keychain policy + crate per OS [VERIFY]; no secrets in logs/errors (media-types policy doc 01 §2.5). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the auth library is real + tested over real sockets (C-008) and the transport's challenge-surfacing half ships in the ureq client; partial — no shipped open path constructs `AuthFetch` (rg-verified: zero non-test callers), the store is the InMemory seam (no OS keychain), and SHA-256 digest challenges are a typed refusal."
 
 [[feature]]
 id = "network-remote-playlists"
@@ -1485,9 +1485,9 @@ description = "Remote playlist loading, relative-URI resolution, HTML directory-
 priority = "P2"
 phase_target = 6
 inventory_ref = "docs/13-agent-wave-program.md#6.E"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "6.E2; HTML listing parse = [PROPOSAL decision]; icecast/shoutcast metadata out of v1."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/streaming/src/remote_playlist.rs (`open_remote_playlist` + `RemotePlaylist`/`RemoteEntry` — remote playlist fetch over the HttpFetch port: relative-URI resolution against the resolution base, userinfo accepted + stripped (never logged), HTML directory-listing masquerades refused typed; 500 lines; compose-under guidance for AuthFetch/RetryFetch) + tests: 9 in-module + audit/final/CONTRADICTIONS.md C-008 (streaming --lib 212 passed, 0 failed)"
+notes = "6.E2; HTML listing parse = [PROPOSAL decision]; icecast/shoutcast metadata out of v1. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the remote-playlist loader is real + tested (C-008); partial — no shipped consumer constructs it (rg-verified: open_remote_playlist has zero non-test callers outside the crate; the open path opens media sources, not remote playlists); HTML directory-listing parse is the typed refusal (the [PROPOSAL] decision refused for now); icecast metadata stays out of v1."
 
 # =============================================================================
 # category: playback-op — 13 rows
@@ -1538,9 +1538,9 @@ description = "Next-frame (VLC e) plus design-new previous-frame (, / .)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s5.2"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
-evidence = "crates/playback-engine/src/frame_step.rs (FrameStepPlan/plan_frame_step + tests); commands catalog playback.step-frame (next/previous) pre-existed; keymaps/default.toml frame-next '.'/frame-prev ',' pre-existed; ui demo-transport step-frame handler pre-existed"
-notes = "C-08: design adds frame-prev = parity GAIN vs VLC; doc 05 §2.4 models Previous. Engine seam landed: auto-pause flag + signed one-frame Relative SeekTarget, 24 fps fallback [PROPOSAL] until Track carries a frame rate; decode-exact landing (keyframe-safe reanchor) is the honest v0 limit."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/playback-engine/src/frame_step.rs (`FrameStepPlan`/`plan_frame_step` — the auto-pause flag + signed one-frame Relative SeekTarget seam, + tests) + the catalog verb playback.step-frame (crates/commands/src/catalog/command.rs — UNWIRED: docs/generated/status-truth.toml wired=false, every shipped host answers the typed unsupported-for-host refusal) + keymap seeds frame-next '.'/frame-prev ',' (keymaps/default.toml)"
+notes = "C-08: design adds frame-prev = parity GAIN vs VLC; doc 05 §2.4 models Previous. Engine seam landed: auto-pause flag + signed one-frame Relative SeekTarget, 24 fps fallback [PROPOSAL] until Track carries a frame rate; decode-exact landing (keyframe-safe reanchor) is the honest v0 limit. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the engine planning seam + the catalog verb + the keymap seeds are the landed subset; NO shipped surface serves frame-step (status-truth: playback.step-frame wired=false — the typed refusal; the ui demo-transport step-frame handler is the browser dev-shell simulation, not the command layer) and the web cell had nothing — demoted web to not_started. Status partial = the engine-planning library subset."
 
 [[feature]]
 id = "playback-track-switch"
@@ -1574,9 +1574,9 @@ description = "Chapter next/prev (containers); title/program-SID navigation (dis
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#key-chapter-next"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
-evidence = "crates/playback-engine/src/chapters.rs (chapter_at/next_chapter/previous_chapter/chapter_target + tests); catalog media.get-chapters/media.set-chapter + MKV ChapterList (crates/demux/src/mkv/chapters.rs, wave-5 merge 2d0941e) + demo-transport handlers pre-existed"
-notes = "Chapters in v1 (MKV/MP4 chapter refs 5.C1/5.D2); titles/program SIDs feature-gated (ui-inventory Q6: no v1 commands). Engine resolution helpers landed (restart-then-rewind prev [PROPOSAL] 10 s threshold); session-side chapter source + UI chapter display still open."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/playback-engine/src/chapters.rs (chapter_at/next_chapter/previous_chapter/chapter_target + tests) + the MKV ChapterList parse (crates/demux/src/mkv/chapters.rs) + the UI surface: ControlBar's chapters tab (ui/src/screens/player/controls/ControlBar.tsx; ui/src/screens/player/layout.ts has-chapters token — the seam carries conservative false today) + the catalog verbs media.get-chapters/media.set-chapter (crates/commands/src/catalog/command.rs — UNWIRED: docs/generated/status-truth.toml wired=false)"
+notes = "Chapters in v1 (MKV/MP4 chapter refs 5.C1/5.D2); titles/program SIDs feature-gated (ui-inventory Q6: no v1 commands). Engine resolution helpers landed (restart-then-rewind prev [PROPOSAL] 10 s threshold); session-side chapter source + UI chapter display still open. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the engine library + the MKV chapter parse + the ControlBar chapters tab are the landed subset; the chapter verbs are refused by every shipped host (status-truth wired=false — the CLI reports chapters:[]), the demo-transport handlers are the dev-shell simulation, and the web cell had nothing — demoted web to not_started. Status partial = the library + tab subset."
 
 [[feature]]
 id = "playback-bookmarks"
@@ -1586,9 +1586,9 @@ description = "Named time positions: create/delete/clear, set+play slots 1–10"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#bookmarks"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
-evidence = "crates/playback-engine/src/bookmarks.rs (BookmarkList add/remove/seek_target/clear + tests); commands catalog media.get-bookmarks/media.add-bookmark/media.remove-bookmark (class S, wire round-trip pinned in command.rs tests + catalog_shape.rs); ui BookmarksDialog.tsx (ui-dialog-bookmarks) + BookmarksDialog.test.tsx; demo-transport bookmark handlers + demo-bookmarks.test.ts; keymap Ctrl+B (DIALOG_KEYMAP seed + keymap.test.ts)"
-notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10). Dialog + engine list semantics landed (create/jump/delete, per-media reset, no id reuse); the set-bookmark-N/play-bookmark-N slot hotkeys (1–10) are the open remainder — they need the keymap row family, not just the dialog."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/playback-engine/src/bookmarks.rs (`BookmarkList` add/remove/seek_target/clear + tests) + the UI dialog + keymap (ui/src/screens/player/dialogs/BookmarksDialog.tsx + .test.tsx; Ctrl+B keymaps/default.toml — jump dispatches through playback.seek, the ui-dialog-bookmarks row) + the catalog verbs media.get/add/remove-bookmark (crates/commands/src/catalog/command.rs — UNWIRED: docs/generated/status-truth.toml wired=false)"
+notes = "Ctrl+B dialog + 20 hotkeys (Ctrl+F1–F10 / F1–F10). Dialog + engine list semantics landed (create/jump/delete, per-media reset, no id reuse); the set-bookmark-N/play-bookmark-N slot hotkeys (1–10) are the open remainder — they need the keymap row family, not just the dialog. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the engine list semantics + the dialog + the Ctrl+B jump are the landed subset; the media.*-bookmark verbs are refused by every shipped host (status-truth wired=false — jump-only via seek), the only live create/delete handler set is the demo-transport dev-shell simulation, and the web cell had nothing — demoted web to not_started. Status partial = the list + jump subset."
 
 [[feature]]
 id = "playback-snapshot"
@@ -1598,9 +1598,9 @@ description = "Capture current frame to PNG (path/prefix/format configurable)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-linux.json#snapshot-path"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "partial" }
-evidence = "crates/playback-engine/src/snapshot.rs (SnapshotFormat/SnapshotConfig::plan + tests — snapshot-path/prefix/format family, VLC vlcsnap- prefix, 6-digit counter naming [PROPOSAL: counter over modern wall-clock filename]); commands catalog video.take-screenshot (class A, pre-existed)"
-notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate). [PROPOSAL] structural gap, honest: the video-engine sink hands frames to the platform surface with no pixel-readback seam — capture wiring is renderer/video-engine-owned work; the pure planning seam (path derivation + format validation + typed refusals) landed so the readback lands onto a tested plan; wire v1 encodes PNG only (jpg/tiff parse, refused typed)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/playback-engine/src/snapshot.rs (`SnapshotFormat`/`SnapshotConfig::plan` — path derivation + format validation + typed refusals, + tests; wire-v1 PNG only, jpg/tiff parse + refuse) + the renderer screenshot plumbing (crates/renderer-wgpu/src/screenshot.rs) + the catalog verb video.take-screenshot (UNWIRED: docs/generated/status-truth.toml wired=false)"
+notes = "Shift+S; Snapshot subsection (7 options) maps to recording.dir/format analog; no dialog (immediate). [PROPOSAL] structural gap, honest: the video-engine sink hands frames to the platform surface with no pixel-readback seam — capture wiring is renderer/video-engine-owned work; the pure planning seam (path derivation + format validation + typed refusals) landed so the readback lands onto a tested plan; wire v1 encodes PNG only (jpg/tiff parse, refused typed). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the pure planning seam + the renderer screenshot module are the landed subset; NO capture path exists anywhere (the [PROPOSAL] structural gap above, unchanged), the verb is refused by every shipped host (status-truth wired=false), and the web cell had nothing — demoted web to not_started. Status partial = the planning/validation subset."
 
 [[feature]]
 id = "playback-fullscreen"
@@ -1727,9 +1727,9 @@ description = "Bounded audio resampling and channel-map conversion between decod
 priority = "P1"
 phase_target = 3
 inventory_ref = "inventory/modules-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "3.B1; VLC speex_resampler/soxr pure-Rust analog decisions pending Phase 3; stereo-mode remap (Stereo/Left/Right/Reverse) later (see afeat-stereo-mode)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/audio-engine/src/resample.rs (`RateResampler`, FX3-A04 — real track-rate resampling: linear kernel, exact i128 cursor, bit-exact passthrough at equal rates; 10 pinned tests crates/audio-engine/tests/fx3_a04_rate_resampler.rs) seam-wired in the shipped CLI session constructor (apps/cli/src/pipeline_host.rs `open_audio_session_for`, FX4-A01 — constructed exactly when track rate ≠ sink rate and the output clock runs over the sink's counter; pinned by apps/cli/tests/fx4_a01_backend_route.rs `fx4_a01_rate_mismatch_resampler_wires_the_output_clock`)"
+notes = "3.B1; VLC speex_resampler/soxr pure-Rust analog decisions pending Phase 3; stereo-mode remap (Stereo/Left/Right/Reverse) later (see afeat-stereo-mode). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): `RateResampler` landed (FX3-A04) and is seam-wired in the shipped CLI's session constructor (FX4-A01), but no shipped surface drives a rate mismatch yet — the host opens the sink at the track rate (REALITY-RESCORE §2's honest-partial verdict, now stated in the row). Status partial = the library + seam subset; channel-map conversion still not started (afeat-stereo-mode)."
 
 [[feature]]
 id = "afeat-stereo-mode"
@@ -2013,9 +2013,9 @@ description = "Autoplay/autostart, play-and-exit/-stop/-pause, cork, one-instanc
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Playlist-category options cluster; one-instance = desktop-shell concern (Tauri single-instance)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: apps/cli/src/run.rs (`--start-paused` harvested + wired through parse::open_command into the open path) + the regression pin apps/cli/tests/session_script.rs `start_paused_opens_then_pauses` (the open settles then pauses from Playing) + the orchestrator baseline (audit/runs/baseline/cargo-test-workspace.txt, the session_script lane green, 2026-11-23)"
+notes = "Playlist-category options cluster; one-instance = desktop-shell concern (Tauri single-instance). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): `--start-paused` is shipped + tested (one of the row's queue-behavior family — the play-and-pause half); autoplay/one-instance/cork/play-and-exit/-stop remain open. Status partial = the start-paused subset."
 
 [[feature]]
 id = "plfeat-service-discovery-panel"
@@ -2103,9 +2103,9 @@ description = "Video settings area (display, deinterlace default, snapshot)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "ui/src/screens/settings/areas/video.tsx (+ video.test.tsx) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: video settings area component written + tested but unregistered — unreachable from the settings shell until the registry merge lands."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/video.tsx + video.test.tsx + codecs.test.tsx (VideoAreaScreen — the generated frame sections + Reset picture + the codecs fold) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes video; SETTINGS_SCREENS.video = VideoAreaScreen; SETTINGS_AREA_TITLES.video registered in messages.ts, b19 merge)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the registry merge landed — video IS registered (the prior `component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS` evidence was stale, C-014). Status implemented: the registered area screen renders + is vitest-pinned (video.test.tsx / codecs.test.tsx)."
 
 [[feature]]
 id = "config-area-audio"
@@ -2115,9 +2115,9 @@ description = "Audio settings area (device, exclusivity, volume steps)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "ui/src/screens/settings/areas/audio.tsx (+ audio.test.tsx, audio-fixtures.ts) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: audio settings area component written + tested but unregistered (live audio fields currently ship via the effects area — ui-screen-av-tools)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/audio.tsx + audio.test.tsx + audio-fixtures.ts (AudioAreaScreen — the generated frame sections + the Output device row + the effects/EQ fold) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes audio; SETTINGS_SCREENS.audio = AudioAreaScreen; SETTINGS_AREA_TITLES.audio registered in messages.ts, b19 merge)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the registry merge landed — audio IS registered (the prior `NOT registered` evidence was stale, C-014). Status implemented: the registered area screen renders + is vitest-pinned (audio.test.tsx)."
 
 [[feature]]
 id = "config-area-subtitles"
@@ -2127,9 +2127,9 @@ description = "Subtitles/OSD settings area (font, scale, sync, color)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "ui/src/screens/settings/areas/subtitles.tsx (+ subtitles.test.tsx) — component exists but is NOT registered in SETTINGS_AREA_IDS/SETTINGS_SCREENS (ui/src/screens/settings/areas/index.tsx)"
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20) partial: subtitles settings area component written + tested but unregistered."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/subtitles.tsx + subtitles.test.tsx (SubtitlesArea) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes subtitles; SETTINGS_SCREENS.subtitles = SubtitlesArea; SETTINGS_AREA_TITLES.subtitles registered in messages.ts, b19 merge)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the registry merge landed — subtitles IS registered (the prior `NOT registered` evidence was stale, C-014). Status implemented: the registered area screen renders + is vitest-pinned (subtitles.test.tsx)."
 
 [[feature]]
 id = "config-area-controls"
@@ -2139,9 +2139,9 @@ description = "Controls settings area (skip amounts 3/10/60/300s, wheel modes, s
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/controls.tsx + controls.test.tsx (the sibling ControlsArea — the Keyboard Shortcuts hand section + the SCHEMA Skip Amounts/Mouse sections via GENERATED_SCREENS.controls + Remotes) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes controls; SETTINGS_SCREENS.controls = ControlsArea)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the controls area is registered + tested in the 13-area registry (the prior not_started/evidence-empty row was the stale understatement, C-015). Status implemented: the registered area screen renders + is vitest-pinned (controls.test.tsx)."
 
 [[feature]]
 id = "config-area-library"
@@ -2151,9 +2151,9 @@ description = "Library settings area (watch folders, scan, ignore types)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "ui/src/screens/settings/areas/playlist-services.tsx (+ playlist-services.test.tsx) registered as the 'library' area in ui/src/screens/settings/areas/index.tsx (SETTINGS_AREA_IDS/SETTINGS_SCREENS)"
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). Backfill (issue #20): library area live under the playlist-services component."
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/library.tsx + library.test.tsx (LibraryArea — the §C9 frame rows render STAGED INERT: disabled, data-staged=schema-seed, the honest-empty pattern; no schemas/settings.toml [[setting]] keys exist behind any library row, and the retired playlist-services fold mounts inside and renders nothing — the seam) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes library; SETTINGS_SCREENS.library = LibraryArea)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): demoted implemented → not_started — the library area renders staged-inert seam rows only (no live setting behind any row; the playlist-services fold renders nothing; REALITY-SCORE row 153 FALSE-inflated). Same conservative class as config-area-extensions; re-raise only when the Lead seeds the library [[setting]] rows (the w26.i15 hand-off)."
 
 [[feature]]
 id = "config-area-network"
@@ -2187,9 +2187,9 @@ description = "Recording settings area (dir, format, include-subtitles)"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/settings/areas/recording.tsx + recording.test.tsx (the sibling RecordingArea — the Recording SCHEMA sections via GENERATED_SCREENS.recording (directory + format) + the Casting/Streaming-out hand sections) registered in the 13-area registry (ui/src/screens/settings/areas/index.tsx: SETTINGS_AREA_IDS includes recording; SETTINGS_SCREENS.recording = RecordingArea)"
+notes = "One row per design settings area (D-002's 13; doc 07 §5.4), NOT per option: 1476 options → ~50 schema keys → 13 areas (mapping table in options-summary §5). Generated screens detect schema drift (4.E1). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the recording area is registered + tested in the 13-area registry (the prior not_started/evidence-empty row was the stale understatement, C-015). Status implemented: the registered area screen renders + is vitest-pinned (recording.test.tsx)."
 
 [[feature]]
 id = "config-area-extensions"
@@ -2272,8 +2272,8 @@ priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/options-summary.md#s1"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "schemas/settings.toml (advanced = true flags on the rare-option set) + AdvancedArea registered as the 'advanced' area in ui/src/screens/settings/areas/index.tsx (ui/src/screens/settings/areas/advanced.tsx + advanced.test.tsx)"
-notes = "58.3% of VLC's option surface is advanced-folded (861/1476) — schema `advanced` field (doc 07 §5.2) reproduces a dominant VLC UX pattern. Backfill (issue #20): advanced flag + expert-mode area screen live."
+evidence = "schemas/settings.toml (32 advanced = true flags on the rare-option set) + the in-flow disclosure mechanism (ui/src/screens/settings/SettingsSections.tsx AdvancedDisclosure + ui/src/screens/settings/areas/shared.tsx partitionAdvanced/schemaSectionViews — advanced=true entries render behind each home screen's Advanced Options bar; per-area pins in areas.test.tsx / performance.test.tsx / updates-about.test.tsx) + the retired-slug redirect test (ui/src/screens/settings/areas/advanced.test.tsx — the b02 registry retired the advanced AREA; SETTINGS_AREA_REDIRECTS redirects /settings/advanced)"
+notes = "58.3% of VLC's option surface is advanced-folded (861/1476) — schema `advanced` field (doc 07 §5.2) reproduces a dominant VLC UX pattern. Backfill (issue #20): advanced flag + expert-mode area screen live. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the prior evidence cited the DELETED advanced.tsx as the registered area — a fabricated citation (REALITY-SCORE row 163, xtask R4 violation; the w26.b02 reshape retired the advanced AREA, component deleted w26.k13). The folding itself is implemented: 32 schema flags + the per-area in-flow AdvancedDisclosure (status unchanged); evidence corrected to the real mechanism."
 
 [[feature]]
 id = "config-defaults-source"
@@ -2370,10 +2370,10 @@ priority = "P1"
 phase_target = 7
 vlc_modules = ["mmdevice", "directsound", "waveout"]
 inventory_ref = "inventory/platform-windows.md"
-status = { windows = "not_started", linux = "unsupported", macos = "unsupported", web = "unsupported" }
-evidence = ""
+status = { windows = "partial", linux = "unsupported", macos = "unsupported", web = "unsupported" }
+evidence = "code: crates/platform-windows/src/windows/wasapi.rs (787 lines — the MMDevice enumeration + IMMNotificationClient notification FFI: list_endpoints/enumerate_with/devices_from_collection + the notification-client vtable) + the ABI fixes landed Devil-Fix FX2 (FX2-A05 PropVariant 24-byte x64 pin — crates/platform-windows/tests/fx2_a05_propvariant_size.rs; FX2-A06 dxgi vtable IDXGIObject slots) + the crate seam tests (crates/platform-windows/tests/seam_behaviour.rs)"
 blocked_reason = "Windows-only audio path; each platform has its own aout row (doc 02 §4.5 pattern). Exclusive-mode scope = Lead call (SV-22); pass-through noted in 3.0.0 release notes; DirectSound/waveout legacy rows not targeted."
-notes = "VLC module identity [VERIFY V1/V6 hardware census]."
+notes = "VLC module identity [VERIFY V1/V6 hardware census]. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): enumeration/notification FFI in-tree + ABI-fixed (FX2-A05/A06) — work exists, not wired: NO render path (zero IAudioClient/IAudioRenderClient references, rg-verified) and no shipped host links platform-windows (cpal is the admitted Windows aout per ADR-005/FX3); never executed on hardware [VERIFY]. Status partial = the enumeration/notification subset."
 
 [[feature]]
 id = "platform-aout-coreaudio"
@@ -2384,10 +2384,10 @@ priority = "P1"
 phase_target = 7
 vlc_modules = ["auhal"]
 inventory_ref = "inventory/platform-macos.md"
-status = { windows = "unsupported", linux = "unsupported", macos = "not_started", web = "unsupported" }
-evidence = ""
+status = { windows = "unsupported", linux = "unsupported", macos = "partial", web = "unsupported" }
+evidence = "code: crates/platform-macos/src/macos/coreaudio.rs (883 lines — the HAL property/query FFI; every property address re-pinned to the master element ELEMENT_MAIN=0 by FX2-A07 after W08-A02's F-001, with in-module unit pins) + the crate seam tests (crates/platform-macos/tests/seam_behaviour.rs)"
 blocked_reason = "macOS-only audio path (doc 02 §4.5 pattern); direct adapter pre-authorized [PROPOSAL] per ADR-005 inputs."
-notes = "Module identity [VERIFY V2/V5]."
+notes = "Module identity [VERIFY V2/V5]. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the property-address FFI is in-tree + ABI-fixed (FX2-A07) — work exists, not wired: no AudioUnit render path and no shipped host links platform-macos (cpal is the admitted macOS aout per ADR-005/FX3); never executed on hardware [VERIFY]. Status partial = the enumeration/property subset."
 
 [[feature]]
 id = "platform-aout-pipewire"
@@ -2397,10 +2397,10 @@ description = "Linux-native audio path for the PipeWire era"
 priority = "P1"
 phase_target = 7
 inventory_ref = "inventory/platform-linux.md"
-status = { windows = "unsupported", linux = "not_started", macos = "unsupported", web = "unsupported" }
-evidence = ""
+status = { windows = "unsupported", linux = "partial", macos = "unsupported", web = "unsupported" }
+evidence = "code: crates/platform-linux/src/linux/pulse.rs + pulse_ffi.rs (1161 lines — the PulseAudio protocol client, card 7.A2: sink enumeration + change over pa_mainloop_prepare/poll/dispatch — the pure-Rust pulseaudio-protocol option) + the crate tests (crates/platform-linux/tests/linux_integrations.rs + seam_behaviour.rs)"
 blocked_reason = "Linux-only path; ADR-005's hardest cell (R-29): every option except pulseaudio-protocol links C (ALSA-lib et al.); target is honest config-level backend switching."
-notes = "VLC 3.0.23 Debian ships alsa+pulse only; PipeWire-era expectation recorded in modules-summary §5.8."
+notes = "VLC 3.0.23 Debian ships alsa+pulse only; PipeWire-era expectation recorded in modules-summary §5.8. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the pure-Rust PulseAudio protocol client is in-tree (the R-29 pure option) — not wired into any shipped host (the backend factory routes cpal-when-built / the instrumented null backend, FX4-A01; no shipped surface constructs the pulse client). Status partial = the protocol-client library subset; config-level backend switching = the row's own open target."
 
 [[feature]]
 id = "platform-vout-wgpu"
@@ -2411,9 +2411,9 @@ priority = "P0"
 phase_target = 2
 vlc_modules = ["x11", "xcb", "wayland", "direct3d9", "direct3d11", "glwin32", "macosx"]
 inventory_ref = "inventory/platform-synthesis.md"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "ADR-003; VLC's 23 vout/window/GL-provider registrations collapse to one engine-internal kind (modules-summary §5.9); video-in-webview prototype 2.D3-V feeds ADR-003; D3D11↔12 interop spike = top Windows unknown (SV-7 class)."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/renderer-wgpu — SHIPPED as the software compositor of the video path (apps/cli/Cargo.toml renderer-wgpu path dep + apps/desktop/Cargo.toml; apps/cli/src/pipeline_host.rs composes renderer_wgpu Renderer/SurfaceConfig/params/screenshot/color) — the crate is named renderer-wgpu per doc 01 but v0 does NOT import wgpu (crates/renderer-wgpu/src/lib.rs — the recorded deferral, docs/dependencies/records/wgpu-30.0.1.md): present-path params + pure integer aspect/crop math (params.rs AspectMode) + color conversion + screenshot plumbing, all software"
+notes = "ADR-003; VLC's 23 vout/window/GL-provider registrations collapse to one engine-internal kind (modules-summary §5.9); video-in-webview prototype 2.D3-V feeds ADR-003; D3D11↔12 interop spike = top Windows unknown (SV-7 class). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the unified vout exists and SHIPS as pure software compositing (the name says wgpu, the code does not — the recorded deferral); the wgpu import + winit surfaces + GPU present = the open half (ADR-003). Status partial = the shipped software-compositor subset."
 
 [[feature]]
 id = "platform-hwdecode-h264"
@@ -2424,9 +2424,9 @@ priority = "P1"
 phase_target = 7
 vlc_modules = ["avcodec", "dxva2", "vaapi", "vdpau_avcodec"]
 inventory_ref = "inventory/platform-synthesis.md"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3. 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] (VA-API = E2 OS-service exception, adapter-gated; audited access paths libva 0.1.5 / libva-sys 0.1.2, none admitted; substrate + unsafe-boundary + CI-conformance plan pending Lead)."
+status = { windows = "not_started", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/codecs/src/video/h264/hw/ (~7,063 lines: the vaapi/ adapter (Linux VA-API — device/dl/ffi/library/session) + the videotoolbox/ adapter (macOS — ffi/session) + capability/feed/frame_pool; unconditional compile) + the policy seam (HwDecodePolicy parses the playback.hw-decode-policy setting, capability.rs) + the settings key (schemas/settings.toml playback.hw-decode-policy: software-only/prefer-hardware/hardware-only; the performance area toggle) + the shipped dispatch truth (apps/cli/src/pipeline_host.rs — the h264|avc1 arm selects H264SwDecoder: the software-only default resolves there and the hw lane (H264Decoder::from_setting) stays the opt-in Phase-7 path; docs/generated/status-truth.toml: 14 shipped families, all software)"
+notes = "Census: avcodec ffmpeghw score 10001 (highest in dump) — hardware preferred by default, corroborating MP §2/ADR-001 hw-first. Win module identity [VERIFY V4]; VT identity [VERIFY V5]; VA-API E2 classification = open Lead question (SV-28). Adapters 7.B1–7.B3. 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] (VA-API = E2 OS-service exception, adapter-gated; audited access paths libva 0.1.5 / libva-sys 0.1.2, none admitted; substrate + unsafe-boundary + CI-conformance plan pending Lead). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the VA-API (linux) + VideoToolbox (macos) adapters are in-tree (~7k LOC, unwired — no shipped dispatch arm constructs them; the shipped arm is the software decoder) and NO Media Foundation adapter exists (rg-verified: no mf/dxva adapter — windows stays not_started). Status partial (linux/macos) = the adapter-library + policy-seam subset; no hardware decode is exercised anywhere [VERIFY]."
 
 [[feature]]
 id = "platform-hwdecode-hevc"
@@ -2437,9 +2437,9 @@ priority = "P1"
 phase_target = 7
 vlc_modules = ["avcodec", "dxva2", "vaapi"]
 inventory_ref = "inventory/platform-synthesis.md"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2). 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] covers HEVC 8/10/12-bit + 4:2:2/4:4:4 via VA-API; driver-variance ledger (R-15, Intel/AMD) named as an adapter-card deliverable."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/codecs/src/video/hevc/hw.rs (403 lines — the HEVC hw-decode seam: the HevcHwDecoder/HevcHwBridge contracts, the consumption point where the 5.G1 parser meets a Phase-7 per-OS adapter; stable for 7.B1-7.B3 to build against) + crates/codecs/tests/hevc_hw_path.rs (17 tests)"
+notes = "Windows Store paywall wrinkle (see codec-video-hevc); conditional on the H.264 hw path landing (5.G2). 2026-11-09 (issue #2): Linux lane designed — ADR-013 [proposed] covers HEVC 8/10/12-bit + 4:2:2/4:4:4 via VA-API; driver-variance ledger (R-15, Intel/AMD) named as an adapter-card deliverable. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the typed hw-session seam landed (packetization + bridge contracts, unit-pinned); NO per-OS adapter is built (7.B1-7.B3 open) and HEVC decode itself stays the typed refusal (codec-video-hevc rows). Status partial = the seam/contract subset."
 
 [[feature]]
 id = "platform-hwdecode-vp9"
@@ -2501,10 +2501,10 @@ description = "Web build reaching playback parity through the same command layer
 priority = "P1"
 phase_target = 7
 inventory_ref = "docs/09-web-wasm-target.md"
-status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "not_started" }
-evidence = ""
+status = { windows = "unsupported", linux = "unsupported", macos = "unsupported", web = "partial" }
+evidence = "build: audit/runs/baseline/ui-build.txt (tsc --noEmit && vite build — the web build, 2026-11-23) + audit/runs/baseline/rc-smoke.txt (web-ui-browser-load: vite preview + Playwright chromium — PASS) + ui/e2e/web/web-matrix.spec.ts (the browser-matrix harness: the REAL engine Worker driven in Playwright Chromium, COOP/COEP both isolation modes; the npm run webmatrix driver)"
 blocked_reason = "web-only deliverable (MP §10); desktop columns not applicable."
-notes = "Prototype 2.D3-V is Phase 2; parity target Phase 7; wasm-size risk R-31; fetch+Range I/O model per doc 09 §6."
+notes = "Prototype 2.D3-V is Phase 2; parity target Phase 7; wasm-size risk R-31; fetch+Range I/O model per doc 09 §6. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the web build exists, loads in a real browser (rc-smoke baseline PASS) and drives the real engine Worker in the browser-matrix harness — but wasm playback parity is NOT: zero wasm decoders ship (every codec row's web column stays not_started; the demo transport is the dev-shell simulation). Status partial = the build + browser-harness subset."
 
 [[feature]]
 id = "platform-device-capture"
@@ -2600,9 +2600,9 @@ priority = "P2"
 phase_target = 7
 vlc_modules = ["udev", "mediadirs"]
 inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "7.D1 core; udev crate = libudev C bindings [VERIFY classification: arguably OS service]; inotify/dir-watch alternative [PROPOSAL]; VLC has 3 udev + 3 mediadirs registrations."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: crates/device-discovery (2,510 lines of src: monitor.rs 436 + volume.rs 382 + ssdp.rs 584 + events/context/capability/device) + the plugin-api seam (crates/plugin-api/src/discovery.rs) + tests (crates/device-discovery/tests/volume_monitor.rs + tests/ssdp.rs — the real-UDP loopback responder)"
+notes = "7.D1 core; udev crate = libudev C bindings [VERIFY classification: arguably OS service]; inotify/dir-watch alternative [PROPOSAL]; VLC has 3 udev + 3 mediadirs registrations. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the discovery crate + the plugin-api seam + the monitor landed (2,510 lines src + tests); no shipped host links device-discovery (rg-verified: zero consumers outside plugin-api) — the library-pane consumer is open. Status partial = the library + seam subset."
 
 [[feature]]
 id = "sd-podcast"
@@ -2626,9 +2626,10 @@ priority = "P3"
 phase_target = 8
 vlc_modules = ["upnp"]
 inventory_ref = "docs/feasibility/sections/subsystems.md#s5.2"
-status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
-evidence = ""
-blocked_reason = "Minimal-SD recommendation (feasibility subsystems §5.2 [PROPOSAL]): rupnp 3.0.0 is feasible but async-edge + niche; no design panel for a network-discovery tree. Revisit = Phase 7 optional tier."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "unsupported" }
+evidence = "code: crates/device-discovery/src/ssdp.rs (584 lines — the SSDP discovery core: the discovery session + M-SEARCH/NOTIFY parse) + real-UDP tests (crates/device-discovery/tests/ssdp.rs — a real in-process responder bound to loopback sockets, real wire bytes, 5 tests) + the plugin-api seam (crates/plugin-api/src/discovery.rs)"
+blocked_reason = "web: no raw UDP/multicast sockets in browsers (MP §10). Desktop columns lifted from blocked — the SSDP core is in-tree (see evidence); the UPnP browse/DLNA content-directory half and a shipped consumer remain unbuilt (the Minimal-SD recommendation, feasibility subsystems §5.2, still gates the rupnp integration)."
+notes = "Minimal-SD recommendation (feasibility subsystems §5.2 [PROPOSAL]): rupnp 3.0.0 is feasible but async-edge + niche; no design panel for a network-discovery tree. Revisit = Phase 7 optional tier. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the prior blocked ×4 misclassified in-tree work (REALITY-SCORE row 189 FALSE — ssdp.rs + real-UDP tests landed; the Minimal-SD recommendation gated the rupnp integration, not this core). Demoted to partial ×3: the SSDP discovery core is real + tested, no shipped host links it, and the UPnP browse half is not built; web = unsupported (no browser raw sockets)."
 
 [[feature]]
 id = "sd-mdns-renderers"
@@ -3019,9 +3020,9 @@ description = "Convert/Save…, Stream…, Quit"
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.1"
-status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "ui/src/components/appshell/AppShell.tsx File menu menu.file.exit (quit wired); Convert/Stream items absent — convert binding seed-only (keymaps/default.toml, disposition not-adopted-v1)"
-notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1. Backfill (issue #20) partial: Quit live in the menubar; Convert/Stream… items not rendered."
+status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
+evidence = "the only quit surface today: the canvas context menu's Quit VLC entry (ui/src/screens/player/PlayerScreen.tsx, id quit) renders DISABLED — window close is host-owned (the honest-empty pattern); keymaps/default.toml quit Ctrl+Q seed; `menu.file.exit` is a dead i18n key (ui/src/i18n/messages.ts — no consumer; the W25/W26 redesign removed the menubar/File menu); Convert/Stream items not rendered (the convert binding is seed-only, disposition not-adopted-v1)"
+notes = "Quit Ctrl+Q adopted; Convert gated to 7.E3 targets; Stream wizard not-adopted-v1. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the prior `quit wired` evidence claim was FALSE (REALITY-SCORE row 220 — the quit item ships disabled, the i18n key is dead, no handler, no native menubar) and the row's substance is zero — demoted to not_started ×4 (the same conservative class as menu-video-snapshot); Convert/Stream remain not rendered."
 
 [[feature]]
 id = "menu-playback-transport"
@@ -3043,9 +3044,9 @@ description = "Title ▸, Chapter ▸, Program ▸, Navigation ▸ (disc menus)"
 priority = "P2"
 phase_target = 7
 inventory_ref = "inventory/ui-inventory.md#s1.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Chapters in v1; titles/program SIDs feature-gated (Q6); disc-menu entries blocked with discs; nav-arrow gating via in-disc-menu token [PROPOSAL Q4]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "code: ControlBar's chapters tab (ui/src/screens/player/controls/ControlBar.tsx — the tab id chapters; ui/src/screens/player/layout.ts has-chapters token — the seam carries conservative false today, ui/src/screens/player/PlayerScreen.tsx) + the engine chapter library (crates/playback-engine/src/chapters.rs) + the MKV ChapterList parse (crates/demux/src/mkv/chapters.rs); the catalog verbs media.get-chapters/media.set-chapter are UNWIRED (docs/generated/status-truth.toml wired=false) and the canvas context menu's Playback submenu carries transport/shuffle/repeat only — no Title/Chapter/Program/Navigation entries"
+notes = "Chapters in v1; titles/program SIDs feature-gated (Q6); disc-menu entries blocked with discs; nav-arrow gating via in-disc-menu token [PROPOSAL Q4]. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the landed subset = the chapters tab + the engine/MKV chapter parse + the demo-transport chapter fields (dev-shell); no Title ▸/Program ▸/Navigation ▸ menu exists and the chapter verbs are refused by every shipped host (status-truth wired=false). Status partial = the chapter-tab + library subset."
 
 [[feature]]
 id = "menu-playback-bookmarks"
@@ -3055,9 +3056,9 @@ description = "Jump to Specific Time, Bookmarks ▸/Manage"
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Ctrl+T / Ctrl+B."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx (GotoTimeDialog + BookmarksDialog mounted; the goto-time binding dispatches) + ui/src/screens/player/dialogs/GotoTimeDialog.tsx + .test.tsx + BookmarksDialog.tsx + .test.tsx + keymaps/default.toml (Ctrl+T jump-to-time → goto-time; Ctrl+B bookmarks-dialog → bookmarks)"
+notes = "Ctrl+T / Ctrl+B. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): both named entries are live as dialogs + accelerators — Jump to Specific Time (Ctrl+T → the seek command layer, the ui-dialog-goto-time row) and Bookmarks ▸/Manage (Ctrl+B → BookmarksDialog, jump via playback.seek; the set/play-bookmark-N slot hotkeys ride row 109's open remainder). No menubar exists — the entries ride the dialogs + keymap. Status implemented."
 
 [[feature]]
 id = "menu-audio"
@@ -3067,9 +3068,9 @@ description = "Audio Track ▸, Audio Device ▸, Stereo Mode ▸, Visualization
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.3"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "b/Shift+A cycle hotkeys; stereo-mode + visualizations later (own rows); menu enabled-while-audio-plays per [UG]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx canvasTrackSubmenu (the canvas context menu's Audio ▸ submenu — engine-truth track list from tracks.list, selected-id radio rows, dispatch tracks.set-audio-track through ui/src/screens/player/context.tsx; no honest track data → the labelled disabled no-media reason row, never a fabricated list)"
+notes = "b/Shift+A cycle hotkeys; stereo-mode + visualizations later (own rows); menu enabled-while-audio-plays per [UG]. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): Audio Track ▸ is live (the canvas context-menu submenu, engine-truth); Audio Device ▸ / Stereo Mode ▸ / Visualizations ▸ are absent (their own rows); the b/Shift+A cycle hotkeys are seed-only. Status partial = the Audio Track ▸ subset."
 
 [[feature]]
 id = "menu-video-display"
@@ -3079,9 +3080,9 @@ description = "Video Track ▸, Full Screen, Always on Top, Zoom ▸"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "f hotkey; Alt+1–4 zoom; Always-on-Top = shell window flag; DirectX Wallpaper not-adopted."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx canvasTrackSubmenu (the Video Track ▸ submenu of the canvas context menu — engine-truth video track list + dispatch tracks.set-video-track) + ui/src/screens/player/useFullscreen.ts + useFullscreen.test.tsx (the fullscreen hook surface); Always on Top / Zoom ▸ menus absent"
+notes = "f hotkey; Alt+1–4 zoom; Always-on-Top = shell window flag; DirectX Wallpaper not-adopted. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): Video Track ▸ + the fullscreen hook are the landed subset; Always on Top (shell window flag) and Zoom ▸ are absent; the f hotkey is seed-only (the fullscreen surface rides playback-fullscreen). Status partial = the Video Track ▸ + fullscreen-hook subset."
 
 [[feature]]
 id = "menu-video-adjust"
@@ -3091,9 +3092,9 @@ description = "Aspect Ratio ▸ (9 presets), Crop ▸ (11 presets), Deinterlace 
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.4"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "a/c/d/Shift+d hotkeys; deinterlace item disabled-with-reason while vfeat-deinterlace is blocked."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/tools/video/CropTool.tsx + CropTool.test.tsx (the crop tool surface) + crates/renderer-wgpu/src/params.rs (the pure integer aspect/crop math — AspectMode incl. Crop16x9, extent clamping)"
+notes = "a/c/d/Shift+d hotkeys; deinterlace item disabled-with-reason while vfeat-deinterlace is blocked. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the CropTool + the renderer aspect/crop params are the landed subset; the Aspect Ratio ▸ (9 presets) / Crop ▸ (11 presets) / Deinterlace ▸ menus do not exist (deinterlace stays disabled-with-reason per vfeat-deinterlace); a/c/Shift+d hotkeys are seed-only. Status partial = the tool + math subset."
 
 [[feature]]
 id = "menu-video-snapshot"
@@ -3115,9 +3116,9 @@ description = "Sub Track ▸, Add Subtitle File…, sync entries"
 priority = "P0"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s1.5"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "v cycle + Shift+H/J/K + Ctrl+Shift+K subsync; menu presentation [VERIFY]."
+status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx canvasTrackSubmenu (the Sub Track ▸ submenu of the canvas context menu — engine-truth subtitle track list + dispatch tracks.set-subtitle-track) + the Add-Subtitle File… entry (ui/src/screens/playlist/PlaylistScreen.tsx → ui/src/screens/playlist/subtitles/AddSubtitlesDialog.tsx + .test.tsx + SubtitlePickList.tsx + SubtitlePickList.test.tsx)"
+notes = "v cycle + Shift+H/J/K + Ctrl+Shift+K subsync; menu presentation [VERIFY]. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): Sub Track ▸ + Add Subtitle File… are live; the sync entries are keymap seeds only (subtitle-delay G/H, subsync Shift+H/J/K + Ctrl+Shift+K) — no menu items; the v cycle is seed-only. Status partial = the track-submenu + add-subtitle subset."
 
 [[feature]]
 id = "menu-tools"
@@ -3163,9 +3164,9 @@ description = "Right-click menu on the video surface (design-authored replacemen
 priority = "P1"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.2"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "VLC 3.0.x enumeration [VERIFY V-02]; our right-click menu.svg: Play/Stop/Prev/Next/Record/Hide UI/Playback▸/Video▸/Audio▸/Subtitle▸/More Settings/Playlist▸/Open Media/Quit."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/player/PlayerScreen.tsx canvasMenuEntries (the CANVAS CONTEXT MENU — right-click menu.svg's 14 rows + separators: Play/Stop/Prev/Next/Record · Hide UI · Playback/Video/Audio/Subtitle submenus · More Settings/Playlist/Open Media · Quit VLC; honest wiring — Record/Hide UI/Quit render disabled, never theater) + ui/src/screens/player/context.test.tsx (the ContextMenu-key + Escape/focus pins, w26.k06)"
+notes = "VLC 3.0.x enumeration [VERIFY V-02]; our right-click menu.svg: Play/Stop/Prev/Next/Record/Hide UI/Playback▸/Video▸/Audio▸/Subtitle▸/More Settings/Playlist▸/Open Media/Quit. 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the design-authored canvas context menu is live (engine-truth Video/Audio/Subtitle track submenus + transport + navigation + the disabled-with-reason rows) and keyboard-reachable (ContextMenu key opens it, w26.k06). Status implemented."
 
 [[feature]]
 id = "menu-context-playlist"
@@ -3175,9 +3176,9 @@ description = "Play, Add file/directory, Remove, Sort, Information, Stream/Save 
 priority = "P2"
 phase_target = 4
 inventory_ref = "inventory/ui-inventory.md#s3.1"
-status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
-evidence = ""
-notes = "Fully doc-sourced in ui-inventory; Add Node dropped (design model differs)."
+status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
+evidence = "ui/src/screens/playlist/PlaylistPanel.tsx (the QUEUE-ROW CONTEXT MENU — playlist context menu.svg's 8 icon rows, pinned; the ContextMenu component + the enqueue popup) + ui/src/screens/playlist/PlaylistScreen.tsx (the FILE-ROW context menu — file context menu.svg, 12 rows; Play is disabled until a catalog command exists — honest)"
+notes = "Fully doc-sourced in ui-inventory; Add Node dropped (design model differs). 2026-11-26 refresh (Devil-Fix wave FX8, agent FX8-A03, F2.1 matrix sweep): the queue-row context menu (8 rows) and the file-row context menu (12 rows) are live in the playlist surface; gated items render disabled-with-reason, never theater. Status implemented."
 
 [[feature]]
 id = "menu-tray"
