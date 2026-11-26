@@ -1,0 +1,56 @@
+# Gate-proof fixture (FX8-A09): the PRE-F0.5b shape of
+# .github/workflows/rust-clippy.yml — the "gate that cannot fail" the audit
+# found (continue-on-error: true on the clippy step, no -D warnings, no
+# pipefail). Installed over the copy's rust-clippy.yml by run_proofs.sh to
+# prove the lane's structural invariant checker goes red on it; the fixed
+# file (continue-on-error removed, -D warnings + `set -o pipefail` added, per
+# FX1-A10 item (b)) is what the green control asserts. The BEHAVIORAL proof
+# (clippy itself exiting non-zero on a warning-dirty tree under
+# `-D warnings`) needs the real toolchain and is parked [VERIFY-central] in
+# PROOFS.md. NEVER overwrite the real workflow with this file.
+#
+# This file uses the standard GitHub workflow syntax; the one seeded defect
+# is the clippy step's exit-swallowing shape below.
+
+name: rust-clippy analyze
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '37 22 * * 0'
+
+jobs:
+  rust-clippy-analyze:
+    name: Run rust-clippy analyzing
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+
+      - name: Install required cargo
+        run: cargo install clippy-sarif sarif-fmt
+
+      - name: Run rust-clippy
+        continue-on-error: true
+        run: cargo clippy --all-features --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+
+      - name: Upload analysis results to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: rust-clippy-results.sarif
+          wait-for-processing: true

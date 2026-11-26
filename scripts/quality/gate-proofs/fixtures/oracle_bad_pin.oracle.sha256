@@ -1,0 +1,14 @@
+# Gate-proof fixture (FX8-A09): a DELIBERATELY WRONG oracle pin (hash mismatch).
+#
+# Installed by run_proofs.sh as tests/fixtures/generated/valid/oracle_bad_pin.mp4.oracle.sha256
+# next to a copy of the REAL pinned fixture mp4_mjpeg_pcm.mp4. The video row
+# carries an all-zero digest: the oracle gate must FAIL on a sidecar that no
+# longer matches the bytes it pins (the audio row keeps the real digest, so
+# the video mismatch is the ONLY seeded break). The stream-set declaration
+# is intact, so the row-set completeness checks pass and the mismatch is what
+# fails. The real sidecar whose audio row is reused here:
+# tests/fixtures/generated/valid/mp4_mjpeg_pcm.mp4.oracle.sha256
+# rows: <sha256>  <stream-label>
+# streams: video audio
+0000000000000000000000000000000000000000000000000000000000000000  video
+1d9f5019c9b5181f0910528dce360f46e74f9c4df8d9bc9a20c2c68fd218b95b  audio

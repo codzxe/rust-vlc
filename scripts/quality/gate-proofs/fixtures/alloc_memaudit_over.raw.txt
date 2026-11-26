@@ -1,0 +1,16 @@
+# Gate-proof fixture (FX8-A09) — the crafted OVER-THRESHOLD mem-audit raw
+# output for the 23_alloc_budget.sh exit-path red proof.
+#
+# Seeded via the test-shim `cargo` (run_proofs.sh writes a fake cargo into
+# its mktemp bin dir; the gate's own python judge + rc-capture tail then run
+# FOR REAL inside the copy). The rows below are the same shape as
+# tools/mem-audit's MEMAUDIT lines the gate parses:
+#   K (fixed open cost, median peak of inputs <= 8 KB) = median(300000,
+#   20000000) = 10150000 B, so the crafted 100 B / 20 MB header amplifies
+#   (20000000 - 10150000) / 100 = 98500x over the 64x threshold -> OVER
+#   THRESHOLD -> python sys.exit(1) -> the gate's exit path must exit 1
+#   (the W17-A03 finding was that this exit used to be swallowed).
+# Lines not starting with MEMAUDIT are ignored by the gate's parser (that
+# includes this comment block).
+MEMAUDIT size=200 peak_B=300000 verdict=ok container=wav file=fixture_green_anchor.wav
+MEMAUDIT size=100 peak_B=20000000 verdict=ok container=mkv file=fixture_over_threshold_crafted_header.mkv

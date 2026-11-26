@@ -1,0 +1,8 @@
+{
+ "generated": "2026-11-24T00:00:00Z",
+ "policy": "gate-proof fixture (FX8-A09): a deliberately LOWERED ratchet floor. Seeded over docs/audit/complexity-baseline.json in the proof copy, every real HARD count then reads as GREW and the gate must exit 1 (GATE FAILED: crate(s) added an O(n) shift). Same shape the real script writes; only the counts are wrong on purpose. NEVER commit this over the real baseline.",
+ "hard_total": 0,
+ "review_total": 0,
+ "hard": {},
+ "review": {}
+}

@@ -1,0 +1,10 @@
+# Gate-proof fixture (FX8-A09) — the all-under-threshold mem-audit raw
+# output for the 23_alloc_budget.sh GREEN control.
+#
+# Seeded via the test-shim `cargo` exactly like alloc_memaudit_over.raw.txt
+# (see that file's header for the mechanics). K = 300000 B (the only row
+# <= 8 KB), so the second row amplifies (1500000 - 300000) / 100000 = 12x —
+# under the 64x threshold -> no OVER THRESHOLD -> exit 0: the gate can still
+# go green when the tree is clean, which is what a green control proves.
+MEMAUDIT size=200 peak_B=300000 verdict=ok container=wav file=fixture_green_anchor.wav
+MEMAUDIT size=100000 peak_B=1500000 verdict=ok container=mp4 file=fixture_green_normal.mp4
