@@ -49,7 +49,7 @@ rebuild from this worktree (§2 environment note).
 | 1 | `cargo test --workspace` (debug; first invocation) | **ABORTED (fail-fast) at `-p first-vertical --test evidence`**: `committed_transcripts_match_fresh_runs` panicked — the `lumen` bin was not at the test's relative path `<worktree>/target/debug/lumen` (worktree-path artifact: builds go to the config-pinned shared dir; see note below) | `logs/phase3-exit-workspace-test.log` |
 | 1b | env fix, then `cargo test --workspace --no-fail-fast` | **1939 passed / 0 failed / 36 ignored across 163 test binaries** — incl. scenarios_b **23/23 green (5.53 s)** and soak **11/11 green (120.06 s, `soak_loops_stay_memory_bounded` ok)**. Exit 101 from exactly ONE target: `-p first-vertical --doc` doctest **compile** failure (E0463 `can't find crate for lumen_cli`, harness.rs:40) — which **PASSES on immediate targeted retry** (`running 0 tests … ok`), consistent with a transient shared-target-dir artifact under concurrent sibling builds, not a deterministic code failure [VERIFY: Lead re-run on main] | `logs/phase3-exit-workspace-test.log` (RERUN section) |
 | 2 | `cargo fmt --check` (pre-fix) | **FAIL — 32 diffs across 15 files** (drift accumulated from wave-6/7 partial merges; scenario/queue_policy/sweep/tool files) | `logs/phase3-exit-fmt-initial-drift.log` |
-| 3 | `cargo fmt --all` + `cargo fmt --check` (post-fix) | **CLEAN (exit 0)** — drift fixed on this branch (commit 56f135a), re-check clean. The Lead should fold this hygiene fix into the merge | `logs/phase3-exit-fmt.log` |
+| 3 | `cargo fmt --all` + `cargo fmt --check` (post-fix) | **CLEAN (exit 0)** — drift fixed on this branch (commit 56f135a), re-check clean. The Lead should fold this hygiene fix into the merge | `logs/phase3-exit-fmt.md` (tombstone — the log was deleted as stale-green 2026-11-26, FX8-A05; §8) |
 | 4 | `cargo clippy --workspace --all-targets -- -D warnings` (final form: `--keep-going` to enumerate all) | **NOT CLEAN — 3 targets / 16 errors, all PRE-EXISTING on main b8cb904** (none from this branch; this session's huffman fix REMOVED a 17th, see row 4b): (a) `codecs` example `stage_bench` 8× dead_code (decoder.rs:136/157/676/840/854/1014, error.rs:73/131 — the example `#[path]`-includes lib sources, so `pub(crate)` items read as dead; from the 7-b partial merge db7d151); (b) `lumen-sweep` 1× `assert!(false)` worker.rs:553 (from the 7-d skeleton merge b8cb904; note: replacing with `unreachable!`/`panic!` interacts with the F-5 check-panics gate — owner's call); (c) `playback-engine` test `scenarios_b` 6× (5× `expect()` on Option: scenario_02_play.rs:44/78/84, scenario_03_pause_resume.rs:45/92 + host.rs:535 — the known pre-existing base issue 7-a's worklog registered with a "whoever owns scenarios 2/3" handoff) | `logs/phase3-exit-clippy.log` |
 | 4b | `codecs` lint fix (this session) | 7-GATE fixed the `needless_range_loop` at `crates/codecs/src/video/mjpeg/huffman.rs:94` (loop rewritten to `bits.iter().enumerate().skip(1)` — behavior-identical; **codecs suite re-verified 170 passed / 0 failed after the edit**) | commit on this branch; log §2.1 |
 
@@ -209,15 +209,46 @@ Wave-7 in-flight optimizations (§5) feed Phase-4 targets, not its launch —
   --all-targets -- -D warnings` (chained after the test run).
 - `docs/gates/logs/phase3-exit-fmt-initial-drift.log` — pre-fix fmt drift
   (32 diffs).
-- `docs/gates/logs/phase3-exit-fmt.log` — post-fix re-check (clean).
 - Prior-phase logs in the same directory (wave1/2/3-merge, merge-3a1).
+
+Tombstone disclosure (2026-11-26, Devil-Fix FX8-A05): the fourth index
+entry above, `docs/gates/logs/phase3-exit-fmt.log` ("post-fix re-check
+(clean)"), was DELETED as stale-green evidence — its entire content was
+the single exit token `FMT_RECHECK_EXIT:0`, carrying no command, date,
+worktree, or check output, and the current-tree `cargo fmt --check` fails
+(exit 1) per the audit baseline (`audit/runs/baseline/cargo-fmt.txt`).
+Its tombstone — with the exact regeneration command (`cargo fmt --all &&
+cargo fmt --check; echo "FMT_RECHECK_EXIT:$?"`) — is
+`docs/gates/logs/phase3-exit-fmt.md`; the honest-FAIL sibling
+`phase3-exit-fmt-initial-drift.log` above stays as-is. Also deleted from
+this directory the same day, same stale-green class:
+`docs/gates/logs/wave3-merge.test.log` (tally 1718/0/20 — internally
+consistent, but the two first-vertical evidence tests it records as
+`ok` at its lines 803-808 now FAIL per
+`audit/runs/baseline/cargo-test-workspace.txt:2764,2767`; no provenance
+header) — tombstone `docs/gates/logs/wave3-merge.test.md` with its
+regeneration command (`cargo test --workspace --all-features`). The
+§2.1 trajectory's 1718/0/20 figure remains a citation of that deleted
+wave-3-era snapshot.
 
 ## 9. LEAD SIGN-OFF (card 3.F2-V — final verdict)
 
 - **Verdict: PASS WITH REGISTERED CAVEATS — PHASE 4 IS AUTHORIZED TO LAUNCH.**
-- Signed: 2026-10-24, Lead, on `main` post-merge of all wave-7 branches
+- Signed: 2026-11-13, Lead, on `main` post-merge of all wave-7 branches
   (scenarios closure 8d039bc, F-fixes c239e57, V-1/V-3/input b8cb904+,
   gate evidence + fmt hygiene cddf0db-side merges, SIMD 3278344-side merge).
+
+  Correction note (2026-11-26, Devil-Fix FX8-A05): this signature line
+  previously read "Signed: 2026-10-24" — a backdated date. The signature
+  in fact stood PENDING from 2026-10-24 and was Lead-signed on
+  2026-11-13, exactly as this document's own square-up below ("the
+  signature line above stood PENDING from 2026-10-24"; "PASS (Lead-signed
+  2026-11-13)") and `docs/ROADMAP.md`'s Phase 3 row ("Lead-signed
+  2026-11-13 (issue #59)") already recorded; the audit verdict on the
+  old line was FALSE-as-written
+  (`audit/docs/docs/gates/phase3-exit.md.audit.md` claim 5). The date is
+  corrected to the true signature date; nothing else in the sign-off
+  block changed.
 - **Lead review performed:** (a) scenarios_b 23/23 re-run by the Lead on
   merged main pre-signature (independent of 7-a/7-GATE runs); (b) the single
   workspace exit-101 (first-vertical --doc E0463, recorded §2 row 1b as
