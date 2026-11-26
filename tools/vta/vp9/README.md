@@ -5,7 +5,34 @@ through **OUR** ivf demuxer (`crates/demux/src/ivf`) into
 **rusty_vp9 0.1.3**, and writes tightly packed I420 rawvideo
 (8-bit, or u16LE for profile-2 10/12-bit) for MD5/per-frame
 comparison against an ffmpeg `libvpx-vp9` reference decode.
-Evidence lives in `docs/dependencies/records/rusty_vp9-0.1.3.md`.
+Evidence lives in `docs/dependencies/records/rusty_vp9-0.1.3.md`;
+every bit-exact verdict there is re-runnable by the committed
+command below ("Re-run the §D differential").
+
+## Re-run the §D differential (the committed regen command)
+
+Every bit-exact verdict in `docs/dependencies/records/rusty_vp9-0.1.3.md`
+§D (6/6 lanes, 431/431 frames byte-identical) is reproduced by ONE
+committed command over the committed fixtures
+(`crates/codecs/tests/fixtures/vp9/` — the byte-identical staged lanes of
+the record's §D table; see `crates/codecs/tests/vp9_differential.rs`):
+
+```sh
+# reference half only (ffmpeg/ffprobe, no cargo): ffprobe facts +
+# ffmpeg libvpx-vp9 rawvideo stream MD5s vs the record's §D table
+bash tools/vta/vp9/evidence/run_vp9_bitexact.sh --ref-only
+# full differential (adds the rusty_vp9 mine half below — needs cargo)
+bash tools/vta/vp9/evidence/run_vp9_bitexact.sh
+```
+
+The reference half was re-verified GREEN 2026-11-26 (FX8-A06) on ffmpeg
+7.1.5-0+deb13u1: 6/6 lanes' facts + stream MD5s match the record. The
+full differential needs `cargo run --release` of this harness for the
+mine half; on a box without cargo on PATH the script exits 3 with a
+`[VERIFY-central]` marker — it never pretends the mine half ran. The
+per-frame comparison (the record's method) is
+`tools/vta/vp9/evidence/compare_frames.py`: per-frame MD5 of
+frame-sized chunks both sides + a whole-stream MD5 cross-check.
 
 ## Run
 

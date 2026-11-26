@@ -36,6 +36,16 @@ secrets/
 # task W24-C — see docs/packaging/evidence/README.md)
 !docs/packaging/evidence/**
 !docs/packaging/evidence/*.log
+# w26 verification captures are committed too (FX8-A06, FIX-PLAN §4 F2.4
+# evidence culture; audit finding DEVIL-AUDIT-REPORT.md:112 — "w26
+# verification captures never committed"). No original bytes existed (all
+# lived in /tmp, recycled); the committed inventory is
+# docs/waves/w26/captures/INDEX.md and the regen harness
+# scripts/quality/w26_captures.sh writes its in-tree output here. Same
+# class as the two exception blocks above: the console-*.log artifacts
+# dev-shots.mjs writes would otherwise be swallowed by `*.log`.
+!docs/waves/w26/captures/**
+!docs/waves/w26/captures/*.log
 /logs/
 tmp/
 .cache/

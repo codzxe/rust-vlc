@@ -138,8 +138,9 @@ identity cross-check at admission time, cpal-record convention.]`
 
 **conditional PASS — pure Rust, zero-dependency, default-features
 pin `rusty_vp9 = "=0.1.3"`; differential-measured BIT-EXACT against
-ffmpeg `libvpx-vp9` on all six lanes including 10-bit profile 2;
-hostile battery panic-free.** Conditions: (a) Lead's allowlist row
+ffmpeg `libvpx-vp9` on all six lanes including 10-bit profile 2
+(re-runnable: `bash tools/vta/vp9/evidence/run_vp9_bitexact.sh` —
+see §D); hostile battery panic-free.** Conditions: (a) Lead's allowlist row
 (doc 11 §3.1) with the exact pin above; (b) the admission M-wave
 wires `codecs` behind a differential test of the §D shape (live
 ffmpeg oracle, per-frame compare) before any wider claim; (c)
@@ -162,6 +163,19 @@ sides (python hashlib) + whole-stream md5sum cross-check. Encode
 side of all generated lanes: `-c:v libvpx-vp9 -deadline good
 -cpu-used 8` (fast encode; decode is what is under test).
 
+**Re-run the whole table with the committed command
+(FX8-A06, 2026-11-26): `bash tools/vta/vp9/evidence/run_vp9_bitexact.sh
+--ref-only` re-derives the reference half (ffprobe facts + ffmpeg
+`libvpx-vp9` stream MD5s) over the committed fixtures
+(`crates/codecs/tests/fixtures/vp9/` — the byte-identical staged
+lanes of this table) and diffs them against the pinned values below;
+`bash tools/vta/vp9/evidence/run_vp9_bitexact.sh` additionally runs
+the rusty_vp9 mine half (`tools/vta/vp9`) + the per-frame comparator
+`tools/vta/vp9/evidence/compare_frames.py` (needs cargo; on a
+cargo-less box it exits 3 with a `[VERIFY-central]` marker — never
+pretending the mine half ran). Reference half re-verified GREEN
+2026-11-26: 6/6 lanes, ffmpeg 7.1.5-0+deb13u1.**
+
 | lane | source | dims / fmt | frames (mine=ref) | identical frames | stream MD5 equal? |
 |---|---|---|---|---|---|
 | A | testsrc2 5 s, default GOP | 320×240 I420 8-bit | 125 = 125 | **125/125** | YES (7b5cbbc70b04132c8c74fcd07576fd48) |
@@ -174,6 +188,10 @@ side of all generated lanes: `-c:v libvpx-vp9 -deadline good
 **Classification: BIT-EXACT — 6/6 lanes, 431/431 frames
 byte-identical to ffmpeg `libvpx-vp9` (0 differing frames anywhere,
 so 0 pixel deltas to report).** Not tolerance-class, not divergent.
+Re-run this classification:
+`bash tools/vta/vp9/evidence/run_vp9_bitexact.sh` (the committed
+regen command; `--ref-only` for the reference half alone — see the
+Method paragraph above).
 
 Corpus honesty (recorded per card): the corpus holds **zero VP9
 lanes** — its single `.webm` (`0126-webm-video.webm`, 480×360
