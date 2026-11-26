@@ -439,6 +439,37 @@ jobs:
           echo "SKIP profiles/, layouts/, plugin manifests: none of these files exist in the tree yet (doc 07 §9 C4 enumerates them for when they do)."
 
   # ------------------------------------------------------------------------
+  # Status-truth drift gate (FIX-PLAN §4 F2.1 "one status layer";
+  # FX8-A01, 2026-11-26). The ONE status layer is
+  # docs/generated/status-truth.toml — emitted by
+  # scripts/quality/status_truth.py from the shipped decoder dispatch
+  # table, host verbs, and command catalog (parsed from SOURCE, never
+  # from docs; every other status document — matrix, compat-matrix,
+  # PARITY-REPORT, INFRA-BLOCKED — demotes to a consumer of this file:
+  # DEVIL-AUDIT-REPORT §5 #1). This job regenerates it and diffs
+  # against the committed copy: a hand-edited or drifted status fails
+  # the merge (the understatement paradox, DEVIL-AUDIT-REPORT §4 #5,
+  # ends here — a layer that drifts in both directions carries zero
+  # information). Gate: scripts/quality/status_truth_check.sh,
+  # fail-closed: 0 committed copy matches the source-derived truth /
+  # 1 DRIFT — regenerate with
+  # `python3 scripts/quality/status_truth.py > docs/generated/status-truth.toml`
+  # / 2 generator source-shape refusal (the status layer never
+  # understates). Every nonzero exit is red here — no `|| true`, no
+  # continue-on-error, ever. Python 3 stdlib only: no toolchain, no
+  # cargo, seconds of work (the same generated-artifact drift family
+  # as schema-validation above, but cheaper than all of them).
+  # ------------------------------------------------------------------------
+  status-truth:
+    name: status-truth (F2.1 — docs/generated/status-truth.toml drift gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: status-truth drift gate (regenerate + diff vs source; FX8-A01)
+        run: bash scripts/quality/status_truth_check.sh
+
+  # ------------------------------------------------------------------------
   # Config propagation (doc 07 §9 C1-C5; MP §5 "config propagation test").
   # Folded from the parked file (card 1.E2) + extended by card 7.w21a:
   # C3 localization audit, C2 rebrand reverse-control no-op, and the
@@ -810,15 +841,33 @@ jobs:
           # The launch half is the dispatch-only lane's by design
           # (tauri-launch.yml, xvfb; its header records the split).
           ls -l target/debug/lumen-tauri
-          missing=$(ldd target/debug/lumen-tauri | grep "not found" || true)
-          if [ -n "$missing" ]; then
+          # F2.3 (FX8-A02, 2026-11-26): the old
+          # `missing=$(ldd target/debug/lumen-tauri | grep "not found" || true)`
+          # could NEVER go red on a failing ldd — the `|| true` swallowed
+          # the whole pipeline, so an ldd that errored without printing a
+          # "not found" line minted a green "all dynamic dependencies
+          # resolve" (a gate that cannot fail; DEVIL-AUDIT-REPORT §5 #3).
+          # New shape, three fail-closed pieces: (a) ldd runs ALONE, its
+          # own exit code asserted first (the only honest basis for the
+          # "resolves" claim — a static or unreadable binary is red, not
+          # green-by-omission); (b) the scan reads the captured output,
+          # not a second ldd run; (c) grep's no-match exit 1 (no "not
+          # found" lines IS the healthy case) is consumed by the `if`,
+          # not by a `|| true`.
+          ldd_status=0
+          ldd target/debug/lumen-tauri > ldd-smoke.txt || ldd_status=$?
+          if [ "${ldd_status}" -ne 0 ]; then
+            echo "::error::ldd itself failed (exit ${ldd_status}) - the runtime link set cannot be asserted"
+            exit 1
+          fi
+          if grep -q "not found" ldd-smoke.txt; then
             echo "::error::unresolved dynamic dependencies:"
-            echo "$missing"
+            grep "not found" ldd-smoke.txt
             exit 1
           fi
           echo "ldd: all dynamic dependencies resolve"
           echo "--- the webview stack the admission binary links at runtime:"
-          ldd target/debug/lumen-tauri | grep -E "webkit2gtk|libgtk-3|libglib-2" | head -4
+          grep -E "webkit2gtk|libgtk-3|libglib-2" ldd-smoke.txt | head -4
 
   # ------------------------------------------------------------------------
   # F1.1 Route A audio compile oracle (ADR-005 / FX3-A01, 2026-11-25).
