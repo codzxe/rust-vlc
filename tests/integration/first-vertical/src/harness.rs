@@ -722,24 +722,181 @@ fn kind_str(kind: commands::catalog::types::TrackKind) -> &'static str {
 /// fresh run and a committed artifact compare byte-for-byte: the
 /// `environment_kind` and `os` values name the PRODUCING machine
 /// (honest per-artifact truth, doc 10 §7.1) and therefore differ
-/// between `local` and `ci-vm` runs by design. Exactly those two
-/// label lines are rewritten to a fixed placeholder; every other
-/// byte must match. The currency checks assert the STABLE labels
-/// (`hardware_class` = `mock`, the mock device pair) semantically
-/// instead — so nothing volatile escapes scrutiny, and nothing
-/// stable is excused from it.
+/// between `local` and `ci-vm` runs by design. Exactly the two DIRECT
+/// members of the transcript's `labels` object with those names have
+/// their VALUE rewritten to a fixed placeholder — the keys stay, so
+/// the normalized form never carries a duplicate key (the old
+/// placeholder rewrote both lines to the same `"normalized"` key,
+/// which a JSON reader collapses into one entry), and same-named keys
+/// anywhere else in the transcript keep their real bytes: a payload
+/// `os`/`environment_kind` field that drifted must FAIL the currency
+/// compare, never normalize away. Every other byte must match. The
+/// currency checks assert the STABLE labels (`hardware_class` =
+/// `mock`, the mock device pair) semantically instead — so nothing
+/// volatile escapes scrutiny, and nothing stable is excused from it.
 #[must_use]
 pub fn normalize_run_specific(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
+    // Inside the transcript's `labels` object (opened by the
+    // `"labels": {` line, closed by the next brace-only line — the
+    // emitter's fixed shape: the block holds one devices array, never
+    // a nested object).
+    let mut in_labels = false;
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("\"environment_kind\":") || trimmed.starts_with("\"os\":") {
+        let axis = if in_labels && trimmed.starts_with("\"environment_kind\":") {
+            Some("environment_kind")
+        } else if in_labels && trimmed.starts_with("\"os\":") {
+            Some("os")
+        } else {
+            None
+        };
+        if let Some(axis) = axis {
+            // Value-only rewrite: the key and the line's own tail
+            // (`,` + newline, the final newline, or nothing at all for
+            // a text without one) are kept verbatim.
             let indent = &line[..line.len() - trimmed.len()];
+            let body = line.trim_end_matches('\n');
+            let tail = if body.ends_with(',') {
+                ",\n"
+            } else if line.ends_with('\n') {
+                "\n"
+            } else {
+                ""
+            };
             out.push_str(indent);
-            out.push_str("\"normalized\": \"per-run\",\n");
+            out.push('"');
+            out.push_str(axis);
+            out.push_str("\": \"per-run\"");
+            out.push_str(tail);
         } else {
             out.push_str(line);
         }
+        if trimmed.starts_with("\"labels\": {") {
+            in_labels = true;
+        } else if in_labels && trimmed.starts_with('}') {
+            in_labels = false;
+        }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_run_specific;
+
+    /// A rendered labels block, the emitter's exact shape (two
+    /// per-run axes first, then the stable pair).
+    fn transcript_with_labels(environment_kind: &str, os: &str) -> String {
+        format!(
+            "{{\n  \
+             \"schema\": \"transcript/1\",\n  \
+             \"labels\": {{\n    \
+             \"environment_kind\": \"{environment_kind}\",\n    \
+             \"os\": \"{os}\",\n    \
+             \"hardware_class\": \"mock\",\n    \
+             \"devices\": [\n      \
+             \"null-audio\",\n      \
+             \"software-render\"\n    ]\n  }}\n  \
+             \"commands\": []\n\
+             }}\n"
+        )
+    }
+
+    /// FX8-A08: the two per-run label lines normalize to the
+    /// placeholder WITHOUT collapsing into one duplicate
+    /// `"normalized"` key (the audit baseline's failure diff —
+    /// audit/runs/baseline/cargo-test-workspace.txt:2775 — shows the
+    /// old form rendering `"normalized": "per-run"` twice inside the
+    /// labels object, a duplicate-key JSON object).
+    #[test]
+    fn fx8_a08_normalized_labels_keep_distinct_keys() {
+        let normalized = normalize_run_specific(&transcript_with_labels("local", "linux"));
+        assert_eq!(
+            normalized,
+            "{\n  \
+             \"schema\": \"transcript/1\",\n  \
+             \"labels\": {\n    \
+             \"environment_kind\": \"per-run\",\n    \
+             \"os\": \"per-run\",\n    \
+             \"hardware_class\": \"mock\",\n    \
+             \"devices\": [\n      \
+             \"null-audio\",\n      \
+             \"software-render\"\n    ]\n  }\n  \
+             \"commands\": []\n\
+             }\n"
+        );
+        // The keys stay distinct — the normalized form carries no
+        // duplicate-key object and no `"normalized"` key at all.
+        assert!(!normalized.contains("\"normalized\""));
+        assert_eq!(normalized.matches("\"per-run\"").count(), 2);
+        // The currency property survives: a different producing
+        // machine normalizes to the identical bytes.
+        assert_eq!(
+            normalized,
+            normalize_run_specific(&transcript_with_labels("ci-vm", "windows"))
+        );
+    }
+
+    /// FX8-A08: same-named keys OUTSIDE the transcript's labels object
+    /// are never rewritten — a payload `os`/`environment_kind` field
+    /// that drifted must fail the currency compare, not normalize
+    /// away (the audit's F-004 collapse class).
+    #[test]
+    fn fx8_a08_same_named_keys_outside_labels_are_not_normalized() {
+        let transcript = format!(
+            "{{\n  \
+             \"labels\": {{\n    \
+             \"environment_kind\": \"local\",\n    \
+             \"os\": \"linux\",\n    \
+             \"hardware_class\": \"mock\",\n    \
+             \"devices\": [\n      \
+             \"null-audio\"\n    ]\n  }},\n  \
+             \"payload\": {{\n    \
+             \"os\": \"plan9\",\n    \
+             \"environment_kind\": \"ci-vm\"\n  }}\n\
+             }}\n"
+        );
+        let normalized = normalize_run_specific(&transcript);
+        // Exactly the labels block's two axes are rewritten.
+        assert!(normalized.contains("    \"environment_kind\": \"per-run\",\n"));
+        assert!(normalized.contains("    \"os\": \"per-run\",\n"));
+        // The payload's same-named keys keep their real bytes.
+        assert!(normalized.contains("    \"os\": \"plan9\",\n"));
+        assert!(normalized.contains("    \"environment_kind\": \"ci-vm\",\n"));
+        // Two transcripts that differ ONLY in that payload field must
+        // NOT compare equal after normalization (drift stays visible).
+        let drifted = transcript.replace("\"os\": \"plan9\"", "\"os\": \"plan10\"");
+        assert_ne!(
+            normalize_run_specific(&transcript),
+            normalize_run_specific(&drifted),
+            "a payload os drift must stay visible after normalization"
+        );
+    }
+
+    /// FX8-A08: a labels block whose per-run axis is the LAST field
+    /// (no trailing comma) keeps its own line tail — only the value
+    /// changes, never the punctuation — and a text without a final
+    /// newline does not gain one.
+    #[test]
+    fn fx8_a08_last_label_field_keeps_its_tail() {
+        let transcript = "{\n  \"labels\": {\n    \"os\": \"linux\"\n  }\n}\n";
+        assert_eq!(
+            normalize_run_specific(transcript),
+            "{\n  \"labels\": {\n    \"os\": \"per-run\"\n  }\n}\n"
+        );
+        let unterminated = "{\n  \"labels\": {\n    \"os\": \"linux\"";
+        assert_eq!(
+            normalize_run_specific(unterminated),
+            "{\n  \"labels\": {\n    \"os\": \"per-run\""
+        );
+    }
+
+    /// FX8-A08: text without a labels block passes through untouched
+    /// — the rewriter is scoped to the labels object only.
+    #[test]
+    fn fx8_a08_text_without_labels_passes_through() {
+        let transcript = "{\n  \"os\": \"linux\",\n  \"kind\": \"other\"\n}\n";
+        assert_eq!(normalize_run_specific(transcript), transcript);
+    }
 }
