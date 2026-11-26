@@ -1,0 +1,610 @@
+# GENERATED FILE — the status truth, parsed from source by
+# scripts/quality/status_truth.py. NEVER hand-edit this file: every
+# hand-edited status layer in this repo drifted (the four-registry lie
+# answered 2/16/12/"none" for the same question — DEVIL-AUDIT-REPORT §3.3).
+#
+# Regen: python3 scripts/quality/status_truth.py > docs/generated/status-truth.toml
+# Gate:  bash scripts/quality/status_truth_check.sh
+#        (exit 1 = drift vs this committed file; exit 2 = source-shape
+#         failure — the generator never silently understates)
+#
+# Sources parsed (truth from source, never docs):
+#   apps/cli/src/pipeline_host.rs           — the decoder dispatch (codec arms
+#                                             + LANDED_DECODER_FAMILIES, cross-checked 1:1)
+#   apps/cli/src/host.rs                    — the host verb handlers
+#                                             (pub(crate) fn + module-level pub fn)
+#   apps/cli/src/dispatch.rs                — the wiring truth (route() arms +
+#                                             the SERVED table, cross-checked equal)
+#   crates/commands/src/catalog/command.rs  — the Command payload enum (the catalog)
+#   crates/commands/src/catalog/ids.rs      — the CommandId stable-id twin (cross-checked 1:1)
+#
+# Column semantics:
+#   decoder_family.shipped — the family's descriptors are accepted by live
+#     codec arms of HostDecoderProvider::decoder_for (the one registry).
+#   host_verb.wired — the handler is called from the dispatch layer (the
+#     single command entry, ARCH-5); false = the fn lives in host.rs but no
+#     verb reaches it through that entry.
+#   catalog_command.wired — the variant is routed (not refused) by route();
+#     every unwired command answers the typed unsupported-for-host refusal.
+
+[summary]
+catalog_commands = 69
+catalog_commands_wired = 20
+decoder_families = 14
+decoder_families_shipped = 14
+host_verbs = 18
+host_verbs_wired = 17
+
+[[decoder_family]]
+name = "aac-lc"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:295"
+
+[[decoder_family]]
+name = "adpcm"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:305"
+
+[[decoder_family]]
+name = "alac"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:300"
+
+[[decoder_family]]
+name = "av1"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:311"
+
+[[decoder_family]]
+name = "dnxhd"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:333"
+
+[[decoder_family]]
+name = "flac"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:260"
+
+[[decoder_family]]
+name = "h264"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:353"
+
+[[decoder_family]]
+name = "mjpeg"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:249"
+
+[[decoder_family]]
+name = "mp2"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:273"
+
+[[decoder_family]]
+name = "mp3"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:268"
+
+[[decoder_family]]
+name = "opus"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:283"
+
+[[decoder_family]]
+name = "pcm"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:354"
+
+[[decoder_family]]
+name = "vorbis"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:278"
+
+[[decoder_family]]
+name = "vp9"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:320"
+
+[[host_verb]]
+name = "audio_get_volume"
+wired = true
+source = "apps/cli/src/host.rs:1430"
+
+[[host_verb]]
+name = "audio_set_balance"
+wired = true
+source = "apps/cli/src/host.rs:1476"
+
+[[host_verb]]
+name = "audio_set_eq"
+wired = true
+source = "apps/cli/src/host.rs:1511"
+
+[[host_verb]]
+name = "audio_set_muted"
+wired = true
+source = "apps/cli/src/host.rs:1448"
+
+[[host_verb]]
+name = "audio_set_volume"
+wired = true
+source = "apps/cli/src/host.rs:1408"
+
+[[host_verb]]
+name = "command_listings"
+wired = true
+source = "apps/cli/src/host.rs:1903"
+
+[[host_verb]]
+name = "current_time"
+wired = true
+source = "apps/cli/src/host.rs:1361"
+
+[[host_verb]]
+name = "dispatch_seek"
+wired = true
+source = "apps/cli/src/host.rs:1079"
+
+[[host_verb]]
+name = "duration"
+wired = true
+source = "apps/cli/src/host.rs:1343"
+
+[[host_verb]]
+name = "engine_info"
+wired = true
+source = "apps/cli/src/host.rs:1866"
+
+[[host_verb]]
+name = "media_info"
+wired = true
+source = "apps/cli/src/host.rs:1303"
+
+[[host_verb]]
+name = "open_session"
+wired = true
+source = "apps/cli/src/host.rs:901"
+
+[[host_verb]]
+name = "receipt_outcome"
+wired = true
+source = "apps/cli/src/host.rs:880"
+
+[[host_verb]]
+name = "session_closed"
+wired = true
+source = "apps/cli/src/host.rs:1057"
+
+[[host_verb]]
+name = "setting_get"
+wired = true
+source = "apps/cli/src/host.rs:1545"
+
+[[host_verb]]
+name = "setting_set"
+wired = true
+source = "apps/cli/src/host.rs:1569"
+
+[[host_verb]]
+name = "submit_and_await"
+wired = true
+source = "apps/cli/src/host.rs:865"
+
+[[host_verb]]
+name = "track_info_wire_host"
+wired = false
+source = "apps/cli/src/host.rs:1656"
+
+[[catalog_command]]
+name = "AudioGetBalance"
+id = "audio.get-balance"
+wired = false
+source = "crates/commands/src/catalog/command.rs:230"
+
+[[catalog_command]]
+name = "AudioGetEq"
+id = "audio.get-eq"
+wired = false
+source = "crates/commands/src/catalog/command.rs:254"
+
+[[catalog_command]]
+name = "AudioGetVolume"
+id = "audio.get-volume"
+wired = true
+source = "crates/commands/src/catalog/command.rs:189"
+
+[[catalog_command]]
+name = "AudioListDevices"
+id = "audio.list-devices"
+wired = false
+source = "crates/commands/src/catalog/command.rs:198"
+
+[[catalog_command]]
+name = "AudioSetBalance"
+id = "audio.set-balance"
+wired = true
+source = "crates/commands/src/catalog/command.rs:219"
+
+[[catalog_command]]
+name = "AudioSetDelay"
+id = "audio.set-delay"
+wired = false
+source = "crates/commands/src/catalog/command.rs:207"
+
+[[catalog_command]]
+name = "AudioSetDevice"
+id = "audio.set-device"
+wired = false
+source = "crates/commands/src/catalog/command.rs:201"
+
+[[catalog_command]]
+name = "AudioSetEq"
+id = "audio.set-eq"
+wired = true
+source = "crates/commands/src/catalog/command.rs:240"
+
+[[catalog_command]]
+name = "AudioSetMute"
+id = "audio.set-mute"
+wired = true
+source = "crates/commands/src/catalog/command.rs:192"
+
+[[catalog_command]]
+name = "AudioSetVolume"
+id = "audio.set-volume"
+wired = true
+source = "crates/commands/src/catalog/command.rs:183"
+
+[[catalog_command]]
+name = "ConfigGetSetting"
+id = "config.get-setting"
+wired = true
+source = "crates/commands/src/catalog/command.rs:454"
+
+[[catalog_command]]
+name = "ConfigListAreas"
+id = "config.list-areas"
+wired = false
+source = "crates/commands/src/catalog/command.rs:480"
+
+[[catalog_command]]
+name = "ConfigResetSetting"
+id = "config.reset-setting"
+wired = false
+source = "crates/commands/src/catalog/command.rs:472"
+
+[[catalog_command]]
+name = "ConfigSetSetting"
+id = "config.set-setting"
+wired = true
+source = "crates/commands/src/catalog/command.rs:462"
+
+[[catalog_command]]
+name = "MediaAddBookmark"
+id = "media.add-bookmark"
+wired = false
+source = "crates/commands/src/catalog/command.rs:438"
+
+[[catalog_command]]
+name = "MediaGetBookmarks"
+id = "media.get-bookmarks"
+wired = false
+source = "crates/commands/src/catalog/command.rs:434"
+
+[[catalog_command]]
+name = "MediaGetChapters"
+id = "media.get-chapters"
+wired = false
+source = "crates/commands/src/catalog/command.rs:424"
+
+[[catalog_command]]
+name = "MediaGetCurrentTime"
+id = "media.get-current-time"
+wired = true
+source = "crates/commands/src/catalog/command.rs:418"
+
+[[catalog_command]]
+name = "MediaGetDuration"
+id = "media.get-duration"
+wired = true
+source = "crates/commands/src/catalog/command.rs:421"
+
+[[catalog_command]]
+name = "MediaGetInfo"
+id = "media.get-info"
+wired = true
+source = "crates/commands/src/catalog/command.rs:415"
+
+[[catalog_command]]
+name = "MediaRemoveBookmark"
+id = "media.remove-bookmark"
+wired = false
+source = "crates/commands/src/catalog/command.rs:446"
+
+[[catalog_command]]
+name = "MediaSetChapter"
+id = "media.set-chapter"
+wired = false
+source = "crates/commands/src/catalog/command.rs:427"
+
+[[catalog_command]]
+name = "PlaybackPause"
+id = "playback.pause"
+wired = true
+source = "crates/commands/src/catalog/command.rs:110"
+
+[[catalog_command]]
+name = "PlaybackPlay"
+id = "playback.play"
+wired = true
+source = "crates/commands/src/catalog/command.rs:107"
+
+[[catalog_command]]
+name = "PlaybackSeek"
+id = "playback.seek"
+wired = true
+source = "crates/commands/src/catalog/command.rs:120"
+
+[[catalog_command]]
+name = "PlaybackSetPosition"
+id = "playback.set-position"
+wired = false
+source = "crates/commands/src/catalog/command.rs:139"
+
+[[catalog_command]]
+name = "PlaybackSetRate"
+id = "playback.set-rate"
+wired = false
+source = "crates/commands/src/catalog/command.rs:126"
+
+[[catalog_command]]
+name = "PlaybackStepFrame"
+id = "playback.step-frame"
+wired = false
+source = "crates/commands/src/catalog/command.rs:132"
+
+[[catalog_command]]
+name = "PlaybackStop"
+id = "playback.stop"
+wired = true
+source = "crates/commands/src/catalog/command.rs:117"
+
+[[catalog_command]]
+name = "PlaybackTogglePlayPause"
+id = "playback.toggle-play-pause"
+wired = true
+source = "crates/commands/src/catalog/command.rs:113"
+
+[[catalog_command]]
+name = "PlaylistClear"
+id = "playlist.clear"
+wired = false
+source = "crates/commands/src/catalog/command.rs:382"
+
+[[catalog_command]]
+name = "PlaylistEnqueue"
+id = "playlist.enqueue"
+wired = false
+source = "crates/commands/src/catalog/command.rs:335"
+
+[[catalog_command]]
+name = "PlaylistEnqueueMany"
+id = "playlist.enqueue-many"
+wired = false
+source = "crates/commands/src/catalog/command.rs:343"
+
+[[catalog_command]]
+name = "PlaylistLoad"
+id = "playlist.load"
+wired = false
+source = "crates/commands/src/catalog/command.rs:405"
+
+[[catalog_command]]
+name = "PlaylistMove"
+id = "playlist.move"
+wired = false
+source = "crates/commands/src/catalog/command.rs:374"
+
+[[catalog_command]]
+name = "PlaylistNext"
+id = "playlist.next"
+wired = false
+source = "crates/commands/src/catalog/command.rs:355"
+
+[[catalog_command]]
+name = "PlaylistPlayItem"
+id = "playlist.play-item"
+wired = false
+source = "crates/commands/src/catalog/command.rs:349"
+
+[[catalog_command]]
+name = "PlaylistPrev"
+id = "playlist.prev"
+wired = false
+source = "crates/commands/src/catalog/command.rs:358"
+
+[[catalog_command]]
+name = "PlaylistRemove"
+id = "playlist.remove"
+wired = false
+source = "crates/commands/src/catalog/command.rs:368"
+
+[[catalog_command]]
+name = "PlaylistSave"
+id = "playlist.save"
+wired = false
+source = "crates/commands/src/catalog/command.rs:397"
+
+[[catalog_command]]
+name = "PlaylistSetRepeat"
+id = "playlist.set-repeat"
+wired = false
+source = "crates/commands/src/catalog/command.rs:391"
+
+[[catalog_command]]
+name = "PlaylistSetShuffle"
+id = "playlist.set-shuffle"
+wired = false
+source = "crates/commands/src/catalog/command.rs:385"
+
+[[catalog_command]]
+name = "PlaylistSkip"
+id = "playlist.skip"
+wired = false
+source = "crates/commands/src/catalog/command.rs:361"
+
+[[catalog_command]]
+name = "SessionClose"
+id = "session.close"
+wired = true
+source = "crates/commands/src/catalog/command.rs:89"
+
+[[catalog_command]]
+name = "SessionOpen"
+id = "session.open"
+wired = true
+source = "crates/commands/src/catalog/command.rs:79"
+
+[[catalog_command]]
+name = "SessionSetFrameChannel"
+id = "session.set-frame-channel"
+wired = false
+source = "crates/commands/src/catalog/command.rs:97"
+
+[[catalog_command]]
+name = "SubtitleAddFile"
+id = "subtitle.add-file"
+wired = false
+source = "crates/commands/src/catalog/command.rs:303"
+
+[[catalog_command]]
+name = "SubtitleSetEncoding"
+id = "subtitle.set-encoding"
+wired = false
+source = "crates/commands/src/catalog/command.rs:321"
+
+[[catalog_command]]
+name = "SubtitleSetScale"
+id = "subtitle.set-scale"
+wired = false
+source = "crates/commands/src/catalog/command.rs:327"
+
+[[catalog_command]]
+name = "SubtitleSetSync"
+id = "subtitle.set-sync"
+wired = false
+source = "crates/commands/src/catalog/command.rs:315"
+
+[[catalog_command]]
+name = "SystemGetEngineInfo"
+id = "system.get-engine-info"
+wired = true
+source = "crates/commands/src/catalog/command.rs:485"
+
+[[catalog_command]]
+name = "SystemGetStateSnapshot"
+id = "system.get-state-snapshot"
+wired = false
+source = "crates/commands/src/catalog/command.rs:511"
+
+[[catalog_command]]
+name = "SystemListCommands"
+id = "system.list-commands"
+wired = true
+source = "crates/commands/src/catalog/command.rs:514"
+
+[[catalog_command]]
+name = "SystemListPlugins"
+id = "system.list-plugins"
+wired = false
+source = "crates/commands/src/catalog/command.rs:488"
+
+[[catalog_command]]
+name = "SystemPluginDisable"
+id = "system.plugin-disable"
+wired = false
+source = "crates/commands/src/catalog/command.rs:497"
+
+[[catalog_command]]
+name = "SystemPluginEnable"
+id = "system.plugin-enable"
+wired = false
+source = "crates/commands/src/catalog/command.rs:491"
+
+[[catalog_command]]
+name = "SystemSetLogLevel"
+id = "system.set-log-level"
+wired = false
+source = "crates/commands/src/catalog/command.rs:503"
+
+[[catalog_command]]
+name = "TracksGetInfo"
+id = "tracks.get-info"
+wired = false
+source = "crates/commands/src/catalog/command.rs:150"
+
+[[catalog_command]]
+name = "TracksList"
+id = "tracks.list"
+wired = true
+source = "crates/commands/src/catalog/command.rs:147"
+
+[[catalog_command]]
+name = "TracksSetAudioTrack"
+id = "tracks.set-audio-track"
+wired = false
+source = "crates/commands/src/catalog/command.rs:162"
+
+[[catalog_command]]
+name = "TracksSetSecondaryAudio"
+id = "tracks.set-secondary-audio"
+wired = false
+source = "crates/commands/src/catalog/command.rs:175"
+
+[[catalog_command]]
+name = "TracksSetSubtitleTrack"
+id = "tracks.set-subtitle-track"
+wired = false
+source = "crates/commands/src/catalog/command.rs:169"
+
+[[catalog_command]]
+name = "TracksSetVideoTrack"
+id = "tracks.set-video-track"
+wired = false
+source = "crates/commands/src/catalog/command.rs:156"
+
+[[catalog_command]]
+name = "VideoSetAspectRatio"
+id = "video.set-aspect-ratio"
+wired = false
+source = "crates/commands/src/catalog/command.rs:266"
+
+[[catalog_command]]
+name = "VideoSetCrop"
+id = "video.set-crop"
+wired = false
+source = "crates/commands/src/catalog/command.rs:272"
+
+[[catalog_command]]
+name = "VideoSetDelay"
+id = "video.set-delay"
+wired = false
+source = "crates/commands/src/catalog/command.rs:284"
+
+[[catalog_command]]
+name = "VideoSetFullscreen"
+id = "video.set-fullscreen"
+wired = false
+source = "crates/commands/src/catalog/command.rs:260"
+
+[[catalog_command]]
+name = "VideoSetZoom"
+id = "video.set-zoom"
+wired = false
+source = "crates/commands/src/catalog/command.rs:278"
+
+[[catalog_command]]
+name = "VideoTakeScreenshot"
+id = "video.take-screenshot"
+wired = false
+source = "crates/commands/src/catalog/command.rs:290"
