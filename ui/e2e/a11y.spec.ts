@@ -86,14 +86,17 @@ type Mode = (typeof MODES)[number];
  * false positive)"` — the assertion prints hits so stale entries surface. */
 const JUSTIFIED_EXCLUSIONS: Readonly<Record<string, string>> = {};
 
-/** Route-scoped acceptance of SPECIFIC pre-existing findings, found by the
- * w26.k19 inventory extension and logged for their owning lanes (contract
- * §4.2 — the files are not this lane's to fix). This is NOT a license to
- * skip a route: acceptance is scoped to route + axe rule + theme mode +
- * node marker, every OTHER node of the same rule still fails the suite,
- * and the accepted hits are printed on every run — the moment the owning
- * lane fixes the finding, the entry reports "accepted: none (STALE —
- * delete the entry)" and gets removed. */
+/** Route-scoped acceptance of SPECIFIC findings — the a11y honesty ledger.
+ * Found by the w26.k19 inventory extension; FX8-A07 (FIX-PLAN §4 F2.2)
+ * closed the ledger to its honest shape: every remaining entry is either
+ * FIXED IN CODE (entry deleted — a regression now fails this suite; the
+ * settings-audio selected values-row ink, setting-field.css) or
+ * DOCUMENTED-ACCEPTED with the WCAG exemption that covers it (below).
+ * This is NOT a license to skip a route: acceptance is scoped to route +
+ * axe rule + theme mode + node marker, every OTHER node of the same rule
+ * still fails the suite, and the accepted hits are printed on every run —
+ * the moment the owning lane fixes a finding, the entry reports "accepted:
+ * none (STALE — delete the entry)" and gets removed. */
 /** One accepted finding: WHERE (modes), WHICH nodes (markers — a node is
  * accepted only if its axe target contains one of these markers), and the
  * documented reason. */
@@ -104,36 +107,41 @@ interface RouteExclusion {
 }
 
 const ROUTE_EXCLUSIONS: Readonly<Record<string, Readonly<Record<string, RouteExclusion>>>> = {
-  // Settings lane (SettingsScreen staged rows, both themes): the staged
-  // "pending change" rows paint .settings-field__label #353535 on #0e0e0e
-  // (1.57:1, axe serious) — measured w26.k19 on /settings/library (2
-  // nodes) and /settings/network (4 nodes), dark AND light.
+  // DOCUMENTED-ACCEPTED (FX8-A07, FIX-PLAN §4 F2.2): the staged "pending
+  // change" rows — the frames' own disabled-row groups dimmed @0.3 opacity
+  // (var(--opacity-muted), staged.css). WCAG 1.4.3 "Incidental" exception:
+  // text that is part of an INACTIVE user interface component has no
+  // contrast requirement — these rows are inert by design (data-staged,
+  // disabled controls, the staged reason on aria-describedby/title), so the
+  // low composite ratio is exempt, not a violation being waved through.
+  // Proven unfixable at the frame's own 0.3 dim: the label composites to
+  // #353535 on #0e0e0e = 1.57:1, and even pure white @0.3 over the darkest
+  // row surface composites to #565656 = 2.63:1 < 3:1 (white needs alpha
+  // >=0.450 on #0e0e0e for AA 4.5:1) — a compliant dim would have to abandon
+  // the frames' opacity grammar, which is a design decision, not a bug fix.
+  // Measured w26.k19 on /settings/library (2 nodes) and /settings/network
+  // (4 nodes), dark AND light.
   "settings-library": {
     "color-contrast": {
       modes: ["dark", "light"],
       markers: ['[data-staged-row="library.'],
-      reason: "staged-row labels #353535 on #0e0e0e (1.57:1) — logged for the settings lane (w26.k19)",
+      reason:
+        "ACCEPTED (WCAG 1.4.3 inactive-component exception, FX8-A07): staged dimmed rows @0.3 opacity — inert by design; even #ffffff @0.3 composites to 2.63:1 < 3:1, so the 0.3 dim cannot be made compliant without abandoning the frames' disabled-row grammar",
     },
   },
   "settings-network": {
     "color-contrast": {
       modes: ["dark", "light"],
       markers: ['[data-staged-row="network.'],
-      reason: "staged-row labels #353535 on #0e0e0e (1.57:1) — logged for the settings lane (w26.k19)",
-    },
-  },
-  // Settings lane (values rows, light only): the selected values-row label
-  // paints the accent #d37918 on the tinted row (1.75:1) — w26.i19's own
-  // rule is that light selected labels use content-primary on tinted fills
-  // (w26.d2). Dark passes (accent on the dark tint is 6+:1).
-  "settings-audio": {
-    "color-contrast": {
-      modes: ["light"],
-      markers: ["settings-values__row--selected"],
       reason:
-        "light selected values-row label paints accent on the tinted row (1.75:1) — logged for the settings lane (w26.k19)",
+        "ACCEPTED (WCAG 1.4.3 inactive-component exception, FX8-A07): staged dimmed rows @0.3 opacity — inert by design; even #ffffff @0.3 composites to 2.63:1 < 3:1, so the 0.3 dim cannot be made compliant without abandoning the frames' disabled-row grammar",
     },
   },
+  // FX8-A07: the third w26.k19 entry (settings-audio, light mode — the
+  // selected values-row label painting accent #d37918 on the flipped tint,
+  // 1.75:1) is FIXED IN CODE (setting-field.css swaps the light ink to
+  // content-primary #161616, 9.83:1 on #d8ba9a) and its entry DELETED — a
+  // regression now fails this suite instead of being accepted.
 };
 
 test.use({ viewport: { width: 1280, height: 720 } });

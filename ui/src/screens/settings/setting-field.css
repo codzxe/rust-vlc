@@ -313,6 +313,18 @@
   color: var(--color-accent); /* frame: label #D37918 */
 }
 
+/* FX8-A07 (F2.2 tail; the w26.d2 button-lane light-sweep precedent): the
+ * accent label on the tinted fill is 4.79:1 in dark (#d37918 on #371f06) but
+ * 1.75:1 in light (#d37918 on the flipped #d8ba9a tint) — the axe serious
+ * finding ledgered as the settings-audio exclusion (a11y.spec.ts). Light
+ * keeps the tinted fill and swaps the ink to content-primary #161616:
+ * 9.83:1 on #d8ba9a, and >=6.94:1 on every light accent tint (worst violet
+ * #b192e0) — WCAG AA 4.5:1 holds everywhere. Dark stays the accent. The
+ * ledger entry is deleted, so a regression now fails the per-PR a11y suite. */
+:root[data-theme="light"] .settings-field__control .settings-values__row--selected {
+  color: var(--color-content-primary); /* light AA: #161616 on the tint */
+}
+
 /* Row 1 — the full-cell hit: the ROW ITSELF is a <button>, so it needs the
  * app font stack explicitly (Chromium's UA button font is 13.33px Arial —
  * w26.gfix-B caught it rendering "Remember last volume" in Arial). Box

@@ -25,13 +25,19 @@
 #     and self-installs system deps on miss.
 #   * HTML reports always uploaded so red runs are debuggable from the
 #     run page.
-#   * VISUAL LANES (issue #5; counts updated by issue #37, 2026-11-09):
-#     `visual` = PR-lite lane (1280x720 @1x, dark+light — 15 routes × 2
-#     modes = 30 cases; committed Linux baselines re-pinned for Solstice
-#     v2 + wave-3 by issue #37, proven green 2026-11-09: 30 passed 57.8s
-#     — card 4.G1, provenance in e2e/visual/MATRIX-20261109.md).
-#     `visual-nightly` = full
-#     matrix (136 cases, doc 08 §6.3), schedule/dispatch only.
+#   * VISUAL LANES (issue #5; counts updated by issue #37, 2026-11-09;
+#     re-counted by w26.k20 to 50/216 — MATRIX-20261113.md is the current
+#     pin; FX8-A07 2026-11-26 un-gated the full matrix):
+#     `visual` = PR-lite lane (1280x720 @1x, dark+light — 25 routes × 2
+#     modes = 50 cases; committed Linux baselines re-pinned 2026-11-13:
+#     50 passed 1.6m — provenance in e2e/visual/MATRIX-20261113.md).
+#     `visual-full` = full matrix (216 cases, doc 08 §6.3) on EVERY
+#     push/PR. It was schedule-only (as `visual-nightly`) until FX8-A07
+#     (audit finding: a visual regression could ship undetected for up
+#     to 24h — the ≤24h window is the honesty gap FIX-PLAN §4 F2.2 closes):
+#     the full lane measures 7.1–7.2 minutes compare (MATRIX-20261113.md
+#     addenda), well inside the 25-minute timeout, so no subset split is
+#     needed — the whole matrix gates every PR.
 #     `visual-baseline-seed` = [BLOCKED on first real macOS/Windows run]:
 #     macos/windows baselines CANNOT be captured from the Linux sandbox
 #     this repo lives in — the job exists, is non-blocking
@@ -55,7 +61,10 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Nightly 03:41 UTC (off-the-hour; feeds visual-nightly + seed lanes).
+    # Nightly 03:41 UTC (off-the-hour). Since FX8-A07 the compare lanes
+    # gate every push/PR; the schedule trigger stays to exercise the
+    # visual-full matrix once a day on a quiet tree and to feed the
+    # macOS/Windows baseline-seed lane below.
     - cron: "41 3 * * *"
   workflow_dispatch:
 
@@ -137,16 +146,18 @@ jobs:
 
   # ------------------------------------------------------------------------
   # Visual screenshot-diff, PR-lite lane (card 4.G1/G2, doc 08 §6.3):
-  # 1280x720 @1x, dark + light — 15 routes × 2 modes = 30 cases against the
-  # committed Linux baselines (e2e/visual/baselines/linux/), re-pinned for
-  # Solstice v2 + wave-3 by issue #37 (proven green 2026-11-09: 30 passed
-  # 57.8s; provenance in e2e/visual/MATRIX-20261109.md). Runs on every
-  # push/PR; ubuntu-only because only the Linux baseline set is committed
+  # 1280x720 @1x, dark + light — 25 routes × 2 modes = 50 cases against the
+  # committed Linux baselines (e2e/visual/baselines/linux/), re-pinned
+  # 2026-11-13 (proven green: 50 passed 1.6m; provenance in
+  # e2e/visual/MATRIX-20261113.md). Runs on every push/PR as the fast
+  # signal; ubuntu-only because only the Linux baseline set is committed
   # (per-OS sets are the doc 08 §6.3 reality; the seed job below grows the
-  # others).
+  # others). The full 216-case matrix is the visual-full job below — also
+  # per-PR since FX8-A07, so this lane is the fast first signal, not the
+  # only per-PR one.
   # ------------------------------------------------------------------------
   visual:
-    name: visual (PR-lite lane — 30 cases vs pinned Linux baselines)
+    name: visual (PR-lite lane — 50 cases vs pinned Linux baselines)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -199,12 +210,18 @@ jobs:
 
   # ------------------------------------------------------------------------
   # Visual screenshot-diff, full matrix (doc 08 §6.3 "full matrix nightly"):
-  # 136 cases (15 routes x viewports/DPI/modes + accent sampling, card
-  # 4.G2). Schedule/dispatch only — the PR lane above is the per-PR signal.
+  # 216 cases (25 routes x viewports/DPI/modes + accent sampling, cards
+  # 4.G2 + w26.k20). FX8-A07 (2026-11-26): gates EVERY push/PR — it was
+  # schedule/dispatch-only (as `visual-nightly`) and a visual regression
+  # could ship undetected for up to 24h (FIX-PLAN §4 F2.2). Un-gating is
+  # affordable: the full compare measures 7.1–7.2 minutes on the pinned
+  # baselines (MATRIX-20261113.md addenda) against this job's 25-minute
+  # timeout. The PR-lite lane above stays as the fast signal; the nightly
+  # schedule re-runs this same job on a quiet tree. Guarded against
+  # re-gating + count drift by ui/src/test/fx8_a07_visual_lane_truth.test.ts.
   # ------------------------------------------------------------------------
-  visual-nightly:
-    name: visual (full matrix — 136 cases, nightly)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  visual-full:
+    name: visual (full matrix — 216 cases, every push/PR)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -234,7 +251,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report-visual-nightly
+          name: playwright-report-visual-full
           path: ui/playwright-report/visual/
           retention-days: 14
           if-no-files-found: ignore
