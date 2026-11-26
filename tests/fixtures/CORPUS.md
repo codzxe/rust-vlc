@@ -7,13 +7,28 @@ this file) is detected by `cargo xtask fixtures --check`.
 
 ## License — CC0
 
-Every file under `generated/` and `expectations/` is authored in-tree
-by the deterministic generator in `tools/xtask/src/cmd/fixtures.rs`,
-from public specifications only (ISO/IEC 10918-1 baseline JPEG, the
-RIFF/AVI 1.0 file-format reference, ISO/IEC 14496-12/-14). No
-third-party media, no VLC-derived bytes (clean-room, AGENTS.md §3.1),
-no external encoder output — ffmpeg was used only as a local
-cross-check oracle during development, never in the build.
+The 28 files this ledger tables (the class-A/B rows below) are
+authored in-tree by the deterministic generator in
+`tools/xtask/src/cmd/fixtures.rs`, from public specifications only
+(ISO/IEC 10918-1 baseline JPEG, the RIFF/AVI 1.0 file-format
+reference, ISO/IEC 14496-12/-14): no third-party media, no
+VLC-derived bytes (clean-room, AGENTS.md §3.1), no external encoder
+output — ffmpeg was used only as a local cross-check oracle during
+development, never in the build.
+
+The rest of this tree is NOT all authored in-tree: 88 further files
+under `generated/` (the wav/aifc/aiff, ogg, mkv/webm, mp4/mov/3gp
+and ivf families — valid parents, malformed derivatives and two
+external-oracle digest sidecars) are ffmpeg 7.1.5 (Lavf61.7.103)
+output: lavfi-generated tones and testsrc2, authored with the ffmpeg
+CLI outside this generator and committed read-only (the suite
+provenance headers in crates/demux/tests/). No third-party media
+and no VLC-derived bytes, but they ARE external encoder output;
+they are hash-pinned by `tests/fixtures/pins.toml` (drift gate:
+`python3 scripts/quality/pin_fixtures.py --check`), not by the
+xtask gate. `hls/` (17 files) and `mjpeg_h3/` (4 files) also sit
+under `tests/fixtures/` with NO recorded provenance — unpinned,
+recorded follow-ups.
 
 To the extent possible under law, the Lumen project contributors have
 dedicated all copyright and related and neighboring rights in the
@@ -28,23 +43,47 @@ CC0 1.0 Universal Public Domain Dedication
   recorded offsets the class-B cuts and patches derive from), plus
   the multi-track AVI parent `avi_mjpeg_2pcm.avi` (W2-FIX-MT, card
   3.A3 — one video + two distinct-shape PCM audio streams; structure
-  map included, class-B derivatives are a recorded follow-up).
+  map included, class-B derivatives are a recorded follow-up). The
+  directory also holds 27 files this generator does NOT own: the
+  ffmpeg-authored parents (wav/aifc/aiff, ogg, mkv, webm,
+  mp4/mov/3gp) and two external-oracle digest sidecars — pinned by
+  `tests/fixtures/pins.toml` (see the License section).
 - `generated/malformed/` — class B: derivatives per parent
   (`<parent>__<op><n>.<ext>`; twelve for the AVI parent — the ten
   corpus-plan shapes plus the two ED-FIX-3 dirty-world variants —
   ten for the MP4 parent), every mutation derived from the
   parent's structure map and a PRNG seeded by the parent's sha256
-  (corpus-plan §1 B1/B2/B3; doc 03 §7's malformed variants).
+  (corpus-plan §1 B1/B2/B3; doc 03 §7's malformed variants). The
+  directory also holds 59 derivatives of the ffmpeg-authored
+  parents (trunc/flip/garbage byte surgery per their suite headers)
+  — also pins.toml-pinned.
+- `generated/ivf/` — 2 ffmpeg-authored AV1/VP9 parents (lavfi
+  testsrc2; the provenance header of
+  `crates/demux/tests/ivf_fixtures.rs`) — pins.toml-pinned.
 - `generated/MANIFEST.toml` — machine-readable form of the table
   below (generator, seed root, per-file sha256).
+- `tests/fixtures/pins.toml` — the sha256 ledger for the 88
+  ffmpeg-authored `generated/` files
+  (`scripts/quality/pin_fixtures.py`; drift gate: `--check`).
 - `expectations/valid/`, `expectations/malformed/` — one
   `expectation/1` TOML (doc 10 §5.4) per media fixture: parents
   carry the track plan, duration, seek plan and essence digests;
   derivatives carry their derivation and the class-B error
   contract. Structure maps carry no expectation (manifest rows
   only).
-- Curated third-party files (class D): none in v0 — any future row
-  needs source URL + license + hash per corpus-plan §5.
+- `hls/` — 17 files (adts_vod, ts_vod, ts_live: `.m3u8` playlists
+  plus `.aac`/`.ts` segments): NO recorded provenance (the 2026-11
+  audit could not establish in-tree vs captured broadcast) —
+  unpinned, recorded follow-up.
+- `mjpeg_h3/` — 4 files (interlaced tff/bff and odd-dimension
+  4:2:0/4:2:2 MJPEG AVIs, consumed by
+  `crates/codecs/tests/mjpeg_field_differential.rs`): no recorded
+  provenance — unpinned, recorded follow-up.
+- Curated third-party files (class D): none registered in v0 —
+  but `hls/` (17) and `mjpeg_h3/` (4) sit in this tree
+  unregistered with no provenance records; any future
+  registration needs source URL + license + hash per corpus-plan
+  §5 (recorded follow-ups).
 
 ## External-oracle cross-check commands (W2-FIX-MT)
 
@@ -114,8 +153,14 @@ corrupted siblings (12 ops) and 22 garbage archetypes — all recorded in its
 `manifest.json` ledger. Operational manual: `tools/corpus/README.md`.
 
 This `tests/fixtures/` tree keeps the complementary role it was built for:
-**pinned regression cases** — byte-stable, hash-checked, committed to git
-and drift-gated by `cargo xtask fixtures --check`. A bug found via the
-randomized corpus graduates into a pinned case here (with an expectation
-file) once fixed; the randomized corpus then keeps hunting for new ones.
-See also the "v3 status" section of docs/inventory/corpus-plan.md.
+**pinned regression cases** — byte-stable, committed to git and
+hash-checked in two ledgers: the registered 28 by this generator
+(`cargo xtask fixtures --check`; extra files are invisible to it
+by design), the 88 ffmpeg-authored files by
+`tests/fixtures/pins.toml` (`python3
+scripts/quality/pin_fixtures.py --check`); `hls/` (17) and
+`mjpeg_h3/` (4) remain unpinned (recorded follow-ups). A bug found
+via the randomized corpus graduates into a pinned case here (with
+an expectation file) once fixed; the randomized corpus then keeps
+hunting for new ones. See also the "v3 status" section of
+docs/inventory/corpus-plan.md.
