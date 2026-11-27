@@ -110,6 +110,7 @@ import { CustomizePanels } from "./customize";
 import { GotoTimeDialog } from "./dialogs/GotoTimeDialog";
 import { BookmarksDialog } from "./dialogs/BookmarksDialog";
 import { ToolsDialogHost, openToolsDialog } from "./dialogs";
+import { SubtitlePickerHost, openSubtitleFilePicker } from "./subtitle-picker/SubtitlePicker";
 import { usePlayerEngineView } from "./states/context-bridge";
 import {
   DIALOG_KEYMAP,
@@ -230,7 +231,16 @@ const acceleratorOf = (bindingId: string): string | undefined => {
 /** The three engine-truth track submenus (Video/Audio/Subtitle) — ControlBar's
  * AppMenuButton pattern verbatim: no honest track data → the submenu opens
  * onto its single disabled no-media reason row (discoverable, labelled,
- * inert — never a fabricated list). */
+ * inert — never a fabricated list).
+ *
+ * FX9-A06: the SUBTITLE submenu gains the sidecar lane — the engine rows
+ * (A01's snapshot enrichment feeds external-subtitle rows through
+ * state.tracks, rendered exactly like the audio/video rows above) plus the
+ * "Add subtitles" entry (the trigger seam — openSubtitleFilePicker(), the
+ * lumen:open-media pattern: the mounted SubtitlePickerHost owns the hidden
+ * file input and dispatches `subtitle.add-file` through the player
+ * context). The entry rides the media-open branch only: with no session
+ * the no-media reason row stays the submenu's whole honest face. */
 function canvasTrackSubmenu(
   kind: "video" | "audio" | "subtitle",
   controls: PlayerControls,
@@ -244,6 +254,22 @@ function canvasTrackSubmenu(
   if (noMedia) {
     return [{ id: `track-${kind}-no-media`, labelKey: m("player.controls.reason.no-media"), disabled: true }];
   }
+  // FX9-A06: the add-file entry — subtitle kind only, after the radio rows
+  // (an action, never a radio; the menu entry has no title slot, so the
+  // honest-disable duty stays with the picker surface's own entry).
+  const addFileRows: MenuEntry<string>[] =
+    kind === "subtitle"
+      ? [
+          { id: "track-subtitle-sep", kind: "separator" },
+          {
+            id: "track-subtitle-add-file",
+            labelKey: m("playlist.subtitles.open"),
+            icon: "open-file",
+            iconAccent: true,
+            onSelect: () => openSubtitleFilePicker(),
+          },
+        ]
+      : [];
   return [
     {
       id: `track-${kind}-auto`,
@@ -267,6 +293,7 @@ function canvasTrackSubmenu(
       checked: selected === track.id,
       onSelect: () => actions.selectTrack(kind, { kind: "id", id: track.id }),
     })),
+    ...addFileRows,
   ];
 }
 
@@ -1201,6 +1228,12 @@ function PlayerScreenInner({
       {/* w26.c5: audio/video tools dialog — opens via openToolsDialog() /
           the `lumen:open-tools` event seam (gear menu, keymap). */}
       <ToolsDialogHost />
+      {/* FX9-A06: the subtitle picker's flow host — the canvas context
+          menu's "Add subtitles" row (openSubtitleFilePicker()) is the
+          visible entry; this host owns the hidden file input and the
+          `subtitle.add-file` dispatch. Full variant only — the miniplayer
+          surface exposes no subtitle entry (the ToolsDialogHost rule). */}
+      <SubtitlePickerHost />
       {/* w26.k06 (J06-11): the shared per-open dialog trio — one definition,
           both variant branches (was a duplicated mount block here and in the
           miniplayer branch; drift-prone). w26.gfixA note: the customize

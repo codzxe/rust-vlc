@@ -103,6 +103,19 @@ export interface PlayerActions {
   setEq(bands: EqSetArgs): void;
   /** Dispatch `tracks.set-{video,audio,subtitle}-track`. */
   selectTrack(kind: "video" | "audio" | "subtitle", selector: TrackSelector): void;
+  /**
+   * Dispatch `subtitle.add-file` (FX9-A06, plan F3.1) — attach an external
+   * sidecar file to the LIVE session. The wire payload is the catalog's
+   * §2.8 shape: the file path, `encoding: null` (auto-detect — the picker
+   * exposes no override), and `select: true` (the sidecar becomes the
+   * active subtitle lane; the catalog's own default, stated explicitly at
+   * the seam). The verb is class A: the answer is an ACCEPT receipt — the
+   * sidecar's arrival truth is the tracks read-back (FX9-A01's snapshot
+   * enrichment / `tracks.list`), which the lane re-queries after the clean
+   * answer. Typed refusals (no session open, an unsupported sidecar
+   * format) surface through `lastError`, never silently.
+   */
+  addSubtitleFile(path: string): void;
   /** Re-query `tracks.list` (also triggered by menu open / applied-selector). */
   refreshTracks(): void;
   dismissError(): void;
@@ -358,9 +371,13 @@ export function PlayerControlsProvider({
     [patch],
   );
 
-  /** Dispatch one command; errors are surfaced, never swallowed (§5.4). */
+  /** Dispatch one command; errors are surfaced, never swallowed (§5.4).
+   * Resolves true on a clean answer (completed / accepted), false on a
+   * typed refusal or a transport failure — FX9-A06's add-file lane gates
+   * its tracks read-back on the clean answer (a refusal's own typed error
+   * stays the surfaced one). */
   const dispatch = useCallback(
-    async (request: CommandRequest): Promise<void> => {
+    async (request: CommandRequest): Promise<boolean> => {
       try {
         const response = await wire.send(request);
         if ("error" in response.result) {
@@ -381,7 +398,7 @@ export function PlayerControlsProvider({
           if (isToggleCommand(request.cmd)) {
             patch({ pendingToggle: false });
           }
-          return;
+          return false;
         }
         if ("completed" in response.result) {
           applyCompleted(request.cmd, response.result.completed);
@@ -394,6 +411,7 @@ export function PlayerControlsProvider({
         }
         // "accepted" — the request_id stays outstanding; pending resolves on
         // the matching engine event (doc 08 §5.1).
+        return true;
       } catch {
         // Transport failure (host unreachable) — typed honest error.
         patch({
@@ -409,6 +427,7 @@ export function PlayerControlsProvider({
         if (isToggleCommand(request.cmd)) {
           patch({ pendingToggle: false });
         }
+        return false;
       }
     },
     [applyCompleted, patch, wire],
@@ -476,6 +495,22 @@ export function PlayerControlsProvider({
               ? "tracks.set-audio-track"
               : "tracks.set-subtitle-track";
         void dispatch({ args: { selector }, cmd, requestId: requestId() } as CommandRequest);
+      },
+      addSubtitleFile: (path) => {
+        void dispatch({
+          args: { encoding: null, path, select: true },
+          cmd: "subtitle.add-file",
+          requestId: requestId(),
+        }).then((clean) => {
+          // The accept receipt carries no payload (class A) — the sidecar's
+          // arrival truth is the tracks read-back (A01's enriched snapshot
+          // rows through `tracks.list`), so the lane re-queries on the clean
+          // answer only. A refusal returned false above and keeps its typed
+          // error as the surfaced one.
+          if (clean) {
+            void dispatch({ cmd: "tracks.list", requestId: requestId() });
+          }
+        });
       },
       refreshTracks: () => {
         void dispatch({ cmd: "tracks.list", requestId: requestId() });

@@ -194,6 +194,40 @@ function infoForSource(source: SourceSpec): MediaInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Subtitle sidecar lane (FX9-A06 — the dev shell's mirror of the CLI host's
+// FX9-A01/A03 lane)
+// ---------------------------------------------------------------------------
+
+/** The sidecar formats the CLI host dispatches (pipeline_host.rs
+ * SidecarFormat::from_path), keyed by file extension; the value is the
+ * wire fourcc the host's track rows report (fourcc()). */
+const SIDECAR_FORMATS: ReadonlyMap<string, string> = new Map([
+  ["srt", "srt"],
+  ["vtt", "vtt"],
+  ["ass", "ass"],
+  ["ssa", "ass"],
+  ["sup", "pgssub"],
+  ["idx", "dvd_subtitle"],
+]);
+
+/** The sidecar handle base (the CLI host's SIDECAR_HANDLE_BASE — sidecar
+ * ids never collide with the engine's own track ids). */
+const SIDECAR_HANDLE_BASE = 65_280;
+
+/** The sidecar extension (lowercased after the last dot; "" when none). */
+const sidecarExtensionOf = (path: string): string => {
+  const dot = path.lastIndexOf(".");
+  return dot < 0 ? "" : path.slice(dot + 1).toLowerCase();
+};
+
+/** The sidecar row's label (the CLI host's file_name rule: the basename,
+ * else the whole path). */
+const sidecarLabelOf = (path: string): string => {
+  const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return slash < 0 ? path : path.slice(slash + 1);
+};
+
+// ---------------------------------------------------------------------------
 // The command listing (drives the CustomizePanels capability gate)
 // ---------------------------------------------------------------------------
 
@@ -214,6 +248,7 @@ const LISTED_COMMANDS: readonly string[] = [
   "tracks.set-audio-track",
   "tracks.set-subtitle-track",
   "tracks.set-secondary-audio",
+  "subtitle.add-file",
   "audio.set-volume",
   "audio.get-volume",
   "audio.set-mute",
@@ -318,6 +353,12 @@ export class DemoTransport implements CommandTransport {
 
   // Open-media history
   private recent: DemoRecentEntry[] = [];
+  // Subtitle sidecar lane (FX9-A06): the session's user-added sidecar
+  // rows ride this.info.tracks (the tracks.list / snapshot read-back —
+  // the CLI host's track_snapshot appends the consumer's sidecar rows);
+  // the handle counter is per-session (a new open starts the numbering
+  // over, mirroring the consumer's per-session sidecars).
+  private nextSidecarHandle = 0;
   // w26.k17 (j17 P2-2, Lead-applied): the seeded volume table — replayed
   // to every NEW subscriber so screens mounting after the startup
   // choreography still see the rows (a host with VolumeMonitor wired to
@@ -477,6 +518,82 @@ export class DemoTransport implements CommandTransport {
         return respond(this.applySelector("subtitle", request.args.selector));
       case "tracks.set-secondary-audio":
         return respond(this.applySelector("secondaryAudio", request.args.selector));
+
+      // --- subtitles (FX9-A06 — the FX9-A01 host lane's dev-shell mirror) ---
+      case "subtitle.add-file": {
+        // No session open: the CLI host's typed no-session face (host.rs
+        // no_session_open — Stage::Session/NotReady) — the verb attaches
+        // to the LIVE session only.
+        if (this.info === null || this.state === "idle") {
+          return respond({
+            error: {
+              code: "not-ready",
+              details: { cmd: request.cmd },
+              message: "demo transport: no session open",
+              stage: "session",
+            },
+          });
+        }
+        // Unknown sidecar format: the CLI host's typed unsupported face
+        // (pipeline_host.rs SidecarFormat::from_path — landed: srt, vtt,
+        // ass/ssa, sup, idx).
+        const fourcc = SIDECAR_FORMATS.get(sidecarExtensionOf(request.args.path));
+        if (fourcc === undefined) {
+          return respond({
+            error: {
+              code: "unsupported",
+              details: { cmd: request.cmd, path: request.args.path },
+              message: `demo transport: no sidecar format dispatches ${request.args.path} (landed: srt, vtt, ass/ssa, sup, idx)`,
+              stage: "demux",
+            },
+          });
+        }
+        const info = this.info;
+        // The catalog's `select` default is true (§2.8) — an omitted flag
+        // selects; the UI states it explicitly at the seam.
+        const select = request.args.select !== false;
+        const handle = SIDECAR_HANDLE_BASE + this.nextSidecarHandle;
+        this.nextSidecarHandle += 1;
+        const row: TrackInfo = {
+          id: handle,
+          kind: "subtitle",
+          isSelected: select,
+          isDefault: false,
+          origin: "external-subtitle",
+          language: null,
+          name: sidecarLabelOf(request.args.path),
+          codec: { description: null, fourcc, profile: null, level: null },
+        };
+        // One active subtitle lane: a selected newcomer deselects the
+        // embedded + earlier sidecar rows; select=false leaves the lane
+        // untouched (the sidecar registers as a pickable extra only).
+        this.info = {
+          ...info,
+          tracks: [
+            ...(select
+              ? info.tracks.map((track) =>
+                  track.kind === "subtitle" ? { ...track, isSelected: false } : track,
+                )
+              : info.tracks),
+            row,
+          ],
+        };
+        if (select) {
+          this.selections = { ...this.selections, subtitle: handle };
+        }
+        // The arrival truth is the tracks read-back (A01: the snapshot's
+        // appended sidecar rows), never the echoed request — the
+        // engine-like burst the provider folds into state.tracks.
+        this.emit({ kind: "tracks.list-ready", tracks: this.info.tracks });
+        this.emit({
+          kind: "tracks.changed",
+          trackKind: "subtitle",
+          selected: this.selections.subtitle ?? null,
+        });
+        // The CLI host's answer shape: the class-A ACCEPT receipt (host.rs
+        // subtitle_add_file — no payload to echo).
+        return respond({ accepted: { gen, session: this.session ?? undefined } });
+      }
 
       // --- audio --------------------------------------------------------
       case "audio.set-volume":
@@ -746,6 +863,10 @@ export class DemoTransport implements CommandTransport {
     // semantics — a new media empties the list and restarts numbering.
     this.bookmarks = [];
     this.nextBookmarkId = 1;
+    // FX9-A06: the sidecar lane is per-session (the CLI host's consumer
+    // owns the sidecars; a new session's snapshot starts the numbering
+    // over — the fresh info's tracks carry no sidecar rows).
+    this.nextSidecarHandle = 0;
 
     // Opening choreography (fixed timings, no jitter): the accepted response
     // returns first; the state machine then walks
