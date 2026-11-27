@@ -155,6 +155,12 @@ pub enum SafeMargin {
     TitleSafe,
     /// 10 % action-safe inset.
     ActionSafe,
+    /// No inset: the placement lands at its authored pixels.
+    /// Authored bitmap cues (PGS PCS positions, VobSub SPU origins,
+    /// embedded overlay payloads) carry pixel-exact authorial intent —
+    /// the broadcast box governs TEXT cue default placement, never an
+    /// authored bitmap position.
+    None,
 }
 
 impl SafeMargin {
@@ -163,6 +169,7 @@ impl SafeMargin {
         match self {
             SafeMargin::TitleSafe => 5,
             SafeMargin::ActionSafe => 10,
+            SafeMargin::None => 0,
         }
     }
 
@@ -389,6 +396,38 @@ mod tests {
         layout.alignment.vertical = VerticalAlign::Bottom;
         let rect = place_cue(&cue, &layout, (200, 200)).must();
         assert_eq!(rect.y, 68);
+    }
+
+    #[test]
+    fn none_margin_keeps_authored_placement_exact() {
+        // An authored bitmap position below the 5 % title-safe inset
+        // (x=10 < 16 at 320 wide; y=20 > 12) is authorial intent, not
+        // a text-cue default: SafeMargin::None must leave both axes
+        // at their exact pixels (the PGS/VobSub/embedded layouts).
+        let cue = bitmap(2, 2, 2);
+        let layout = CueLayout {
+            anchor: Anchor::new(
+                Rational::new(10, 320).must(),
+                Rational::new(20, 240).must(),
+            )
+            .must(),
+            alignment: CueAlignment {
+                horizontal: HorizontalAlign::Start,
+                vertical: VerticalAlign::Top,
+            },
+            margin: SafeMargin::None,
+            reference: Some((320, 240)),
+        };
+        let rect = place_cue(&cue, &layout, (320, 240)).must();
+        assert_eq!(
+            rect,
+            Rect {
+                x: 10,
+                y: 20,
+                width: 2,
+                height: 2
+            }
+        );
     }
 
     #[test]

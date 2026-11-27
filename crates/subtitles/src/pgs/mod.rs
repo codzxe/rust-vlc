@@ -677,8 +677,9 @@ impl PgsCueBuilder {
 
     /// The exact-position layout: anchor at `(x/video_w, y/video_h)`
     /// of the video extent, top-left aligned, scaling with the
-    /// presentation extent via [`CueLayout::reference`] (the DVB
-    /// builder's placement vocabulary, one source of truth).
+    /// presentation extent via [`CueLayout::reference`] — and NO
+    /// safe-area clamp: a PCS position is authored pixels, not a
+    /// text-cue default, so the broadcast box must not move it.
     fn layout_for(video: (u32, u32), x: u16, y: u16) -> CueLayout {
         let (w, h) = (video.0.max(1), video.1.max(1));
         let u = Rational::new(u32::from(x), w).unwrap_or(Rational::ZERO);
@@ -689,7 +690,7 @@ impl PgsCueBuilder {
                 horizontal: HorizontalAlign::Start,
                 vertical: VerticalAlign::Top,
             },
-            margin: SafeMargin::TitleSafe,
+            margin: SafeMargin::None,
             reference: Some(video),
         }
     }
