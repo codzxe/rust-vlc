@@ -180,15 +180,65 @@ pub enum FrameStorage {
     OpaqueHandle(u64),
 }
 
+/// One bitmap subtitle payload: straight-alpha RGBA8 pixels with
+/// their placement (the Phase 5 vocabulary extension the doc 04
+/// subtitles roadmap reserved — FX9-A04). Plain data, like the rest of
+/// this vocabulary: no subtitle-format knowledge lives here, decoders
+/// reduce their bitmaps to these fields and consumers composite from
+/// them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubtitleOverlay {
+    /// Pixel width (never zero when a decoder produced the overlay).
+    pub width: u32,
+    /// Pixel height.
+    pub height: u32,
+    /// `width * height * 4` straight-alpha RGBA8 bytes, row-major,
+    /// no padding (the same pixel contract `FrameStorage::Cpu`
+    /// video limbs carry).
+    pub rgba: SharedBytes,
+    /// The overlay's top-left pixel column in the video frame
+    /// (`i32`: partially off-frame placement stays representable).
+    pub x: i32,
+    /// The overlay's top-left pixel row in the video frame.
+    pub y: i32,
+    /// Z-order within the update: higher draws on top of lower.
+    pub z: u16,
+}
+
 /// One decoded subtitle cue (doc 01 §3.3 `SubtitleCue`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubtitleCue {
     /// When the cue is on screen (either end may be `Missing` for
     /// open-ended live cues).
     pub span: TimeSpan,
-    /// The cue payload — plain text in v1; styled/bitmap payloads are a
-    /// Phase 5 vocabulary extension (doc 04 subtitles roadmap).
+    /// The cue payload — plain text (empty for bitmap cues); styled
+    /// text remains a roadmap extension (doc 04).
     pub text: String,
+    /// The optional bitmap payload (the Phase 5 extension): `None`
+    /// for text cues, the decoded overlay for bitmap subtitle formats
+    /// (embedded PGS, FX9-A04). A bitmap cue carries its pixels in
+    /// `overlay` and leaves `text` empty — never both.
+    pub overlay: Option<SubtitleOverlay>,
+}
+
+impl SubtitleCue {
+    /// A text cue (`overlay: None`).
+    pub fn text(span: TimeSpan, text: impl Into<String>) -> SubtitleCue {
+        SubtitleCue {
+            span,
+            text: text.into(),
+            overlay: None,
+        }
+    }
+
+    /// A bitmap cue (`text` empty — the payload is the overlay).
+    pub fn bitmap(span: TimeSpan, overlay: SubtitleOverlay) -> SubtitleCue {
+        SubtitleCue {
+            span,
+            text: String::new(),
+            overlay: Some(overlay),
+        }
+    }
 }
 
 /// One decoded audio buffer (doc 01 §3.3).
@@ -335,6 +385,7 @@ mod tests {
             cues: vec![SubtitleCue {
                 span: TimeSpan::UNKNOWN,
                 text: "hello".to_string(),
+                overlay: None,
             }],
             pts,
             generation: g,
@@ -366,5 +417,33 @@ mod tests {
         let c = ColorDescription::BT709_LIMITED;
         assert_eq!(c.primaries, ColorPrimaries::Bt709);
         assert_eq!(c.range, ColorRange::Limited);
+    }
+
+    #[test]
+    fn subtitle_cue_payload_constructors_partition_text_and_bitmap() {
+        // The Phase 5 extension: a cue is either text or bitmap, never
+        // both — the constructors are the one construction seam.
+        let text = SubtitleCue::text(TimeSpan::UNKNOWN, "hello");
+        assert_eq!(text.text, "hello");
+        assert!(text.overlay.is_none(), "a text cue carries no pixels");
+        let overlay = SubtitleOverlay {
+            width: 2,
+            height: 1,
+            rgba: SharedBytes::from_vec(vec![0; 8]),
+            x: 10,
+            y: 20,
+            z: 3,
+        };
+        let bitmap = SubtitleCue::bitmap(TimeSpan::UNKNOWN, overlay);
+        assert_eq!(bitmap.text, "", "a bitmap cue carries no text");
+        let payload = bitmap
+            .overlay
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("bitmap() always sets the overlay"));
+        assert_eq!(
+            (payload.width, payload.height, payload.x, payload.y, payload.z),
+            (2, 1, 10, 20, 3)
+        );
+        assert_eq!(payload.rgba.len(), 2 * 1 * 4, "w*h*4 RGBA8 bytes");
     }
 }

@@ -258,6 +258,9 @@ impl Decoder for ScriptDecoder {
                         end: Stamp::Missing,
                     },
                     text: format!("cue @ {}", stamp_ns(&packet.pts).unwrap_or(0)),
+                    // The Phase-5 overlay payload (FX9-A04): this
+                    // script emits text cues only, no bitmap.
+                    overlay: None,
                 }],
                 pts: packet.pts,
                 generation: packet.generation,

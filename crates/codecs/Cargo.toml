@@ -83,6 +83,14 @@ codec-vp9 = ["dep:rusty_vp9"]
 [dependencies]
 codec-api = { path = "../codec-api" }
 media-types = { path = "../media-types" }
+# FX9-A04 (wave FX9, EXPLICITLY SANCTIONED internal [dependencies] add,
+# FIX-PLAN §5 F3.1): the L2 subtitle crate — the PGS grammar (epoch
+# state machine, RLE + palette decode, the compositing-cue builder)
+# behind codecs/src/subtitle/pgs.rs. L3 → L2, downward; mirrors how
+# sibling crates path-depend on crates/* and recorded in
+# boundaries.toml's [crates.codecs] internal_deps. Zero external
+# crates join (subtitles is std-only by its own manifest row).
+subtitles = { path = "../subtitles" }
 claxon = { version = "=0.4.3", optional = true }
 # 5.A3 (Lead pre-approval, C5): the MP3/MP2/MP3 decode engine. Purity
 # verified in docs/dependencies/records/symphonia-mp3-0.6.1.md BEFORE

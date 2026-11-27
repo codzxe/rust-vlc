@@ -43,6 +43,12 @@
 //!   "FLAC") through the purity-verified `claxon` engine — the first
 //!   external dependency of this crate, recorded in
 //!   `docs/dependencies/records/claxon-0.4.3.md`.
+//! - [`subtitle`] — subtitle decoders (FX9-A04, wave FX9; FIX-PLAN
+//!   §5 F3.1); [`subtitle::pgs`] decodes embedded PGS-in-TS subtitle
+//!   tracks (the `"pgssub"` stream-type-0x90 lane) through the
+//!   in-house `subtitles` (L2) grammar — this crate's first subtitle
+//!   vertical and the reason for its `subtitles` dependency (L3 → L2,
+//!   recorded in `boundaries.toml`).
 //!
 //! # Conventions (crate-wide)
 //!
@@ -56,4 +62,5 @@
 //!   crash (doc 03 §4.5(d)).
 
 pub mod audio;
+pub mod subtitle;
 pub mod video;

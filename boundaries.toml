@@ -314,7 +314,11 @@ external_dev_allowlist = []
 # (each with its record; mjpeg stays in-house — 2.B4's decision).
 [crates.codecs]
 layer = 3
-internal_deps = ["codec-api", "media-types"]
+# subtitles joins with FX9-A04 (wave FX9, FIX-PLAN §5 F3.1): the PGS
+# subtitle decoder (src/subtitle/pgs.rs) consumes the L2 crate's
+# epoch state machine + compositing-cue builder — L3 → L2, downward,
+# no cycle (subtitles' own row stays media-types-only).
+internal_deps = ["codec-api", "media-types", "subtitles"]
 dev_deps = ["testkit", "input", "demux", "plugin-api"]
 # The Lead-ratified decode-engine admissions (every one with its
 # validate-then-admit record in docs/dependencies/records/ — the

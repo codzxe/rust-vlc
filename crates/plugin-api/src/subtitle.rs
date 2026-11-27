@@ -147,6 +147,9 @@ mod tests {
                             end: Stamp::Present(end_ts),
                         },
                         text: cue_text,
+                        // The Phase-5 overlay payload (FX9-A04): this
+                        // toy parser is text-only, so no bitmap rides.
+                        overlay: None,
                     };
                     match sink.accept(cue) {
                         Ok(()) => Ok(ParseStatus::Accepted),
