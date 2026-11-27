@@ -34,6 +34,13 @@
 //!   unconverted. Since w31.1 an optional [`PresentTap`] mirrors every
 //!   request the renderer presents (the desktop's webview frame
 //!   channel; `None` in the pure CLI — byte-identical behavior).
+//! - **subtitles** (FX9-A03): [`SubtitleLane`] — external sidecar
+//!   files (srt/vtt/ass text through the session glyph pipeline;
+//!   pgs `.sup`/vobsub `.idx`+`.sub` bitmaps) plus the embedded PGS
+//!   overlay set (A04's `Frame::Subtitle` payloads), reduced to the
+//!   subtitles crate's compositing contract and blended onto the
+//!   converted RGBA rows at each frame's own pts, before the
+//!   scheduler push (one clock; the no-cue path is byte-identical).
 //!
 //! The device half of the null audio session and the scheduler's
 //! tick/present driving live in [`crate::host`]'s pump — the consumer
@@ -66,18 +73,23 @@ use codecs::audio::mp2::Mp2Decoder;
 use codecs::audio::mp3::Mp3Decoder;
 use codecs::audio::opus::OpusDecoder;
 use codecs::audio::vorbis::VorbisDecoder;
+use codecs::subtitle::pgs::PgsSubtitleDecoder;
 use codecs::video::av1::Av1Decoder;
 use codecs::video::dnx::DnxDecoder;
 use codecs::video::h264::H264SwDecoder;
 use codecs::video::vp9::Vp9Decoder;
+use commands::catalog::types::{
+    CodecDescriptor as WireCodecDescriptor, TrackId as WireTrackId, TrackInfo as WireTrackInfo,
+    TrackKind as WireTrackKind, TrackOrigin as WireTrackOrigin,
+};
 use media_clock::{MediaClock, PlaybackClock};
 use media_types::frame::{
     AudioFormat, AudioFrame, AudioLayout, ColorMatrix, ColorRange, FrameStorage, SampleFormat,
-    VideoFrame,
+    SubtitleCue, SubtitleFrame, VideoFrame,
 };
 use media_types::ids::CodecDescriptor;
 use media_types::packet::SharedBytes;
-use media_types::time::{TimeBase, TimeSpan, Timestamp, TrackTiming};
+use media_types::time::{Stamp, TimeBase, TimeSpan, Timestamp, TrackTiming};
 use media_types::{
     EngineError, ErrorKind, Frame, GenerationId, MediaKind, Packet, PipelineStage, Rate, StreamId,
     Track, TrackFlags, TrackId,
@@ -351,6 +363,20 @@ impl DecoderProvider for HostDecoderProvider {
             // `software-only` default resolves here, and the decoder's
             // own `configure` gate stays the honest authority.
             "h264" | "avc1" => self.seeded(track, config, H264SwDecoder::new),
+            // The embedded PGS subtitle lane (FX9-A03 (e), wiring
+            // A04's decoder): TS-carried PGS — the demuxer's
+            // `"pgssub"` mint for stream type `0x90`
+            // (`demux::ts::TsStream::descriptor`) — decodes to
+            // `Frame::Subtitle` overlay cues, which the consumer's
+            // subtitle lane reconstructs and composites
+            // (`CliFrameConsumer`'s accept arm). The decoder's own
+            // `configure` gate stays the honest authority (the
+            // descriptor check is the TS mint's exact spelling).
+            "pgssub" => {
+                let mut decoder = PgsSubtitleDecoder::new();
+                decoder.configure(config)?;
+                Ok(Box::new(decoder))
+            }
             codec if codec.starts_with("pcm_") => {
                 // The strf facts the open path harvested (2.B5's
                 // with_format seam — the engine passes no extra_data).
@@ -489,6 +515,11 @@ pub const LANDED_DECODER_FAMILIES: &[DecoderFamily] = &[
         name: "h264",
         kind: MediaKind::Video,
         descriptors: &["h264", "avc1"],
+    },
+    DecoderFamily {
+        name: "pgssub",
+        kind: MediaKind::Subtitle,
+        descriptors: &["pgssub"],
     },
     DecoderFamily {
         name: "pcm",
@@ -1258,12 +1289,1225 @@ enum HoldRetry {
     Dropped,
 }
 
+// ---------------------------------------------------------------------------
+// The session subtitle lane (FX9-A03: sidecars + embedded overlays
+// + compositing)
+// ---------------------------------------------------------------------------
+
+/// The sidecar handle mint base (FX9-A03): wire ids at and above this
+/// base name sidecar rows, never the engine's own tracks (sequential
+/// from 0 per session — a container with 65 280 tracks is not a real
+/// input). [`CliHost::set_subtitle_track`]'s lane split matches a
+/// sidecar id only when the consumer registered it, so the two
+/// handle spaces never alias.
+const SIDECAR_HANDLE_BASE: u32 = 65_280;
+
+/// The nominal subtitle text height as a share of the video height
+/// (the lane's render policy: ~14 px at the 240p fixture, ~65 px at
+/// 1080p; the `subtitle.set-scale` verb multiplies this base).
+const SUBTITLE_HEIGHT_SHARE: f32 = 0.06;
+
+/// The `subtitle.set-scale` verb's product range (§2.8).
+const SUBTITLE_SCALE_RANGE: (f32, f32) = (0.2, 5.0);
+
+/// One registered sidecar's read-back —
+/// [`CliFrameConsumer::subtitle_add_sidecar`]'s answer (the FX9-A01
+/// seam contract: the fields the host verbs and the read-backs
+/// quote).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubtitleSidecar {
+    /// The sidecar's wire track handle (the selection vocabulary).
+    pub handle: WireTrackId,
+    /// The display label (the file's own name).
+    pub label: String,
+    /// How many cues the load reduced to.
+    pub cues: usize,
+    /// The encoding in effect (the srt loader's detected name; the
+    /// override once `subtitle.set-encoding` applied one).
+    pub encoding: String,
+}
+
+/// Which sidecar format a file extension names (the loader's dispatch).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SidecarFormat {
+    /// SubRip (`.srt`).
+    Srt,
+    /// WebVTT (`.vtt`).
+    Vtt,
+    /// ASS/SSA (`.ass`/`.ssa`).
+    Ass,
+    /// PGS standalone (`.sup`).
+    Pgs,
+    /// VobSub IDX/SUB pair (`.idx` + the sibling `.sub`).
+    Vobsub,
+}
+
+impl SidecarFormat {
+    /// The format a path's extension names, if any.
+    fn from_path(path: &str) -> Option<SidecarFormat> {
+        let extension = path.rsplit('.').next().unwrap_or("");
+        match extension.to_ascii_lowercase().as_str() {
+            "srt" => Some(SidecarFormat::Srt),
+            "vtt" => Some(SidecarFormat::Vtt),
+            "ass" | "ssa" => Some(SidecarFormat::Ass),
+            "sup" => Some(SidecarFormat::Pgs),
+            "idx" => Some(SidecarFormat::Vobsub),
+            _ => None,
+        }
+    }
+
+    /// The wire codec fact the track row reports.
+    fn fourcc(self) -> &'static str {
+        match self {
+            SidecarFormat::Srt => "srt",
+            SidecarFormat::Vtt => "vtt",
+            SidecarFormat::Ass => "ass",
+            SidecarFormat::Pgs => "pgssub",
+            SidecarFormat::Vobsub => "dvd_subtitle",
+        }
+    }
+}
+
+/// A sidecar's parsed payload: text cues (rasterized per presentation
+/// extent + scale) or pre-reduced bitmap cues (PGS/VobSub carry their
+/// own reference extents).
+enum SidecarPayload {
+    /// Parsed model cues (srt/vtt/ass) awaiting the text render.
+    Text { cues: Vec<subtitles::model::Cue> },
+    /// Pre-reduced compositing cues (pgs/vobsub).
+    Bitmap {
+        cues: Vec<subtitles::compositing::CompositedCue>,
+    },
+}
+
+impl SidecarPayload {
+    /// How many cues the load reduced to (the empty-load refusal's
+    /// truth).
+    fn cue_count(&self) -> usize {
+        match self {
+            SidecarPayload::Text { cues } => cues.len(),
+            SidecarPayload::Bitmap { cues } => cues.len(),
+        }
+    }
+}
+
+/// One registered sidecar.
+struct SidecarEntry {
+    handle: WireTrackId,
+    label: String,
+    format: SidecarFormat,
+    payload: SidecarPayload,
+    encoding: String,
+    /// The raw bytes (the encoding verb's re-decode source).
+    raw: Vec<u8>,
+}
+
+/// The session subtitle lane (FX9-A03): the sidecar registry + the
+/// selected sidecar + the live embedded overlay set (A04's
+/// `Frame::Subtitle` payloads), reduced per presentation extent and
+/// composited onto the video frames' own RGBA rows through the
+/// subtitles crate's compositing contract
+/// ([`subtitles::compositing::SubtitleCompositor`] over the
+/// [`ComposeTarget`](subtitles::compositing::ComposeTarget) adapter
+/// below). One clock: the cues are judged at each video frame's own
+/// pts, so subtitles and video swap on the same timeline the
+/// scheduler holds (the desktop tap inherits composited pixels by
+/// construction — it mirrors post-present).
+///
+/// `pub` because it is a pub field of [`ConsumerState`] (the
+/// `AudioLimb`/`VideoLimb` posture — a private type in a pub field
+/// would trip `private_interfaces`).
+pub struct SubtitleLane {
+    /// Registered sidecars, in add order.
+    sidecars: Vec<SidecarEntry>,
+    /// The selected sidecar's handle, if any (one active lane).
+    selected: Option<WireTrackId>,
+    /// The lane's cumulative sync delay (ms) — the
+    /// `subtitle.set-sync` verb's absolute total.
+    sync_ms: i64,
+    /// The render-size multiplier (`subtitle.set-scale`).
+    scale: f32,
+    /// The compositing driver (z-order + scratch).
+    compositor: subtitles::compositing::SubtitleCompositor,
+    /// The embedded lane's live cues (the last decoded subtitle
+    /// frame — bitmap payloads render, text payloads stay unhonored
+    /// until a producer exists).
+    embedded: Vec<SubtitleCue>,
+    /// The reduce cache: the cues active over the current extent.
+    active: Vec<subtitles::compositing::CompositedCue>,
+    /// Whether a control (add/select/sync/encoding/scale/embedded
+    /// update) moved since the last reduce.
+    dirty: bool,
+    /// The (extent, scale) the cache rendered for.
+    rendered: Option<((u32, u32), f32)>,
+    /// The next sidecar handle's offset from the mint base.
+    next_handle: u32,
+}
+
+impl Default for SubtitleLane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SubtitleLane {
+    /// An empty lane (the consumer's construction).
+    #[must_use]
+    pub fn new() -> SubtitleLane {
+        SubtitleLane {
+            sidecars: Vec::new(),
+            selected: None,
+            sync_ms: 0,
+            scale: 1.0,
+            compositor: subtitles::compositing::SubtitleCompositor::new(),
+            embedded: Vec::new(),
+            active: Vec::new(),
+            dirty: false,
+            rendered: None,
+            next_handle: 0,
+        }
+    }
+
+    /// The FX9-A01 seam: load one external subtitle file onto the
+    /// lane (bytes → cues; the encoding override honored), register
+    /// it as a wire track and select it when `select` asks. The
+    /// arrival truth is [`Self::sidecar_tracks`]'s rows and the
+    /// returned read-back.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: an unreadable file, an
+    /// unsupported extension, a format-level refusal (WebVTT's
+    /// missing header), and the empty reduction (a file whose payload
+    /// produced no cues — garbage input refuses here, never
+    /// composites nothing silently).
+    pub fn add_sidecar(
+        &mut self,
+        path: &str,
+        encoding: Option<&str>,
+        select: bool,
+    ) -> Result<SubtitleSidecar, EngineError> {
+        let Some(format) = SidecarFormat::from_path(path) else {
+            return Err(host_error(
+                PipelineStage::Demux,
+                "cli.subtitle_sidecar_unsupported",
+                format!("no sidecar format dispatches `{path}` (landed: srt, vtt, ass/ssa, sup, idx)"),
+            ));
+        };
+        let raw = std::fs::read(path).map_err(|err| {
+            host_error(
+                PipelineStage::Demux,
+                "cli.subtitle_sidecar_read",
+                format!("cannot read the sidecar `{path}`: {err}"),
+            )
+        })?;
+        let (payload, encoding_name) = self.load_sidecar(path, format, &raw, encoding)?;
+        let cues = payload.cue_count();
+        if cues == 0 {
+            return Err(host_error(
+                PipelineStage::Demux,
+                "cli.subtitle_sidecar_empty",
+                format!("the sidecar `{path}` reduced to zero cues"),
+            ));
+        }
+        let handle = WireTrackId(SIDECAR_HANDLE_BASE.wrapping_add(self.next_handle));
+        self.next_handle = self.next_handle.saturating_add(1);
+        let label = std::path::Path::new(path)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string());
+        self.sidecars.push(SidecarEntry {
+            handle,
+            label: label.clone(),
+            format,
+            payload,
+            encoding: encoding_name.clone(),
+            raw,
+        });
+        if select {
+            self.selected = Some(handle);
+        }
+        self.dirty = true;
+        Ok(SubtitleSidecar {
+            handle,
+            label,
+            cues,
+            encoding: encoding_name,
+        })
+    }
+
+    /// The FX9-A01 seam: shift the lane's delay by the signed delta
+    /// and answer the NEW absolute total, never the echoed delta.
+    pub fn set_sync(&mut self, delta_ms: i64) -> i64 {
+        self.sync_ms = self.sync_ms.saturating_add(delta_ms);
+        self.dirty = true;
+        self.sync_ms
+    }
+
+    /// The FX9-A01 seam: set the render-size multiplier (§2.8's
+    /// `0.2..=5.0` — the lane's own honest gate) and answer the
+    /// applied value.
+    ///
+    /// # Errors
+    /// [`EngineError`] typed when the scale is outside the range (a
+    /// NaN fails the range test too).
+    pub fn set_scale(&mut self, scale: f32) -> Result<f32, EngineError> {
+        if !(SUBTITLE_SCALE_RANGE.0..=SUBTITLE_SCALE_RANGE.1).contains(&scale) {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_scale_out_of_range",
+                format!(
+                    "subtitle scale {scale} outside the {}..={} product range",
+                    SUBTITLE_SCALE_RANGE.0, SUBTITLE_SCALE_RANGE.1
+                ),
+            ));
+        }
+        self.scale = scale;
+        self.dirty = true;
+        Ok(scale)
+    }
+
+    /// The FX9-A01 seam: re-decode the SELECTED sidecar's text with
+    /// `encoding` (the raw bytes are retained for exactly this) and
+    /// answer the encoding now in effect.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: no sidecar selected, an unknown
+    /// label, a bitmap sidecar (no text encoding applies), and the
+    /// re-decode's own empty reduction.
+    pub fn set_encoding(&mut self, encoding: &str) -> Result<String, EngineError> {
+        let canonical = canonical_encoding(encoding)?;
+        if self.selected.is_none() {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_sidecar_absent",
+                "no sidecar is selected — set-encoding applies to the selected sidecar",
+            ));
+        }
+        let index = self
+            .sidecars
+            .iter()
+            .position(|sidecar| Some(sidecar.handle) == self.selected)
+            .unwrap_or(self.sidecars.len());
+        let Some(sidecar) = self.sidecars.get(index) else {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_sidecar_absent",
+                "the selected sidecar is no longer registered",
+            ));
+        };
+        if matches!(sidecar.payload, SidecarPayload::Bitmap { .. }) {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_sidecar_binary",
+                "the selected sidecar carries bitmap cues — no text encoding applies",
+            ));
+        }
+        let (payload, name) =
+            self.load_sidecar("<redecoded>", sidecar.format, &sidecar.raw, Some(canonical.as_str()))?;
+        if payload.cue_count() == 0 {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_sidecar_empty",
+                format!("re-decoding as `{canonical}` reduced the sidecar to zero cues"),
+            ));
+        }
+        let sidecar = &mut self.sidecars[index];
+        sidecar.payload = payload;
+        sidecar.encoding = name.clone();
+        self.dirty = true;
+        Ok(name)
+    }
+
+    /// The FX9-A01 seam: select (or deselect) the sidecar lane.
+    ///
+    /// # Errors
+    /// [`EngineError`] typed when `Some(handle)` names no registered
+    /// sidecar.
+    pub fn select_sidecar(&mut self, handle: Option<WireTrackId>) -> Result<(), EngineError> {
+        if let Some(handle) = handle
+            && !self
+                .sidecars
+                .iter()
+                .any(|sidecar| Some(sidecar.handle) == Some(handle))
+        {
+            return Err(host_error(
+                PipelineStage::Present,
+                "cli.subtitle_sidecar_unknown",
+                format!("no registered sidecar carries the handle {}", handle.0),
+            ));
+        }
+        self.selected = handle;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// The FX9-A01 seam: the registered sidecars as wire track rows
+    /// (the `tracks.list` snapshot's sidecar half — external origin,
+    /// the lane's own selection flags).
+    #[must_use]
+    pub fn sidecar_tracks(&self) -> Vec<WireTrackInfo> {
+        self.sidecars
+            .iter()
+            .map(|sidecar| WireTrackInfo {
+                id: sidecar.handle,
+                kind: WireTrackKind::Subtitle,
+                name: Some(sidecar.label.clone()),
+                language: None,
+                codec: WireCodecDescriptor {
+                    fourcc: Some(sidecar.format.fourcc().to_string()),
+                    description: None,
+                    profile: None,
+                    level: None,
+                },
+                is_default: false,
+                is_selected: Some(sidecar.handle) == self.selected,
+                origin: WireTrackOrigin::ExternalSubtitle,
+                video: None,
+                audio: None,
+            })
+            .collect()
+    }
+
+    /// The embedded lane's arrival (the `Frame::Subtitle` accept arm):
+    /// the decoded update REPLACES the live set (the frame
+    /// vocabulary's own semantics — "the cues visible from this decode
+    /// onward"); the next reduce picks them up.
+    pub fn accept_subtitle_frame(&mut self, frame: &SubtitleFrame) {
+        self.embedded = frame.cues.clone();
+        self.dirty = true;
+    }
+
+    /// Drop the embedded set (the seek boundary — the old timeline's
+    /// display set is stale past the landing; A04's decoder rebuilds
+    /// its epoch at the seek's reconfigure).
+    pub fn clear_embedded(&mut self) {
+        self.embedded.clear();
+        self.dirty = true;
+    }
+
+    /// Composite the cues active at `now` onto `frame`'s own RGBA rows
+    /// (the [`ComposeTarget`](subtitles::compositing::ComposeTarget)
+    /// adapter below). One clock: `now` is the frame's own pts — the
+    /// same timeline the scheduler holds the frame against. Returns
+    /// how many cues were drawn.
+    ///
+    /// The no-cue case is the pure-CLI byte-identical path: no lane
+    /// content or nothing active at `now` → the frame's bytes are
+    /// untouched (not even the unique-row materialization runs). A
+    /// reduce failure degrades the lane to blank instead — the
+    /// present path's own posture: the video frame never fails for
+    /// the subtitles' sake.
+    pub fn composite_onto(&mut self, frame: &mut VideoFrame, now: Timestamp) -> usize {
+        let extent = frame.size;
+        if extent.0 == 0 || extent.1 == 0 {
+            return 0;
+        }
+        if self.refresh(extent).is_err() {
+            // The reduce refused (typed — unreachable for validated
+            // payloads, honest all the same): degrade to blank for
+            // this extent, never fail the video frame (the present
+            // path's own degrade posture).
+            self.active.clear();
+            self.rendered = Some((extent, self.scale));
+            self.dirty = false;
+        }
+        if self.active.is_empty() {
+            return 0;
+        }
+        let Some(now_ns) = now.as_nanos().ok().map(|ns| ns.0 as i64) else {
+            return 0;
+        };
+        if !self.active.iter().any(|cue| cue.active_at(now_ns)) {
+            return 0;
+        }
+        // The rows must be uniquely owned for in-place compositing: a
+        // shared frame (an RGBA-native accept is a clone of the
+        // engine's own copy) gets the lane's own materialized copy —
+        // and only when ink is actually due.
+        let unique = match &mut frame.data {
+            FrameStorage::Cpu(bytes) => bytes.get_mut().is_some(),
+            FrameStorage::OpaqueHandle(_) => false,
+        };
+        if !unique {
+            let owned = match &frame.data {
+                FrameStorage::Cpu(bytes) => SharedBytes::from_vec(bytes.as_slice().to_vec()),
+                // No CPU rows on this host — nothing to composite onto.
+                FrameStorage::OpaqueHandle(_) => return 0,
+            };
+            frame.data = FrameStorage::Cpu(owned);
+        }
+        // A BGRA-native frame: the blend is RGBA, so relabel the
+        // channel order once (the renderer accepts both orders — the
+        // relabelled frame presents identically).
+        if frame.format == media_types::PixelFormat::Bgra8 {
+            if let FrameStorage::Cpu(bytes) = &mut frame.data
+                && let Some(rows) = bytes.get_mut()
+            {
+                for pixel in rows.as_chunks_mut::<4>().0 {
+                    pixel.swap(0, 2);
+                }
+            }
+            frame.format = media_types::PixelFormat::Rgba8;
+        }
+        let FrameStorage::Cpu(bytes) = &mut frame.data else {
+            return 0;
+        };
+        // The row-borrow contract: the length copy hoisted BEFORE
+        // the mutable row borrow the adapter holds through the
+        // compose.
+        let stride = extent.0 as usize * 4;
+        let rows_len = bytes.len();
+        let height = rows_len / stride;
+        if height == 0 {
+            return 0;
+        }
+        let Some(rows) = bytes.get_mut() else {
+            return 0;
+        };
+        let (compositor, cues) = (&mut self.compositor, self.active.as_slice());
+        let mut target = FrameRows {
+            width: extent.0,
+            height: height.min(extent.1 as usize) as u32,
+            rows,
+        };
+        match compositor.compose(cues, now, &mut target) {
+            Ok(drawn) => drawn,
+            Err(_) => 0,
+        }
+    }
+
+    /// Rebuild the reduce cache for `extent` when a control moved or
+    /// the extent/scale key changed ("plan once per extent, not per
+    /// presented frame" — the srt render module's own D-2 note).
+    ///
+    /// # Errors
+    /// The text render's typed failures (a metrics/layout guard —
+    /// unreachable for validated payloads, honest all the same).
+    fn refresh(&mut self, extent: (u32, u32)) -> Result<(), EngineError> {
+        if !self.dirty && self.rendered == Some((extent, self.scale)) {
+            return Ok(());
+        }
+        if self.sidecars.is_empty() && self.embedded.is_empty() {
+            // The pure-CLI no-lane case: no face parse, no render —
+            // the compositing pass stays byte-identical.
+            self.active.clear();
+            self.rendered = Some((extent, self.scale));
+            self.dirty = false;
+            return Ok(());
+        }
+        let selected = self.selected;
+        let sync_ms = self.sync_ms;
+        let mut built: Vec<subtitles::compositing::CompositedCue> = Vec::new();
+        for sidecar in &self.sidecars {
+            if Some(sidecar.handle) != selected {
+                continue;
+            }
+            match &sidecar.payload {
+                SidecarPayload::Text { cues: text_cues } => {
+                    if text_cues.is_empty() {
+                        continue;
+                    }
+                    // A02's session glyph pipeline (the real swash stack
+                    // over the bundled face; the placeholder when even
+                    // the committed asset failed): constructed per
+                    // reduce — the swash contexts are `!Sync` cells,
+                    // so the lane never carries the pipeline itself.
+                    let pipeline = subtitles::font::session_pipeline();
+                    for cue in text_cues {
+                        if let Some(composed) =
+                            render_text_cue(pipeline.as_ref(), cue, extent, self.scale)?
+                        {
+                            built.push(shift_sync(composed, sync_ms));
+                        }
+                    }
+                }
+                SidecarPayload::Bitmap { cues: bitmap_cues } => {
+                    for cue in bitmap_cues {
+                        built.push(shift_sync(cue.clone(), sync_ms));
+                    }
+                }
+            }
+        }
+        for embedded in &self.embedded {
+            if let Some(composed) = reconstruct_embedded(embedded, extent)? {
+                built.push(shift_sync(composed, sync_ms));
+            }
+        }
+        self.active = built;
+        self.rendered = Some((extent, self.scale));
+        self.dirty = false;
+        Ok(())
+    }
+
+    /// Parse one sidecar file's bytes into the payload plus the
+    /// encoding name in effect (the shared add/`set-encoding`
+    /// reduce).
+    ///
+    /// # Errors
+    /// The format's own typed refusals (WebVTT's missing header, an
+    /// unknown encoding label, the bitmap reduces' builder refusal).
+    fn load_sidecar(
+        &self,
+        path: &str,
+        format: SidecarFormat,
+        raw: &[u8],
+        encoding: Option<&str>,
+    ) -> Result<(SidecarPayload, String), EngineError> {
+        match format {
+            SidecarFormat::Srt => {
+                // BOM detection runs inside the parser
+                // (`SrtDocument::encoding` names what it used — the
+                // override decodes the retained raw bytes itself).
+                if let Some(label) = encoding {
+                    let (text, name) = decode_text(raw, Some(label))?;
+                    let document = subtitles::srt::parse_str(&text);
+                    return Ok((
+                        SidecarPayload::Text {
+                            cues: document.cues,
+                        },
+                        name,
+                    ));
+                }
+                let document = subtitles::srt::parse(raw);
+                Ok((
+                    SidecarPayload::Text {
+                        cues: document.cues,
+                    },
+                    document.encoding.name().to_string(),
+                ))
+            }
+            SidecarFormat::Vtt => {
+                let (text, name) = decode_text(raw, encoding)?;
+                let document = subtitles::vtt::parse(&text).map_err(|err| {
+                    host_error(
+                        PipelineStage::Demux,
+                        "cli.subtitle_sidecar_parse",
+                        format!("the WebVTT sidecar refused the load: {err}"),
+                    )
+                })?;
+                Ok((SidecarPayload::Text { cues: document.cues }, name))
+            }
+            SidecarFormat::Ass => {
+                let (text, name) = decode_text(raw, encoding)?;
+                let document = subtitles::ass::parse(&text);
+                Ok((SidecarPayload::Text { cues: document.cues }, name))
+            }
+            SidecarFormat::Pgs => Ok((
+                SidecarPayload::Bitmap {
+                    cues: load_pgs_sidecar(raw)?,
+                },
+                "binary".to_string(),
+            )),
+            SidecarFormat::Vobsub => {
+                let sub = self.vobsub_sub_bytes(path)?;
+                let document = subtitles::vobsub::parse_vobsub(raw, &sub);
+                let cues = subtitles::vobsub::vobsub_cues(&document, 0).map_err(|err| {
+                    host_error(
+                        PipelineStage::Demux,
+                        "cli.subtitle_sidecar_parse",
+                        format!("the VobSub pair refused the cue contract: {err}"),
+                    )
+                })?;
+                Ok((
+                    SidecarPayload::Bitmap { cues },
+                    "binary".to_string(),
+                ))
+            }
+        }
+    }
+
+    /// The `.sub` sibling of a VobSub `.idx` sidecar path (the pair's
+    /// other half, read from the same directory).
+    ///
+    /// # Errors
+    /// [`EngineError`] typed when the sibling is unreadable.
+    fn vobsub_sub_bytes(&self, path: &str) -> Result<Vec<u8>, EngineError> {
+        let sibling = path.strip_suffix(".idx").map_or_else(
+            || format!("{path}.sub"),
+            |stem| format!("{stem}.sub"),
+        );
+        std::fs::read(&sibling).map_err(|err| {
+            host_error(
+                PipelineStage::Demux,
+                "cli.subtitle_sidecar_read",
+                format!("cannot read the VobSub sibling `{sibling}`: {err}"),
+            )
+        })
+    }
+}
+
+/// The embedded overlay's reduce: A04's `SubtitleOverlay` payload →
+/// the compositing contract. The overlay's authored `(x, y)` pin at
+/// the same fraction of the presentation extent (the renderer's
+/// surface IS the video's own extent — built from the frames), with
+/// the PGS builder's placement vocabulary (start/top anchored, no
+/// safe-area clamp — authored pixels land exactly — and the
+/// reference extent carrying the authored scale).
+///
+/// Text embedded cues (`overlay: None`) have no in-tree producer —
+/// honestly `None` until one exists.
+///
+/// # Errors
+/// [`EngineError`] typed at the compositing contract's own gates.
+fn reconstruct_embedded(
+    cue: &SubtitleCue,
+    extent: (u32, u32),
+) -> Result<Option<subtitles::compositing::CompositedCue>, EngineError> {
+    let Some(overlay) = &cue.overlay else {
+        return Ok(None);
+    };
+    let bitmap = subtitles::compositing::CueBitmap::from_rgba(
+        overlay.width,
+        overlay.height,
+        overlay.height,
+        overlay.rgba.as_slice().to_vec(),
+    )
+    .map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_overlay",
+            format!("the embedded overlay failed the bitmap contract: {err}"),
+        )
+    })?;
+    let (extent_w, extent_h) = (extent.0.max(1), extent.1.max(1));
+    // A negative placement clamps to the frame edge — the compositing
+    // vocabulary's anchors are non-negative fractions.
+    let x = overlay
+        .x
+        .max(0)
+        .min(i32::try_from(extent_w).unwrap_or(i32::MAX)) as u32;
+    let y = overlay
+        .y
+        .max(0)
+        .min(i32::try_from(extent_h).unwrap_or(i32::MAX)) as u32;
+    let anchor = subtitles::compositing::Anchor::new(
+        subtitles::compositing::Rational::new(x, extent_w).map_err(|err| {
+            host_error(
+                PipelineStage::Present,
+                "cli.subtitle_overlay",
+                format!("the embedded overlay's placement refused: {err}"),
+            )
+        })?,
+        subtitles::compositing::Rational::new(y, extent_h).map_err(|err| {
+            host_error(
+                PipelineStage::Present,
+                "cli.subtitle_overlay",
+                format!("the embedded overlay's placement refused: {err}"),
+            )
+        })?,
+    )
+    .map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_overlay",
+            format!("the embedded overlay's placement refused: {err}"),
+        )
+    })?;
+    let layout = subtitles::compositing::CueLayout {
+        anchor,
+        alignment: subtitles::compositing::CueAlignment {
+            horizontal: subtitles::compositing::HorizontalAlign::Start,
+            vertical: subtitles::compositing::VerticalAlign::Top,
+        },
+        // No safe-area clamp: the overlay's (x, y) are authored
+        // pixels, not a text-cue default — the broadcast box must
+        // not move them.
+        margin: subtitles::compositing::SafeMargin::None,
+        reference: Some(extent),
+    };
+    subtitles::compositing::CompositedCue::new(cue.span.clone(), bitmap, layout, overlay.z)
+        .map(Some)
+        .map_err(|err| {
+            host_error(
+                PipelineStage::Present,
+                "cli.subtitle_overlay",
+                format!("the embedded overlay refused the cue contract: {err}"),
+            )
+        })
+}
+
+/// One styled fragment of a text cue's line (a run split across the
+/// cue's own newlines keeps its tint and decorations).
+struct TextFragment {
+    text: String,
+    color: subtitles::model::style::Color,
+    deco: subtitles::font::GlyphDecorations,
+}
+
+/// Render one text cue through the session glyph pipeline (the A05
+/// twins' shape: per-char
+/// [`GlyphPipeline::advance`](subtitles::font::GlyphPipeline::advance)
+/// sums for line widths, real masks for ink — placeholder or swash,
+/// the assertions stay pipeline-agnostic) with the crate's own
+/// geometry (`srt::render::cue_layout` — the legacy free fn A05 keeps
+/// as the placeholder wrapper).
+///
+/// # Errors
+/// The pipeline's metrics guard and the compositing contract's typed
+/// failures.
+fn render_text_cue(
+    pipeline: &dyn subtitles::font::GlyphPipeline,
+    cue: &subtitles::model::Cue,
+    extent: (u32, u32),
+    scale: f32,
+) -> Result<Option<subtitles::compositing::CompositedCue>, EngineError> {
+    let size = text_size_px(extent, scale);
+    let metrics = pipeline.metrics(size).map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_metrics",
+            format!("the glyph pipeline refused size {size}: {err}"),
+        )
+    })?;
+    // Lines of fragments: plain text is one white fragment; styled
+    // runs keep their colour/decorations and split on newlines.
+    let mut lines: Vec<Vec<TextFragment>> = Vec::new();
+    let mut push_fragment = |text: &str,
+                              color: Option<subtitles::model::style::Color>,
+                              deco: &subtitles::font::GlyphDecorations| {
+        for (i, piece) in text.split('\n').enumerate() {
+            while lines.len() <= i {
+                lines.push(Vec::new());
+            }
+            lines[i].push(TextFragment {
+                text: piece.to_string(),
+                color: color.unwrap_or(subtitles::model::style::Color::WHITE),
+                deco: *deco,
+            });
+        }
+    };
+    let plain_deco = subtitles::font::GlyphDecorations::NONE;
+    match &cue.text {
+        subtitles::model::CueText::Plain(text) => push_fragment(text, None, &plain_deco),
+        subtitles::model::CueText::Styled(segments) => {
+            for segment in segments {
+                let deco = subtitles::font::GlyphDecorations {
+                    bold: segment.style.bold,
+                    italic: segment.style.italic,
+                    underline: segment.style.underline,
+                    strikeout: segment.style.strikeout,
+                };
+                push_fragment(&segment.text, segment.style.color, &deco);
+            }
+        }
+    }
+    lines.retain(|line| line.iter().any(|fragment| !fragment.text.is_empty()));
+    if lines.is_empty() {
+        return Ok(None);
+    }
+    // Rasterize every glyph once (D-2: no double strikes), measuring
+    // the line widths as the pen advances.
+    let mut widths: Vec<u64> = Vec::with_capacity(lines.len());
+    let mut rastered: Vec<Vec<(subtitles::font::GlyphMask, u32, subtitles::model::style::Color)>> =
+        Vec::with_capacity(lines.len());
+    for fragments in &lines {
+        let mut row = Vec::new();
+        let mut width = 0_u64;
+        for fragment in fragments {
+            for ch in fragment.text.chars() {
+                let mask = pipeline.rasterize(ch, &metrics, &fragment.deco);
+                let advance = pipeline.advance(ch, &metrics);
+                width += u64::from(advance);
+                row.push((mask, advance, fragment.color));
+            }
+            width += u64::from(pipeline.overhang(&metrics, &fragment.deco));
+        }
+        widths.push(width);
+        rastered.push(row);
+    }
+    // Box dimensions, clamped into the extent (the crate's `text_box`
+    // rule) — the blitter clips at the box edges.
+    let width = widths
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0)
+        .min(u64::from(extent.0))
+        .max(1) as u32;
+    let line_height = u64::from(metrics.line_height_px);
+    let height = (line_height * rastered.len() as u64)
+        .min(u64::from(extent.1))
+        .max(1) as u32;
+    // The LAST line's baseline is the cue baseline (the plain-path
+    // rule), clamped into the box.
+    let baseline = (line_height * (rastered.len() as u64 - 1) + u64::from(metrics.ascent_px))
+        .min(u64::from(height)) as u32;
+    let mut rgba = vec![0_u8; width as usize * height as usize * 4];
+    for (li, row) in rastered.iter().enumerate() {
+        let top = li as u64 * line_height;
+        let mut pen = 0_u64;
+        for (mask, advance, color) in row {
+            // The mask's baseline sits `ascent` rows below its top —
+            // blit at the line top (the placeholder and swash agree
+            // on the convention).
+            for gy in 0..u64::from(mask.height) {
+                let y = top + gy;
+                if y >= u64::from(height) {
+                    break;
+                }
+                for gx in 0..u64::from(mask.width) {
+                    let x = pen + gx;
+                    if x >= u64::from(width) {
+                        break;
+                    }
+                    let coverage = u32::from(mask.alpha_at(gx as u32, gy as u32));
+                    if coverage == 0 {
+                        continue;
+                    }
+                    let alpha = (u32::from(color.a) * coverage + 127) / 255;
+                    let offset = ((y * u64::from(width) + x) * 4) as usize;
+                    if alpha > u32::from(rgba[offset + 3]) {
+                        rgba[offset] = color.r;
+                        rgba[offset + 1] = color.g;
+                        rgba[offset + 2] = color.b;
+                        rgba[offset + 3] = alpha as u8;
+                    }
+                }
+            }
+            pen += u64::from(*advance);
+        }
+    }
+    let bitmap =
+        subtitles::compositing::CueBitmap::from_rgba(width, height, baseline, rgba).map_err(
+            |err| {
+                host_error(
+                    PipelineStage::Present,
+                    "cli.subtitle_bitmap",
+                    format!("the rendered text box refused the bitmap contract: {err}"),
+                )
+            },
+        )?;
+    let layout = subtitles::srt::render::cue_layout(
+        cue,
+        extent,
+        &subtitles::srt::render::TextMetrics::new(metrics.line_height_px, metrics.advance_px),
+    )
+    .map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_layout",
+            format!("the text cue's placement refused: {err}"),
+        )
+    })?;
+    let span = us_span(cue.interval.start_us(), cue.interval.end_us())?;
+    subtitles::compositing::CompositedCue::new(span, bitmap, layout, 0)
+        .map(Some)
+        .map_err(|err| {
+            host_error(
+                PipelineStage::Present,
+                "cli.subtitle_bitmap",
+                format!("the rendered text cue refused the cue contract: {err}"),
+            )
+        })
+}
+
+/// The frame-rows adapter (the compositing contract's R4 seam over
+/// one video frame's own bytes).
+struct FrameRows<'a> {
+    width: u32,
+    height: u32,
+    rows: &'a mut [u8],
+}
+
+impl subtitles::compositing::target::ComposeTarget for FrameRows<'_> {
+    fn extent(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    fn row_rgba(&mut self, y: u32) -> Result<&mut [u8], subtitles::compositing::ComposeError> {
+        let stride = self.width as usize * 4;
+        let start = y as usize * stride;
+        if y >= self.height || start + stride > self.rows.len() {
+            return Err(subtitles::compositing::ComposeError::RowStride {
+                y,
+                expected: start + stride,
+                got: self.rows.len(),
+            });
+        }
+        Ok(&mut self.rows[start..start + stride])
+    }
+}
+
+/// Shift one composed cue's span by the lane's sync delay (ns,
+/// saturating — the `subtitle.set-sync` verb's cumulative total).
+fn shift_sync(
+    mut cue: subtitles::compositing::CompositedCue,
+    sync_ms: i64,
+) -> subtitles::compositing::CompositedCue {
+    let delta = sync_ms.saturating_mul(1_000_000);
+    cue.start = cue.start.map(|ns| ns.saturating_add(delta));
+    cue.end = cue.end.map(|ns| ns.saturating_add(delta));
+    cue
+}
+
+/// Microseconds → the frame vocabulary's span (the 1/1e6 base the
+/// model cues carry).
+///
+/// # Errors
+/// [`EngineError`] typed when the µs magnitude overflows the stamp.
+fn us_span(start_us: i64, end_us: i64) -> Result<TimeSpan, EngineError> {
+    let start = Timestamp::from_parts(start_us, 1, 1_000_000).map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_span",
+            format!("the cue's start {start_us}µs is out of the stamp domain: {err}"),
+        )
+    })?;
+    let end = Timestamp::from_parts(end_us, 1, 1_000_000).map_err(|err| {
+        host_error(
+            PipelineStage::Present,
+            "cli.subtitle_span",
+            format!("the cue's end {end_us}µs is out of the stamp domain: {err}"),
+        )
+    })?;
+    Ok(TimeSpan {
+        start: Stamp::Present(start),
+        end: Stamp::Present(end),
+    })
+}
+
+/// The lane's text size at the current extent and scale (the render
+/// policy constant above — rounded, clamped, deterministic).
+fn text_size_px(extent: (u32, u32), scale: f32) -> u32 {
+    let nominal = f64::from(extent.1) * f64::from(SUBTITLE_HEIGHT_SHARE) * f64::from(scale);
+    nominal.round().clamp(8.0, 220.0) as u32
+}
+
+/// Canonicalize an encoding label (case-insensitive; the loader's
+/// vocabulary).
+///
+/// # Errors
+/// [`EngineError`] typed for a label outside the vocabulary.
+fn canonical_encoding(label: &str) -> Result<String, EngineError> {
+    let lowered = label.to_ascii_lowercase();
+    if [
+        "utf-8", "utf-8-bom", "utf-16le", "utf-16be", "windows-1252",
+    ]
+    .contains(&lowered.as_str())
+    {
+        return Ok(lowered);
+    }
+    Err(host_error(
+        PipelineStage::Demux,
+        "cli.subtitle_encoding_unknown",
+        format!(
+            "encoding `{label}` is outside the sidecar vocabulary \
+             (landed: utf-8, utf-8-bom, utf-16le, utf-16be, windows-1252)"
+        ),
+    ))
+}
+
+/// Decode text sidecar bytes under an explicit label, or as UTF-8
+/// (lossy — the parsers' own tolerance posture) when no override
+/// applies. Returns the decoded text plus the canonical label.
+///
+/// # Errors
+/// [`EngineError`] typed for an unknown label (see
+/// [`canonical_encoding`]).
+fn decode_text(bytes: &[u8], encoding: Option<&str>) -> Result<(String, String), EngineError> {
+    let strip_bom = |mut text: String| {
+        if text.starts_with('\u{feff}') {
+            text.replace_range(0..'\u{feff}'.len_utf8(), "");
+        }
+        text
+    };
+    let Some(label) = encoding else {
+        return Ok((
+            strip_bom(String::from_utf8_lossy(bytes).into_owned()),
+            "utf-8".to_string(),
+        ));
+    };
+    let canonical = canonical_encoding(label)?;
+    let text = match canonical.as_str() {
+        "utf-8" | "utf-8-bom" => strip_bom(String::from_utf8_lossy(bytes).into_owned()),
+        "utf-16le" => decode_utf16(bytes, true),
+        "utf-16be" => decode_utf16(bytes, false),
+        "windows-1252" => decode_windows1252(bytes),
+        _ => String::new(),
+    };
+    Ok((text, canonical))
+}
+
+/// UTF-16 decode (BOM stripped when it matches; surrogate pairs
+/// joined; every malformation degrades to U+FFFD — the srt encoding
+/// module's own policy, replicated for the override path).
+fn decode_utf16(bytes: &[u8], little_endian: bool) -> String {
+    let body = if little_endian && bytes.starts_with(&[0xFF, 0xFE]) {
+        &bytes[2..]
+    } else if !little_endian && bytes.starts_with(&[0xFE, 0xFF]) {
+        &bytes[2..]
+    } else {
+        bytes
+    };
+    let unit = |pair: [u8; 2]| -> u16 {
+        if little_endian {
+            u16::from_le_bytes(pair)
+        } else {
+            u16::from_be_bytes(pair)
+        }
+    };
+    let mut out = String::with_capacity(body.len() / 2 + 1);
+    let mut i = 0_usize;
+    while i + 2 <= body.len() {
+        let u = unit([body[i], body[i + 1]]);
+        i += 2;
+        if (0xD800..=0xDBFF).contains(&u) && i + 2 <= body.len() {
+            let v = unit([body[i], body[i + 1]]);
+            if (0xDC00..=0xDFFF).contains(&v) {
+                i += 2;
+                let scalar =
+                    0x1_0000_u32 + ((u32::from(u) - 0xD800) << 10) + (u32::from(v) - 0xDC00);
+                if let Some(ch) = char::from_u32(scalar) {
+                    out.push(ch);
+                    continue;
+                }
+            }
+        }
+        match char::from_u32(u32::from(u)) {
+            Some(ch) if !(0xD800..=0xDFFF).contains(&u) => out.push(ch),
+            _ => out.push('\u{FFFD}'),
+        }
+    }
+    out
+}
+
+/// The Windows-1252 high-half table, `0x80..=0x9F` (`None` = the five
+/// undefined bytes; the srt encoding module's own table, replicated
+/// for the override path). `0x00..=0x7F` is ASCII and `0xA0..=0xFF`
+/// is Latin-1 — both handled inline.
+const CP1252_HIGH: [Option<char>; 32] = [
+    Some('\u{20AC}'),
+    None,
+    Some('\u{201A}'),
+    Some('\u{0192}'),
+    Some('\u{201E}'),
+    Some('\u{2026}'),
+    Some('\u{2020}'),
+    Some('\u{2021}'),
+    Some('\u{02C6}'),
+    Some('\u{2030}'),
+    Some('\u{0160}'),
+    Some('\u{2039}'),
+    Some('\u{0152}'),
+    None,
+    Some('\u{017D}'),
+    None,
+    None,
+    Some('\u{2018}'),
+    Some('\u{2019}'),
+    Some('\u{201C}'),
+    Some('\u{201D}'),
+    Some('\u{2022}'),
+    Some('\u{2013}'),
+    Some('\u{2014}'),
+    Some('\u{02DC}'),
+    Some('\u{2122}'),
+    Some('\u{0161}'),
+    Some('\u{203A}'),
+    Some('\u{0153}'),
+    None,
+    Some('\u{017E}'),
+    Some('\u{0178}'),
+];
+
+/// Windows-1252 decode (the srt encoding module's policy, replicated
+/// for the override path: undefined bytes degrade to U+FFFD).
+fn decode_windows1252(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len());
+    for &byte in bytes {
+        match byte {
+            0x80..=0x9F => match CP1252_HIGH[usize::from(byte - 0x80)] {
+                Some(ch) => out.push(ch),
+                None => out.push('\u{FFFD}'),
+            },
+            _ => out.push(char::from(byte)),
+        }
+    }
+    out
+}
+
+/// Split a `.sup` sidecar's bytes into display-set payloads (one per
+/// END segment — the epoch grammar's set boundary), keeping the
+/// file's own framing (PTS-prefixed `.sup` or Matroska-stripped).
+fn split_pgs_display_sets(bytes: &[u8]) -> Vec<&[u8]> {
+    use subtitles::pgs::segment::PgsFraming;
+    const END_SEGMENT: u8 = 0x80;
+    let framing = PgsFraming::detect(bytes);
+    let header = framing.header_len();
+    let mut sets = Vec::new();
+    let mut start = 0_usize;
+    let mut pos = 0_usize;
+    while bytes.len() - pos >= header {
+        let type_offset = match framing {
+            PgsFraming::Sup => pos + 4,
+            PgsFraming::Stripped => pos,
+        };
+        let kind = bytes[type_offset];
+        let size = u16::from_be_bytes([bytes[type_offset + 1], bytes[type_offset + 2]]) as usize;
+        let body = type_offset + 3;
+        let end = body.saturating_add(size);
+        if end > bytes.len() {
+            // A segment whose declared size overruns the file: END may
+            // (observed in the wild — the reference allows it); every
+            // other kind stops the walk. Close the tail as a set
+            // either way (the decoder reports the truncation).
+            sets.push(&bytes[start..]);
+            return sets;
+        }
+        pos = end;
+        if kind == END_SEGMENT {
+            sets.push(&bytes[start..pos]);
+            start = pos;
+        }
+    }
+    if start < bytes.len() {
+        sets.push(&bytes[start..]);
+    }
+    sets
+}
+
+/// Load a `.sup` sidecar: split into display sets, run the PGS epoch
+/// state machine across them, and reduce each set through the cue
+/// builder with the NEXT set's PTS closing the span (the decoder
+/// adapter's own chaining rule).
+///
+/// # Errors
+/// [`EngineError`] typed when the cue builder refuses a composed set
+/// (typed, never a panic — the grammar's damage is data).
+fn load_pgs_sidecar(raw: &[u8]) -> Result<Vec<subtitles::compositing::CompositedCue>, EngineError> {
+    let mut decoder = subtitles::pgs::PgsDecoder::new();
+    let builder = subtitles::pgs::PgsCueBuilder::new();
+    let mut sets = Vec::new();
+    for payload in split_pgs_display_sets(raw) {
+        // The `.sup` carriage stamps each segment header; the PCS
+        // segment's own PTS wins when the container passes none.
+        sets.push(decoder.decode_display_set(payload, None));
+    }
+    let mut cues = Vec::new();
+    for (i, set) in sets.iter().enumerate() {
+        let next = sets.get(i + 1).and_then(|following| following.pts_ns);
+        let built = builder.cues(set, next, 0).map_err(|err| {
+            host_error(
+                PipelineStage::Demux,
+                "cli.subtitle_sidecar_parse",
+                format!("a PGS display set refused the cue contract: {err}"),
+            )
+        })?;
+        cues.extend(built);
+    }
+    Ok(cues)
+}
+
 /// The consumer's mutable state (the engine calls `accept` on the poll
 /// thread; the pump ticks the video half between polls — one mutex,
 /// no contention in the single-writer model).
 pub struct ConsumerState {
     audio: Option<AudioLimb>,
     video: Option<VideoLimb>,
+    /// The session subtitle lane (FX9-A03): the sidecar registry +
+    /// the embedded overlay set, composited onto the accepted video
+    /// frames (see [`accept_video`]).
+    pub subtitles: SubtitleLane,
     /// Window-full overflow hold (FIFO of already-converted frames).
     /// The decode stage runs ahead of the clock by design (the
     /// headless pump only moves time on `advance`); the scheduler
@@ -1427,6 +2671,11 @@ impl ConsumerState {
         if let Some(video) = self.video.as_mut() {
             video.seek_boundary(generation);
         }
+        // The embedded subtitle set belongs to the old timeline
+        // (FX9-A03: A04's decoder rebuilds its epoch at the seek's
+        // reconfigure; the lane's held set drops with it — the next
+        // display set re-establishes).
+        self.subtitles.clear_embedded();
         // The audio drift measurement is a new regime post-seek (the
         // fill-to-target relationship restarts at the landing; the
         // scheduler's estimator equally resets at the anchor-epoch
@@ -1500,6 +2749,7 @@ impl CliFrameConsumer {
             state: Mutex::new(ConsumerState {
                 audio,
                 video: None,
+                subtitles: SubtitleLane::new(),
                 video_hold: std::collections::VecDeque::new(),
                 video_error: None,
                 frames_accepted: 0,
@@ -1552,6 +2802,82 @@ impl CliFrameConsumer {
             .as_ref()
             .and_then(VideoLimb::last_presented_ns)
     }
+
+    // -- the subtitle lane's session seam (FX9-A03 defines it, the
+    // FX9-A01 host verbs call it; every answer is the lane's own
+    // read-back, never the echoed request) ----
+
+    /// The `subtitle.add-file` verb's half: load one external
+    /// subtitle file onto the LIVE consumer's sidecar lane and answer
+    /// the registered read-back (handle, label, cue count, encoding).
+    ///
+    /// # Errors
+    /// [`EngineError`] — [`SubtitleLane::add_sidecar`]'s typed
+    /// refusals.
+    pub fn subtitle_add_sidecar(
+        &self,
+        path: &str,
+        encoding: Option<&str>,
+        select: bool,
+    ) -> Result<SubtitleSidecar, EngineError> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        state.subtitles.add_sidecar(path, encoding, select)
+    }
+
+    /// The `subtitle.set-sync` verb's half: the NEW absolute total.
+    pub fn subtitle_set_sync(&self, delta_ms: i64) -> Result<i64, EngineError> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        Ok(state.subtitles.set_sync(delta_ms))
+    }
+
+    /// The `subtitle.set-encoding` verb's half: the encoding now in
+    /// effect on the selected sidecar.
+    ///
+    /// # Errors
+    /// [`EngineError`] — [`SubtitleLane::set_encoding`]'s typed
+    /// refusals.
+    pub fn subtitle_set_encoding(&self, encoding: &str) -> Result<String, EngineError> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        state.subtitles.set_encoding(encoding)
+    }
+
+    /// The `subtitle.set-scale` verb's half: the applied scale.
+    ///
+    /// # Errors
+    /// [`EngineError`] — [`SubtitleLane::set_scale`]'s typed
+    /// refusals.
+    pub fn subtitle_set_scale(&self, scale: f32) -> Result<f32, EngineError> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        state.subtitles.set_scale(scale)
+    }
+
+    /// The `tracks.set-subtitle-track` verb's sidecar half: select
+    /// (or deselect) the sidecar lane.
+    ///
+    /// # Errors
+    /// [`EngineError`] — [`SubtitleLane::select_sidecar`]'s typed
+    /// refusals.
+    pub fn subtitle_select_sidecar(
+        &self,
+        handle: Option<WireTrackId>,
+    ) -> Result<(), EngineError> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        state.subtitles.select_sidecar(handle)
+    }
+
+    /// The `tracks.list` snapshot's sidecar half: the registered
+    /// sidecar rows with the lane's own selection flags.
+    #[must_use]
+    pub fn subtitle_sidecar_tracks(&self) -> Vec<WireTrackInfo> {
+        let mut state = self.lock();
+        let state = &mut *state;
+        state.subtitles.sidecar_tracks()
+    }
 }
 
 impl FrameConsumer for CliFrameConsumer {
@@ -1563,8 +2889,16 @@ impl FrameConsumer for CliFrameConsumer {
             Frame::Video(video) => {
                 accept_video(&mut state, &video, track, &self.facts, &self.clock)
             }
-            // Subtitle/data limbs are not wired in the first vertical.
-            Frame::Subtitle(_) => Ok(()),
+            // FX9-A03 (d): the embedded subtitle lane — A04's
+            // `Frame::Subtitle` payloads hold on the consumer's
+            // subtitle lane and composite onto the video frames (see
+            // `accept_video`). Bitmap cues render; a text payload has
+            // no in-tree producer yet (the honest note in
+            // `reconstruct_embedded`).
+            Frame::Subtitle(subtitle) => {
+                state.subtitles.accept_subtitle_frame(&subtitle);
+                Ok(())
+            }
         }
     }
 
@@ -1662,11 +2996,12 @@ fn accept_video(
             refused: 0,
         });
     }
-    let Some(video) = state.video.as_mut() else {
-        return Ok(());
-    };
-    // Convert to the renderer's upload vocabulary when needed.
-    let uploadable = match frame.format {
+    // Convert to the renderer's upload vocabulary when needed. The
+    // limb's re-borrow is scoped AFTER the compositing pass below
+    // (the conversion and the compositing own the frame, the push
+    // owns the limb — the borrow contracts' guard relocation; the
+    // convert → composite → push order itself is unchanged).
+    let mut uploadable = match frame.format {
         media_types::PixelFormat::Rgba8 | media_types::PixelFormat::Bgra8 => frame.clone(),
         media_types::PixelFormat::I420 => convert_i420_to_rgba(frame)?,
         media_types::PixelFormat::Nv12 | media_types::PixelFormat::Yuyv422 => {
@@ -1679,6 +3014,17 @@ fn accept_video(
                 ),
             ));
         }
+    };
+    // FX9-A03 (c): the subtitle lane composites the cues active at
+    // the frame's OWN pts onto the converted RGBA rows — one clock,
+    // the same timeline the scheduler holds the frame against (the
+    // desktop tap inherits the composited pixels by construction).
+    // The no-cue case leaves the bytes untouched.
+    if let Stamp::Present(now) = uploadable.pts {
+        state.subtitles.composite_onto(&mut uploadable, now);
+    }
+    let Some(video) = state.video.as_mut() else {
+        return Ok(());
     };
     match video.scheduler.push(uploadable) {
         PushOutcome::Scheduled | PushOutcome::Inferred { .. } => Ok(()),

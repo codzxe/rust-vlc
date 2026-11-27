@@ -60,6 +60,11 @@ plugin-api = { path = "../../crates/plugin-api" }
 renderer-wgpu = { path = "../../crates/renderer-wgpu" }
 settings-schema = { path = "../../crates/settings-schema" }
 streaming = { path = "../../crates/streaming" }
+# FX9-A03 (the sanctioned add): the subtitle lane composites sidecar and
+# embedded cues onto the video frames through the subtitles crate's
+# compositing contract (SubtitleCompositor/ComposeTarget/CompositedCue —
+# the srt/vtt/ass/pgs/vobsub parsers + the font-stack seam behind it).
+subtitles = { path = "../../crates/subtitles" }
 video-engine = { path = "../../crates/video-engine" }
 serde_json = "1.0"
 toml = "1"

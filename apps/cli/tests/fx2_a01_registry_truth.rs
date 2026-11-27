@@ -102,14 +102,15 @@ impl Drop for TempDir {
 // F0.2 — the registry truth, probed against the real dispatch table
 // ---------------------------------------------------------------------------
 
-/// The pinned expectation: exactly the 14-family registry
+/// The pinned expectation: exactly the 15-family registry
 /// (pipeline_host.rs's `LANDED_DECODER_FAMILIES` — one row per codec
 /// arm of `HostDecoderProvider::decoder_for`, arm order; `aac-lc` is
 /// the `aac|aac-lc` family's registry name, `adpcm`/`pcm` the two
 /// prefix-guard arms, the arm aliases `mp1`/`av01`/`avc1` fold into
-/// their families' rows). Kept as a literal so the test fails loudly
-/// when the dispatch table grows or shrinks — then this pin, the
-/// registry and `engine_info()`'s answer must move together.
+/// their families' rows; `pgssub` is the FX9-A03 embedded PGS subtitle
+/// arm). Kept as a literal so the test fails loudly when the dispatch
+/// table grows or shrinks — then this pin, the registry and
+/// `engine_info()`'s answer must move together.
 const EXPECTED_FAMILIES: &[(&str, TrackKind)] = &[
     // arm: "mjpeg"
     ("mjpeg", TrackKind::Video),
@@ -137,6 +138,9 @@ const EXPECTED_FAMILIES: &[(&str, TrackKind)] = &[
     ("dnxhd", TrackKind::Video),
     // arm: "h264" | "avc1"
     ("h264", TrackKind::Video),
+    // arm: "pgssub" — the FX9-A03 embedded PGS subtitle lane (A04's
+    // decoder; the TS demuxer's stream-type-0x90 mint)
+    ("pgssub", TrackKind::Subtitle),
     // arm: `starts_with("pcm_")` — descriptors like pcm_s16le
     ("pcm", TrackKind::Audio),
 ];
@@ -212,7 +216,7 @@ fn fx2_a01_engine_info_cli_surface_lists_all_dispatch_families() {
     assert!(
         out.contains(
             "decoders: mjpeg, flac, mp3, mp2, vorbis, opus, aac-lc, alac, adpcm, av1, \
-             vp9, dnxhd, h264, pcm"
+             vp9, dnxhd, h264, pgssub, pcm"
         ),
         "{out}"
     );
