@@ -70,6 +70,11 @@ pub const SUBCOMMANDS: &[(&str, &str, &str)] = &[
         "the session's audio controls (volume, mute, balance + EQ, class S, answered with the applied truth)",
     ),
     (
+        "subtitle-add <path> | subtitle-sync <ms> | subtitle-encoding <name> | subtitle-scale <f> (machine mode)",
+        "tracks.set-subtitle-track / subtitle.add-file / subtitle.set-sync / subtitle.set-encoding / subtitle.set-scale",
+        "the session's subtitle lane (sidecar files, sync/encoding/scale + track selection, class S/A, answered with the applied truth)",
+    ),
+    (
         "engine-info",
         "system.get-engine-info",
         "engine self-description",
@@ -298,6 +303,16 @@ fn catalog_ids(id: &str) -> Vec<CommandId> {
                 CommandId::AudioSetEq,
             ]
         }
+        "tracks.set-subtitle-track / subtitle.add-file / subtitle.set-sync / subtitle.set-encoding / subtitle.set-scale" =>
+        {
+            vec![
+                CommandId::TracksSetSubtitleTrack,
+                CommandId::SubtitleAddFile,
+                CommandId::SubtitleSetSync,
+                CommandId::SubtitleSetEncoding,
+                CommandId::SubtitleSetScale,
+            ]
+        }
         "system.get-engine-info" => vec![CommandId::SystemGetEngineInfo],
         "system.list-commands" => vec![CommandId::SystemListCommands],
         "config.get-setting / config.set-setting" => {
@@ -445,8 +460,8 @@ mod tests {
         let ids = synopsis_catalog_ids();
         assert_eq!(
             ids.len(),
-            20,
-            "one per catalog-serving synopsis row (the settings row counts twice, the audio row five times)"
+            25,
+            "one per catalog-serving synopsis row (the settings row counts twice, the audio and subtitle rows five times each)"
         );
         // Distinct by construction of the table; spot-pin two.
         assert!(ids.contains(&CommandId::SessionOpen));
@@ -458,5 +473,11 @@ mod tests {
         assert!(ids.contains(&CommandId::AudioSetMute));
         assert!(ids.contains(&CommandId::AudioSetBalance));
         assert!(ids.contains(&CommandId::AudioSetEq));
+        // The FX9-A01 subtitle row parses to its five catalog ids.
+        assert!(ids.contains(&CommandId::TracksSetSubtitleTrack));
+        assert!(ids.contains(&CommandId::SubtitleAddFile));
+        assert!(ids.contains(&CommandId::SubtitleSetSync));
+        assert!(ids.contains(&CommandId::SubtitleSetEncoding));
+        assert!(ids.contains(&CommandId::SubtitleSetScale));
     }
 }

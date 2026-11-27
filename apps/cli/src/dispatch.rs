@@ -13,7 +13,11 @@
 //! wired pipeline can honor today), plus the F1.1c audio-control
 //! verbs (`audio.set-volume`/`get-volume`/`set-mute`/`set-balance`/
 //! `set-eq`, routed to the live session's controls seam — W07's
-//! dead-surface fix). [`SERVED`]
+//! dead-surface fix), plus the FX9-A01 subtitle verbs
+//! (`tracks.set-subtitle-track` + `subtitle.add-file`/`set-sync`/
+//! `set-encoding`/`set-scale`, composed over the engine's
+//! `SelectSubtitle` session command and the live session's sidecar
+//! lane — FX9's dead-surface fix). [`SERVED`]
 //! is that set as data; the `--help` synopsis ([`crate::help`]) is
 //! tested against it, so the two cannot drift. Every other catalog id
 //! answers the honest typed refusal `unsupported-for-host` naming
@@ -55,6 +59,11 @@ pub const SERVED: &[CommandId] = &[
     CommandId::AudioSetMute,
     CommandId::AudioSetBalance,
     CommandId::AudioSetEq,
+    CommandId::TracksSetSubtitleTrack,
+    CommandId::SubtitleAddFile,
+    CommandId::SubtitleSetSync,
+    CommandId::SubtitleSetEncoding,
+    CommandId::SubtitleSetScale,
     CommandId::SystemGetEngineInfo,
     CommandId::SystemListCommands,
     CommandId::ConfigGetSetting,
@@ -164,6 +173,28 @@ fn route(
             preamp_db,
         } => Ok(CommandOutcome::Completed(
             host.audio_set_eq(*low_db, *mid_db, *high_db, *preamp_db)?,
+        )),
+        // ---- the subtitle verbs (§2.5/§2.8 — FX9-A01, class S/A:
+        // composed over the engine's `SelectSubtitle` session command
+        // and the live session's sidecar lane; the response says
+        // what IS — the chain's own read-back, never the request
+        // echoed) ----
+        Command::TracksSetSubtitleTrack { selector } => Ok(CommandOutcome::Completed(
+            host.set_subtitle_track(*selector)?,
+        )),
+        Command::SubtitleAddFile {
+            path,
+            encoding,
+            select,
+        } => host.subtitle_add_file(path, encoding.as_deref(), *select),
+        Command::SubtitleSetSync { delta_ms } => Ok(CommandOutcome::Completed(
+            host.subtitle_set_sync(*delta_ms)?,
+        )),
+        Command::SubtitleSetEncoding { encoding } => Ok(CommandOutcome::Completed(
+            host.subtitle_set_encoding(encoding)?,
+        )),
+        Command::SubtitleSetScale { scale } => Ok(CommandOutcome::Completed(
+            host.subtitle_set_scale(*scale)?,
         )),
         Command::SystemGetEngineInfo => Ok(CommandOutcome::Completed(CommandResult::EngineInfo {
             info: crate::host::engine_info(),

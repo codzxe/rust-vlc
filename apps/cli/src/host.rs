@@ -80,7 +80,7 @@ use audio_output::null::NullDevice;
 use commands::catalog::command::{CommandListing, CommandResult};
 use commands::catalog::types::{
     AudioEqBands, Chapter, DecoderInfo, Duration, EngineInfo, MediaInfo, SettingValue, TimeRange,
-    Timestamp, TrackInfo, TrackKind, Volume,
+    Timestamp, TrackId, TrackInfo, TrackKind, Volume,
 };
 use commands::envelope::{CommandOutcome, Generation, RequestId, SessionId};
 use commands::{CommandError, ErrorCode, EventKind, PlaybackState, Stage, WireEvent};
@@ -90,7 +90,7 @@ use media_types::Rate;
 use playback_engine::event::EngineEventKind;
 use playback_engine::{
     CommandReceipt, Engine, EngineOutput, ReceiptResult, SeekTarget, SessionCommandKind,
-    SessionConfig, SessionError, SessionHandle, SessionState,
+    SessionConfig, SessionError, SessionHandle, SessionState, TrackSelector,
 };
 use plugin_api::SeekSupport;
 
@@ -375,11 +375,20 @@ impl CliHost {
         self.facts.as_ref()
     }
 
-    /// The last `tracks.list-ready` snapshot (wire form) — the class-S
-    /// `tracks.list` answer.
+    /// The `tracks.list` snapshot (class S): the engine's last
+    /// `tracks.list-ready` rows PLUS the consumer's sidecar rows (the
+    /// FX9-A03 seam — external subtitles added after open, with the
+    /// sidecar lane's own selection flags). Every row is the chain's
+    /// own read-back: the engine rows' subtitle flags ride the
+    /// drain-side mirror of the engine's `tracks.changed`
+    /// confirmations, the sidecar rows are the consumer's own truth.
     #[must_use]
     pub fn track_snapshot(&self) -> Vec<TrackInfo> {
-        self.tracks.clone()
+        let mut tracks = self.tracks.clone();
+        if let Some(consumer) = self.consumer.as_ref() {
+            tracks.extend(consumer.subtitle_sidecar_tracks());
+        }
+        tracks
     }
 
     /// The engine's pipeline observability counters.
@@ -681,6 +690,26 @@ impl CliHost {
                                     )
                                 })
                                 .collect();
+                        }
+                        if let EngineEventKind::TrackSelectionChanged {
+                            track_kind: MediaKind::Subtitle,
+                            selected,
+                        } = &event.kind
+                        {
+                            // FX9-A01: the class-S subtitle selection's
+                            // read-back — the engine emits the lightweight
+                            // `TrackSelectionChanged` confirmation (never
+                            // the full-list `TracksChanged` the snapshot
+                            // refresher above consumes), so mirror the
+                            // embedded lane's flags here: `tracks.list`
+                            // answers the chain, never the last full
+                            // snapshot.
+                            let selected = selected.map(|id| TrackId(id.handle()));
+                            for row in &mut self.tracks {
+                                if row.kind == TrackKind::Subtitle {
+                                    row.is_selected = Some(row.id) == selected;
+                                }
+                            }
                         }
                     }
                     if let Some(wire) = event.as_wire_event()
@@ -1539,6 +1568,220 @@ impl CliHost {
                     preamp_db: preamp.db(),
                 }),
         })
+    }
+
+    // -- the subtitle verbs (§2.5/§2.8 — FX9-A01, the live subtitle
+    // lane: the engine's `SelectSubtitle` session command composed with
+    // the consumer's sidecar lane, the FX9-A03 seam) ----
+
+    /// The `tracks.set-subtitle-track` verb (class S — §2.5's "the
+    /// applied selector"): compose the TWO subtitle lanes and answer
+    /// the chain's own read-back of what is NOW selected, never the
+    /// request echoed —
+    ///
+    /// * a wire id naming one of the consumer's sidecar rows selects
+    ///   the sidecar lane and deselects the engine's embedded lane;
+    /// * any other id resolves on the ENGINE's embedded lane (the
+    ///   `SelectSubtitle` session command, card 3.A3 — a track this
+    ///   session does not have is the executor's own typed
+    ///   `TrackNotFound`, never a host guess) with the sidecar lane
+    ///   deselected;
+    /// * `None` deselects both lanes;
+    /// * `Auto` applies the product's rules over the CONTAINER's
+    ///   tracks (the engine's own `Auto`: the container-default
+    ///   subtitle track, else deselected) — no sidecar is
+    ///   auto-selected in v0 (the sidecar is a user-added extra, not
+    ///   part of the container's automatic resolution).
+    ///
+    /// One active subtitle lane at a time. The embedded lane runs
+    /// FIRST, so an engine refusal leaves the sidecar lane untouched.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: no session (`not-ready`), a
+    /// submit failure ([`session_error_wire`]), the executor's own
+    /// refusal ([`rejection_wire`]), and the sidecar lane's own
+    /// refusal (mapped through [`wire_error`], never dropped).
+    pub(crate) fn set_subtitle_track(
+        &mut self,
+        selector: commands::catalog::types::TrackSelector,
+    ) -> Result<CommandResult, CommandError> {
+        use commands::catalog::types::TrackSelector as WireSelector;
+        // The lane split: a wire id naming one of the consumer's
+        // sidecar rows drives the SIDECAR lane; anything else drives
+        // the engine's embedded lane (which also owns the no-session
+        // refusal below through its own handle gate).
+        let sidecar_id = match selector {
+            WireSelector::Id { id }
+                if self.consumer.as_ref().is_some_and(|consumer| {
+                    consumer.subtitle_sidecar_tracks().iter().any(|row| row.id == id)
+                }) =>
+            {
+                Some(id)
+            }
+            _ => None,
+        };
+        match sidecar_id {
+            Some(id) => {
+                // The sidecar lane takes the selection; the engine's
+                // embedded lane deselects (one active subtitle lane).
+                self.submit_subtitle_select(TrackSelector::None)?;
+                let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+                consumer
+                    .subtitle_select_sidecar(Some(id))
+                    .map_err(|error| wire_error(&error))?;
+            }
+            None => {
+                // The engine's embedded lane resolves the selector (an
+                // id, the deselect, or the product's `Auto` rules); the
+                // sidecar lane deselects (one active subtitle lane).
+                self.submit_subtitle_select(TrackSelector::from_wire(selector))?;
+                let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+                consumer
+                    .subtitle_select_sidecar(None)
+                    .map_err(|error| wire_error(&error))?;
+            }
+        }
+        // The chain's read-back — what is NOW selected: the sidecar
+        // lane's own selected row first, else the engine lane's
+        // selected embedded row (the drain-side mirror of the
+        // engine's `tracks.changed` confirmations), else no track.
+        let selected = self
+            .consumer
+            .as_ref()
+            .ok_or_else(no_session_open)?
+            .subtitle_sidecar_tracks()
+            .into_iter()
+            .find(|row| row.is_selected)
+            .map(|row| row.id);
+        let selected = selected.or_else(|| {
+            self.tracks
+                .iter()
+                .find(|row| row.kind == TrackKind::Subtitle && row.is_selected)
+                .map(|row| row.id)
+        });
+        Ok(CommandResult::AppliedSelector {
+            selector: match selected {
+                Some(id) => WireSelector::Id { id },
+                None => WireSelector::None,
+            },
+        })
+    }
+
+    /// Submit the engine's class-S subtitle selection (card 3.A3's
+    /// `SelectSubtitle` session command — no mint, no pipeline
+    /// invalidation) and await its receipt: the embedded-lane half of
+    /// [`CliHost::set_subtitle_track`]'s composition. The
+    /// `tracks.changed` confirmation rides the event stream, and the
+    /// drain-side mirror ([`CliHost::drain_outputs`]) reads it back
+    /// into the embedded rows of `tracks.list`.
+    ///
+    /// # Errors
+    /// Typed at each honest boundary: no session (`not-ready`), a
+    /// submit failure ([`session_error_wire`]), the executor's own
+    /// refusal ([`rejection_wire`] — e.g. an id this session does
+    /// not have is `TrackNotFound`), or the bounded receipt wait
+    /// expiring.
+    fn submit_subtitle_select(
+        &mut self,
+        selector: TrackSelector,
+    ) -> Result<(), CommandError> {
+        let handle = self.handle.as_ref().ok_or_else(no_session_open)?;
+        let request = self.allocator.allocate();
+        handle
+            .set_subtitle_track(request, selector)
+            .map_err(|error| session_error_wire(&error))?;
+        let receipt = self.await_receipt(request)?;
+        match receipt.result {
+            ReceiptResult::Completed { .. } => Ok(()),
+            ReceiptResult::Rejected { state, reason } => Err(rejection_wire(state, reason)),
+            // The class-S executor owns the whole execution pre-table
+            // — an accept here is an engine invariant breach, surfaced
+            // typed (never a fabricated completion).
+            ReceiptResult::Accepted { .. } => Err(CommandError::new(
+                Stage::Control,
+                ErrorCode::Internal,
+                "the engine answered the class-S subtitle selection with an accept receipt",
+            )),
+        }
+    }
+
+    /// The `subtitle.add-file` verb (class A — §2.8's shape): load
+    /// the external subtitle file onto the LIVE consumer's sidecar
+    /// lane (the FX9-A03 seam: bytes → cues, the encoding override
+    /// honored, the sidecar selected when `select` asks) and answer
+    /// the accept. The arrival truth is `tracks.list`'s own read-back
+    /// (the appended sidecar row) — the class-A answer carries no
+    /// payload to echo.
+    ///
+    /// # Errors
+    /// Typed at the honest boundary: no session (`not-ready`). The
+    /// registered sidecar (handle, label, cues, encoding) stays on
+    /// the consumer — the seam's own read-back surface.
+    pub(crate) fn subtitle_add_file(
+        &mut self,
+        path: &str,
+        encoding: Option<&str>,
+        select: bool,
+    ) -> Result<CommandOutcome<CommandResult>, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let _ = consumer.subtitle_add_sidecar(path, encoding, select);
+        let session = self.engine.session_id();
+        let generation = self.engine.generation();
+        Ok(CommandOutcome::Accepted {
+            session,
+            generation: generation.unwrap_or(Generation(0)),
+        })
+    }
+
+    /// The `subtitle.set-sync` verb (class S — §2.8): shift the
+    /// subtitle lane's delay by the signed delta on the LIVE consumer
+    /// (the FX9-A03 seam) and answer the seam's own read-back — the
+    /// NEW absolute total, never the delta echoed.
+    ///
+    /// # Errors
+    /// Typed at the honest boundaries: no session (`not-ready`) and
+    /// the lane's own typed refusal (mapped through [`wire_error`]).
+    pub(crate) fn subtitle_set_sync(&mut self, delta_ms: i64) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let delay_ms = consumer
+            .subtitle_set_sync(delta_ms)
+            .map_err(|error| wire_error(&error))?;
+        Ok(CommandResult::AppliedDelayMs { delay_ms })
+    }
+
+    /// The `subtitle.set-encoding` verb (class S — §2.8): re-decode
+    /// the sidecar lane's text on the LIVE consumer (the FX9-A03
+    /// seam) and answer the lane's own read-back — the encoding now
+    /// in effect, never the request echoed.
+    ///
+    /// # Errors
+    /// Typed at the honest boundaries: no session (`not-ready`) and
+    /// the lane's own typed refusal (mapped through [`wire_error`]).
+    pub(crate) fn subtitle_set_encoding(
+        &mut self,
+        encoding: &str,
+    ) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let encoding = consumer
+            .subtitle_set_encoding(encoding)
+            .map_err(|error| wire_error(&error))?;
+        Ok(CommandResult::AppliedEncoding { encoding })
+    }
+
+    /// The `subtitle.set-scale` verb (class S — §2.8, `0.2..=5.0`):
+    /// set the subtitle lane's render-size multiplier on the LIVE
+    /// consumer (the FX9-A03 seam) and answer the lane's own
+    /// read-back — the scale now in effect, never the request echoed.
+    ///
+    /// # Errors
+    /// Typed at the honest boundaries: no session (`not-ready`) and
+    /// the lane's own typed refusal (mapped through [`wire_error`]).
+    pub(crate) fn subtitle_set_scale(&mut self, scale: f32) -> Result<CommandResult, CommandError> {
+        let consumer = self.consumer.as_ref().ok_or_else(no_session_open)?;
+        let scale = consumer
+            .subtitle_set_scale(scale)
+            .map_err(|error| wire_error(&error))?;
+        Ok(CommandResult::AppliedScale { scale })
     }
 
     /// The settings-schema seam: one setting's value + meta.
