@@ -13,10 +13,25 @@
 //!
 //! ## Glyph metrics policy (honest, documented)
 //!
-//! **Fonts belong to the renderer** (doc 04 §5: "text rendering itself
-//! is a renderer concern") — this crate has no font stack and never
-//! will. To produce a real bitmap anyway, this path uses
-//! **monospace-widest-char metrics**:
+//! **Fonts belong to the pipeline seam** (`crate::font::pipeline`,
+//! issue #17 G-5 — doc 04 §5's "text rendering itself is a renderer
+//! concern" made concrete): [`MonospaceCellPipeline`] is the
+//! in-crate placeholder, `crate::font::SwashPipeline` the admitted
+//! real stack (swash 0.2.10, FX9-A02). The free functions
+//! ([`render_plain_text_cue`]/[`render_styled_cue`]) remain
+//! **[pipeline: placeholder]** convenience wrappers — they delegate
+//! to the `*_with_pipeline` twins
+//! ([`render_plain_text_cue_with_pipeline`]/
+//! [`render_styled_cue_with_pipeline`], FX9-A05) with
+//! [`MonospaceCellPipeline`], byte-identical to the historical inline
+//! path. The twins take any `&dyn GlyphPipeline`: one pipeline mask
+//! per glyph for the ink (the span colour's RGB with the
+//! coverage-tinted alpha — the compositor's straight-alpha
+//! `blend_row` semantics), and every line's width is the SUM of the
+//! pipeline's per-character advances (`GlyphPipeline::advance` — an
+//! `i` narrower than a `W` under a real pipeline; one cell per char
+//! under the placeholder). Under the placeholder the masks are the
+//! documented **monospace-widest-char** policy:
 //!
 //! * every codepoint advances one cell of `3/5 em` (0.6 em — the
 //!   widest-glyph advance of the common monospace faces, e.g. DejaVu
@@ -30,9 +45,16 @@
 //!
 //! The result is placeholder glyph coverage: correct geometry (box,
 //! baseline, multi-line stacking, colour, placement, timing) with
-//! deliberately crude pixels. When the real font stack lands in
-//! `renderer-wgpu`, only [`GlyphMetrics`] and the fill loop change —
-//! the placement/colour/timing plumbing below them is the contract.
+//! deliberately crude pixels — and a real pipeline plugged into the
+//! twins replaces exactly the masks and the advances, nothing else
+//! (the placement/colour/timing plumbing below them is the contract).
+//!
+//! `[HONEST NOTE]` no decoration bits reach the twins yet: the render
+//! types carry none (G-2's open half — `AssRenderRun` has colour and
+//! size only), so the twins rasterize with `GlyphDecorations::NONE`
+//! and the render output keeps the pipeline's plain-mask geometry
+//! (a decoration-aware pipeline expresses its differences through
+//! the masks it returns; the seam does not flatten them).
 //!
 //! `[HONEST NOTE]` no East-Asian wide-width handling: a CJK codepoint
 //! also occupies one cell, so CJK-heavy lines UNDER-estimate width
@@ -60,7 +82,9 @@
 
 use crate::ass::layout::{self, AssAlignment, AssMargins};
 use crate::compositing::bitmap::{CompositedCue, CueBitmap, CueError};
-use crate::font::MetricsError;
+use crate::font::{
+    GlyphDecorations, GlyphMask, GlyphPipeline, MetricsError, MonospaceCellPipeline,
+};
 use crate::model::style::{Color as ModelColor, TextStyle};
 use crate::model::{CueId, ModelError};
 use media_types::time::{Stamp, TimeError, TimeSpan, Timestamp};
@@ -344,18 +368,67 @@ pub fn split_lines(text: &str) -> Vec<&str> {
     lines
 }
 
-/// Render one plain-text ASS cue to the compositing contract.
-///
-/// The output carries: the rasterized [`CueBitmap`] (placeholder
-/// glyph coverage — module docs), the exact-rational [`CueLayout`]
-/// from [`layout::cue_layout`], the z-order, and the half-open span in
-/// nanoseconds (converted once, here — never per frame).
+/// Tint one straight-alpha channel with glyph coverage, ties up: the
+/// mask-seam contract (`font::pipeline` — only the alpha channel
+/// carries the coverage; the RGB stays the span colour, matching the
+/// compositor's straight-alpha `blend_row`). Full coverage returns
+/// the channel unchanged (the placeholder-lane byte identity).
+fn tint(channel: u8, coverage: u8) -> u8 {
+    ((u16::from(channel) * u16::from(coverage) + 127) / 255) as u8
+}
+
+/// Blit one coverage mask into the cue bitmap at pen `(pen_x, top)`:
+/// the span colour's RGB with the coverage-tinted alpha ([`tint`]),
+/// clipped to the bitmap box (a real pipeline's masks may grow past
+/// the line box — descenders, decoration strips). Zero coverage
+/// writes nothing (a space cell stays blank).
+fn blit_mask(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    mask: &GlyphMask,
+    pen_x: u64,
+    top: u64,
+    color: &ModelColor,
+) {
+    for y in 0..u64::from(mask.height) {
+        let row = top + y;
+        if row >= u64::from(height) {
+            break;
+        }
+        for x in 0..u64::from(mask.width) {
+            let col = pen_x + x;
+            if col >= u64::from(width) {
+                break;
+            }
+            let coverage = mask.alpha_at(x as u32, y as u32);
+            if coverage == 0 {
+                continue;
+            }
+            let off = ((row * u64::from(width) + col) * 4) as usize;
+            rgba[off] = color.r;
+            rgba[off + 1] = color.g;
+            rgba[off + 2] = color.b;
+            rgba[off + 3] = tint(color.a, coverage);
+        }
+    }
+}
+
+/// Render one plain-text ASS cue to the compositing contract through
+/// a glyph pipeline (the [`render_plain_text_cue`] twin — see the
+/// module docs): span metrics from `pipeline.metrics`, one pipeline
+/// mask per glyph for the ink, and each line's width the SUM of the
+/// pipeline's per-character advances (`GlyphPipeline::advance` —
+/// an `i` narrower than a `W` under a real pipeline). The render
+/// types carry no decoration bits, so the masks are requested plain
+/// (`GlyphDecorations::NONE` — G-2's open half, module docs).
 ///
 /// # Errors
 /// [`AssRenderError`] — see the variants; no input panics.
-pub fn render_plain_text_cue(
+pub fn render_plain_text_cue_with_pipeline(
     cue: &AssRenderCue,
     play_res: (u32, u32),
+    pipeline: &dyn GlyphPipeline,
 ) -> Result<CompositedCue, AssRenderError> {
     if cue.end_us < cue.start_us {
         return Err(AssRenderError::EndBeforeStart {
@@ -363,7 +436,7 @@ pub fn render_plain_text_cue(
             end_us: cue.end_us,
         });
     }
-    let metrics = GlyphMetrics::from_font_size(cue.style.font_size_px)?;
+    let metrics = pipeline.metrics(cue.style.font_size_px)?;
     let lines = split_lines(&cue.text);
     let max_chars = lines
         .iter()
@@ -375,7 +448,16 @@ pub fn render_plain_text_cue(
     }
 
     // Dimensions in u64, then u32-checked (no silent truncation).
-    let width = max_chars as u64 * u64::from(metrics.advance_px);
+    // The width: the max over lines of the per-char advance sums.
+    let width = lines
+        .iter()
+        .map(|line| {
+            line.chars()
+                .map(|ch| u64::from(pipeline.advance(ch, &metrics)))
+                .fold(0u64, u64::saturating_add)
+        })
+        .max()
+        .unwrap_or(0);
     let height = lines.len() as u64 * u64::from(metrics.line_height_px);
     let (width, height) = {
         let w = u32::try_from(width);
@@ -390,7 +472,14 @@ pub fn render_plain_text_cue(
             }
         }
     };
-    let total_bytes = u64::from(width) * u64::from(height) * 4;
+    // Checked: the raw multiply itself was reachable with ~1.7 MB of
+    // crafted text at the 8192-px guard (the W09-A03 audit's F-001) —
+    // typed refusal, never a debug panic or a wrapped
+    // under-allocation.
+    let total_bytes = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or(AssRenderError::TooLarge { width, height })?;
     if total_bytes > MAX_BITMAP_BYTES {
         return Err(AssRenderError::TooLarge { width, height });
     }
@@ -400,25 +489,18 @@ pub fn render_plain_text_cue(
     let baseline =
         (lines.len() as u64 - 1) * u64::from(metrics.line_height_px) + u64::from(metrics.ascent_px);
 
-    // Rasterize: one solid cell block per non-space codepoint.
+    // Rasterize: one pipeline mask per codepoint, tinted with the
+    // primary colour (a space cell's blank mask writes nothing — the
+    // historical placeholder skip, now expressed through the seam).
     let color = ass_colour_to_model(cue.style.primary_colour);
     let mut rgba = vec![0u8; total_bytes as usize];
     for (li, line) in lines.iter().enumerate() {
         let top = li as u64 * u64::from(metrics.line_height_px);
-        for (ci, ch) in line.chars().enumerate() {
-            if ch == ' ' {
-                continue;
-            }
-            let cell_x = ci as u64 * u64::from(metrics.advance_px);
-            for y in top..top + u64::from(metrics.ascent_px) {
-                for x in cell_x..cell_x + u64::from(metrics.advance_px) {
-                    let off = ((y * u64::from(width) + x) * 4) as usize;
-                    rgba[off] = color.r;
-                    rgba[off + 1] = color.g;
-                    rgba[off + 2] = color.b;
-                    rgba[off + 3] = color.a;
-                }
-            }
+        let mut pen = 0u64;
+        for ch in line.chars() {
+            let mask = pipeline.rasterize(ch, &metrics, &GlyphDecorations::NONE);
+            blit_mask(&mut rgba, width, height, &mask, pen, top, &color);
+            pen += u64::from(pipeline.advance(ch, &metrics));
         }
     }
 
@@ -445,25 +527,48 @@ pub fn render_plain_text_cue(
     .map_err(AssRenderError::from)
 }
 
-/// Render one G-2 styled ASS cue (override-tag runs) to the
-/// compositing contract. Each run rasters with its own colour and
-/// font size: per-run cell advance/ascent from the run's
-/// [`GlyphMetrics`], line height from the largest run on the cue, so
-/// mixed-size lines stack without clipping the taller runs (the
-/// placeholder-glyph policy of the plain path applies per run).
+/// Render one plain-text ASS cue to the compositing contract.
 ///
-/// `cue.runs` empty → delegates to [`render_plain_text_cue`]
-/// (back-compat: the plain majority pays nothing).
+/// [pipeline: placeholder] This convenience wrapper delegates to
+/// [`render_plain_text_cue_with_pipeline`] with
+/// [`MonospaceCellPipeline`] — the documented placeholder glyph
+/// policy (solid cell blocks, one nominal cell per character; module
+/// docs). Thread a real pipeline (e.g. `font::session_pipeline()`)
+/// through the twin for real metrics, per-glyph masks and
+/// per-character advance sums.
+///
+/// # Errors
+/// [`AssRenderError`] — see the variants; no input panics.
+pub fn render_plain_text_cue(
+    cue: &AssRenderCue,
+    play_res: (u32, u32),
+) -> Result<CompositedCue, AssRenderError> {
+    render_plain_text_cue_with_pipeline(cue, play_res, &MonospaceCellPipeline)
+}
+
+/// Render one G-2 styled ASS cue (override-tag runs) through a glyph
+/// pipeline (the [`render_styled_cue`] twin — see the module docs):
+/// per-run span metrics from `pipeline.metrics`, one pipeline mask
+/// per glyph tinted with the run colour, and each line's width the
+/// SUM of the pipeline's per-character advances per run — mixed-size
+/// runs stack with their own advances. The render types carry no
+/// decoration bits, so the masks are requested plain
+/// (`GlyphDecorations::NONE` — G-2's open half, module docs).
+///
+/// `cue.runs` empty → delegates to
+/// [`render_plain_text_cue_with_pipeline`] (back-compat: the plain
+/// majority pays nothing).
 ///
 /// # Errors
 /// [`AssRenderError`] — the plain path's variants, plus a per-run
 /// font-size guard; no input panics.
-pub fn render_styled_cue(
+pub fn render_styled_cue_with_pipeline(
     cue: &AssRenderCue,
     play_res: (u32, u32),
+    pipeline: &dyn GlyphPipeline,
 ) -> Result<CompositedCue, AssRenderError> {
     if cue.runs.is_empty() {
-        return render_plain_text_cue(cue, play_res);
+        return render_plain_text_cue_with_pipeline(cue, play_res, pipeline);
     }
     if cue.end_us < cue.start_us {
         return Err(AssRenderError::EndBeforeStart {
@@ -475,7 +580,7 @@ pub fn render_styled_cue(
     let metrics: Vec<GlyphMetrics> = cue
         .runs
         .iter()
-        .map(|r| GlyphMetrics::from_font_size(r.font_size_px))
+        .map(|r| pipeline.metrics(r.font_size_px))
         .collect::<Result<_, _>>()?;
     let line_height = metrics.iter().map(|m| m.line_height_px).max().unwrap_or(0);
     let max_ascent = metrics.iter().map(|m| m.ascent_px).max().unwrap_or(0);
@@ -487,13 +592,17 @@ pub fn render_styled_cue(
     if n_lines == 0 {
         return Err(AssRenderError::EmptyText);
     }
-    // Width per line: the sum of per-run advances on that line.
+    // Width per line: the sum of per-run per-char advance sums on
+    // that line.
     let mut widths = vec![0u64; n_lines];
     let mut any_char = false;
     for (ri, run_frags) in frags.iter().enumerate() {
         for (li, line) in run_frags.iter().enumerate() {
-            widths[li] += u64::try_from(line.chars().count()).unwrap_or(u64::MAX)
-                * u64::from(metrics[ri].advance_px);
+            widths[li] = widths[li].saturating_add(
+                line.chars()
+                    .map(|ch| u64::from(pipeline.advance(ch, &metrics[ri])))
+                    .fold(0u64, u64::saturating_add),
+            );
             if !line.is_empty() {
                 any_char = true;
             }
@@ -517,7 +626,12 @@ pub fn render_styled_cue(
             }
         }
     };
-    let total_bytes = u64::from(width) * u64::from(height) * 4;
+    // Checked (the plain twin's F-001 note): the raw multiply itself
+    // is typed-refused, never a panic.
+    let total_bytes = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or(AssRenderError::TooLarge { width, height })?;
     if total_bytes > MAX_BITMAP_BYTES {
         return Err(AssRenderError::TooLarge { width, height });
     }
@@ -525,30 +639,22 @@ pub fn render_styled_cue(
     // measured with the cue-wide metrics.
     let baseline = u64::from(line_height) * (n_lines as u64 - 1) + u64::from(max_ascent);
 
-    // Rasterize: per-run colour/size, one solid cell block per
-    // non-space codepoint.
+    // Rasterize: per-run colour/size, one pipeline mask per codepoint
+    // tinted with the run colour (a space cell's blank mask writes
+    // nothing; the run's pen still advances).
     let mut rgba = vec![0u8; total_bytes as usize];
     for li in 0..n_lines {
         let top = li as u64 * u64::from(line_height);
-        let mut x = 0u64;
+        let mut pen = 0u64;
         for (ri, run) in cue.runs.iter().enumerate() {
             let Some(line) = frags[ri].get(li) else {
                 continue;
             };
-            let m = metrics[ri];
+            let m = &metrics[ri];
             for ch in line.chars() {
-                if ch != ' ' {
-                    for y in top..top + u64::from(m.ascent_px) {
-                        for px in x..x + u64::from(m.advance_px) {
-                            let off = ((y * u64::from(width) + px) * 4) as usize;
-                            rgba[off] = run.color.r;
-                            rgba[off + 1] = run.color.g;
-                            rgba[off + 2] = run.color.b;
-                            rgba[off + 3] = run.color.a;
-                        }
-                    }
-                }
-                x += u64::from(m.advance_px);
+                let mask = pipeline.rasterize(ch, m, &GlyphDecorations::NONE);
+                blit_mask(&mut rgba, width, height, &mask, pen, top, &run.color);
+                pen += u64::from(pipeline.advance(ch, m));
             }
         }
     }
@@ -572,6 +678,33 @@ pub fn render_styled_cue(
         cue.z,
     )
     .map_err(AssRenderError::from)
+}
+
+/// Render one G-2 styled ASS cue (override-tag runs) to the
+/// compositing contract. Each run rasters with its own colour and
+/// font size: per-run cell advance/ascent from the run's
+/// [`GlyphMetrics`], line height from the largest run on the cue, so
+/// mixed-size lines stack without clipping the taller runs (the
+/// placeholder-glyph policy of the plain path applies per run).
+///
+/// `cue.runs` empty → delegates to [`render_plain_text_cue`]
+/// (back-compat: the plain majority pays nothing).
+///
+/// [pipeline: placeholder] This convenience wrapper delegates to
+/// [`render_styled_cue_with_pipeline`] with
+/// [`MonospaceCellPipeline`] — the documented placeholder glyph
+/// policy (module docs). Thread a real pipeline (e.g.
+/// `font::session_pipeline()`) through the twin for real per-run
+/// metrics, per-glyph masks and per-character advance sums.
+///
+/// # Errors
+/// [`AssRenderError`] — the plain path's variants, plus a per-run
+/// font-size guard; no input panics.
+pub fn render_styled_cue(
+    cue: &AssRenderCue,
+    play_res: (u32, u32),
+) -> Result<CompositedCue, AssRenderError> {
+    render_styled_cue_with_pipeline(cue, play_res, &MonospaceCellPipeline)
 }
 
 #[cfg(test)]

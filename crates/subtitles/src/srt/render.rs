@@ -15,6 +15,22 @@
 //! * [`place_plain_text`] — the full path: box → [`place_cue`] →
 //!   the destination [`Rect`] on the presentation extent.
 //!
+//! ## Pipeline twins (FX9-A05)
+//!
+//! The `*_with_pipeline` twins below are the real-glyph seam: they
+//! take a `font::GlyphPipeline` and measure each line's width as the
+//! SUM of the pipeline's per-character advances
+//! (`GlyphPipeline::advance`) instead of char-count × nominal cell,
+//! so a real font stack (A02's swash lane) measures an `i` narrower
+//! than a `W` in the box geometry — the primitive any wrap/line-
+//! breaking policy consumes (this path keeps its documented
+//! no-reflow policy: `\n` breaks only, the box clamped to the
+//! extent). The existing free functions are unchanged
+//! **[pipeline: placeholder]** convenience wrappers: they delegate
+//! to the twins with `MonospaceCellPipeline` over
+//! [`nominal_glyph_metrics`] — zero signature churn, byte-identical
+//! geometry.
+//!
 //! ## Mapping model → compositing (exact, no floats — MP §8)
 //!
 //! * horizontal anchor: `position` percent → that fraction of the
@@ -43,6 +59,7 @@ use crate::compositing::layout::{
     SafeMargin, VerticalAlign as LayoutVertical, place_cue,
 };
 use crate::compositing::target::ComposeError;
+use crate::font::{GlyphMetrics, GlyphPipeline, MonospaceCellPipeline};
 use crate::model::cue::{Cue, CueText};
 use crate::model::position::{HorizontalAlign, LinePlacement, Positioning, VerticalAlign};
 
@@ -72,9 +89,31 @@ impl TextMetrics {
 
 impl Default for TextMetrics {
     /// A nominal 1080p subtitle metrics (40 px line, 20 px cell) —
-    /// a stand-in until the renderer's real font metrics arrive.
+    /// the placeholder lane's stand-in; the `*_with_pipeline` twins
+    /// below measure real font metrics when a real pipeline is
+    /// threaded (FX9-A05).
     fn default() -> Self {
         Self::new(40, 20)
+    }
+}
+
+/// The nominal pipeline metrics for a renderer-supplied
+/// [`TextMetrics`]: the character cell is the advance, the line box
+/// is the line height, and the ascent follows the seam's pinned 80 %
+/// ratio (`font::pipeline`, the same rounding
+/// [`GlyphMetrics::from_font_size`] uses). This is the bridge the
+/// placeholder convenience wrappers thread, so their geometry is
+/// unchanged; a real-pipeline lane passes the pipeline's own
+/// `metrics()` output to the `*_with_pipeline` twins instead.
+#[must_use]
+pub fn nominal_glyph_metrics(metrics: &TextMetrics) -> GlyphMetrics {
+    let line_height = metrics.line_height_px;
+    // 80 % of the line box, ties up — the seam's pinned ascent ratio.
+    let ascent = ((u64::from(line_height) * 8) + 5) / 10;
+    GlyphMetrics {
+        advance_px: metrics.char_width_px,
+        line_height_px: line_height,
+        ascent_px: ascent as u32,
     }
 }
 
@@ -161,7 +200,14 @@ pub struct TextBoxLayout {
     pub baseline_px: u32,
 }
 
-/// The model → compositing layout mapping (see the module docs).
+/// The model → compositing layout mapping through a glyph pipeline
+/// (the [`cue_layout`] twin — see the module docs). The anchor math
+/// consumes no glyph data (positioning and the line height only), so
+/// the pipeline parameter exists to keep one lane's signature
+/// uniform: callers thread the same `&dyn GlyphPipeline` through
+/// [`place_plain_text_with_pipeline`] → [`text_box_with_pipeline`] →
+/// here, and pass the pipeline's own `metrics()` output so
+/// line-number anchoring measures the real line height.
 ///
 /// # Errors
 /// [`SrtRenderError::ZeroExtent`] when `extent` is empty (a
@@ -169,10 +215,11 @@ pub struct TextBoxLayout {
 /// denominator); [`SrtRenderError::BadAnchor`] never fires for
 /// model-constructed positionings (they are valid by construction)
 /// but guards pub-field escape hatches.
-pub fn cue_layout(
+pub fn cue_layout_with_pipeline(
     cue: &Cue,
     extent: (u32, u32),
-    metrics: &TextMetrics,
+    metrics: &GlyphMetrics,
+    _pipeline: &dyn GlyphPipeline,
 ) -> Result<CueLayout, SrtRenderError> {
     let zero = || SrtRenderError::ZeroExtent { extent };
     if extent.0 == 0 || extent.1 == 0 {
@@ -236,29 +283,64 @@ fn bad_anchor(e: CueError) -> SrtRenderError {
     SrtRenderError::BadAnchor { source: e }
 }
 
-/// Compute the cue's plain-text box and its compositing layout.
+/// The model → compositing layout mapping (see the module docs).
+///
+/// [pipeline: placeholder] This convenience wrapper delegates to
+/// [`cue_layout_with_pipeline`] with [`MonospaceCellPipeline`] over
+/// [`nominal_glyph_metrics`] — the documented placeholder glyph
+/// policy. Thread a real pipeline (e.g. `font::session_pipeline()`)
+/// through the twin for face-derived line heights.
 ///
 /// # Errors
-/// [`SrtRenderError::ZeroExtent`] via [`cue_layout`].
-pub fn text_box(
+/// [`SrtRenderError::ZeroExtent`] when `extent` is empty (a
+/// line-count placement needs the height as its rational
+/// denominator); [`SrtRenderError::BadAnchor`] never fires for
+/// model-constructed positionings (they are valid by construction)
+/// but guards pub-field escape hatches.
+pub fn cue_layout(
     cue: &Cue,
-    metrics: &TextMetrics,
     extent: (u32, u32),
+    metrics: &TextMetrics,
+) -> Result<CueLayout, SrtRenderError> {
+    cue_layout_with_pipeline(
+        cue,
+        extent,
+        &nominal_glyph_metrics(metrics),
+        &MonospaceCellPipeline,
+    )
+}
+
+/// Compute the cue's plain-text box and its compositing layout,
+/// measuring each line's width as the SUM of the pipeline's
+/// per-character advances (`GlyphPipeline::advance`) — an `i`
+/// measures narrower than a `W` under a real pipeline (one nominal
+/// cell per character under the placeholder). The no-reflow break
+/// policy is unchanged: `\n` splits lines, the box clamps to the
+/// extent.
+///
+/// # Errors
+/// [`SrtRenderError::ZeroExtent`] via [`cue_layout_with_pipeline`].
+pub fn text_box_with_pipeline(
+    cue: &Cue,
+    metrics: &GlyphMetrics,
+    extent: (u32, u32),
+    pipeline: &dyn GlyphPipeline,
 ) -> Result<TextBoxLayout, SrtRenderError> {
-    let layout = cue_layout(cue, extent, metrics)?;
+    let layout = cue_layout_with_pipeline(cue, extent, metrics, pipeline)?;
     let text = plain_text(cue);
-    // Characters, not bytes: Unicode honesty in the box width.
+    // Characters, not bytes: Unicode honesty in the line widths.
     let line_count = text.split('\n').count().max(1);
     let longest = text
         .split('\n')
-        .map(|l| l.chars().count())
+        .map(|line| {
+            line.chars()
+                .map(|ch| u64::from(pipeline.advance(ch, metrics)))
+                .fold(0u64, u64::saturating_add)
+        })
         .max()
         .unwrap_or(0)
         .max(1);
-    let width = (longest as u64)
-        .saturating_mul(u64::from(metrics.char_width_px))
-        .min(u64::from(extent.0))
-        .max(1) as u32;
+    let width = longest.min(u64::from(extent.0)).max(1) as u32;
     let height = (line_count as u64)
         .saturating_mul(u64::from(metrics.line_height_px))
         .min(u64::from(extent.1))
@@ -271,22 +353,42 @@ pub fn text_box(
     })
 }
 
-/// The full render path: cue → box → [`place_cue`] → destination
-/// [`Rect`] on the presentation extent. The renderer rasterizes the
-/// text INTO that rect (fonts are its concern); this function only
-/// ever produces geometry.
+/// Compute the cue's plain-text box and its compositing layout.
+///
+/// [pipeline: placeholder] This convenience wrapper delegates to
+/// [`text_box_with_pipeline`] with [`MonospaceCellPipeline`] over
+/// [`nominal_glyph_metrics`] — the documented placeholder glyph
+/// policy (one nominal cell per character). Thread a real pipeline
+/// through the twin for per-character advance sums.
+///
+/// # Errors
+/// [`SrtRenderError::ZeroExtent`] via [`cue_layout_with_pipeline`].
+pub fn text_box(
+    cue: &Cue,
+    metrics: &TextMetrics,
+    extent: (u32, u32),
+) -> Result<TextBoxLayout, SrtRenderError> {
+    text_box_with_pipeline(cue, &nominal_glyph_metrics(metrics), extent, &MonospaceCellPipeline)
+}
+
+/// The full render path through a glyph pipeline (the
+/// [`place_plain_text`] twin — see the module docs): cue → box →
+/// [`place_cue`] → destination [`Rect`]. Geometry only — the
+/// pipeline lane that consumes this rect rasterizes the text into
+/// it.
 ///
 /// # Errors
 /// [`SrtRenderError`] — see the variants (empty extent, probe
 /// ceiling, compositing-layer failures).
-pub fn place_plain_text(
+pub fn place_plain_text_with_pipeline(
     cue: &Cue,
-    metrics: &TextMetrics,
+    metrics: &GlyphMetrics,
     extent: (u32, u32),
+    pipeline: &dyn GlyphPipeline,
 ) -> Result<Rect, SrtRenderError> {
-    let box_layout = text_box(cue, metrics, extent)?;
+    let box_layout = text_box_with_pipeline(cue, metrics, extent, pipeline)?;
     // The probe: box dims already clamped into the extent by
-    // `text_box`; enforce the area ceiling (D-2).
+    // `text_box_with_pipeline`; enforce the area ceiling (D-2).
     let pixels = u64::from(box_layout.width_px) * u64::from(box_layout.height_px);
     if pixels > MAX_PROBE_PIXELS {
         return Err(SrtRenderError::ProbeTooLarge {
@@ -302,6 +404,33 @@ pub fn place_plain_text(
     )
     .map_err(|e| SrtRenderError::ProbeBitmap { source: e })?;
     place_cue(&probe, &box_layout.layout, extent).map_err(|e| SrtRenderError::Compose { source: e })
+}
+
+/// The full render path: cue → box → [`place_cue`] → destination
+/// [`Rect`] on the presentation extent. The renderer rasterizes the
+/// text INTO that rect (fonts are its concern); this function only
+/// ever produces geometry.
+///
+/// [pipeline: placeholder] This convenience wrapper delegates to
+/// [`place_plain_text_with_pipeline`] with [`MonospaceCellPipeline`]
+/// over [`nominal_glyph_metrics`] — the documented placeholder glyph
+/// policy. Thread a real pipeline through the twin for
+/// per-character advance sums.
+///
+/// # Errors
+/// [`SrtRenderError`] — see the variants (empty extent, probe
+/// ceiling, compositing-layer failures).
+pub fn place_plain_text(
+    cue: &Cue,
+    metrics: &TextMetrics,
+    extent: (u32, u32),
+) -> Result<Rect, SrtRenderError> {
+    place_plain_text_with_pipeline(
+        cue,
+        &nominal_glyph_metrics(metrics),
+        extent,
+        &MonospaceCellPipeline,
+    )
 }
 
 #[cfg(test)]
