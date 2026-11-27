@@ -29,171 +29,201 @@
 
 [summary]
 catalog_commands = 69
-catalog_commands_wired = 20
-decoder_families = 14
-decoder_families_shipped = 14
-host_verbs = 18
-host_verbs_wired = 17
+catalog_commands_wired = 25
+decoder_families = 15
+decoder_families_shipped = 15
+host_verbs = 23
+host_verbs_wired = 22
 
 [[decoder_family]]
 name = "aac-lc"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:295"
+source = "apps/cli/src/pipeline_host.rs:307"
 
 [[decoder_family]]
 name = "adpcm"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:305"
+source = "apps/cli/src/pipeline_host.rs:317"
 
 [[decoder_family]]
 name = "alac"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:300"
+source = "apps/cli/src/pipeline_host.rs:312"
 
 [[decoder_family]]
 name = "av1"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:311"
+source = "apps/cli/src/pipeline_host.rs:323"
 
 [[decoder_family]]
 name = "dnxhd"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:333"
+source = "apps/cli/src/pipeline_host.rs:345"
 
 [[decoder_family]]
 name = "flac"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:260"
+source = "apps/cli/src/pipeline_host.rs:272"
 
 [[decoder_family]]
 name = "h264"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:353"
+source = "apps/cli/src/pipeline_host.rs:365"
 
 [[decoder_family]]
 name = "mjpeg"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:249"
+source = "apps/cli/src/pipeline_host.rs:261"
 
 [[decoder_family]]
 name = "mp2"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:273"
+source = "apps/cli/src/pipeline_host.rs:285"
 
 [[decoder_family]]
 name = "mp3"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:268"
+source = "apps/cli/src/pipeline_host.rs:280"
 
 [[decoder_family]]
 name = "opus"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:283"
+source = "apps/cli/src/pipeline_host.rs:295"
 
 [[decoder_family]]
 name = "pcm"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:354"
+source = "apps/cli/src/pipeline_host.rs:380"
+
+[[decoder_family]]
+name = "pgssub"
+shipped = true
+source = "apps/cli/src/pipeline_host.rs:375"
 
 [[decoder_family]]
 name = "vorbis"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:278"
+source = "apps/cli/src/pipeline_host.rs:290"
 
 [[decoder_family]]
 name = "vp9"
 shipped = true
-source = "apps/cli/src/pipeline_host.rs:320"
+source = "apps/cli/src/pipeline_host.rs:332"
 
 [[host_verb]]
 name = "audio_get_volume"
 wired = true
-source = "apps/cli/src/host.rs:1430"
+source = "apps/cli/src/host.rs:1459"
 
 [[host_verb]]
 name = "audio_set_balance"
 wired = true
-source = "apps/cli/src/host.rs:1476"
+source = "apps/cli/src/host.rs:1505"
 
 [[host_verb]]
 name = "audio_set_eq"
 wired = true
-source = "apps/cli/src/host.rs:1511"
+source = "apps/cli/src/host.rs:1540"
 
 [[host_verb]]
 name = "audio_set_muted"
 wired = true
-source = "apps/cli/src/host.rs:1448"
+source = "apps/cli/src/host.rs:1477"
 
 [[host_verb]]
 name = "audio_set_volume"
 wired = true
-source = "apps/cli/src/host.rs:1408"
+source = "apps/cli/src/host.rs:1437"
 
 [[host_verb]]
 name = "command_listings"
 wired = true
-source = "apps/cli/src/host.rs:1903"
+source = "apps/cli/src/host.rs:2146"
 
 [[host_verb]]
 name = "current_time"
 wired = true
-source = "apps/cli/src/host.rs:1361"
+source = "apps/cli/src/host.rs:1390"
 
 [[host_verb]]
 name = "dispatch_seek"
 wired = true
-source = "apps/cli/src/host.rs:1079"
+source = "apps/cli/src/host.rs:1108"
 
 [[host_verb]]
 name = "duration"
 wired = true
-source = "apps/cli/src/host.rs:1343"
+source = "apps/cli/src/host.rs:1372"
 
 [[host_verb]]
 name = "engine_info"
 wired = true
-source = "apps/cli/src/host.rs:1866"
+source = "apps/cli/src/host.rs:2109"
 
 [[host_verb]]
 name = "media_info"
 wired = true
-source = "apps/cli/src/host.rs:1303"
+source = "apps/cli/src/host.rs:1332"
 
 [[host_verb]]
 name = "open_session"
 wired = true
-source = "apps/cli/src/host.rs:901"
+source = "apps/cli/src/host.rs:930"
 
 [[host_verb]]
 name = "receipt_outcome"
 wired = true
-source = "apps/cli/src/host.rs:880"
+source = "apps/cli/src/host.rs:909"
 
 [[host_verb]]
 name = "session_closed"
 wired = true
-source = "apps/cli/src/host.rs:1057"
+source = "apps/cli/src/host.rs:1086"
+
+[[host_verb]]
+name = "set_subtitle_track"
+wired = true
+source = "apps/cli/src/host.rs:1604"
 
 [[host_verb]]
 name = "setting_get"
 wired = true
-source = "apps/cli/src/host.rs:1545"
+source = "apps/cli/src/host.rs:1788"
 
 [[host_verb]]
 name = "setting_set"
 wired = true
-source = "apps/cli/src/host.rs:1569"
+source = "apps/cli/src/host.rs:1812"
 
 [[host_verb]]
 name = "submit_and_await"
 wired = true
-source = "apps/cli/src/host.rs:865"
+source = "apps/cli/src/host.rs:894"
+
+[[host_verb]]
+name = "subtitle_add_file"
+wired = true
+source = "apps/cli/src/host.rs:1720"
+
+[[host_verb]]
+name = "subtitle_set_encoding"
+wired = true
+source = "apps/cli/src/host.rs:1760"
+
+[[host_verb]]
+name = "subtitle_set_scale"
+wired = true
+source = "apps/cli/src/host.rs:1779"
+
+[[host_verb]]
+name = "subtitle_set_sync"
+wired = true
+source = "apps/cli/src/host.rs:1744"
 
 [[host_verb]]
 name = "track_info_wire_host"
 wired = false
-source = "apps/cli/src/host.rs:1656"
+source = "apps/cli/src/host.rs:1899"
 
 [[catalog_command]]
 name = "AudioGetBalance"
@@ -474,25 +504,25 @@ source = "crates/commands/src/catalog/command.rs:97"
 [[catalog_command]]
 name = "SubtitleAddFile"
 id = "subtitle.add-file"
-wired = false
+wired = true
 source = "crates/commands/src/catalog/command.rs:303"
 
 [[catalog_command]]
 name = "SubtitleSetEncoding"
 id = "subtitle.set-encoding"
-wired = false
+wired = true
 source = "crates/commands/src/catalog/command.rs:321"
 
 [[catalog_command]]
 name = "SubtitleSetScale"
 id = "subtitle.set-scale"
-wired = false
+wired = true
 source = "crates/commands/src/catalog/command.rs:327"
 
 [[catalog_command]]
 name = "SubtitleSetSync"
 id = "subtitle.set-sync"
-wired = false
+wired = true
 source = "crates/commands/src/catalog/command.rs:315"
 
 [[catalog_command]]
@@ -564,7 +594,7 @@ source = "crates/commands/src/catalog/command.rs:175"
 [[catalog_command]]
 name = "TracksSetSubtitleTrack"
 id = "tracks.set-subtitle-track"
-wired = false
+wired = true
 source = "crates/commands/src/catalog/command.rs:169"
 
 [[catalog_command]]

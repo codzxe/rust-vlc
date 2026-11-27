@@ -19,7 +19,9 @@ option 1). Front-matter keys per doc 04 §6:
 - self_built = [`subtitles::cc` (`cc_data`/`eia608`/`cea708`/`render`
   /`fuzz` + the `CcDecoder`/`CcCueBuilder` front doors in `mod.rs`)]
 - last_audit = 2026-11-10 (this consolidation; engine evidence from
-  5.N3, gates re-run this session — below)
+  5.N3, gates re-run this session — below); **re-verified 2026-11-27
+  (Devil-Fix FX9-A07 — no carriage lane wired this wave; see the
+  re-verification at the end)**
 
 ## Parse / Decode / Render (the module honesty table, quoted)
 
@@ -83,3 +85,36 @@ Shared-target worktree `wt/w24e` @ `492db70`, 2-core Linux sandbox:
   consume seam is open — same class as the PGS R-27 overlay gap).
 - Linux-only evidence (program-wide limit, `docs/KNOWN-LIMITS.md`
   §1); web column `not_started`.
+
+## FX9 re-verification (2026-11-27, Devil-Fix wave FX9, agent FX9-A07)
+
+What the tree supports TODAY (2026-11-27) — the library stands, the
+carriage lane does NOT exist yet; FX9 wired no CC path:
+
+- **Carriage**: still zero — `rg eia608|cea708` over
+  `crates/codecs/src` + `apps/cli/src` returns nothing: no
+  decoder_for arm, no SEI/user-data feed, no sidecar format (the FX9
+  sidecar lane dispatches srt/vtt/ass|ssa/sup(.pgs)/idx(.vobsub)
+  only, and the embedded lane wired `"pgssub"` only). The matrix
+  row's UNREACHABLE class stands (library real, zero shipped
+  consumers).
+- **The PAC correction (already landed, cited not re-claimed)**: this
+  record's 2026-11-10 IN list names "PAC (row + attributes +
+  indent)" — at that date the PAC dispatch was the W09-A07 F-001 S0
+  defect (keyed on the text-pair range, so the `0x10..=0x1F`
+  control-family PACs vanished). Devil-Fix FX1-A09 fixed it BEFORE
+  FX9: `crates/subtitles/src/cc/eia608.rs:384` dispatches PACs on
+  the control-family first byte `(0x10..=0x1F)` with the second byte
+  `0x40..=0x7F`, pinned by
+  `crates/subtitles/tests/fx1_a09_guards.rs:68
+  fx1_a09_cc_pac_range_renders_hello_world` (the audit's exact byte
+  pair, previously silent, now renders). Today the IN-list PAC
+  claim is true as written; no FX9 credit is taken for it.
+- **Gates note**: this record's gate numbers predate FX1-A09's five
+  integration guards (`fx9_a09_guards.rs`, 2026-11-2x) — the
+  current integration surface is the record's counts plus those
+  guards (cargo re-run owed to the central orchestrator's wave
+  gate; this doc-only sweep runs none).
+- Matrix row `subtitle-cc-608-708` re-stated 2026-11-27 pointing
+  here (the row's earlier "record owed" note was stale — the 8.G1
+  record existed since 2026-11-10).

@@ -898,8 +898,8 @@ phase_target = 5
 vlc_modules = ["subtitle", "subsdec"]
 inventory_ref = "inventory/formats.json#srt"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/subtitles/src/srt/** (card 5.M1; record docs/formats/sub-srt.md, 5.Q2-V: 6/6 ffmpeg 7.1.5 differential incl. UTF-16 both endians, 105/0 at card, 230/0 current tree)"
-notes = "5.M1 self-build S (stale crates kept as reference only); UTF-16/charset detection; fuzz_sub_srt; two-pass sidecar load per oracle evidence (sub_* probes). 5.Q2-V backfill: implemented per NEW record (5.M1 evidence)."
+evidence = "crates/subtitles/src/srt/** (card 5.M1; record docs/formats/sub-srt.md, 5.Q2-V: 6/6 ffmpeg 7.1.5 differential incl. UTF-16 both endians, 105/0 at card, 230/0 current tree); shipped consumer lane (2026-11-27, FX9-A03/A01): apps/cli/src/pipeline_host.rs — SidecarFormat::Srt byte-level load (load_sidecar: BOM matrix + label override), real-glyph render via font::session_pipeline, composite_onto the presented frames before scheduler.push; apps/cli/tests/fx9_a03_subtitle_composite.rs + fx9_a01_host_subtitle_verbs.rs"
+notes = "5.M1 self-build S (stale crates kept as reference only); UTF-16/charset detection; fuzz_sub_srt; two-pass sidecar load per oracle evidence (sub_* probes). 5.Q2-V backfill: implemented per NEW record (5.M1 evidence). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): the shipped session sidecar lane landed — subtitle.add-file loads .srt bytes (BOM detection + encoding override), cues render REAL glyphs (swash session pipeline) and composite onto the presented frames (fx9_a03_srt_sidecar_inks_inside_and_is_absent_outside_the_cue_window, fx9_a03_srt_cue_ink_lands_in_the_bottom_band, fx9_a03_composited_presented_frames_are_deterministic; the verb chain fx9_a01_add_file_is_served_and_lists_the_sidecar_track + fx9_a01_machine_mode_subtitle_verbs_answer_completed_not_refused)."
 
 [[feature]]
 id = "subtitle-ass-ssa"
@@ -911,8 +911,8 @@ phase_target = 5
 vlc_modules = ["subtitle", "libass"]
 inventory_ref = "inventory/formats.json#ass"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render + issue #17 G-2 override-tag engine in ass/tags.rs, commit ba3dd0f; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean; G-2: 267/0 lib tests incl. per-tag suites (1bd5519))"
-notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record. G-2 (issue #17, commit ba3dd0f): override-tag MINIMUM now native — \\b \\i \\u \\s \\fs \\fn \\c \\1c \\alpha \\1a \\pos \\move -> styled runs + position override + per-run render; beyond-minimum tags still degrade honestly (dropped/unmapped counters); libass oracle impossible (C, forbidden)."
+evidence = "crates/subtitles/src/ass/** (cards 5.M2a parser + 5.M2b render + issue #17 G-2 override-tag engine in ass/tags.rs, commit ba3dd0f; record docs/formats/sub-ass-ssa.md, 5.Q2-V: 3/3 real-ffmpeg ASS docs exact, 9/9 alignment-grid pixel-exact, 2000+2048 fuzz-lite runs clean; G-2: 267/0 lib tests incl. per-tag suites (1bd5519)); shipped consumer lane (2026-11-27, FX9-A03/A05): apps/cli/src/pipeline_host.rs — SidecarFormat::Ass load rendered through render_styled_cue_with_pipeline over font::session_pipeline, composited onto the presented frames; apps/cli/tests/fx9_a03_subtitle_composite.rs + crates/subtitles/tests/fx9_a05_real_glyph_render.rs"
+notes = "The R-09 gap: tag-coverage matrix (render/degrade/drop) + unsupported-tag counters per doc 06 §7.8; libass-output-as-oracle [PROPOSAL]; plain-text subset may land Phase 2 with styling subset in Phase 5 (feasibility subtitles §1 row 2); karaoke/positioning degrade honestly. 5.Q2-V backfill: partial per NEW record. G-2 (issue #17, commit ba3dd0f): override-tag MINIMUM now native — \\b \\i \\u \\s \\fs \\fn \\c \\1c \\alpha \\1a \\pos \\move -> styled runs + position override + per-run render; beyond-minimum tags still degrade honestly (dropped/unmapped counters); libass oracle impossible (C, forbidden). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): the shipped sidecar lane renders ASS text through REAL glyphs (fx9_a03_ass_sidecar_composites_inside_the_cue_window; the A05 *_with_pipeline twins — render_styled_cue_with_pipeline crates/subtitles/src/ass/render.rs + per-char advance, free fns stay placeholder wrappers: fx9_a05_styled_runs_render_through_the_pipeline, fx9_a05_placeholder_wrapper_contract_byte_identical); status STAYS partial — the styling-subset honesty is unchanged (beyond-minimum tags degrade, karaoke/positioning degrade, libass oracle impossible)."
 
 [[feature]]
 id = "subtitle-vtt"
@@ -924,8 +924,8 @@ phase_target = 5
 vlc_modules = ["webvtt"]
 inventory_ref = "inventory/formats.json#vtt"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/subtitles/src/vtt/** (card 5.M3; record docs/formats/sub-vtt.md, 5.Q2-V: 3 real ffmpeg -c:s webvtt fixtures + settings_heavy handcrafted, 7003 fuzz inputs zero panics, 92/0 at card)"
-notes = "5.M3; webvtt-parser 1.2.0 candidate; cue settings map to our position model; <v>/<c> tags degrade to plain runs. 5.Q2-V backfill: implemented per NEW record (5.M3 evidence)."
+evidence = "crates/subtitles/src/vtt/** (card 5.M3; record docs/formats/sub-vtt.md, 5.Q2-V: 3 real ffmpeg -c:s webvtt fixtures + settings_heavy handcrafted, 7003 fuzz inputs zero panics, 92/0 at card); shipped consumer lane (2026-11-27, FX9-A03/A01): apps/cli/src/pipeline_host.rs — SidecarFormat::Vtt load (decode_text + vtt::parse, typed refusal on a missing header) rendered via font::session_pipeline and composited onto the presented frames; apps/cli/tests/fx9_a03_subtitle_composite.rs"
+notes = "5.M3; webvtt-parser 1.2.0 candidate; cue settings map to our position model; <v>/<c> tags degrade to plain runs. 5.Q2-V backfill: implemented per NEW record (5.M3 evidence). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): the shipped session sidecar lane landed — fx9_a03_vtt_sidecar_composites_inside_the_cue_window + the shared ink-window/bottom-band/determinism oracles of fx9_a03_subtitle_composite.rs; cue settings still map to our position model, <v>/<c> tags still degrade to plain runs."
 
 [[feature]]
 id = "subtitle-microdvd"
@@ -938,7 +938,7 @@ vlc_modules = ["subtitle", "subsdec"]
 inventory_ref = "inventory/formats.json#microdvd"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "fps handshake (container or user override) must be explicit — [VERIFY default-fps policy]; oracle observed fps inference."
+notes = "fps handshake (container or user override) must be explicit — [VERIFY default-fps policy]; oracle observed fps inference. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified ACCURATE-ABSENT — zero MicroDVD parsers tree-wide (rg -i microdvd over crates/ apps/ *.rs = 0 hits); the FX9 sidecar lane dispatches exactly srt/vtt/ass|ssa/sup(.pgs)/idx(.vobsub) — no microdvd entry; not_started stands."
 
 [[feature]]
 id = "subtitle-subviewer"
@@ -951,7 +951,7 @@ vlc_modules = ["subtitle", "subsdec"]
 inventory_ref = "inventory/formats.json#subviewer"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Trivial self-build S; encoding oddities only."
+notes = "Trivial self-build S; encoding oddities only. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified ACCURATE-ABSENT — zero SubViewer parsers tree-wide (rg -i subviewer over crates/ apps/ *.rs = 0 hits); no sidecar entry in the FX9 lane; not_started stands."
 
 [[feature]]
 id = "subtitle-sami"
@@ -964,7 +964,7 @@ vlc_modules = ["subtitle", "subsdec"]
 inventory_ref = "inventory/formats.json#sami"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Self-build S–M; full CSS degrades."
+notes = "Self-build S–M; full CSS degrades. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified ACCURATE-ABSENT — zero SAMI parsers tree-wide (rg -i sami over crates/ apps/ *.rs = 0 hits); no sidecar entry in the FX9 lane; not_started stands."
 
 [[feature]]
 id = "subtitle-ttml"
@@ -977,7 +977,7 @@ vlc_modules = ["ttml"]
 inventory_ref = "inventory/formats.json#ttml"
 status = { windows = "not_started", linux = "not_started", macos = "not_started", web = "not_started" }
 evidence = ""
-notes = "Self-build M; subtitle-semantics subset; broadcast TTML loses advanced styling (same gap class as ASS, smaller audience)."
+notes = "Self-build M; subtitle-semantics subset; broadcast TTML loses advanced styling (same gap class as ASS, smaller audience). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified ACCURATE-ABSENT — zero TTML parsers tree-wide (rg -i ttml over crates/ apps/ *.rs = 0 hits); no sidecar entry in the FX9 lane; not_started stands."
 
 [[feature]]
 id = "subtitle-pgs"
@@ -989,8 +989,8 @@ phase_target = 6
 vlc_modules = ["avcodec"]
 inventory_ref = "inventory/formats.json#pgs"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/subtitles/src/pgs/** (card 5.N1, ADR-012 self-build, zero deps, in tree by the 5.R2-V Phase-5 exit 3116aec: PCS/WDS/PDS/ODS/END segments in BOTH framings (.sup PTS-prefixed + Matroska-stripped), epoch state machine, multi-fragment ODS assembly, RLE 0x00 escapes, BT.601-vs-BT.709-by-height palette -> CompositedCue; 32 unit tests + fuzz_sub_pgs survival harness, all green in this tree 2026-10-26)"
-notes = "Conditional 5.N1 on the compositing contract; OverlayLayer refinement of doc 03 §4.11; YCbCr palette implemented (BT.601/709 by video height, the reference rule — the old [VERIFY] is resolved); full bitmap parity possible (no styling gap). Row was STALE not_started x4 with empty evidence while 5.N1 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record owed (G-1 class gap)."
+evidence = "crates/subtitles/src/pgs/** (card 5.N1, ADR-012 self-build, zero deps, in tree by the 5.R2-V Phase-5 exit 3116aec: PCS/WDS/PDS/ODS/END segments in BOTH framings (.sup PTS-prefixed + Matroska-stripped), epoch state machine, multi-fragment ODS assembly, RLE 0x00 escapes, BT.601-vs-BT.709-by-height palette -> CompositedCue; 32 unit tests + fuzz_sub_pgs survival harness, all green in this tree 2026-10-26); shipped consumers (2026-11-27, FX9): SIDECAR .sup — apps/cli/src/pipeline_host.rs SidecarFormat::Pgs (load_pgs_sidecar) onto the compositing lane; EMBEDDED TS-track — the decoder_for \"pgssub\" arm (pipeline_host.rs:375) wiring FX9-A04 crates/codecs/src/subtitle/pgs.rs PgsSubtitleDecoder (crates/codecs/tests/fx9_a04_pgs_subtitle_decoder.rs, 8 tests), TS stream-type 0x90 mint crates/demux/src/ts/mod.rs:367; registry pins apps/cli/tests/fx2_a01_registry_truth.rs + command_surface.rs"
+notes = "Conditional 5.N1 on the compositing contract; OverlayLayer refinement of doc 03 §4.11; YCbCr palette implemented (BT.601/709 by video height, the reference rule — the old [VERIFY] is resolved); full bitmap parity possible (no styling gap). Row was STALE not_started x4 with empty evidence while 5.N1 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record: docs/formats/sub-pgs.md (G-1 closed by card 8.G1 2026-11-10 — the earlier 'record owed' tail was stale; FX9-A07 amendment 2026-11-27). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): BOTH consumers shipped — the .sup sidecar (fx9_a03_pgs_sup_sidecar_composites_the_crafted_display_set) and the embedded TS track (fx9_a03_embedded_overlay_reconstructs_and_composites; fx9_a04_decode_emits_subtitle_frame_with_overlay_geometry, fx9_a04_overlay_cues_z_ordered_per_pcs_object_order, fx9_a04_ts_pgs_descriptor_and_engine_lane_semantics), composite_onto the presented frames closing the record's R-27 overlay gap; honest gaps: no real-Blu-ray .sup corpus differential (crafted display sets only — same no-differential class as DVB/VobSub) and the embedded lane is TS-only (no mkv S_HDMV/PGS descriptor mint; mkv subtitle tracks deselect at open)."
 
 [[feature]]
 id = "subtitle-dvb-subs"
@@ -1003,7 +1003,7 @@ vlc_modules = ["dvbsub"]
 inventory_ref = "inventory/formats.json#dvb-subs-teletext"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
 evidence = "crates/subtitles/src/dvb/** (card 5.N2, commits ab696b4+93a53ec: EN 300 743 segment/CLUT/RLE/page machine -> CompositedCue; 230/0 subtitles gates incl. dvb_vobsub_fuzz_survival); record docs/formats/sub-dvb.md (G-1 closed, 2026-10-26)"
-notes = "Conditional 5.N2; pairs with TS work 5.I1. 5.Q2-V backfill: implemented (5.N2) — honest gap: NO reference-encoder differential (ffmpeg 7.1.5 refuses text->bitmap; bit tables cross-checked line-by-line vs ffmpeg RLE semantics), no corpus lane, record owed."
+notes = "Conditional 5.N2; pairs with TS work 5.I1. 5.Q2-V backfill: implemented (5.N2) — honest gap: NO reference-encoder differential (ffmpeg 7.1.5 refuses text->bitmap; bit tables cross-checked line-by-line vs ffmpeg RLE semantics), no corpus lane; record docs/formats/sub-dvb.md. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified NO carriage lane — the crate library stands (230/0 gates) but zero shipped consumers (rg dvb over apps/cli/src/pipeline_host.rs = 0: no decoder_for arm, no TS dvbsub descriptor mint, no sidecar format — the FX9 lane wired srt/vtt/ass/pgs/vobsub only); the UNREACHABLE class stands, no FX9 claim."
 
 [[feature]]
 id = "subtitle-teletext"
@@ -1017,6 +1017,7 @@ inventory_ref = "inventory/formats.json#dvb-subs-teletext"
 status = { windows = "blocked", linux = "blocked", macos = "blocked", web = "blocked" }
 evidence = ""
 blocked_reason = "zvbi is a C library — forbidden; Teletext is effectively its own project (M–L) (feasibility subtitles §1.1 census disposition). [VERIFY] whether any v2 appetite exists."
+notes = "2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified ACCURATE-ABSENT — zero Teletext decoders tree-wide (rg -i teletext over crates/ apps/ *.rs = 0 hits); zvbi stays C-forbidden and the FX9 lane wired no VBI carriage; blocked stands."
 
 [[feature]]
 id = "subtitle-cc-608-708"
@@ -1029,7 +1030,7 @@ vlc_modules = ["cc", "zvbi"]
 inventory_ref = "inventory/formats.json#cc-608-708"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
 evidence = "crates/subtitles/src/cc/** (card 5.N3, ADR-012 option-1 staged self-build, in tree by the 5.R2-V Phase-5 exit 3116aec: FULL EIA-608 channel machine — parity, field/channel latch, PAC/mid-row/tab, 15x32 double-buffered grids, pop-on/roll-up/paint-on; STAGED CEA-708 — DTVCC fragment reassembly, service-block layer, service-1 608-compat route; carriage grammars GA94 SEI type-4 + MPEG-2 picture-user_data + SCTE-20; render to CompositedCue over the 704x480 NTSC reference; 26 unit + 11 cc_acceptance tests, all green in this tree 2026-10-26)"
-notes = "Conditional 5.N3: extraction carriage grammars live in the subtitles crate; the codecs-side SEI/user-data FEED wiring (H.264 5.F1 consume seam) and the 708 ADVANCED window model remain open (staged partial, per the module honesty table); cea608 crate = builder not decoder (unchanged). Row was STALE not_started x4 with empty evidence while 5.N3 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record owed (G-1 class gap)."
+notes = "Conditional 5.N3: extraction carriage grammars live in the subtitles crate; the codecs-side SEI/user-data FEED wiring (H.264 5.F1 consume seam) and the 708 ADVANCED window model remain open (staged partial, per the module honesty table); cea608 crate = builder not decoder (unchanged). Row was STALE not_started x4 with empty evidence while 5.N3 shipped — flipped 2026-10-26 as a RECORDS CORRECTION only (no new code this session); docs/formats record: docs/formats/sub-cc.md (G-1 closed by card 8.G1 2026-11-10 — the earlier 'record owed' tail was stale; FX9-A07 amendment 2026-11-27). 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): re-verified NO carriage lane this wave — the SEI/user-data feed stays unwired (rg eia608|cea708 over crates/codecs/src + apps/cli/src = 0: no decoder arm, no carriage; the FX9 embedded lane wired pgssub only), so the UNREACHABLE class stands; the CC PAC-range fix ALREADY landed earlier in FX1-A09 (crates/subtitles/src/cc/eia608.rs:384 (0x10..=0x1F) control-family PAC dispatch + crates/subtitles/tests/fx1_a09_guards.rs:68 fx1_a09_cc_pac_range_renders_hello_world) — cited, NOT re-claimed as FX9 work."
 
 [[feature]]
 id = "subtitle-vobsub"
@@ -1041,8 +1042,8 @@ phase_target = 8
 vlc_modules = ["spudec", "svcdsub", "cvdsub"]
 inventory_ref = "inventory/formats.json#subtitle-census-tail"
 status = { windows = "implemented", linux = "implemented", macos = "implemented", web = "not_started" }
-evidence = "crates/subtitles/src/vobsub/** (card 5.N2, commits ab696b4+93a53ec: idx/spu parse, 128 KiB cap, grayscale fallback, damage ledger; 230/0 gates); record docs/formats/sub-vobsub.md (G-1 closed, 2026-10-26)"
-notes = "vobsub 0.2.3 crate (CC0) path verified; palette/idx-sync hardening; DVD-Video navigation itself blocked separately (platform-disc-dvd). Priority per feasibility subtitles §1 row 11. 5.Q2-V backfill: implemented (5.N2) — same no-differential honesty as DVB; record owed."
+evidence = "crates/subtitles/src/vobsub/** (card 5.N2, commits ab696b4+93a53ec: idx/spu parse, 128 KiB cap, grayscale fallback, damage ledger; 230/0 gates); record docs/formats/sub-vobsub.md (G-1 closed, 2026-10-26); shipped consumer lane (2026-11-27, FX9-A03/A01): apps/cli/src/pipeline_host.rs — SidecarFormat::Vobsub (.idx load + the .sub sibling read, parse_vobsub + vobsub_cues) composited onto the presented frames; apps/cli/tests/fx9_a03_subtitle_composite.rs"
+notes = "vobsub 0.2.3 crate (CC0) path verified; palette/idx-sync hardening; DVD-Video navigation itself blocked separately (platform-disc-dvd). Priority per feasibility subtitles §1 row 11. 5.Q2-V backfill: implemented (5.N2) — same no-differential honesty as DVB. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): the shipped SIDECAR consumer landed (fx9_a03_vobsub_idx_sub_pair_sidecar_composites_inside_the_cue_window — the .idx/.sub pair crafted in-test; the SVCD/CVD siblings stay absent, this lane covers IDX/SUB only); honest delimit: the EMBEDDED lane is descriptor-minted only — the PS demuxer mints \"dvd_subtitle\" (crates/demux/src/ps/mod.rs:171) but decoder_for has no dvd_subtitle arm, so PS-embedded VobSub has no decoder yet."
 
 [[feature]]
 id = "subtitle-kate"
@@ -1090,8 +1091,8 @@ priority = "P1"
 phase_target = 5
 inventory_ref = "inventory/options-linux.json#subsdec-encoding"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/subtitles/src/srt/encoding.rs (card 5.M1: BOM matrix UTF-8/UTF-16LE/UTF-16BE + BOM-less UTF-8 lossy fallback + damage)"
-notes = "From 5.M1 AC (encoding detection incl. UTF-16); subsdec-encoding option in inventory; priority reasoned. 5.Q2-V backfill: partial — BOM-class detection landed (5.M1); BOM-less UTF-16 deliberately NOT sniffed; full subsdec-class charset heuristics not started."
+evidence = "crates/subtitles/src/srt/encoding.rs (card 5.M1: BOM matrix UTF-8/UTF-16LE/UTF-16BE + BOM-less UTF-8 lossy fallback + damage); shipped surface (2026-11-27, FX9-A03/A01): apps/cli/src/pipeline_host.rs — the sidecar load is byte-level (decode_text: utf-8/utf-8-bom/utf-16le/utf-16be/windows-1252 label decode + BOM strip; the srt parser's own BOM matrix answers SrtDocument.encoding) + the live subtitle.set-encoding verb re-decodes the retained raw bytes (SubtitleLane::set_encoding); apps/cli/tests/fx9_a01_host_subtitle_verbs.rs"
+notes = "From 5.M1 AC (encoding detection incl. UTF-16); subsdec-encoding option in inventory; priority reasoned. 5.Q2-V backfill: partial — BOM-class detection landed (5.M1); BOM-less UTF-16 deliberately NOT sniffed; full subsdec-class charset heuristics not started. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): status STAYS honest-partial — what works now: the byte-level sidecar load (BOM matrix incl. UTF-16 both endians + explicit label overrides utf-8/utf-8-bom/utf-16le/utf-16be/windows-1252 via subtitle.add-file's encoding arg) and the live subtitle.set-encoding verb (re-decode of the retained raw bytes + read-back of the encoding in effect — fx9_a01_set_encoding_and_scale_read_back_the_applied_values); what does NOT: BOM-less UTF-16 still deliberately un-sniffed, full subsdec-class charset heuristics/chardet still not started."
 
 [[feature]]
 id = "subtitle-census-tail"
@@ -1121,8 +1122,8 @@ phase_target = 5
 vlc_modules = ["freetype", "tdummy"]
 inventory_ref = "inventory/modules-summary.md#s5"
 status = { windows = "partial", linux = "partial", macos = "partial", web = "not_started" }
-evidence = "crates/subtitles/src/compositing/** + model (cards 5.L1+5.L2: CueBitmap/CueLayout/place_cue pixel-exact math, 176-cue x 9-alignment roundtrip matrix, timing edges; 5.M2b placeholder glyph metrics: monospace-widest-char, integer ratios, no floats)"
-notes = "freetype is C — forbidden (the single biggest parity-visible substitution with libass); crate choice [VERIFY-P0]; libass-output-as-oracle [PROPOSAL] (feasibility subtitles §2.4 font-stack flag). 5.Q2-V backfill: partial — bitmap compositing + placeholder block glyphs landed; the REAL font stack (freetype replacement) is NOT started — crate choice [VERIFY-P0] stands; every text cue currently renders as placeholder blocks."
+evidence = "crates/subtitles/src/compositing/** + model (cards 5.L1+5.L2: CueBitmap/CueLayout/place_cue pixel-exact math, 176-cue x 9-alignment roundtrip matrix, timing edges; 5.M2b placeholder glyph metrics: monospace-widest-char, integer ratios, no floats); real glyphs (2026-11-27, FX9-A02): swash =0.2.10 admitted behind the GlyphPipeline seam (docs/dependencies/allowlist.md row + records/font-stack-0.2.10.md R11 amendment) — SwashPipeline crates/subtitles/src/font/swash.rs over the bundled DejaVuSans.ttf (759,720 bytes, include_bytes! font/mod.rs:510), font::session_stack/session_pipeline, per-char advance default method; the shipped lane renders text cues through it (apps/cli/src/pipeline_host.rs:1815); crates/subtitles/tests/fx9_a02_font_stack.rs (9) + fx9_a05_real_glyph_render.rs (6)"
+notes = "freetype is C — forbidden (the single biggest parity-visible substitution with libass); crate choice [VERIFY-P0]; libass-output-as-oracle [PROPOSAL] (feasibility subtitles §2.4 font-stack flag). 5.Q2-V backfill: partial — bitmap compositing + placeholder block glyphs landed; the REAL font stack (freetype replacement) is NOT started — crate choice [VERIFY-P0] stands; every text cue currently renders as placeholder blocks. 2026-11-27 refresh (Devil-Fix wave FX9, agent FX9-A07, F3.1/F2.1 matrix sweep): the freetype replacement LANDED and ships in the CLI subtitle lane — the [VERIFY-P0] crate choice resolved to swash (pre-audited record, R11 admission amendment), real metrics/advances/masks per glyph (fx9_a02_session_pipeline_is_swash, fx9_a02_advance_is_real_per_char, fx9_a02_masks_differ_per_char, fx9_a02_descender_reaches_below_baseline; fx9_a05_per_char_advance_variance, fx9_a05_non_solid_block_coverage, fx9_a05_styled_runs_render_through_the_pipeline), the A05 *_with_pipeline twins thread &dyn GlyphPipeline (srt cue_layout/text_box/place_plain_text + ass render_plain/styled_cue twins) with the free fns kept as placeholder wrappers (fx9_a05_placeholder_wrapper_contract_byte_identical) — 'placeholder blocks' is no longer the shipped truth. Status STAYS honest-partial, delimiting what does NOT ship: single-character shaping only (one char in, one cluster out — no run-level shaping: ligatures/contextual joining/RTL reordering absent), the one bundled DejaVu Sans face (no attached-font selection), no renderer-wgpu text atlas (glyph masks composite in the subtitle lane pre-renderer), OSD still has no text consumer (textrender-osd row)."
 
 [[feature]]
 id = "textrender-osd"
