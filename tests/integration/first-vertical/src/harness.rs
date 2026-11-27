@@ -861,9 +861,11 @@ mod tests {
         // Exactly the labels block's two axes are rewritten.
         assert!(normalized.contains("    \"environment_kind\": \"per-run\",\n"));
         assert!(normalized.contains("    \"os\": \"per-run\",\n"));
-        // The payload's same-named keys keep their real bytes.
+        // The payload's same-named keys keep their real bytes — the
+        // payload's `environment_kind` is the object's LAST member, so
+        // its verbatim line carries no trailing comma.
         assert!(normalized.contains("    \"os\": \"plan9\",\n"));
-        assert!(normalized.contains("    \"environment_kind\": \"ci-vm\",\n"));
+        assert!(normalized.contains("    \"environment_kind\": \"ci-vm\"\n"));
         // Two transcripts that differ ONLY in that payload field must
         // NOT compare equal after normalization (drift stays visible).
         let drifted = transcript.replace("\"os\": \"plan9\"", "\"os\": \"plan10\"");
