@@ -48,6 +48,25 @@ const DURATION_US: i64 = 2_000_000;
 const VIDEO_FRAMES: u64 = 60;
 const AUDIO_PACKETS: u64 = 60;
 
+/// The pause/stop warm-up bound (FX8-R1). The headless pump's
+/// `advance` drains the WHOLE ring per pump (the documented design of
+/// the `advance` verb — host.rs's `pump_wallclock` docs), and since
+/// FX7-A01's hold stashes the CONVERTED frame the renderer takes
+/// every hold-retried frame, so the render loop no longer breaks
+/// early on the I420 upload refusals — the 2.000 s fixture plays to
+/// `Ended` in ~4-5 pumps where the W1-06 defect used to brake it at
+/// ~16 ms/pump (FX7-A01's pre-registered consequence, Risks #1: the
+/// pause/stop scenarios' then-64-pump warm-ups overshoot into
+/// `Ended`; the production half stays on the register as doc 03 §8 /
+/// 3.B's pacing decision). Two pumps land the clock solidly
+/// mid-media (~1.3 s of the 2.000 s played) — each pump advances at
+/// most the ring's park-fill bound (lumen-cli's AUDIO_PARK_FILL,
+/// 32 768 frames, plus one packet's overshoot, 1 470 frames =
+/// 34 238 frames < 0.78 s), so two pumps (< 1.56 s) can never reach
+/// the 2.000 s end — so pause/stop still freeze WHERE the media was,
+/// never past its end.
+const WARMUP_PUMPS: u32 = 2;
+
 /// The scenario ids, in ledger order (the doc 10 §6.4 stable ids).
 pub const SCENARIO_IDS: &[&str] = &[
     "open",
@@ -403,8 +422,13 @@ pub fn scenario_pause() -> ScenarioRun {
         },
     );
     harness.settle();
-    // Let real content play: both limbs deliver, the clock moves.
-    harness.advance(64);
+    // Let real content play: both limbs deliver, the clock moves. The
+    // bound is [`WARMUP_PUMPS`] (FX8-R1): the old 64-pump warm-up
+    // overshot into `Ended` once FX7-A01's hold fix let the renderer
+    // take every hold-retried frame (the whole-ring advance drain
+    // plays the fixture out in ~4-5 pumps), so the pause could not
+    // land. Two pumps leave the media mid-play with ~0.7 s to go.
+    harness.advance(WARMUP_PUMPS);
     let played = harness.position_us();
     harness.dispatch("playback.pause", Command::PlaybackPause);
     let landing = harness.position_us();
@@ -422,7 +446,7 @@ pub fn scenario_pause() -> ScenarioRun {
     checks.push(Check::is(
         "content played before the pause (the position moved into the media)",
         played > 0,
-        &format!("position {played} after 64 advance ticks — nothing played"),
+        &format!("position {played} after the warm-up advance — nothing played"),
     ));
     checks.push(Check::int(
         "256 advance ticks while paused move the position by zero \
@@ -524,25 +548,41 @@ pub fn scenario_seek() -> ScenarioRun {
         // The decode accounting proves the pipeline was not rebuilt:
         // the pre-seek decode-ahead deliveries stay counted plus the
         // landing's own half — a stop→close→reopen would have
-        // answered exactly the landing's 60.
+        // answered exactly the landing's 60. The pre-seek window is
+        // the open/settle decode-ahead (FX8-R1): the settle primes
+        // after ~1 poll now (the audio queue's 1 s duration cap parks
+        // the demuxer at 30 queued packets and the producer-parked
+        // escape closes the buffering episode), so the window is
+        // 15 video + 15 audio = 30 — the drift the audit baseline
+        // already recorded (fresh open.json 30 accepted / 15 pushed
+        // vs the committed 94/16,
+        // audit/runs/baseline/cargo-test-workspace.txt:2775-2776) —
+        // plus the landing's own half (30 video + 30 audio = 60):
+        // 30 + 60 = 90 (observed by the 2026-11-26 diagnostic run).
         checks.push(Check::int(
             "the decode accounting keeps the pre-seek deliveries",
             i64::try_from(accounting.frames_accepted).unwrap_or(i64::MAX),
-            154,
+            90,
         ));
+        // The same arithmetic on the scheduler side: the settle's 15
+        // pre-seek pushes plus the landing's 30 video frames
+        // (the committed 46 was the old 16-push window + 30).
         checks.push(Check::int(
             "the scheduler saw the pre-seek window plus the landing",
             i64::try_from(accounting.scheduler_pushed).unwrap_or(i64::MAX),
-            46,
+            45,
         ));
         // The seek-boundary proofs: the pre-seek scheduler window
         // purged wholesale as stale at the generation change, and the
         // presentation queue's published generation carries the
-        // seek's mint.
+        // seek's mint. The purged window is the settle's 15 resident
+        // frames (presented never — the settle never ticks the
+        // scheduler; the committed 16 was the old 16-resident
+        // window).
         checks.push(Check::int(
             "the pre-seek scheduler window purged as stale",
             i64::try_from(accounting.scheduler_dropped_stale).unwrap_or(i64::MAX),
-            16,
+            15,
         ));
         checks.push(Check::int(
             "the presentation queue carries the seek's mint",
@@ -579,8 +619,11 @@ pub fn scenario_stop() -> ScenarioRun {
         },
     );
     harness.settle();
-    // Real content first, so the freeze has somewhere to be.
-    harness.advance(64);
+    // Real content first, so the freeze has somewhere to be. The bound
+    // is [`WARMUP_PUMPS`] (FX8-R1) — the same whole-ring-advance
+    // overshoot the pause scenario's comment records: the old 64-pump
+    // warm-up reached `Ended` before the stop could land.
+    harness.advance(WARMUP_PUMPS);
     let played = harness.position_us();
     harness.dispatch("playback.stop", Command::PlaybackStop);
     let stopped_state = harness.state();

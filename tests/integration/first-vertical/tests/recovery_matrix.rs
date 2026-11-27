@@ -21,7 +21,8 @@
 //! | avi flip16 | typed open refusal: `probe.unsupported` with the sniffed bytes named | — |
 //! | avi noidx0 / negheight0 / absidx1 | clean `Ended`, full accounting (linear walk / V1 height-abs / V4 idx-base autodetect) | zero wire-visible damage |
 //! | mp4 trunc0 (empty) / trunc1 (64 B) | typed open refusal: `demux.corrupt` (`demux.mp4.no-moov` / `demux.mp4.truncated`) | — |
-//! | mp4 trunc2/3/4 (mdat cuts) | open accepted, then `Error` via FATAL `demux.mp4.truncated` | — (no terminal flush: the fatal precedes any resync) |
+//! | mp4 trunc2/3 (mdat cuts) | open accepted, then `Error` via FATAL `demux.mp4.truncated` (within the settle) | — (no terminal flush: the fatal precedes any resync) |
+//! | mp4 trunc4 (last byte cut) | open accepted; the settle lands `Playing` (the demuxer parks at the audio queue's 1 s cap before the tail — FX8-R1); the bounded advance then lands `Error` via the same FATAL | — (the fatal still precedes any resync) |
 //! | mp4 garbage0 (4 KiB appended) | clean `Ended`, garbage never parsed | ZERO damage |
 //! | mp4 flip1/flip4 | typed open refusal: `demux.corrupt` (`demux.mp4.box-overruns-parent`) | — |
 //! | mp4 flip16 | typed open refusal: `probe.unsupported` with the sniffed bytes named | — |
@@ -90,6 +91,16 @@ enum Outcome {
     /// truncation shape: the box walker's fatal refusal precedes any
     /// resynchronization, so there is nothing recovered to flush).
     ErrorAfterOpenNoFlush { message_part: &'static str },
+    /// The open is accepted, but the truncated tail sits BEYOND the
+    /// queue caps' reach during the settle: the demuxer parks at the
+    /// audio queue's 1 s duration cap (30 packets of this fixture's
+    /// geometry) and the producer-parked priming escape closes the
+    /// buffering episode first, so the settle lands in `Playing` and
+    /// the bounded advance walks the demuxer to the cut — landing in
+    /// `Error` via one FATAL `playback.error` with NO terminal damage
+    /// flush (the fatal still precedes any resync). The mp4 trunc4
+    /// shape (FX8-R1: the fatal arrives late, never missing).
+    ErrorAfterAdvanceNoFlush { message_part: &'static str },
     /// The media plays through to a clean `Ended`.
     CleanEnded {
         damage: Damage,
@@ -348,6 +359,49 @@ fn drive(row: Row) -> Vec<Check> {
             checks.push(Check::same(
                 &format!("{what}: the settle lands in Error"),
                 &format!("{settled:?}"),
+                "Error",
+            ));
+            checks.push(Check::int(
+                &format!("{what}: exactly one FATAL playback.error"),
+                fatal_errors.len() as i64,
+                1,
+            ));
+            if let Some(error) = fatal_errors.first() {
+                checks.push(Check::is(
+                    &format!("{what}: the fatal names the truncation"),
+                    error.message.contains(message_part),
+                    &format!("message {:?} lacks {message_part:?}", error.message),
+                ));
+                checks.push(Check::is(
+                    &format!("{what}: the fatal is demux-stage"),
+                    error.stage == "demux",
+                    &format!("stage {:?}", error.stage),
+                ));
+            }
+            checks.push(Check::int(
+                &format!("{what}: zero non-fatal damage (the fatal precedes any resync)"),
+                non_fatal.len() as i64,
+                0,
+            ));
+        }
+        Outcome::ErrorAfterAdvanceNoFlush { message_part } => {
+            checks.push(Check::is(
+                &format!("{what}: the open is accepted (the header prefix parses)"),
+                matches!(&open.result, Ok(CommandOutcome::Accepted { .. })),
+                "the open refused",
+            ));
+            checks.push(Check::same(
+                &format!(
+                    "{what}: the settle lands in Playing (the demuxer parks \
+                     at the audio queue's 1 s cap before the truncated \
+                     tail — the producer-parked priming; FX8-R1)"
+                ),
+                &format!("{settled:?}"),
+                "Playing",
+            ));
+            checks.push(Check::same(
+                &format!("{what}: the bounded advance then lands in Error"),
+                &format!("{end_state:?}"),
                 "Error",
             ));
             checks.push(Check::int(
@@ -748,10 +802,17 @@ fn matrix_mp4_trunc4_opens_then_lands_in_error_typed() {
     // The 1-byte cut (the AVI trunc4 boundary-pin's mp4 counterpart):
     // unlike the AVI walker's clamp, the mp4 box walker treats the
     // missing final byte as fatal — open accepted, play-out runs to the
-    // cut, then the typed `demux.mp4.truncated` refusal.
+    // cut, then the typed `demux.mp4.truncated` refusal. FX8-R1: the
+    // cut sits at mdat's TAIL, beyond the audio queue's 1 s duration
+    // cap, so the demuxer parks before walking to it and the
+    // producer-parked priming lands the settle in `Playing` — the
+    // FATAL still arrives within the bounded advance (never missing:
+    // the demuxer resumes as the decode drains the queues), which is
+    // what the row now pins: the settle sees `Playing`, the bounded
+    // advance then sees `Error` via the same FATAL.
     let checks = drive(Row {
         fixture: "generated/malformed/mp4_mjpeg_pcm__trunc4.mp4",
-        outcome: Outcome::ErrorAfterOpenNoFlush {
+        outcome: Outcome::ErrorAfterAdvanceNoFlush {
             message_part: "demux.mp4.truncated",
         },
     });
