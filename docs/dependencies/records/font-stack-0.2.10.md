@@ -1,11 +1,17 @@
-# deps/records/font-stack-0.2.10.md — the subtitle font stack (swash + skrifa), **PROPOSAL — Lead approval pending**
+# deps/records/font-stack-0.2.10.md — the subtitle font stack (swash +
+# skrifa), **ADMITTED 2026-11-27 (see the R11 amendment at the end) — the
+# survey below stands as the evidence record**
 
 > **Class:** P0 dependency survey for issue #17 gap **G-5** ("font
 > stack: text cues render as placeholder blocks",
 > `docs/gates/phase5-records-audit.md` §1.5/§3, evidence
 > `crates/subtitles/src/ass/render.rs:31` at the time of filing).
 > **Nothing in this record is admitted**: no `Cargo.toml` row, no
-> allowlist entry, no code path imports any crate below. The in-tree
+> allowlist entry, no code path imports any crate below.
+> **[Superseded by the R11 ADMISSION amendment (2026-11-27) at the end
+> of this record: the `crates/subtitles/Cargo.toml` row, the allowlist
+> §3 row and the code path (`crates/subtitles/src/font/swash.rs`) now
+> exist.]** The in-tree
 > deliverable is the SEAM (`crates/subtitles/src/font/**`:
 > `FontStack`/`FontProvider` source resolution + the `GlyphPipeline`
 > trait with the `MonospaceCellPipeline` placeholder), designed so the
@@ -198,3 +204,85 @@ download and scan above was executed in the build sandbox on
 (scratch `/tmp/font-audit/`, gitignored territory). No statement
 about the crates' runtime behavior is made — nothing was built or
 executed; capability claims cite crate documentation fields only.*
+
+---
+
+## R11 — ADMISSION amendment (2026-11-27, Devil-Fix FX9-A02)
+
+> **Verdict (superseding R10's "conditional pass → [PROPOSAL — Lead
+> approval pending]"): ADMITTED — `swash = "=0.2.10"` (default
+> features: `std`, `scale`, `render`), as a direct dependency of
+> `crates/subtitles` behind the `font::GlyphPipeline` seam this
+> record's sibling code was designed around.** Decision authority:
+> the Devil-Fix program's F3.1 font-lane decision
+> (`audit/fix/FIX-PLAN.md` §5 F3.1: "font loading is the hidden cost —
+> today all glyphs render as solid blocks"; `audit/fix/wave-FX9.tsv`
+> row FX9-A02, whose DECISION field sanctions exactly this manifest
+> row under RULES.md line 12's assignment exception — the in-tree
+> minimal TrueType loader was weighed and rejected there: a correct
+> sfnt parser + cmap format-4 + glyf quadratic-outline scanline
+> rasterizer is ~1,500+ LOC of geometry with no differential oracle,
+> vs ~200-300 LOC admitting the pre-audited crate the seam was built
+> to plug). The allowlist row: `docs/dependencies/allowlist.md` §3
+> (same date, closure classes per R2 below).
+
+**R10's two blockers, re-answered:**
+
+1. **(a) "No default TTF/OTF face exists in-repo" → CLOSED.** The
+   record's `nunito-latin-var.woff2` reference had drifted: the only
+   font file in-tree is `ui/src/assets/fonts/InterVariable.woff2` —
+   still a WOFF2 container (Brotli before any parser can read it, i.e.
+   another dependency), typed-refused by the seam's own sniff
+   (`FontFaceError::CompressedContainer`,
+   `crates/subtitles/src/font/mod.rs`). Instead the engine's default
+   face ships as a RAW TrueType committed in-tree: **DejaVu Sans**,
+   from the distro package `fonts-dejavu-core 2.37-8`
+   (`/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`), committed at
+   `crates/subtitles/assets/fonts/DejaVuSans.ttf` — **759,720 bytes**,
+   sha256
+   `57f73e11f51999432bf7ab22ce55b6f945d5eca1bf824404cfa9ec2e3718c84e`
+   (computed over the committed file with python3 hashlib on
+   2026-11-27), license (the permissive Bitstream Vera / DejaVu
+   license, the distro copyright file) committed alongside at
+   `crates/subtitles/assets/fonts/dejavu-LICENSE.txt` so the tree is
+   self-contained. Wrapped by `font::bundled_face()` /
+   `font::session_stack()` / `font::session_pipeline()`
+   (`crates/subtitles/src/font/mod.rs`) and consumed by
+   `font::SwashPipeline` (`crates/subtitles/src/font/swash.rs`).
+2. **(b) MKV attachment → `MemoryFontProvider` wiring → unchanged,
+   still belongs to the demux card** (the seam's
+   `FontStack::add_provider` contract is what that card plugs into;
+   the session seams above are its interim default).
+
+**Obligations landed with this admission (same date,
+cross-checkable):** the `crates/subtitles/Cargo.toml` row (the single
+sanctioned dependency edit of FX9-A02; `Cargo.lock` untouched — the
+central refresh regenerates R2/R9 from it); the allowlist §3 row
+(`docs/dependencies/allowlist.md`, third active exact pin, no
+feature gate); this amendment. No `deny.toml` change needed: all
+five closure crates (swash, skrifa, read-fonts, zeno, yazi) are
+MIT/Apache-2.0 dual-licensed (R7) — inside the existing allow set —
+and none is on the ban list (no FFmpeg/GStreamer family, no
+`-sys`, no `bindgen`/`libloading`).
+
+**`[VERIFY]` obligations binding the admission merge's CI runs**
+(honest state: the FX9-A02 remediation sandbox runs no cargo per
+RULES.md, so nothing below was executed there): R2's graph
+regeneration from the merged `Cargo.lock` (the survey's ranges
+resolve skrifa 0.44.x / read-fonts 0.41.x / zeno 0.3.x / yazi 0.2.x
+plus bytemuck today; a central resolve may pick newer patches —
+regenerate the five-node row then); R8's OSV re-query at the
+admission date (zero advisories as of 2026-11-09, R8); R9's publisher
+identity + index-hash pins for the exact locked versions; and the
+central `cargo test -p subtitles` run over the FX9-A02 test file
+`crates/subtitles/tests/fx9_a02_font_stack.rs`. Until those runs are
+green these stay `[VERIFY]`, not waived.
+
+*Evidence posture for this amendment (AGENTS §3.4): the only fact
+newly executed in the remediation sandbox is the byte-size + sha256
+of the committed `DejaVuSans.ttf` (python3 hashlib, 2026-11-27);
+every other dated fact cites this record's own R1–R10 evidence or the
+repo files named above. No crate was built or executed in this
+sandbox — the implementation's behavior claims live in the FX9-A02
+report and its test file, to be verified by the orchestrator's
+central run.*

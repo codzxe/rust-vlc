@@ -42,6 +42,14 @@ workspace = true
 
 [dependencies]
 media-types = { path = "../media-types" }
+# The admitted font stack (2026-11-27, Devil-Fix FX9-A02): swash 0.2.10,
+# default features (std, scale, render), exact-pinned per the audited
+# record `docs/dependencies/records/font-stack-0.2.10.md` (R0 + the
+# 2026-11-27 admission amendment; allowlist row same date). Pure Rust,
+# no -sys, no build.rs; any bump or feature change re-triggers the
+# record (doc 11 §3.7). This is the single sanctioned dependency row of
+# the FX9-A02 assignment (RULES.md line 12 exception).
+swash = "=0.2.10"
 
 [dev-dependencies]
 # testkit is dev-only by contract (MP §3.7): the counting allocator for

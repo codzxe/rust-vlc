@@ -8,12 +8,13 @@
 //! Today the ASS render path rasterizes placeholder block glyphs
 //! (`ass::render`'s monospace-widest-char metrics — the G-5 gap the
 //! phase-5 records audit registered). A REAL font stack needs pure-Rust
-//! font parsing, shaping and rasterization crates; admitting them is a
+//! font parsing, shaping and rasterization crates; admitting them was a
 //! Lead decision (AGENTS §3.2: language, source, transitive graph,
 //! license, maintenance, provenance — the full audit record lives at
-//! `docs/dependencies/records/font-stack-0.2.10.md`, marked
-//! **[PROPOSAL — Lead approval pending]**). Everything in this module
-//! is therefore the CONTRACT the future implementation plugs into:
+//! `docs/dependencies/records/font-stack-0.2.10.md`, whose 2026-11-27
+//! admission amendment closed it: swash `=0.2.10` is admitted).
+//! Everything in this module is the CONTRACT the implementations plug
+//! into:
 //!
 //! * [`FontProvider`] — one source of faces. The bundled default face
 //!   and the (sibling-card) MKV-attachment wiring each implement it;
@@ -28,8 +29,10 @@
 //! * `font::pipeline::GlyphPipeline` — the shaping/raster seam.
 //!   `font::pipeline::MonospaceCellPipeline` is the no-new-deps
 //!   implementation (today's placeholder glyphs, now decoration-aware
-//!   for the ASS override-tag subset); the audited crate stack
-//!   implements the same trait behind the [PROPOSAL] admission.
+//!   for the ASS override-tag subset); the admitted crate stack
+//!   (`font::swash::SwashPipeline`, swash 0.2.10 over the bundled
+//!   face) implements the same trait with real outlines and real
+//!   metrics.
 //!
 //! ## Resolution policy (libass/VSFilter-compatible subset)
 //!
@@ -44,15 +47,21 @@
 //!    `FauxItalic`) the pipeline honors by synthetic emboldening/
 //!    obliquing, the same fallback real stacks perform.
 //!
-//! ## No bundled face yet (recorded, not hidden)
+//! ## The bundled default face (admitted 2026-11-27)
 //!
-//! The only font file in-repo is `ui/src/assets/fonts/
-//! nunito-latin-var.woff2` (OFL 1.1) — a WOFF2 container, which needs
-//! Brotli decompression before any parser can read it (a second new
-//! dependency, out of scope). The engine default face (raw TTF/OTF,
-//! permissive license) is a Lead admission decision recorded in the
-//! audit doc; until it lands [`FontStack::empty`] is the stack the
-//! render paths use, and every `\fn`-driven lookup misses honestly.
+//! The engine's default face is DejaVu Sans — raw TrueType, 759,720
+//! bytes, committed in-tree at `assets/fonts/DejaVuSans.ttf` with its
+//! license (`assets/fonts/dejavu-LICENSE.txt`, distro package
+//! fonts-dejavu-core 2.37-8; provenance and the admission decision:
+//! `docs/dependencies/records/font-stack-0.2.10.md`, the 2026-11-27
+//! admission amendment — its blocker (a) closes here: the record's
+//! earlier `nunito-latin-var.woff2` reference had drifted — the
+//! actual file is `ui/src/assets/fonts/InterVariable.woff2`, still a
+//! WOFF2 container, which needs Brotli decompression before any
+//! parser can read it, a second dependency, out of scope — so the
+//! default face ships as raw TTF). [`bundled_face`] wraps the
+//! committed bytes; [`session_stack`]/[`session_pipeline`] are the
+//! session seam (FX9-A03) over it.
 //!
 //! ## No panics
 //!
@@ -60,11 +69,13 @@
 //! container magic, zero-size metrics. No `unsafe` (workspace deny).
 
 pub mod pipeline;
+pub mod swash;
 
 pub use pipeline::{
     GlyphDecorations, GlyphMask, GlyphMetrics, GlyphPipeline, MAX_FONT_SIZE_PX, MetricsError,
     MonospaceCellPipeline,
 };
+pub use swash::SwashPipeline;
 
 /// The container format sniffed from a font file's leading bytes.
 ///
@@ -410,8 +421,9 @@ pub struct FontStack {
 }
 
 impl FontStack {
-    /// The empty stack — every lookup misses (today's honest state:
-    /// no face is bundled yet, module docs).
+    /// The empty stack — every lookup misses (no providers at all; the
+    /// session default is [`session_stack`], which carries the
+    /// bundled face).
     #[must_use]
     pub const fn empty() -> Self {
         Self {
@@ -434,10 +446,9 @@ impl FontStack {
     }
 
     /// Add the engine's bundled default face as the LAST-resort
-    /// provider (named `"bundled"`).
-    ///
-    /// [PROPOSAL — Lead approval pending]: no bundled face exists
-    /// yet; the audit record documents the admission decision.
+    /// provider (named `"bundled""): DejaVu Sans, committed at
+    /// `assets/fonts/DejaVuSans.ttf` ([`bundled_face`] is the wrapper
+    /// that feeds it from the committed bytes).
     #[must_use]
     pub fn with_bundled(mut self, face: FontFace) -> Self {
         let bundled = MemoryFontProvider::new("bundled")
@@ -486,6 +497,53 @@ impl FontStack {
             synthesis: Vec::new(),
             chain,
         }
+    }
+}
+
+/// The bundled default face bytes: DejaVu Sans — raw TrueType,
+/// 759,720 bytes (sha256
+/// `57f73e11f51999432bf7ab22ce55b6f945d5eca1bf824404cfa9ec2e3718c84e`),
+/// from distro package fonts-dejavu-core 2.37-8, license committed
+/// alongside at `assets/fonts/dejavu-LICENSE.txt` — provenance and the
+/// admission decision: `docs/dependencies/records/font-stack-0.2.10.md`,
+/// the 2026-11-27 admission amendment.
+const BUNDLED_FACE_BYTES: &[u8] = include_bytes!("../../assets/fonts/DejaVuSans.ttf");
+
+/// The bundled default face (DejaVu Sans) — the bytes above wrapped
+/// through the same typed intake every face passes (`FontFace::from_bytes`
+/// sniffs and can only fail if the committed asset were corrupt or
+/// empty — unreachable for the pinned file, typed not hidden).
+///
+/// # Errors
+/// [`FontFaceError`] — empty data, an unknown magic, or a compressed
+/// container (the committed TrueType face produces none of these).
+pub fn bundled_face() -> Result<FontFace, FontFaceError> {
+    // lumen-allow-literal: the face's own family name — round-trip data, not display identity
+    FontFace::from_bytes("DejaVu Sans", false, false, BUNDLED_FACE_BYTES.to_vec())
+}
+
+/// The session font stack (the FX9-A03 session seam): the bundled
+/// DejaVu Sans face as the last-resort provider. Every `\fn`-driven
+/// lookup either matches an attached face first (the demux card's
+/// future wiring) or falls back to the bundled face with the honest
+/// `family_matched: false` trail.
+#[must_use]
+pub fn session_stack() -> FontStack {
+    match bundled_face() {
+        Ok(face) => FontStack::empty().with_bundled(face),
+        Err(_) => FontStack::empty(),
+    }
+}
+
+/// The session glyph pipeline (the FX9-A03 session seam): the admitted
+/// swash stack over the bundled face ([`SwashPipeline`]); the
+/// monospace placeholder if even the committed face failed to load
+/// (unreachable for the pinned asset — typed, not hidden).
+#[must_use]
+pub fn session_pipeline() -> Box<dyn GlyphPipeline> {
+    match SwashPipeline::new(BUNDLED_FACE_BYTES, 0) {
+        Some(pipeline) => Box::new(pipeline),
+        None => Box::new(MonospaceCellPipeline),
     }
 }
 

@@ -49,7 +49,9 @@ product-config, settings-schema) · schemars (commands — the doc 05 §5.1
 schema-derivation dep behind `cargo xtask codegen`) · ureq (streaming —
 the HTTP(S) transport behind the `HttpFetch` port, card 6.A1b, admitted
 under ADR-011) · cpal (audio-output — the optional `backend-cpal`
-feature edge, admitted 2026-11-25 under ADR-005 per its amendment).
+feature edge, admitted 2026-11-25 under ADR-005 per its amendment) ·
+swash (subtitles — the real glyph pipeline behind the `GlyphPipeline`
+seam, admitted 2026-11-27 per the font-stack record's R11 amendment).
 All other rows are transitive-only. `scope = "all"`
 (normal+build edges; the workspace has no registry dev-dependencies —
 `testkit` is a path dev-dep, §4).
@@ -69,6 +71,7 @@ lockfile-complete.
 | schemars | 1.2.3 | >=1.2.3, <2.0.0 | MIT | pure-rust | **pass** — inherited preaudit-foundation (2026-10-12); card 1.D4 re-verified the license from the vendored crate manifest via `cargo metadata` (the crate is MIT-only, not dual-licensed). The doc 05 §5.1 schema-derivation dep for `commands` (catalog codegen). |
 | ureq | 3.5.0 | =3.5.0 (exact pin; any bump re-triggers the record, doc 11 §3.7) | MIT OR Apache-2.0 (record R7, verified 2026-10-30) | pure-rust transport; the tree's TLS crypto core (ring 0.17.14) is the E2 audited-native-crypto exception (ADR-011, the rav1d-asm posture) | **pass** — `records/ureq-3.5.0.md` R1–R10 (validate-then-admit, 2026-10-30); R10's condition — the Lead accepting the recorded ring deviation — **discharged by ADR-011 accepted 2026-11-09**; locked 3.5.0 in both the main and `fuzz/` lockfiles; row added by the w30.4 audit-fix lane (2026-11-15) |
 | cpal | 0.18.2 | =0.18.2 (exact pin; any bump or feature change re-triggers the record, doc 11 §3.7) | Apache-2.0 (record R7, verified 2026-10-21); closure classes — alsa Apache-2.0/MIT, alsa-sys MIT, dasp_sample/libc/bitflags/cfg-if/windows family MIT OR Apache-2.0, all inside the allow set | E2 audited OS-audio-service bindings (ADR-005, audio output's E2 slot) behind a feature gate | **conditional (E2, feature-gated)** — `records/cpal-0.18.2.md` (P0 verification 2026-10-21) + the wave-14 admission spike + the **ADMISSION amendment (2026-11-25, Devil-Fix FX3 per FIX-PLAN §3 F1.1 Route A)**: admitted as `audio-output`'s optional `backend-cpal` feature dep (off by default — null backend stays the default path); Windows CI lane compiles it (FX3-A07); the remediation Linux sandbox cannot build alsa-sys (record R5) and macOS stays per-target pending — the [VERIFY] obligations bound to the admission merge's CI runs are recorded in the record's amendment |
+| swash | 0.2.10 | =0.2.10 (exact pin; any bump or feature change re-triggers the record, doc 11 §3.7) | Apache-2.0 OR MIT (record R7, verified 2026-11-09); closure classes per record R2 — skrifa/read-fonts (MIT OR Apache-2.0), zeno/yazi (Apache-2.0 OR MIT), plus the already-allowlisted bytemuck: five new nodes, all pure Rust, no `-sys`, no build.rs | pure-rust | **pass** — `records/font-stack-0.2.10.md` R1–R10 (survey 2026-11-09; zero OSV advisories per R8) + the **ADMISSION amendment R11 (2026-11-27, Devil-Fix FX9-A02 per FIX-PLAN §5 F3.1)**: admitted as `subtitles`' font stack (default features `std`/`scale`/`render` — no feature pin) behind the `GlyphPipeline` seam the record was written to plug; the record's R10 blocker (a) — no bundled raw-TTF face — closed the same day by committing DejaVu Sans (`crates/subtitles/assets/fonts/DejaVuSans.ttf`, 759,720 bytes, license alongside; provenance in R11); the R2 lockfile-graph regeneration, R8 admission-date OSV re-query and R9 publisher pins stay `[VERIFY on merge]` per the amendment |
 | dyn-clone | 1.0.20 | >=1.0.20, <2.0.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — dtolnay; via schemars (card 1.D4) |
 | equivalent | 1.0.3 | >=1.0.3, <2.0.0 | Apache-2.0 OR MIT | pure-rust | **quick-pass** `[VERIFY]` — indexmap support (indexmap-rs org); via indexmap |
 | hashbrown | 0.17.1 | >=0.17.1, <0.18.0 | MIT OR Apache-2.0 | pure-rust | **quick-pass** `[VERIFY]` — rust-lang org; via indexmap; 0.x ⇒ minor pin |
@@ -117,6 +120,20 @@ and an honest open
 evidence field — the record's `[VERIFY-P1]` set is bound to the
 admission merge's CI runs (cargo-deny + the FX3-A07 Windows lane
 compiling the feature), `[VERIFY on merge]` until green.
+
+The swash row (2026-11-27, Devil-Fix FX9-A02 — the **third active exact
+pin, and the first with no feature gate**: default features, nothing to
+pin beyond the version) differs likewise, per its record's R11 ADMISSION
+amendment: `approver = "Lead"` by that amendment rather than the
+snapshot's merge-decision default; exact `=0.2.10` pin at
+`crates/subtitles/Cargo.toml` (the FX9-A02 assignment's single
+sanctioned manifest row, RULES.md line 12's assignment exception); and
+the same honest open evidence field — the record's R2 lockfile-graph
+regeneration, R8 admission-date OSV re-query and R9 publisher pins are
+bound to the admission merge's CI runs, `[VERIFY on merge]` until green.
+The bundled default face (DejaVu Sans — raw TrueType, license committed
+alongside) is an in-tree asset, not a registry row: its provenance lives
+in the record's R11, not in this table.
 
 Re-audit triggers, all rows (doc 11 §3.7): version change · new transitive
 dep · build.rs/links= change across the bump · license-file change ·

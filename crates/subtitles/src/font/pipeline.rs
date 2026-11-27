@@ -1,8 +1,8 @@
 //! The glyph pipeline seam (issue #17, G-5): span metrics + per-glyph
 //! rasterization behind one trait, so the placeholder implementation
-//! and the audited real-font stack ([PROPOSAL] — see
-//! `docs/dependencies/records/font-stack-0.2.10.md`) are
-//! interchangeable at the render paths.
+//! and the real-font stack (swash 0.2.10, admitted 2026-11-27 — see
+//! `docs/dependencies/records/font-stack-0.2.10.md`, the R11 amendment)
+//! are interchangeable at the render paths.
 //!
 //! * [`GlyphMetrics`] — the per-span geometry (moved here from
 //!   `ass::render`, which re-exports it: same public path, new home
@@ -225,8 +225,9 @@ impl std::error::Error for GlyphMaskError {}
 /// Implementations:
 /// * [`MonospaceCellPipeline`] — the in-crate placeholder (no new
 ///   dependencies; today's geometry, decoration-aware).
-/// * [PROPOSAL] the real stack (`swash` + `skrifa` per the audit
-///   record) — same trait, real outlines, real shaping.
+/// * [`crate::font::SwashPipeline`] — the real stack (swash 0.2.10,
+///   admitted 2026-11-27 per the record's R11 amendment): real
+///   outlines, real face metrics, per-character advances.
 pub trait GlyphPipeline {
     /// Stable pipeline name for ledgers.
     fn name(&self) -> &'static str;
@@ -236,6 +237,16 @@ pub trait GlyphPipeline {
     /// # Errors
     /// [`MetricsError`] on zero/oversized sizes.
     fn metrics(&self, size_px: u32) -> Result<GlyphMetrics, MetricsError>;
+
+    /// Per-character advance at `metrics`, px — how far the caller's
+    /// pen moves after this glyph (A05 sums these for line-width sums
+    /// and line breaking). The default is the span's nominal cell —
+    /// the monospace policy, one cell for every character; a real
+    /// pipeline overrides it with the shaped per-glyph advance (an
+    /// `i` is narrower than a `W`).
+    fn advance(&self, _ch: char, metrics: &GlyphMetrics) -> u32 {
+        metrics.advance_px
+    }
 
     /// Rasterize one character under `deco` — total, never panics.
     fn rasterize(&self, ch: char, metrics: &GlyphMetrics, deco: &GlyphDecorations) -> GlyphMask;
