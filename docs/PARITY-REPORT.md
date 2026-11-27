@@ -1,10 +1,25 @@
 # PARITY-REPORT — the finalized honest parity statement (issue #57, cards 8.F1–8.F2)
 
+> **Role — demoted 2026-11-26 (Devil-Fix wave FX8, agent FX8-A10; FIX-PLAN
+> §1 Principle 1 + §8.4).** This file owns the **billing record** only:
+> the CI billing history and the six live run IDs with their real outcomes
+> (§5) — billing truth. It **no longer owns status**: this file was one of
+> the audit's nine hand-edited status layers (DEVIL-AUDIT-REPORT §5 #1)
+> and its counts drifted stale against the very matrix they described
+> (CONTRADICTIONS C-020). Every status/capability number that used to live
+> here is a pointer to the two single sources: the ledger
+> **`docs/feature-matrix.toml`** (252 rows — swept to rg-verified code truth
+> 2026-11-26, FX8-A03) and the generated status truth
+> **`docs/generated/status-truth.toml`** (regen:
+> `python3 scripts/quality/status_truth.py > docs/generated/status-truth.toml`;
+> drift gate: `bash scripts/quality/status_truth_check.sh` — the ci.yml
+> `status-truth` lane, FX8-A01/A02).
+
 | Field | Value |
 |---|---|
 | Purpose | The Phase 8 parity statement (MP §16): exactly what is verified, partial, unsupported and blocked — with evidence links, per MP §17 and doc 10 §7 |
 | Card / issue | 8.F1 + 8.F2 / GitHub issue #57 (finalization lane `7.w22h`) |
-| Computed | 2026-11-10 from `docs/feature-matrix.toml` at this commit, by the tools in §2 (their ACTUAL run outputs are quoted verbatim) |
+| Computed | 2026-11-10 from `docs/feature-matrix.toml` at this commit, by the tools in §2 (the run receipts are retained in §3; the status snapshots those runs printed are demoted to pointers — see the Role note; numbers are recomputed at read time, never stored) |
 | Source of truth | `docs/feature-matrix.toml` — "THE parity ledger" (MP §1); schema frozen 2026-10-19 (doc 02 §4.7); 252 rows / 21 categories, populated by task 0.D2 from the completed VLC 3.0.23 inventories (`docs/inventory/matrix-seed-notes.md`) |
 | Baseline | VLC 3.0.23 Vetinari (3.0.23-2-0-g79128878dd) |
 
@@ -52,23 +67,23 @@ needs a formats.json↔row reconciliation spec; R10 anti-hallucination
 beyond path existence; and `not_started → verified` **git-history** jump
 rejection needs a `--from` revision argument (v0 audits the working tree).
 
-## 3. The 252-row audit status — ACTUAL run, 2026-11-10, this commit
+## 3. The 252-row audit status — demoted to pointer (2026-11-26, FX8-A10)
 
-```
-$ cargo xtask feature-audit
-=== LUMEN FEATURE-AUDIT REPORT ===
-matrix: docs/feature-matrix.toml
-rows: 252
-per-phase rows: 2=10 3=5 4=93 5=49 6=18 7=25 8=52
-per-category rows: audio-codec=19 audio-feature=11 config-feature=20 container=21
-  extension=1 hotkey=17 menu-item=16 network-feature=7 platform-feature=18
-  playback-op=13 playlist-feature=9 playlist-format=7 plugin-feature=4
-  protocol-access=11 services-discovery=6 subtitle-format=17 text-render=3
-  ui-dialog=15 ui-screen=11 video-codec=16 video-feature=10
-per-platform-status cells: blocked=133 implemented=192 not_started=505
-  partial=142 unsupported=36
-result: PASS
-```
+The 2026-11-10 run this section recorded printed the then-current
+per-phase/per-category/per-status counts as a verbatim block — a
+hand-copied status snapshot, and exactly the drift class the audit
+registered against this file (CONTRADICTIONS C-020: "PARITY-REPORT's own
+counts are stale vs the live matrix it describes"). Per Principle 1 the
+counts no longer live here. **The live audit status is the validating
+tool's own run against the live single sources, never this doc:**
+
+- the ledger: `docs/feature-matrix.toml` (252 rows; FX8-A03's same-wave
+  sweep re-stated 37 of them to rg-verified code truth, 2026-11-26);
+- the generated status truth: `docs/generated/status-truth.toml`
+  (decoder families / host verbs / catalog commands, parsed from source —
+  regen + gate commands in its header);
+- the tool: `cargo xtask feature-audit` (§2) — re-run it; its output is
+  the audit status, at read time.
 
 The audit passed only after this card fixed two stale evidence-path
 spellings (commit `c9a89c6`: `tests/https_activation.rs` →
@@ -79,49 +94,42 @@ had been written crate-relative and failed root-relative R4 resolution;
 cross-check (Phase 0) is separately recorded in
 `docs/gates/phase0-exit-report.md` row 3.
 
-## 4. Derived parity table — ACTUAL run, 2026-11-10, this commit
+## 4. Derived parity table — demoted to pointer (2026-11-26, FX8-A10)
 
-Implementation share (`implemented` + `verified`), per platform column:
+The 2026-11-10 table this section used to carry (21 categories × 4
+platforms, the `parity: rows=252 …` machine line, the verified-only
+0/252 line) was a hand-stored copy of numbers the ledger already owns —
+registered stale by the audit (CONTRADICTIONS C-020) and demoted per
+Principle 1. Parity numbers are **computed at read time, never stored**
+(the matrix header rule, doc 02 §4.7):
 
-| Category | Rows | windows | linux | macos | web |
-|---|---|---|---|---|---|
-| audio-codec | 19 | 9/19 (47.4%) | 9/19 (47.4%) | 9/19 (47.4%) | 0/19 (0.0%) |
-| audio-feature | 11 | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
-| config-feature | 20 | 11/20 (55.0%) | 11/20 (55.0%) | 11/20 (55.0%) | 0/20 (0.0%) |
-| container | 21 | 14/21 (66.7%) | 14/21 (66.7%) | 14/21 (66.7%) | 0/21 (0.0%) |
-| extension | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) |
-| hotkey | 17 | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) | 0/17 (0.0%) |
-| menu-item | 16 | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) | 0/16 (0.0%) |
-| network-feature | 7 | 1/7 (14.3%) | 1/7 (14.3%) | 1/7 (14.3%) | 0/7 (0.0%) |
-| platform-feature | 18 | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) | 0/18 (0.0%) |
-| playback-op | 13 | 4/13 (30.8%) | 4/13 (30.8%) | 4/13 (30.8%) | 0/13 (0.0%) |
-| playlist-feature | 9 | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) | 0/9 (0.0%) |
-| playlist-format | 7 | 3/7 (42.9%) | 3/7 (42.9%) | 3/7 (42.9%) | 0/7 (0.0%) |
-| plugin-feature | 4 | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) | 0/4 (0.0%) |
-| protocol-access | 11 | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) | 0/11 (0.0%) |
-| services-discovery | 6 | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) | 0/6 (0.0%) |
-| subtitle-format | 17 | 6/17 (35.3%) | 6/17 (35.3%) | 6/17 (35.3%) | 0/17 (0.0%) |
-| text-render | 3 | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) | 0/3 (0.0%) |
-| ui-dialog | 15 | 4/15 (26.7%) | 4/15 (26.7%) | 4/15 (26.7%) | 0/15 (0.0%) |
-| ui-screen | 11 | 9/11 (81.8%) | 9/11 (81.8%) | 9/11 (81.8%) | 0/11 (0.0%) |
-| video-codec | 16 | 3/16 (18.8%) | 3/16 (18.8%) | 3/16 (18.8%) | 0/16 (0.0%) |
-| video-feature | 10 | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) | 0/10 (0.0%) |
-| **TOTAL** | 252 | 64/252 (25.4%) | 64/252 (25.4%) | 64/252 (25.4%) | 0/252 (0.0%) |
+```
+cargo xtask parity-report        # the derived per-category/per-platform table
+cargo xtask feature-audit        # the structural + evidence validation
+```
 
-Machine line: `parity: rows=252 windows=64/252 linux=64/252 macos=64/252
-web=0/252`.
+The two single sources the numbers derive from: the ledger
+`docs/feature-matrix.toml` (FX8-A03's 2026-11-26 sweep) and the generated
+status truth `docs/generated/status-truth.toml` (FX8-A01; drift gate
+`bash scripts/quality/status_truth_check.sh` — the ci.yml `status-truth`
+lane, FX8-A02).
 
-Verified-only (MP §1 strict definition — automated evidence): **0/252
-(0.0%) on every platform, every category.**
+## 5. The honest parity statement — numbers demoted, billing retained (2026-11-26, FX8-A10)
 
-## 5. The honest parity statement
-
-> **Lumen's verified parity is 0/252, honestly.** 64 of 252 inventory
-> features (25.4%) are `implemented` on each desktop platform (windows,
-> linux, macos identically — the code is platform-shared and untested on
-> real per-OS hardware) and 0 on web; **not one row claims `verified`**
-> (audit-confirmed: 0 `= "verified"` cells in the whole matrix — W19-A10
-> ledger, claim #1). CI billing was unblocked 2026-11-12 and the
+> **Parity numbers no longer live in this file** (Principle 1 — one
+> status layer, generated from the code; the audit registered this
+> file's own counts stale against the live matrix it described —
+> CONTRADICTIONS C-020). Verified-parity and implementation-share
+> numbers are computed at read time from the two single sources — the
+> ledger `docs/feature-matrix.toml` (252 rows; FX8-A03's 2026-11-26
+> rg-verified sweep) and the generated status truth
+> `docs/generated/status-truth.toml` (FX8-A01) — by the §2 tools
+> (`cargo xtask parity-report` / `cargo xtask feature-audit`); the
+> matrix-header rule stands: parity percentages are computed, never
+> stored (doc 02 §4.7).
+>
+> **What this file still owns — billing truth:** CI billing was
+> unblocked 2026-11-12 and the
 > workflows HAVE executed (v0.1.0–v0.1.2) — the six
 > in-tree live run IDs and their real outcomes, per
 > `audit/final/CONTRADICTIONS.md` C-005 (the pre-unblock CI-blockade
@@ -147,27 +155,24 @@ Verified-only (MP §1 strict definition — automated evidence): **0/252
 >   divergence, fixed by the w28.1 hotfix with self-test pins +
 >   `scripts/twin_parity.py` (`worklog.md:2065`).
 >
-> Landed row evidence remains **local-run, `hardware_class = mock`**
-> per doc 10 §7.1 — green local gates with pinned provenance
-> (workspace tests, the first-vertical recovery matrix, schema/codegen
-> drift checks, cargo-deny, e2e/visual lanes) — with no
-> reference-hardware artifacts; the runs above are CI-lane and
-> release-pipeline executions, and the matrix still counts 0 `verified`
-> cells after them (W19-A10). Under MP §1's binding definition the
-> only truthful verified-parity number is **zero — because zero rows
-> claim `verified`**, not because CI is blocked.
+> The runs above are CI-lane and release-pipeline executions; whether
+> any row's evidence class (`hardware_class` per doc 10 §7.1) or its
+> `verified` state moved after them is the ledger's business
+> (`docs/feature-matrix.toml` per-row `evidence`; the rules: R4,
+> doc 10 §7.1) — never recounted here.
 
-What this statement does and does not claim:
+What this statement does and does not claim (post-demotion):
 
-- It does **not** mean nothing works: the 64 implemented rows carry
-  committed evidence (tests, records, ADRs) that `feature-audit` resolves
-  file-by-file (§3).
-- It does **not** hide gaps: 133 platform cells are `blocked` (with
-  `blocked_reason` citing an ADR/feasibility §/risk row — e.g. h264/hevc
-  software decode, patent-gated codecs), 142 `partial` (with `notes`),
-  36 `unsupported` (by design), 505 `not_started`.
-- The `web` column is honestly 0: the wasm target is Phase 7 work
-  (`worklog.md` 7.w9w-w11w; `docs/09-web-wasm-target.md`).
+- It does **not** mean nothing works — and it no longer counts what
+  does: the implemented/partial/blocked/unsupported truth is the
+  ledger's (`docs/feature-matrix.toml`, per-row `evidence` that
+  `feature-audit` resolves file-by-file, `blocked_reason` citing an
+  ADR/feasibility §/risk row where required — R5).
+- It does **not** hide gaps: every `blocked`/`partial` cell and its
+  reason is in the ledger; the consolidated limits register is
+  `docs/KNOWN-LIMITS.md`.
+- The `web` column's state is the ledger's (the wasm target is Phase 7
+  work — `worklog.md` 7.w9w-w11w; `docs/09-web-wasm-target.md`).
 - Per-cell status changes require new evidence (R4) and are audited in git
   history; `not_started → verified` jumps are rejected by the audit design
   (doc 02 §4.3 anti-fabrication).

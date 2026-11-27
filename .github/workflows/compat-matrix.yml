@@ -9,6 +9,21 @@
 # OS, so the Windows/macOS blocked-by-external cells can be replaced
 # with REAL runs once the blockers lift.
 #
+# STATUS-ROLE DEMOTION (2026-11-26, Devil-Fix wave FX8, agent FX8-A10;
+# FIX-PLAN §1 P1 + §4 F2.1 + §8.4): this job is EVIDENCE INPUT ONLY.
+# The 2026-11-10 dispatch's downgrades drifted the matrix they touched
+# (CONTRADICTIONS C-010 — six evidence-driven transitions applied, the
+# matrix kept drifting), which made this workflow one of the audit's
+# nine hand-status layers (DEVIL-AUDIT-REPORT §5 #1). The status truth
+# lives in exactly two places, never this job: the generated layer
+# docs/generated/status-truth.toml (scripts/quality/status_truth.py,
+# FX8-A01; drift gate scripts/quality/status_truth_check.sh — the
+# ci.yml status-truth lane, FX8-A02) and the 252-row ledger
+# docs/feature-matrix.toml (FX8-A03's 2026-11-26 sweep). This job
+# produces runs + transition proposals (the outbox); every status-shaped
+# line its output prints references those two (see the derive step's
+# echo) — no run log mints a status layer of its own.
+#
 # PARKED-BY-DESIGN POSTURE (same honesty as ci-full.yml, doc 10 §4.2):
 #   * Trigger is MANUAL DISPATCH ONLY. The two external blockers
 #     (docs/plans/phase8-cards.md §1, rows 3–4: 3-OS runner machines +
@@ -41,9 +56,11 @@
 #     inferred). A present-but-mismatched oracle stays a hard refusal.
 #   * This job NEVER edits docs/feature-matrix.toml. Its transitions
 #     outbox lands in the uploaded artifact; proposals flow through
-#     `cargo xtask compat-matrix apply-transitions` (the parity tool,
-#     the ONLY status writer) which re-checks every from-status — CI
-#     proposes, the tool disposes.
+#     `cargo xtask compat-matrix apply-transitions` (the parity tool —
+#     the ledger's only transition writer; the status layer's only
+#     writer is the generator, per the STATUS-ROLE DEMOTION note above)
+#     which re-checks every from-status — CI proposes, the tool
+#     disposes.
 #   * Reports go to the ephemeral ci-out/ artifact dir — the committed
 #     docs/corpus evidence files are never touched by a CI run.
 #
@@ -150,6 +167,11 @@ jobs:
           command -v python3 >/dev/null 2>&1 || PY=python
           "$PY" tests/compat/ci/derive_config.py "${{ matrix.platform }}" \
             ci-out/compat-matrix-ci.json ci-out
+          # The single status source for anything this job's logs and
+          # artifacts touch (FX8-A10 demotion — evidence input only;
+          # never a second status layer in this job's output):
+          echo "status truth (generated): docs/generated/status-truth.toml (regen: python3 scripts/quality/status_truth.py > docs/generated/status-truth.toml; gate: bash scripts/quality/status_truth_check.sh)"
+          echo "parity ledger: docs/feature-matrix.toml (claims above refreshed from it; this job never edits it)"
       - name: compat-matrix run (full corpus through the real open/decode path)
         run: cargo run --manifest-path tests/compat/Cargo.toml --locked -- run --config ci-out/compat-matrix-ci.json
       - name: Upload the CI matrix reports + transitions outbox (evidence-<job>-<os>-<run_id>; a failed run uploads for triage too)

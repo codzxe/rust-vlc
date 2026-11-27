@@ -1,24 +1,31 @@
 # apps/desktop-tauri — ADR-004 admission close package (issue #67)
 
 > **Status: ADMITTED (code half) — 2026-11-13; compile claim
-> corrected 2026-11-25 (FX1-A01 / FIX-PLAN F0.1).** The wrapper exists,
-> the anti-bypass audit exists, and the E0425 that broke this crate's
-> build on EVERY host is gone after FX1-A01: app.rs:301 called a ticker
-> name that is defined nowhere in the repository — a one-token typo for
-> the real ticker `spawn_event_pump` (app.rs:190; the Devil audit's
-> S0, four independent confirmations) — and the call site now names
-> the defined function — the crate compiles on webview-equipped hosts
-> per its dedicated CI lane (`tauri-check` in ci.yml, Linux + webkit2gtk,
-> which now runs an explicit `cargo build --manifest-path
-> apps/desktop-tauri/Cargo.toml` — lib + the real `lumen-tauri` bin —
-> ahead of `cargo test --all-targets`). Honesty note: this sandbox
-> cannot compile the crate (no webkit2gtk/gdk-sys — the baseline dies
-> at gdk-sys before these sources are type-checked), so local proof is
-> rg-level only (the never-defined name → 0 hits anywhere under
+> corrected 2026-11-25 (FX1-A01 / FIX-PLAN F0.1); compile-status role
+> demoted 2026-11-26 (FX8-A10 / FIX-PLAN §1 Principle 1 + §8.4 — this
+> file owns the infra record with its dates, never a status layer).**
+> The wrapper exists, the anti-bypass audit exists, and the E0425 that
+> broke this crate's build on EVERY host is gone after FX1-A01:
+> app.rs:301 called a ticker name that is defined nowhere in the
+> repository — a one-token typo for the real ticker `spawn_event_pump`
+> (app.rs:190; the Devil audit's S0, four independent confirmations) —
+> and the call site now names the defined function. **The compile
+> status is pointed at, not claimed: the compiles oracle is CI — the
+> `tauri-check` lane in ci.yml (Linux + webkit2gtk; explicit
+> `cargo build --manifest-path apps/desktop-tauri/Cargo.toml`, lib +
+> the real `lumen-tauri` bin, ahead of `cargo test --all-targets`;
+> FX1-A01) and the `tauri-launch.yml` launch half — and the
+> capability/status truth is the ledger `docs/feature-matrix.toml` +
+> the generated `docs/generated/status-truth.toml` (drift gate:
+> `bash scripts/quality/status_truth_check.sh`).** Honesty note: this
+> sandbox cannot compile the crate (no webkit2gtk/gdk-sys — the baseline
+> dies at gdk-sys before these sources are type-checked), so local proof
+> is rg-level only (the never-defined name → 0 hits anywhere under
 > apps/desktop-tauri/; `fn spawn_event_pump` → the one definition); the
-> 2026-11-13 "the crate compiles" sentence was FALSE against that tree, and no green
-> tauri-check run of the fixed tree exists yet — the lane is the
-> authority that proves the compile, not this file. The 3-OS bundling
+> 2026-11-13 "the crate compiles" sentence was FALSE against that tree,
+> and the green-run state of the fixed tree is the lane's own record,
+> never this file's claim — the lane is the authority that proves the
+> compile, not this file. The 3-OS bundling
 > + launch verdicts are the remaining half. This file supersedes the
 > 4.H1 INFRA-BLOCKED handoff (same document, rewritten; the 4.H1 text
 > lives in git history at the move commit).
@@ -28,10 +35,11 @@
 > launch smokes ride the release lane; deep verdicts still manual), the
 > crash face + the playback pacer landed, and the WebView2 posture has
 > a visible-dialog/crash-log half — see the §B notes. **FX1-A01
-> correction (2026-11-25):** §B.1's DONE was false while the E0425
-> stood — the release lane builds this crate and could not pass; it
-> becomes true again only on a green release-lane run of the fixed
-> tree, and none exists yet.
+> correction (2026-11-25; pointer-ized 2026-11-26, FX8-A10):** §B.1's
+> DONE was false while the E0425 stood — the release lane builds
+> this crate and could not pass; it becomes true again only on a green
+> release-lane run of the fixed tree, and that green-run state is the
+> release lane's own record — never this file's claim.
 
 ## A. DONE at admission (2026-11-13, issue #67)
 
