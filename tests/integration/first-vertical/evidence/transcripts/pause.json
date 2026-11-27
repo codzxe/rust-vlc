@@ -88,17 +88,10 @@
       "session": 1,
       "gen": 0,
       "kind": "session.buffering",
-      "progress": "0.00"
-    },
-    {
-      "seq": 9,
-      "session": 1,
-      "gen": 0,
-      "kind": "session.buffering",
       "progress": "1.00"
     },
     {
-      "seq": 10,
+      "seq": 9,
       "session": 1,
       "gen": 0,
       "kind": "session.state-changed",
@@ -106,39 +99,23 @@
       "to": "Playing"
     },
     {
+      "seq": 10,
+      "session": 1,
+      "gen": 0,
+      "kind": "timing.time-tick",
+      "time_us": 766667,
+      "position": "0.383"
+    },
+    {
       "seq": 11,
       "session": 1,
       "gen": 0,
-      "kind": "playback.end-of-track",
-      "track_kind": "video",
-      "track_id": 0
+      "kind": "timing.time-tick",
+      "time_us": 1300000,
+      "position": "0.650"
     },
     {
       "seq": 12,
-      "session": 1,
-      "gen": 0,
-      "kind": "timing.time-tick",
-      "time_us": 533334,
-      "position": "0.267"
-    },
-    {
-      "seq": 13,
-      "session": 1,
-      "gen": 0,
-      "kind": "timing.time-tick",
-      "time_us": 800000,
-      "position": "0.400"
-    },
-    {
-      "seq": 14,
-      "session": 1,
-      "gen": 0,
-      "kind": "timing.time-tick",
-      "time_us": 1033334,
-      "position": "0.517"
-    },
-    {
-      "seq": 15,
       "session": 1,
       "gen": 0,
       "kind": "session.state-changed",
@@ -148,27 +125,27 @@
   ],
   "observables": {
     "final_state": "Paused",
-    "position_us": 1033333,
+    "position_us": 1300000,
     "session": 1,
     "accounting": {
-      "frames_accepted": 120,
+      "frames_accepted": 86,
       "frames_refused": 0,
-      "video_presented": 16,
+      "video_presented": 39,
       "video_refused": 0,
       "scheduler_pushed": 47,
-      "scheduler_presented": 32,
-      "scheduler_repeats": 48,
+      "scheduler_presented": 39,
+      "scheduler_repeats": 0,
       "scheduler_dropped_late": 0,
       "scheduler_dropped_stale": 0,
       "queue_flushed": 0,
       "queue_published": 0,
-      "staging_frames": 16,
-      "staging_bytes": 4915200,
-      "staging_copies": 16
+      "staging_frames": 39,
+      "staging_bytes": 11980800,
+      "staging_copies": 39
     },
     "final_png": {
       "bytes": 307541,
-      "sha256": "698af4ee249d8b31925ad958ba49ca4dcf1a530aa949c6aab30a8ed93cb553db",
+      "sha256": "8dece1394cff2ded3f4558a8fafcefb989722e28f22787b699cfb07948ebfcd6",
       "width": 320,
       "height": 240
     }

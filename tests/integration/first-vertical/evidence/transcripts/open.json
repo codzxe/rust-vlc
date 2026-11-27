@@ -170,17 +170,10 @@
       "session": 1,
       "gen": 0,
       "kind": "session.buffering",
-      "progress": "0.00"
-    },
-    {
-      "seq": 9,
-      "session": 1,
-      "gen": 0,
-      "kind": "session.buffering",
       "progress": "1.00"
     },
     {
-      "seq": 10,
+      "seq": 9,
       "session": 1,
       "gen": 0,
       "kind": "session.state-changed",
@@ -193,11 +186,11 @@
     "position_us": 0,
     "session": 1,
     "accounting": {
-      "frames_accepted": 94,
+      "frames_accepted": 30,
       "frames_refused": 0,
       "video_presented": 0,
       "video_refused": 0,
-      "scheduler_pushed": 16,
+      "scheduler_pushed": 15,
       "scheduler_presented": 0,
       "scheduler_repeats": 0,
       "scheduler_dropped_late": 0,
